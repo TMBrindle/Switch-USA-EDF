@@ -51,3 +51,22 @@ __pycache__/
 # macOS metadata (can make repository impossible to clone on Windows
 Icon?
 .DS_Store
+
+# large data files in root
+f8612024.zip
+# databases
+pg/PowerGenome.db
+# backup and temp files
+*.bak
+scenario_management_mine.yml
+switch_usa_pg_changes.patch
+# old versions
+growth_rates/zone_growth_caelp_old.csv
+# output/comparison files
+comparison_s4x5_vs_s20x1_2035.csv
+
+# local run scripts
+*.bat
+
+# large data files
+pg/extra_inputs/load_adjustments_caelp.csv

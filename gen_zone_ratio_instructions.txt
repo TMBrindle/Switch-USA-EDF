@@ -1,0 +1,227 @@
+================================================================================
+GEN/LOAD RATIO CONSTRAINTS — HOW-TO GUIDE
+================================================================================
+
+Overview
+--------
+The gen_zone_ratio Switch module enforces optional bounds on in-zone generation
+as a fraction of in-zone load. Constraints can be set at two levels:
+
+  Zone-level  — individual model zones (e.g. p86, MISO)
+  Group-level — sum of gen and load across a named group of BA zones
+                (e.g. all Louisiana BAs combined)
+
+All constraints are optional: missing files, missing rows, and blank cells are
+all treated as "no constraint".
+
+Files involved
+--------------
+  make_zone_ratios.py                 script to compute historical reference data
+  gen_zone_load_ratio.csv             zone-level reference + constraint columns
+  gen_zone_groups.csv                 maps group names to constituent BA zones
+  gen_group_load_ratio.csv            group-level reference + constraint columns
+  switch/study_modules/gen_zone_ratio.py   Switch module (reads the above files)
+
+All three CSV files are placed in the scenario inputs directory:
+  switch/in/foresight/<scenario_name>/
+
+
+================================================================================
+PART 1 — ZONE-LEVEL CONSTRAINTS (individual model zones)
+================================================================================
+
+Step 1: Generate the BA-level reference file
+---------------------------------------------
+Run from the project root:
+
+  python make_zone_ratios.py
+
+This writes gen_zone_load_ratio.csv to the project root with 134 BA rows.
+Columns:
+  LOAD_ZONE                    p-zone name (e.g. p86)
+  PERIOD                       blank — fill in before use
+  historical_gen_twh           mean annual generation 2020-2023 (TWh)
+  historical_load_twh          mean annual load 2020-2023 (TWh)
+  historical_annual_ratio      mean annual gen/load ratio
+  historical_min_annual_ratio  minimum ratio across 2020-2023
+  historical_max_annual_ratio  maximum ratio across 2020-2023
+  historical_peak_load_mw      mean annual peak load (MW)
+  min_annual_ratio             CONSTRAINT — blank or fill in
+  max_annual_ratio             CONSTRAINT — blank or fill in
+  min_peak_share               CONSTRAINT — blank or fill in
+  max_peak_share               CONSTRAINT — blank or fill in
+
+Step 2: Prepare the scenario input file
+----------------------------------------
+Copy gen_zone_load_ratio.csv to the scenario inputs directory.
+Keep only the zones you want to constrain (delete all other rows).
+Fill in the PERIOD column and the constraint columns.
+
+  cp gen_zone_load_ratio.csv switch/in/foresight/<scenario>/gen_zone_load_ratio.csv
+
+Example (constrain p86 annual ratio for all periods):
+
+  LOAD_ZONE,PERIOD,historical_annual_ratio,...,min_annual_ratio,max_annual_ratio
+  p86,2028,0.289,...,0.225,0.334
+  p86,2030,0.289,...,0.225,0.334
+  p86,2035,0.289,...,0.225,0.334
+
+Auto-populating constraint columns
+------------------------------------
+Use --min-annual-ratio / --max-annual-ratio flags with a SPEC formula:
+
+  SPEC formats:
+    0.8           fixed value for all zones
+    mean          use historical_annual_ratio directly
+    min           use historical_min_annual_ratio directly
+    max           use historical_max_annual_ratio directly
+    mean*0.9      90% of historical mean
+    min*1.0       100% of historical minimum
+    max*1.05      105% of historical maximum
+    mean-0.05     historical mean minus 0.05
+    min+0.1       historical minimum plus 0.1
+
+  Example — set min_annual_ratio = 95% of each zone's historical minimum:
+
+    python make_zone_ratios.py --min-annual-ratio "min*0.95"
+
+
+================================================================================
+PART 2 — GROUP-LEVEL CONSTRAINTS (e.g. all Louisiana BAs combined)
+================================================================================
+
+Use this when the model has individual BA zones but you want to constrain the
+sum across multiple BAs (e.g. a whole state or subregion).
+
+Example scenario: s4x5_caelp_entergy_gulf
+  Model zones at BA detail: p58, p86 (LA), p87, p88 (MS), p89, p90 (AL)
+  Model periods:            2028, 2030, 2035
+
+Step 1: Generate state-level reference data and zone groups file
+-----------------------------------------------------------------
+Run from the project root:
+
+  python make_zone_ratios.py --agg-by st
+
+This writes two files to the project root:
+  gen_zone_load_ratio.csv   — 48 state-level rows (LA, MS, AL, TX, ...)
+  gen_zone_groups.csv       — maps each state → its constituent BA zones
+
+NOTE: --agg-by st OVERWRITES gen_zone_load_ratio.csv with state-level data.
+To restore the BA-level file, run without --agg-by:
+  python make_zone_ratios.py
+
+Other valid --agg-by values (must be a column name in hierarchy.csv):
+  st          48 US states
+  transreg    transmission regions (MISO, SERTP, CAISO, ...)
+  nercr       NERC regions
+  transgrp    transmission sub-groups
+
+Step 2: Copy gen_zone_groups.csv to the scenario inputs directory
+-----------------------------------------------------------------
+Keep only the group names whose member BAs actually exist in the model.
+Extra rows are harmless but trimming is cleaner.
+
+  For s4x5_caelp_entergy_gulf, keep LA, MS, AL:
+
+  GROUP_NAME,LOAD_ZONE
+  AL,p89
+  AL,p90
+  LA,p58
+  LA,p86
+  MS,p87
+  MS,p88
+
+  Save as: switch/in/foresight/s4x5_caelp_entergy_gulf/gen_zone_groups.csv
+
+Step 3: Create gen_group_load_ratio.csv for the scenario
+---------------------------------------------------------
+One row per group per model period. Start from the reference data in
+gen_zone_load_ratio.csv (state-level) and fill in constraint columns.
+
+Columns:
+  GROUP_NAME                   group name matching gen_zone_groups.csv
+  PERIOD                       model period (e.g. 2028)
+  historical_gen_twh           (reference only — not used by model)
+  historical_load_twh          (reference only)
+  historical_annual_ratio      (reference only)
+  historical_min_annual_ratio  (reference only)
+  historical_max_annual_ratio  (reference only)
+  historical_peak_load_mw      (reference only)
+  min_annual_ratio             CONSTRAINT — blank to skip
+  max_annual_ratio             CONSTRAINT — blank to skip
+  min_peak_share               CONSTRAINT — blank to skip
+  max_peak_share               CONSTRAINT — blank to skip
+
+Historical reference for Gulf Coast states (2020-2023):
+  LA:  mean=0.565  min=0.542  max=0.583
+  MS:  mean=1.127  min=1.079  max=1.200
+  AL:  mean=0.918  min=0.884  max=0.975
+
+Example — constrain LA to stay within its historical range for all periods:
+
+  GROUP_NAME,PERIOD,...,min_annual_ratio,max_annual_ratio
+  LA,2028,...,0.542,0.583
+  LA,2030,...,0.542,0.583
+  LA,2035,...,0.542,0.583
+
+To constrain only some periods or only min/max, leave the other cells blank.
+Rows with no constraint values set can be deleted entirely.
+
+  Save as: switch/in/foresight/s4x5_caelp_entergy_gulf/gen_group_load_ratio.csv
+
+Step 4: Files in place — run the model as normal
+-------------------------------------------------
+The Switch module reads all three files automatically on solve.
+
+After solving, check the output file:
+  outputs/gen_zone_ratio_summary.csv
+
+This contains one row per zone/group per period with:
+  TYPE                           'zone' or 'group'
+  LOAD_ZONE                      zone or group name
+  actual_annual_gen_twh          solved generation
+  actual_annual_load_twh         solved load
+  actual_annual_ratio            solved ratio
+  min_annual_ratio               applied constraint (blank if not set)
+  max_annual_ratio               applied constraint (blank if not set)
+  actual_min_hourly_gen_share    minimum hourly gen/load share
+  actual_max_hourly_gen_share    maximum hourly gen/load share
+  min_peak_share                 applied constraint (blank if not set)
+  max_peak_share                 applied constraint (blank if not set)
+
+
+================================================================================
+PART 3 — COMBINING ZONE AND GROUP CONSTRAINTS
+================================================================================
+
+You can use both gen_zone_load_ratio.csv and gen_group_load_ratio.csv in the
+same scenario. Example use case for s4x5_caelp_entergy_gulf:
+
+  gen_zone_load_ratio.csv      — individual BA constraints (e.g. floor on p86)
+  gen_zone_groups.csv          — defines LA, MS, AL groups
+  gen_group_load_ratio.csv     — state-level floor/ceiling constraints
+
+Both sets of constraints apply simultaneously. If both a zone constraint and a
+group constraint are active and one is tighter, the tighter one binds.
+
+
+================================================================================
+APPENDIX — make_zone_ratios.py full option reference
+================================================================================
+
+  python make_zone_ratios.py [options]
+
+  --agg-by COLUMN       Aggregate BAs to a higher level (hierarchy.csv column).
+                        Also writes gen_zone_groups.csv alongside the output.
+  --include-ba          When using --agg-by, also include BA-level rows in the
+                        output (useful to compare BA vs aggregate in one file).
+  --min-annual-ratio S  Auto-fill min_annual_ratio column with formula S.
+  --max-annual-ratio S  Auto-fill max_annual_ratio column with formula S.
+  --min-peak-share S    Auto-fill min_peak_share column with formula S.
+  --max-peak-share S    Auto-fill max_peak_share column with formula S.
+  --output FILE         Output path (default: gen_zone_load_ratio.csv).
+  --groups-output FILE  Groups output path (default: gen_zone_groups.csv in
+                        same directory as --output).
+
+  Run python make_zone_ratios.py --help for full help text.
