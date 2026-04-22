@@ -49,6 +49,7 @@ from powergenome.eia_opendata import add_user_fuel_prices
 from powergenome.external_data import (
     make_generator_variability,
     load_demand_segments,
+    make_demand_response_profiles,
 )
 from powergenome.GenX import (
     add_misc_gen_values,
@@ -128,6 +129,287 @@ def clean_to_csv(self, *args, float_format="%.15g", **kwargs):
 
 pd_to_csv = pd.DataFrame.to_csv
 pd.DataFrame.to_csv = clean_to_csv
+def _patch_aggregate_zone_settings(settings, zone_map):
+    """
+    After regional aggregation, PowerGenome settings dicts that reference original
+    zone names (p1, p2, ...) by name will fail to look up aggregate zone names.
+    This function patches settings in-place to add entries for each aggregate zone,
+    handling two patterns:
+
+    Pattern A — zone names as KEYS: {p1: value, p2: value, ...}
+        → add {agg_zone: mean(values of constituent zones)}
+
+    Pattern B — zone names as VALUES in lists: {region: [p1, p2, ...], ...}
+        → add agg_zone to the list of its most common constituent region
+    """
+    base_regions = set(zone_map.keys())
+
+    def _is_zone_keyed(d):
+        """Dict has zone names as keys."""
+        return bool(base_regions.intersection(d.keys()))
+
+    def _is_zone_valued(d):
+        """Dict has lists-of-zones as values (Pattern B)."""
+        return any(
+            isinstance(v, list) and any(isinstance(z, str) and z in base_regions for z in v)
+            for v in d.values()
+        )
+
+    def _patch_zone_keyed(d):
+        """Pattern A: add aggregate zone → mean(constituent values), remove originals."""
+        groups = {}
+        for ba, agg_zone in zone_map.items():
+            if ba in d:
+                groups.setdefault(agg_zone, []).append(d[ba])
+        for agg_zone, values in groups.items():
+            if agg_zone not in d:
+                numeric = [v for v in values if isinstance(v, (int, float)) and v == v]
+                if numeric:
+                    d[agg_zone] = sum(numeric) / len(numeric)
+                elif all(isinstance(v, dict) for v in values):
+                    # Deep-merge all zone dicts (e.g. regional_tag_values entries)
+                    merged = {}
+                    for v in values:
+                        for k, vv in v.items():
+                            if k not in merged:
+                                merged[k] = vv
+                            elif isinstance(vv, dict) and isinstance(merged[k], dict):
+                                merged[k] = {**merged[k], **vv}
+                    d[agg_zone] = merged
+                else:
+                    d[agg_zone] = values[0]
+        # Remove original zone entries subsumed into aggregate zones
+        for ba, agg_zone in zone_map.items():
+            if agg_zone != ba and ba in d:
+                del d[ba]
+
+    def _patch_zone_valued(d):
+        """Pattern B: add agg_zone to its most-common constituent region's list, remove originals."""
+        rev = {z: k for k, v in d.items() if isinstance(v, list) for z in v if isinstance(z, str) and z in base_regions}
+        groups = {}
+        for ba, agg_zone in zone_map.items():
+            if ba in rev:
+                groups.setdefault(agg_zone, []).append(rev[ba])
+        for agg_zone, regions in groups.items():
+            already = any(agg_zone in v for v in d.values() if isinstance(v, list))
+            if not already:
+                most_common = max(set(regions), key=regions.count)
+                d[most_common].append(agg_zone)
+        # Remove original zone entries from all lists
+        for v in d.values():
+            if isinstance(v, list):
+                for z in [z for z in v if isinstance(z, str) and z in base_regions and zone_map.get(z) != z]:
+                    v.remove(z)
+
+    # Keys that define the aggregation itself — must not be patched or recursed into
+    _skip_keys = {"region_aggregations", "model_regions"}
+
+    def _walk(obj):
+        if isinstance(obj, dict):
+            if _is_zone_keyed(obj):
+                _patch_zone_keyed(obj)
+            if _is_zone_valued(obj):
+                _patch_zone_valued(obj)
+            for k, v in list(obj.items()):
+                if isinstance(k, str) and (k.startswith("_") or k in _skip_keys):
+                    continue
+                _walk(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                _walk(item)
+
+    _walk(settings)
+
+
+def build_region_scope(hierarchy_df, base_model_regions, scope_def):
+    """
+    Build model_regions and region_aggregations from a regional scope definition.
+
+    scope_def:
+      - None or "full": pass through unchanged (identity)
+      - str: column name in hierarchy_df to aggregate by (e.g. "st", "interconnect")
+      - dict: {"aggregate_by": col, "detail_by": col (opt), "detail_values": list (opt)}
+              for mixed-resolution scopes (some BAs kept at full detail, rest aggregated)
+
+    Returns: (model_regions, region_aggregations, zone_map)
+      - model_regions: ordered list of zone names for the aggregated model
+      - region_aggregations: {agg_zone: [ba, ...]} or None if unchanged
+      - zone_map: {ba: agg_zone} for every ba in base_model_regions
+    """
+    h = hierarchy_df[hierarchy_df["ba"].isin(base_model_regions)].copy()
+    identity_map = {ba: ba for ba in base_model_regions}
+
+    if not scope_def or scope_def == "full":
+        return list(base_model_regions), None, identity_map
+
+    if isinstance(scope_def, str):
+        if scope_def not in h.columns:
+            raise ValueError(
+                f"region_scope '{scope_def}' is not a column in hierarchy.csv "
+                f"and is not a defined scope in scenario_management.yml."
+            )
+        zone_map = dict(zip(h["ba"], h[scope_def].astype(str)))
+    elif isinstance(scope_def, dict):
+        aggregate_by = scope_def["aggregate_by"]
+        detail_by = scope_def.get("detail_by")
+        detail_values = set(scope_def.get("detail_values") or [])
+        zone_map = {}
+        for _, row in h.iterrows():
+            ba = row["ba"]
+            if detail_by and str(row.get(detail_by, "")) in detail_values:
+                zone_map[ba] = ba  # keep at full BA resolution
+            else:
+                zone_map[ba] = str(row[aggregate_by])
+    else:
+        raise ValueError(f"Invalid region_scope value: {scope_def!r}")
+
+    # fill in any base regions missing from hierarchy
+    for ba in base_model_regions:
+        if ba not in zone_map:
+            zone_map[ba] = ba
+
+    # build region_aggregations: only zones where agg differs from the single constituent ba
+    groups = {}
+    for ba, agg_zone in zone_map.items():
+        groups.setdefault(agg_zone, []).append(ba)
+    region_aggregations = {
+        agg_zone: bas
+        for agg_zone, bas in groups.items()
+        if not (len(bas) == 1 and agg_zone == bas[0])
+    }
+    if not region_aggregations:
+        region_aggregations = None
+
+    # preserve insertion order (order of first appearance) for model_regions
+    seen = {}
+    for ba in base_model_regions:
+        agg = zone_map[ba]
+        seen[agg] = None
+    model_regions = list(seen.keys())
+
+    return model_regions, region_aggregations, zone_map
+
+
+def remap_policies(out_folder, zone_map, state_zone_map=None):
+    """
+    Remap LOAD_ZONE references in Switch policy input files from original zone
+    names to aggregate zone names after regional aggregation. Only processes
+    files that exist. No-op if zone_map is the identity mapping.
+    """
+    if not zone_map or all(v == k for k, v in zone_map.items()):
+        return
+
+    out = Path(out_folder)
+
+    # 1. carbon_policies_regional.csv — sum mass-based CO2 caps across merged zones
+    f = out / "carbon_policies_regional.csv"
+    if f.exists():
+        df = pd.read_csv(f)
+        if "LOAD_ZONE" in df.columns and not df.empty:
+            df["LOAD_ZONE"] = df["LOAD_ZONE"].map(zone_map).fillna(df["LOAD_ZONE"])
+            agg_dict = {"carbon_cap_tco2_per_yr": "sum"}
+            if "carbon_cost_dollar_per_tco2" in df.columns:
+                agg_dict["carbon_cost_dollar_per_tco2"] = "first"
+            df = df.groupby(
+                ["CO2_PROGRAM", "PERIOD", "LOAD_ZONE"], as_index=False
+            ).agg(agg_dict)
+            df.to_csv(f, index=False)
+
+    # 2. rps_requirements.csv — rps_share is a fraction (same for all BAs in program)
+    f = out / "rps_requirements.csv"
+    if f.exists():
+        df = pd.read_csv(f)
+        if "LOAD_ZONE" in df.columns and not df.empty:
+            df["LOAD_ZONE"] = df["LOAD_ZONE"].map(zone_map).fillna(df["LOAD_ZONE"])
+            df = df.drop_duplicates(subset=["RPS_PROGRAM", "LOAD_ZONE", "PERIOD"])
+            df.to_csv(f, index=False, na_rep=".")
+
+    # 3. Planning reserve files — process together to keep PRR names consistent.
+    #    PRR format: "{program}_z{N}" where LOAD_ZONE = "p{N}" (same index N).
+    zones_f = out / "planning_reserve_requirement_zones.csv"
+    reqs_f = out / "planning_reserve_requirements.csv"
+    if zones_f.exists() and reqs_f.exists():
+        prm_zones = pd.read_csv(zones_f)
+        # Map LOAD_ZONE (p{N}) to aggregate zone
+        prm_zones["new_LOAD_ZONE"] = prm_zones["LOAD_ZONE"].map(zone_map).fillna(
+            prm_zones["LOAD_ZONE"]
+        )
+        # Reconstruct PRR name: CapRes_1_z{N} → CapRes_1_{new_LOAD_ZONE}
+        # LOAD_ZONE = p{N} → z-suffix = "z" + LOAD_ZONE[1:]
+        prm_zones["_z_suffix"] = "z" + prm_zones["LOAD_ZONE"].str[1:]
+        prm_zones["_prr_prefix"] = prm_zones.apply(
+            lambda r: r["PLANNING_RESERVE_REQUIREMENT"].rsplit(
+                "_" + r["_z_suffix"], 1
+            )[0],
+            axis=1,
+        )
+        prm_zones["new_PRR"] = prm_zones["_prr_prefix"] + "_" + prm_zones["new_LOAD_ZONE"]
+        # Build old→new PRR name map for planning_reserve_requirements.csv
+        prr_name_map = dict(
+            zip(prm_zones["PLANNING_RESERVE_REQUIREMENT"], prm_zones["new_PRR"])
+        )
+        # Write deduplicated planning_reserve_requirement_zones.csv
+        prm_zones[["new_PRR", "new_LOAD_ZONE"]].drop_duplicates().rename(
+            columns={
+                "new_PRR": "PLANNING_RESERVE_REQUIREMENT",
+                "new_LOAD_ZONE": "LOAD_ZONE",
+            }
+        ).to_csv(zones_f, index=False)
+        # Update and deduplicate planning_reserve_requirements.csv
+        prm_reqs = pd.read_csv(reqs_f)
+        prm_reqs["PLANNING_RESERVE_REQUIREMENT"] = prm_reqs[
+            "PLANNING_RESERVE_REQUIREMENT"
+        ].map(prr_name_map).fillna(prm_reqs["PLANNING_RESERVE_REQUIREMENT"])
+        agg_dict = {"prr_cap_reserve_margin": "mean"}
+        if "prr_enforcement_timescale" in prm_reqs.columns:
+            agg_dict["prr_enforcement_timescale"] = "first"
+        prm_reqs = prm_reqs.groupby(
+            "PLANNING_RESERVE_REQUIREMENT", as_index=False
+        ).agg(agg_dict)
+        prm_reqs.to_csv(reqs_f, index=False)
+
+    # 4. min/max cap requirements — if state_zone_map is provided, remap state-specific
+    #    program names (e.g. MinCapTag_CA_offshorewind) to aggregate-zone names
+    #    (MinCapTag_western_offshorewind) and sum the MW requirements.  Also remap the
+    #    same names in the generators file.  Either way, drop any requirements that still
+    #    have no tagged generators (empty constraint → always False).
+    for prefix in ("min_cap", "max_cap"):
+        reqs_f = out / f"{prefix}_requirements.csv"
+        gens_f = out / f"{prefix}_generators.csv"
+        if not (reqs_f.exists() and gens_f.exists()):
+            continue
+        reqs = pd.read_csv(reqs_f)
+        gens = pd.read_csv(gens_f)
+        prog_col = reqs.columns[0]        # MIN_CAP_PROGRAM / MAX_CAP_PROGRAM
+        period_col = reqs.columns[1]      # PERIOD
+        cap_col = reqs.columns[2]         # min_cap_mw / max_cap_mw
+        # Column 0 in the generators file is always the program name (e.g. MIN_CAP_PROGRAM)
+        gen_prog_col = gens.columns[0] if len(gens.columns) > 0 else None
+        if state_zone_map and not reqs.empty:
+            # Remap e.g. MinCapTag_CA_offshorewind → MinCapTag_western_offshorewind
+            def _remap_prog(name, _szm=state_zone_map):
+                parts = name.split("_", 2)  # ["MinCapTag", "CA", "offshorewind"]
+                if len(parts) == 3 and parts[1] in _szm:
+                    return f"{parts[0]}_{_szm[parts[1]]}_{parts[2]}"
+                return name
+            reqs[prog_col] = reqs[prog_col].map(_remap_prog)
+            reqs = reqs.groupby([prog_col, period_col], as_index=False)[cap_col].sum()
+            reqs.to_csv(reqs_f, index=False)
+            if gen_prog_col is not None and not gens.empty:
+                gens[gen_prog_col] = gens[gen_prog_col].map(_remap_prog)
+                gens = gens.drop_duplicates()
+                gens.to_csv(gens_f, index=False)
+        if gen_prog_col is not None and not reqs.empty:
+            tagged = set(gens[gen_prog_col].dropna().unique())
+            before = len(reqs)
+            reqs = reqs[reqs[prog_col].isin(tagged)]
+            dropped = before - len(reqs)
+            if dropped:
+                logger.info(
+                    f"Dropped {dropped} {prefix} requirements with no tagged "
+                    f"generators (zone aggregation active)."
+                )
+            reqs.to_csv(reqs_f, index=False)
 
 
 def fuel_files(
@@ -272,6 +554,44 @@ def operational_files(
         # year; 1 column per region/zone)
         logger.info(f"Gathering load data for {model_year}")  # can be slow
         period_lc = make_final_load_curves(pg_engine, year_settings)
+
+        # When zone aggregation is active, PowerGenome's add_demand_response_resource_load
+        # iterates over p-zone column names from the DR file and silently skips any that
+        # don't match a column in load_curves. Since load_curves already has aggregate zone
+        # names (ERCOT, SERTP, etc.), all aggregate-zone DR load growth is dropped. Fix:
+        # re-read the same DR file, aggregate p-zone profiles to aggregate zone names using
+        # zone_map, and add the missing DR increment to period_lc for those zones.
+        # Detail zones (p58, p86, etc.) were already handled correctly by PG and are skipped.
+        _zone_map_lc = year_settings.get("_zone_map")
+        if _zone_map_lc and year_settings.get("demand_response_fn"):
+            _dr_path = Path(year_settings["input_folder"]) / year_settings["demand_response_fn"]
+            _dr_types = list(year_settings["flexible_demand_resources"][model_year].keys())
+            _dr_all = make_demand_response_profiles(
+                _dr_path, _dr_types[0], model_year, year_settings["demand_response"]
+            )
+            for _dr_type in _dr_types[1:]:
+                _dr_all = _dr_all.add(
+                    make_demand_response_profiles(
+                        _dr_path, _dr_type, model_year, year_settings["demand_response"]
+                    ),
+                    fill_value=0,
+                )
+            # Only aggregate zones need patching (detail p-zones map to themselves and
+            # were already applied by add_demand_response_resource_load).
+            _agg_rename = {
+                pzone: agg
+                for pzone, agg in _zone_map_lc.items()
+                if pzone != agg and pzone in _dr_all.columns and agg in period_lc.columns
+            }
+            if _agg_rename:
+                _dr_agg = _dr_all[list(_agg_rename.keys())].rename(columns=_agg_rename)
+                _dr_agg = _dr_agg.T.groupby(level=0).sum().T
+                for _agg_zone, _dr_col in _dr_agg.items():
+                    period_lc[_agg_zone] = period_lc[_agg_zone].values + _dr_col.values
+                logger.info(
+                    f"Applied aggregated DR load growth to {len(_dr_agg.columns)} aggregate "
+                    f"zones for {model_year} (was missing due to p-zone column name mismatch)."
+                )
 
         logger.info(f"Extracting generator variability data for {model_year}")
         period_variability = make_generator_variability(period_gens)
@@ -1386,8 +1706,16 @@ def other_tables(
     # gather data across years
     for model_year, scen_settings in scen_settings_dict.items():
         if "emission_policies_fn" in scen_settings:
-            energy_share_req = create_policy_req(scen_settings, col_str_match="ESR")
-            urec_limit = create_policy_req(scen_settings, col_str_match="UREC_Limit")
+            # If region_scope is active, policy data is keyed by original p-zone names.
+            # Use original model_regions so create_policy_req can look them up; the
+            # resulting LOAD_ZONE values (p8, p9, …) will be remapped by remap_policies().
+            _zone_map = scen_settings.get("_zone_map")
+            _policy_settings = (
+                {**scen_settings, "model_regions": list(_zone_map.keys())}
+                if _zone_map else scen_settings
+            )
+            energy_share_req = create_policy_req(_policy_settings, col_str_match="ESR")
+            urec_limit = create_policy_req(_policy_settings, col_str_match="UREC_Limit")
             if energy_share_req is not None and urec_limit is None:
                 # make a dummy to avoid errors later
                 urec_limit = pd.DataFrame(columns=["Region_description"])
@@ -1682,6 +2010,35 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         transmission_lines = pd.read_csv(
             settings["input_folder"] / settings["user_transmission_costs"]
         )
+        # If zone aggregation is active, remap BA zone names to aggregate zones and
+        # collapse intra-zone lines (keep only inter-aggregate-zone connections).
+        _zone_map = settings.get("_zone_map")
+        if _zone_map:
+            transmission_lines["start_region"] = transmission_lines["start_region"].map(
+                lambda x: _zone_map.get(x, x)
+            )
+            transmission_lines["dest_region"] = transmission_lines["dest_region"].map(
+                lambda x: _zone_map.get(x, x)
+            )
+            # Drop intra-zone lines
+            transmission_lines = transmission_lines[
+                transmission_lines["start_region"] != transmission_lines["dest_region"]
+            ]
+            # Keep canonical direction (alphabetical) to avoid duplicates; aggregate by mean
+            transmission_lines["_start"], transmission_lines["_dest"] = zip(
+                *transmission_lines.apply(
+                    lambda r: (r["start_region"], r["dest_region"])
+                    if r["start_region"] < r["dest_region"]
+                    else (r["dest_region"], r["start_region"]),
+                    axis=1,
+                )
+            )
+            num_cols = transmission_lines.select_dtypes(include="number").columns.tolist()
+            transmission_lines = (
+                transmission_lines.groupby(["_start", "_dest"], as_index=False)[num_cols]
+                .mean()
+                .rename(columns={"_start": "start_region", "_dest": "dest_region"})
+            )
         # Adjust dollar year of transmission costs
         if settings.get("target_usd_year"):
             adjusted_annuities = []
@@ -2148,6 +2505,66 @@ def main(
         for c in sorted(case_settings.keys(), key=filter_cases.index)
     }
 
+    # ── Region scope: optionally aggregate model regions ──────────────────────
+    _any_scope = any(
+        s.get("region_scope") and s.get("region_scope") != "full"
+        for yd in case_settings.values()
+        for s in yd.values()
+    )
+    if _any_scope:
+        hierarchy_path = cwd / "hierarchy.csv"
+        if not hierarchy_path.exists():
+            raise FileNotFoundError(
+                "hierarchy.csv not found in working directory but region_scope is set."
+            )
+        hierarchy_df = pd.read_csv(hierarchy_path)
+        for c, year_settings_dict in case_settings.items():
+            for y, s in year_settings_dict.items():
+                scope_def = s.get("region_scope")
+                if scope_def and scope_def != "full":
+                    model_regions, region_aggregations, zone_map = build_region_scope(
+                        hierarchy_df=hierarchy_df,
+                        base_model_regions=s["model_regions"],
+                        scope_def=scope_def,
+                    )
+                    s["model_regions"] = model_regions
+                    s["region_aggregations"] = region_aggregations
+                    s["_zone_map"] = zone_map
+                    # Build state → aggregate-zone map for policy remapping
+                    s["_state_zone_map"] = {
+                        row["st"]: zone_map[row["ba"]]
+                        for _, row in hierarchy_df.iterrows()
+                        if row["ba"] in zone_map
+                    }
+                    _patch_aggregate_zone_settings(s, zone_map)
+                    # Patch renewables_clusters: load_settings() pre-expands
+                    # region:"all" → p1…p134. Replace p-zone region names with
+                    # aggregate zone names and deduplicate so that each
+                    # (agg_zone, technology, turbine_type, pref_site) combination
+                    # appears only once.
+                    if "renewables_clusters" in s:
+                        patched_clusters = []
+                        seen_cluster_keys = set()
+                        for entry in s["renewables_clusters"]:
+                            e = dict(entry)
+                            if e.get("region") in zone_map:
+                                e["region"] = zone_map[e["region"]]
+                            key = (
+                                e.get("region"),
+                                e.get("technology"),
+                                e.get("turbine_type"),
+                                e.get("pref_site"),
+                            )
+                            if key not in seen_cluster_keys:
+                                seen_cluster_keys.add(key)
+                                patched_clusters.append(e)
+                        s["renewables_clusters"] = patched_clusters
+                    logger.info(
+                        f"Region scope '{scope_def}' applied to {c}/{y}: "
+                        f"{len(s['model_regions'])} zones "
+                        f"(was {len(model_regions) + sum(len(v)-1 for v in (region_aggregations or {}).values())} BAs)"
+                    )
+
     if myopic:
         # run each case/year separately; split the settings for each year into
         # separate dicts and process them individually
@@ -2216,6 +2633,10 @@ def main(
             scen_settings_dict=scen_settings_dict,
             out_folder=out_folder,
         )
+        zone_map = first_value(scen_settings_dict).get("_zone_map")
+        state_zone_map = first_value(scen_settings_dict).get("_state_zone_map")
+        if zone_map:
+            remap_policies(out_folder, zone_map, state_zone_map=state_zone_map)
         transmission_tables(
             scen_settings_dict,
             out_folder,

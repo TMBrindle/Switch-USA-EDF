@@ -29,6 +29,7 @@ study_modules.rps_regional
 study_modules.trans_path_expansion_limit
 study_modules.planning_reserves_extreme_days
 study_modules.scheduled_outages
+study_modules.gen_zone_ratio
 study_modules.gen_om_by_period
 # apply annual operating limits to data center backup gens
 study_modules.gen_annual_availability_limits
@@ -37,3 +38,6 @@ study_modules.gen_annual_availability_limits
 # uncomment the next two to reduce Pyomo memory (experimental):
 # study_modules.nl_solver
 # study_modules.delayed_expressions
+# switch_model.balancing.unserved_load
+study_modules.copy_inputs_to_outputs
+study_modules.write_dual_costs

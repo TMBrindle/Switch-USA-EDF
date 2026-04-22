@@ -42,17 +42,19 @@ settings_dir = "pg/settings"
 # zonal annual growth rates; created by growth_rates/retrieve_icf_growth.py
 # note: we could use PowerGenome's alt_growth_rate setting instead of adding
 # a tranche of flexible load, but this lets us make it interruptible.
-growth_file = "growth_rates/zone_growth.csv"
+growth_file = "growth_rates/zone_growth_caelp.csv"
 reeds_load_table = "load_curves_nrel_reeds"
 base_year = 2023
 start_year = 2023
-end_year = 2030
-# baseline loads will be stored here
-# should match pg/settings/demand.yml/regional_load_fn
+end_year = 2035
+# baseline loads will be stored here; pg/settings/demand.yml/regional_load_fn
+# should point to this file
 user_load_file = f"reeds_{base_year}_loads.csv.zip"
 # should match pg/settings/demand.yml/electrification
 user_load_scenario = "base"
-
+# load growth and exports will be stored here; pg/settings/flexible_load.yml/demand_response_fn
+# should point to this file
+demand_response_file = "load_adjustments_caelp.csv.zip"
 # load growth and exports will be stored here
 # should match pg/settings/flexible_load.yml/demand_response_fn
 demand_response_file = "load_adjustments.csv.zip"

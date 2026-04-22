@@ -120,6 +120,16 @@ flexible_demand_resources:
         # add dummy value that will be overridden by PG to avoid warnings from PG
         # about empty parameter_values
         New_Build: -1
+  2025:
+    us_exports:
+      fraction_shiftable: 0.0
+      parameter_values:
+        New_Build: -1
+  2028:
+    us_exports:
+      fraction_shiftable: 0.0
+      parameter_values:
+        New_Build: -1
   2029:
     us_exports:
       fraction_shiftable: 0.0
