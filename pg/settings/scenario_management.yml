@@ -136,6 +136,33 @@ settings_management:
         # national carbon tax at 200, to see what would be cheapest way to decarbonize
         emission_policies_fn: emission_policies_decarb.csv
         carbon_cost_dollar_per_tco2: 200
+    transmission:
+      constrained:
+        transmission_policy: constrained
+      unconstrained:
+        transmission_policy: unconstrained
+    trans_expansion:
+      zero:
+        trans_expansion_policy: zero
+      nerc_growth:
+        trans_expansion_policy: nerc_growth
+      unlimited:
+        trans_expansion_policy: unlimited
+    hurdle:
+      yes:
+        hurdle_policy: yes
+      no:
+        hurdle_policy: no
+    degrade:
+      yes:
+        degrade_policy: yes
+      no:
+        degrade_policy: no
+    asymmetry:
+      yes:
+        asymmetry_policy: yes
+      no:
+        asymmetry_policy: no
     make_split_models:
       yes:
         model_adjustment_scripts:

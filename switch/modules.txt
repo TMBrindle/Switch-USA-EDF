@@ -19,6 +19,9 @@ switch_model.generators.extensions.hydro_system
 study_modules.fuel_costs_simple
 switch_model.transmission.transport.build
 switch_model.transmission.transport.dispatch
+study_modules.trans_new_build_derate
+study_modules.trans_hurdle_cost
+study_modules.trans_asymmetric_capacity
 switch_model.transmission.local_td
 switch_model.balancing.operating_reserves.areas
 switch_model.balancing.operating_reserves.spinning_reserves
@@ -27,6 +30,7 @@ study_modules.min_capacity_constraint
 study_modules.max_capacity_constraint
 study_modules.rps_regional
 study_modules.trans_path_expansion_limit
+study_modules.trans_build_minimum
 study_modules.planning_reserves_extreme_days
 study_modules.scheduled_outages
 study_modules.gen_zone_ratio
