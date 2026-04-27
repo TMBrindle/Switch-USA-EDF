@@ -197,7 +197,7 @@ all existing rows:
 | `trans_expansion` | `zero` / `nerc_growth` / `unlimited` | Expansion limit policy for `trans_path_expansion_limit.csv` |
 | `hurdle` | `yes` / `no` | Whether hurdle-cost data is written |
 | `degrade` | `yes` / `no` | Whether new-build derate data is written |
-| `asymmetry` | `yes` / `no` / `old` | Whether directional capacity data is written; `old` reverts to REFS2009 symmetric dataset |
+| `asymmetry` | `yes` / `no` / `old` | `yes` = NARIS2024 with asymmetric directional limits; `no` = NARIS2024 symmetric; `old` = REFS2009 symmetric |
 | `build_minimum` | `yes` / `no` | Whether planned project build minimums are enforced |
 
 ### 8b. `pg/settings/scenario_management.yml`
@@ -241,6 +241,10 @@ build_minimum:
   no:
     build_minimum_policy: no
 ```
+
+The `asymmetry: old` option reverts both the transmission constraint file and the
+network cost file to the REFS2009 dataset, which remains in `pg/extra_inputs/`.
+No `trans_directional_limits.csv` is written in this case.
 
 ### 8c. Policy gates in `pg_to_switch.py`
 Each feature block is conditioned on its policy setting (default shown):
