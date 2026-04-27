@@ -2234,20 +2234,21 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
                         transmission_lines.at[idx, "trans_new_build_allowed"] = 0
 
         # Generate minimum build entries for each planned project with a target year.
-        for key, (new_cap_mw, new_cap_year) in planned_with_year.items():
-            tx_id = tx_line_lookup.get(key)
-            if tx_id is None:
-                continue
-            period = next((p for p in model_years if p >= new_cap_year), None)
-            if period is None:
-                continue
-            trans_build_minimum_rows.append(
-                {
-                    "TRANSMISSION_LINE": tx_id,
-                    "PERIOD": period,
-                    "trans_build_minimum_mw": new_cap_mw,
-                }
-            )
+        if settings.get("build_minimum_policy", "yes") == "yes":
+            for key, (new_cap_mw, new_cap_year) in planned_with_year.items():
+                tx_id = tx_line_lookup.get(key)
+                if tx_id is None:
+                    continue
+                period = next((p for p in model_years if p >= new_cap_year), None)
+                if period is None:
+                    continue
+                trans_build_minimum_rows.append(
+                    {
+                        "TRANSMISSION_LINE": tx_id,
+                        "PERIOD": period,
+                        "trans_build_minimum_mw": new_cap_mw,
+                    }
+                )
 
         # --- Feature: new-build derate for cross-transgrp (planning subregion) lines ---
         if settings.get("degrade_policy", "yes") == "yes":

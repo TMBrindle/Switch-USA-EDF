@@ -163,6 +163,11 @@ settings_management:
         asymmetry_policy: yes
       no:
         asymmetry_policy: no
+    build_minimum:
+      yes:
+        build_minimum_policy: yes
+      no:
+        build_minimum_policy: no
     make_split_models:
       yes:
         model_adjustment_scripts:
