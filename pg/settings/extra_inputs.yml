@@ -18,19 +18,14 @@ emission_policies_fn: emission_policies_current.csv
 capacity_limit_spur_fn: resource_capacity_spur.csv # Max capacity and spur line distance for each renewable resource
 demand_segments_fn: demand_segments_voll.csv
 misc_gen_inputs_fn: misc_gen_inputs.csv
-# original version (network_costs_ReEDS.csv) matches reeds_ba_tx_NARIS2024_avg.csv
-# but we use reeds_ba_tx_REFS2009_avg.csv, which has some additional lines that
-# get dropped because of this, so we use a quick-patched version (dump in the 
-# missing lines and assign average params to them)
-user_transmission_costs: network_costs_ReEDS_patched_for_REFS2009.csv
-# the reeds_ba_tx_NARIS_avg data don't have enough transmission to serve p119
-# during certain timepoints in a 2024 model, so we use REFS2009 instead. see
-# cryptic documentation at
-# https://github.com/NREL/ReEDS-2.0/blob/main/sources_documentation.md
-# Note: NARIS says p119 has 972 MW outbound to p122 and 171 inbound; REFS2009
-# says it has 2530 MW either way. Inspection of OpenInfraMap data gives an
-# estimate around 4600 MVA (assuming 1000 A per line).
-user_transmission_constraints_fn: reeds_ba_tx_REFS2009_avg.csv
+# network_costs_ReEDS.csv matches reeds_ba_tx_NARIS_avg.csv (both NARIS-based).
+# Switched from REFS2009 to NARIS: reeds_ba_tx_NARIS_avg.csv has more corridors
+# and uses averaged NARIS2024 directional capacities (MW_f0+MW_r0)/2.
+# Asymmetric directional limits are enforced separately via trans_directional_limits.csv
+# generated from transmission_capacity_init_AC_ba_NARIS2024.csv and
+# transmission_capacity_init_nonAC_ba.csv (see trans_asymmetric_capacity.py).
+user_transmission_costs: network_costs_ReEDS.csv
+user_transmission_constraints_fn: reeds_ba_tx_NARIS_avg.csv
 co2_pipeline_cost_fn: co2_pipeline_cost_percentiles.csv
 # reserves_fn: Reserves.csv
 plant_region_map_fn: reeds_plant_map.csv
