@@ -163,6 +163,10 @@ settings_management:
         asymmetry_policy: yes
       no:
         asymmetry_policy: no
+      old:
+        asymmetry_policy: no
+        user_transmission_constraints_fn: reeds_ba_tx_REFS2009_avg.csv
+        user_transmission_costs: network_costs_ReEDS_patched_for_REFS2009.csv
     build_minimum:
       yes:
         build_minimum_policy: yes

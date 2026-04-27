@@ -197,7 +197,7 @@ all existing rows:
 | `trans_expansion` | `zero` / `nerc_growth` / `unlimited` | Expansion limit policy for `trans_path_expansion_limit.csv` |
 | `hurdle` | `yes` / `no` | Whether hurdle-cost data is written |
 | `degrade` | `yes` / `no` | Whether new-build derate data is written |
-| `asymmetry` | `yes` / `no` | Whether directional capacity data is written |
+| `asymmetry` | `yes` / `no` / `old` | Whether directional capacity data is written; `old` reverts to REFS2009 symmetric dataset |
 | `build_minimum` | `yes` / `no` | Whether planned project build minimums are enforced |
 
 ### 8b. `pg/settings/scenario_management.yml`
@@ -231,6 +231,10 @@ asymmetry:
     asymmetry_policy: yes
   no:
     asymmetry_policy: no
+  old:
+    asymmetry_policy: no
+    user_transmission_constraints_fn: reeds_ba_tx_REFS2009_avg.csv
+    user_transmission_costs: network_costs_ReEDS_patched_for_REFS2009.csv
 build_minimum:
   yes:
     build_minimum_policy: yes
