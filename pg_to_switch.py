@@ -2132,6 +2132,206 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         # ].replace("", 0)
         transmission_lines.fillna(0, inplace=True)
 
+    # Apply planned capacity minimums and (optionally) cross-transreg restrictions
+    # using hierarchy.csv (zone→transreg mapping) and transmission_connections.csv.
+    #
+    # Planned project injection and minimum build constraints always apply.
+    # Cross-transreg blocking only applies when transmission_policy is "constrained".
+    script_dir = Path(__file__).parent
+    hierarchy_path = script_dir / "hierarchy.csv"
+    tx_conn_path = script_dir / "transmission_connections.csv"
+
+    trans_build_minimum_rows = []
+    new_build_derate_rows = []
+    hurdle_cost_rows = []
+    directional_limit_rows = []
+    tx_constrained = settings.get("transmission_policy", "constrained") == "constrained"
+
+    if hierarchy_path.exists() and tx_conn_path.exists():
+        hierarchy = pd.read_csv(hierarchy_path)
+        zone_transreg = dict(zip(hierarchy["ba"], hierarchy["transreg"]))
+        zone_transgrp = dict(zip(hierarchy["ba"], hierarchy["transgrp"]))
+        zone_hurdlereg = dict(zip(hierarchy["ba"], hierarchy["hurdlereg"]))
+
+        tx_conn = pd.read_csv(tx_conn_path)
+
+        # Separate planned lines (for allow-flag override) from those with a
+        # specific year (for minimum build constraint)
+        planned_lines = set()  # frozenset({from_zone, to_zone}) with new_cap_mw > 0
+        planned_with_year = {}  # same key -> (new_cap_mw, new_cap_year)
+        for _, row in tx_conn.iterrows():
+            new_mw = row.get("new_cap_mw")
+            if pd.notna(new_mw) and float(new_mw) > 0:
+                key = frozenset([row["from_zone"], row["to_zone"]])
+                planned_lines.add(key)
+                yr = row.get("new_cap_year")
+                if pd.notna(yr):
+                    planned_with_year[key] = (float(new_mw), int(yr))
+
+        # Inject purely-new lines (existing_cap_mw == 0, new_cap_mw > 0) that
+        # PowerGenome omits because they have no existing infrastructure.
+        # Always injected so minimum build constraints can reference them.
+        existing_pairs = {
+            frozenset([r["trans_lz1"], r["trans_lz2"]])
+            for _, r in transmission_lines.iterrows()
+        }
+        new_rows = []
+        next_dbid = int(transmission_lines["trans_dbid"].max()) + 1
+        for key in planned_lines:
+            if key in existing_pairs:
+                continue
+            lz1, lz2 = sorted(key)  # consistent ordering
+            match = tx_conn[
+                ((tx_conn["from_zone"] == lz1) & (tx_conn["to_zone"] == lz2))
+                | ((tx_conn["from_zone"] == lz2) & (tx_conn["to_zone"] == lz1))
+            ]
+            if match.empty:
+                continue
+            r = match.iloc[0]
+            tz1_dbid = zone_dict.get(lz1)
+            tz2_dbid = zone_dict.get(lz2)
+            if tz1_dbid is None or tz2_dbid is None:
+                continue
+            new_rows.append(
+                {
+                    "TRANSMISSION_LINE": f"{tz1_dbid}-{tz2_dbid}",
+                    "trans_lz1": lz1,
+                    "trans_lz2": lz2,
+                    "trans_length_km": float(r["trans_length_km"]),
+                    "trans_efficiency": float(r["trans_efficiency"]),
+                    "existing_trans_cap": 0.0,
+                    "trans_dbid": next_dbid,
+                    "trans_derating_factor": settings.get(
+                        "cap_res_network_derate_default", 0.95
+                    ),
+                    "trans_terrain_multiplier": 1.0,
+                    "trans_new_build_allowed": 1,
+                }
+            )
+            next_dbid += 1
+        if new_rows:
+            transmission_lines = pd.concat(
+                [transmission_lines, pd.DataFrame(new_rows)],
+                ignore_index=True,
+            )
+
+        # Build lookup: frozenset({lz1, lz2}) -> TRANSMISSION_LINE id
+        tx_line_lookup = {
+            frozenset([r["trans_lz1"], r["trans_lz2"]]): r["TRANSMISSION_LINE"]
+            for _, r in transmission_lines.iterrows()
+        }
+
+        model_years = sorted(scen_settings_dict.keys())
+
+        # Only block cross-transreg lines when constrained.
+        if tx_constrained:
+            for idx, row in transmission_lines.iterrows():
+                lz1, lz2 = row["trans_lz1"], row["trans_lz2"]
+                tr1 = zone_transreg.get(lz1)
+                tr2 = zone_transreg.get(lz2)
+                if tr1 and tr2 and tr1 != tr2:
+                    if frozenset([lz1, lz2]) not in planned_lines:
+                        transmission_lines.at[idx, "trans_new_build_allowed"] = 0
+
+        # Generate minimum build entries for each planned project with a target year.
+        if settings.get("build_minimum_policy", "yes") == "yes":
+            for key, (new_cap_mw, new_cap_year) in planned_with_year.items():
+                tx_id = tx_line_lookup.get(key)
+                if tx_id is None:
+                    continue
+                period = next((p for p in model_years if p >= new_cap_year), None)
+                if period is None:
+                    continue
+                trans_build_minimum_rows.append(
+                    {
+                        "TRANSMISSION_LINE": tx_id,
+                        "PERIOD": period,
+                        "trans_build_minimum_mw": new_cap_mw,
+                    }
+                )
+
+        # --- Feature: new-build derate for cross-transgrp (planning subregion) lines ---
+        if settings.get("degrade_policy", "yes") == "yes":
+            for _, row in transmission_lines.iterrows():
+                lz1, lz2 = row["trans_lz1"], row["trans_lz2"]
+                tg1 = zone_transgrp.get(lz1)
+                tg2 = zone_transgrp.get(lz2)
+                if tg1 and tg2 and tg1 != tg2:
+                    new_build_derate_rows.append(
+                        {
+                            "TRANSMISSION_LINE": row["TRANSMISSION_LINE"],
+                            "trans_new_build_derate_factor": 0.85,
+                        }
+                    )
+
+        # --- Feature: hurdle costs for cross-hurdlereg lines ---
+        if settings.get("hurdle_policy", "yes") == "yes":
+            hurdle_path = script_dir / "cost_hurdle_intra.csv"
+            if hurdle_path.exists():
+                hurdle_df = pd.read_csv(hurdle_path).set_index("t")
+                available_years = sorted(hurdle_df.index.tolist())
+                for model_year in sorted(scen_settings_dict.keys()):
+                    closest_year = min(available_years, key=lambda y: abs(y - model_year))
+                    hurdle_rate = hurdle_df.loc[closest_year, "hurdlereg"]
+                    if hurdle_rate <= 0:
+                        continue
+                    for _, row in transmission_lines.iterrows():
+                        lz1, lz2 = row["trans_lz1"], row["trans_lz2"]
+                        hr1 = zone_hurdlereg.get(lz1)
+                        hr2 = zone_hurdlereg.get(lz2)
+                        if hr1 and hr2 and hr1 != hr2:
+                            hurdle_cost_rows.append(
+                                {
+                                    "TRANSMISSION_LINE": row["TRANSMISSION_LINE"],
+                                    "PERIOD": model_year,
+                                    "trans_hurdle_cost_per_mwh": hurdle_rate,
+                                }
+                            )
+
+    # --- Feature: asymmetric directional capacity from NARIS2024 AC and nonAC files ---
+    if settings.get("asymmetry_policy", "yes") == "yes":
+        ac_path = script_dir / "transmission_capacity_init_AC_ba_NARIS2024.csv"
+        nonac_path = script_dir / "transmission_capacity_init_nonAC_ba.csv"
+    else:
+        ac_path = nonac_path = None
+
+    if ac_path is not None and (ac_path.exists() or nonac_path.exists()):
+        dir_cap_lookup = {}
+        if ac_path.exists():
+            ac_df = pd.read_csv(ac_path)
+            for _, row in ac_df.iterrows():
+                key = frozenset([row["r"], row["rr"]])
+                dir_cap_lookup[key] = (
+                    row["r"], row["rr"], float(row["MW_f0"]), float(row["MW_r0"])
+                )
+        if nonac_path.exists():
+            nonac_df = pd.read_csv(nonac_path)
+            for _, row in nonac_df.iterrows():
+                key = frozenset([row["r"], row["rr"]])
+                mw = float(row["MW"])
+                dir_cap_lookup[key] = (row["r"], row["rr"], mw, mw)
+        for model_year in sorted(scen_settings_dict.keys()):
+            for _, tx_row in transmission_lines.iterrows():
+                lz1, lz2 = tx_row["trans_lz1"], tx_row["trans_lz2"]
+                key = frozenset([lz1, lz2])
+                if key not in dir_cap_lookup:
+                    continue
+                ref_r, ref_rr, fwd_cap, rev_cap = dir_cap_lookup[key]
+                if lz1 == ref_r:
+                    lz1_to_lz2_cap = fwd_cap
+                    lz2_to_lz1_cap = rev_cap
+                else:
+                    lz1_to_lz2_cap = rev_cap
+                    lz2_to_lz1_cap = fwd_cap
+                directional_limit_rows.append(
+                    {"zone_from": lz1, "zone_to": lz2, "PERIOD": model_year,
+                     "trans_directional_cap_mw": lz1_to_lz2_cap}
+                )
+                directional_limit_rows.append(
+                    {"zone_from": lz2, "zone_to": lz1, "PERIOD": model_year,
+                     "trans_directional_cap_mw": lz2_to_lz1_cap}
+                )
+
     trans_params_table = pd.DataFrame(
         {
             "trans_capital_cost_per_mw_km": trans_capital_cost_per_mw_km,
@@ -2142,33 +2342,112 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         index=[0],
     )
 
-    # calculate expansion limits for all lines and periods
-    dfs = [
-        pd.DataFrame(
-            columns=["TRANSMISSION_LINE", "PERIOD", "Line_Max_Reinforcement_MW"]
-        )
-    ]
-    trans = transmission_lines[["TRANSMISSION_LINE", "existing_trans_cap"]].rename(
-        columns={"existing_trans_cap": "Line_Max_Flow_MW"}
-    )
-    for model_year, scen_settings in scen_settings_dict.items():
-        trans["PERIOD"] = model_year
-        # add Line_Max_Reinforcement_MW (expansion limit) to transmission dataframe
-        # (added automatically by network_max_reinforcement(), based on
-        # Line_Max_Flow_MW and scenario settings)
-        network_max_reinforcement(transmission=trans, settings=scen_settings)
-        dfs.append(trans[dfs[0].columns].copy())
+    # Build trans_path_expansion_limit based on trans_expansion_policy:
+    #   "zero"        - all lines get 0 MW expansion limit (default)
+    #   "nerc_growth" - per-period limit = cumulative_cap * NERC regional growth %
+    #   "unlimited"   - file is not written; Switch is unrestricted on expansion
+    trans_expansion_policy = settings.get("trans_expansion_policy", "zero")
+    min_build_lines = {r["TRANSMISSION_LINE"] for r in trans_build_minimum_rows}
 
-    # combine all years into one dataframe
-    trans_path_expansion_limit = pd.concat(dfs).rename(
-        columns={"Line_Max_Reinforcement_MW": "trans_path_expansion_limit_mw"}
-    )
+    if trans_expansion_policy == "unlimited":
+        trans_path_expansion_limit = None
+
+    elif trans_expansion_policy == "nerc_growth":
+        nerc_growth_path = script_dir / "nerc_growth_pct.csv"
+        if not nerc_growth_path.exists():
+            raise FileNotFoundError(
+                f"nerc_growth_pct.csv not found at {nerc_growth_path}; "
+                "required for trans_expansion_policy='nerc_growth'"
+            )
+        if not hierarchy_path.exists():
+            raise FileNotFoundError(
+                f"hierarchy.csv not found at {hierarchy_path}; "
+                "required for trans_expansion_policy='nerc_growth'"
+            )
+        nerc_growth_df = pd.read_csv(nerc_growth_path)
+        nerc_growth_lookup = {
+            (int(row["period"]), row["nercr"]): float(row["growth_pct"])
+            for _, row in nerc_growth_df.iterrows()
+        }
+        hier = pd.read_csv(hierarchy_path)[["ba", "nercr"]]
+        zone_nercr = dict(zip(hier["ba"], hier["nercr"]))
+        work = transmission_lines.loc[
+            (transmission_lines["trans_new_build_allowed"] == 1)
+            & (~transmission_lines["TRANSMISSION_LINE"].isin(min_build_lines)),
+            ["TRANSMISSION_LINE", "trans_lz1", "trans_lz2", "existing_trans_cap"],
+        ].copy().reset_index(drop=True)
+        work["nercr1"] = work["trans_lz1"].map(zone_nercr)
+        work["nercr2"] = work["trans_lz2"].map(zone_nercr)
+        dfs = []
+        cum_cap = work["existing_trans_cap"].copy()
+        for model_year in sorted(scen_settings_dict.keys()):
+            all_nercr = set(work["nercr1"]).union(set(work["nercr2"]))
+            period_growth = {
+                n: nerc_growth_lookup.get((model_year, n), 0.0) for n in all_nercr
+            }
+            growth1 = work["nercr1"].map(period_growth).fillna(0.0)
+            growth2 = work["nercr2"].map(period_growth).fillna(0.0)
+            limit_mw = (cum_cap * (growth1 + growth2) / 2).round(0)
+            dfs.append(
+                pd.DataFrame(
+                    {
+                        "TRANSMISSION_LINE": work["TRANSMISSION_LINE"],
+                        "PERIOD": model_year,
+                        "trans_path_expansion_limit_mw": limit_mw,
+                    }
+                )
+            )
+            cum_cap = cum_cap + limit_mw
+        trans_path_expansion_limit = pd.concat(dfs)
+
+    else:
+        # "zero" policy (default)
+        dfs = [
+            pd.DataFrame(
+                columns=["TRANSMISSION_LINE", "PERIOD", "Line_Max_Reinforcement_MW"]
+            )
+        ]
+        trans = transmission_lines.loc[
+            (transmission_lines["trans_new_build_allowed"] == 1)
+            & (~transmission_lines["TRANSMISSION_LINE"].isin(min_build_lines)),
+            ["TRANSMISSION_LINE", "existing_trans_cap"],
+        ].rename(columns={"existing_trans_cap": "Line_Max_Flow_MW"})
+        if not tx_constrained:
+            trans = transmission_lines.loc[
+                transmission_lines["trans_new_build_allowed"] == 1,
+                ["TRANSMISSION_LINE", "existing_trans_cap"],
+            ].rename(columns={"existing_trans_cap": "Line_Max_Flow_MW"})
+        for model_year, scen_settings in scen_settings_dict.items():
+            trans["PERIOD"] = model_year
+            network_max_reinforcement(transmission=trans, settings=scen_settings)
+            dfs.append(trans[dfs[0].columns].copy())
+        trans_path_expansion_limit = pd.concat(dfs).rename(
+            columns={"Line_Max_Reinforcement_MW": "trans_path_expansion_limit_mw"}
+        )
 
     transmission_lines.to_csv(out_folder / "transmission_lines.csv", index=False)
     trans_params_table.to_csv(out_folder / "trans_params.csv", index=False)
-    trans_path_expansion_limit.to_csv(
-        out_folder / "trans_path_expansion_limit.csv", index=False
-    )
+    if trans_path_expansion_limit is not None:
+        trans_path_expansion_limit.to_csv(
+            out_folder / "trans_path_expansion_limit.csv", index=False
+        )
+    if trans_build_minimum_rows:
+        pd.DataFrame(
+            trans_build_minimum_rows,
+            columns=["TRANSMISSION_LINE", "PERIOD", "trans_build_minimum_mw"],
+        ).to_csv(out_folder / "trans_build_minimum.csv", index=False)
+    if new_build_derate_rows:
+        pd.DataFrame(new_build_derate_rows).to_csv(
+            out_folder / "trans_new_build_derate.csv", index=False
+        )
+    if hurdle_cost_rows:
+        pd.DataFrame(hurdle_cost_rows).to_csv(
+            out_folder / "trans_hurdle_cost.csv", index=False
+        )
+    if directional_limit_rows:
+        pd.DataFrame(directional_limit_rows).to_csv(
+            out_folder / "trans_directional_limits.csv", index=False
+        )
 
     # # create alternative transmission limits
     # # TODO: use input data for this, similar to carbon prices

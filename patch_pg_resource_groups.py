@@ -289,16 +289,21 @@ for tech in new_build_techs:
 
 
 # %%#############
-# make an alternative to reeds_ba_tx_NARIS_avg.csv based on REFS2009 instead of NARIS
-tx_file = settings["input_folder"] / "reeds_ba_tx_REFS2009_avg.csv"
-ac_url = "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/transmission/transmission_capacity_init_AC_ba_REFS2009.csv"
-dc_url = "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/transmission/transmission_capacity_init_nonAC_ba.csv"
+# Regenerate reeds_ba_tx_NARIS_avg.csv from local NARIS2024 source files.
+# AC corridors: average of MW_f0 (forward) and MW_r0 (reverse) from NARIS2024.
+# DC/B2B lines: taken directly from transmission_capacity_init_nonAC_ba.csv.
+# The resulting file is used as user_transmission_constraints_fn in extra_inputs.yml.
+# Asymmetric directional limits are handled separately via trans_directional_limits.csv.
+script_dir = Path(__file__).parent
+tx_file = settings["input_folder"] / "reeds_ba_tx_NARIS_avg.csv"
+ac_path = script_dir / "transmission_capacity_init_AC_ba_NARIS2024.csv"
+dc_path = script_dir / "transmission_capacity_init_nonAC_ba.csv"
 
-print(f"\nCreating {tx_file} from {ac_url} and {dc_url}")
-ac = pd.read_csv(ac_url)
-dc = pd.read_csv(dc_url)
+print(f"\nCreating {tx_file} from {ac_path} and {dc_path}")
+ac = pd.read_csv(ac_path)
+dc = pd.read_csv(dc_path)
 ac["MW"] = ac[["MW_f0", "MW_r0"]].mean(axis=1)
-ac["Project(s)"] = "REFS2009 avg value"
+ac["Project(s)"] = "NARIS, avg value"
 
 tx = pd.concat(
     [dc[["r", "rr", "MW", "Project(s)"]], ac[["r", "rr", "MW", "Project(s)"]]]

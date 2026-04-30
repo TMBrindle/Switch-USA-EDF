@@ -136,6 +136,42 @@ settings_management:
         # national carbon tax at 200, to see what would be cheapest way to decarbonize
         emission_policies_fn: emission_policies_decarb.csv
         carbon_cost_dollar_per_tco2: 200
+    transmission:
+      constrained:
+        transmission_policy: constrained
+      unconstrained:
+        transmission_policy: unconstrained
+    trans_expansion:
+      zero:
+        trans_expansion_policy: zero
+      nerc_growth:
+        trans_expansion_policy: nerc_growth
+      unlimited:
+        trans_expansion_policy: unlimited
+    hurdle:
+      yes:
+        hurdle_policy: yes
+      no:
+        hurdle_policy: no
+    degrade:
+      yes:
+        degrade_policy: yes
+      no:
+        degrade_policy: no
+    asymmetry:
+      yes:
+        asymmetry_policy: yes
+      no:
+        asymmetry_policy: no
+      old:
+        asymmetry_policy: no
+        user_transmission_constraints_fn: reeds_ba_tx_REFS2009_avg.csv
+        user_transmission_costs: network_costs_ReEDS_patched_for_REFS2009.csv
+    build_minimum:
+      yes:
+        build_minimum_policy: yes
+      no:
+        build_minimum_policy: no
     make_split_models:
       yes:
         model_adjustment_scripts:
