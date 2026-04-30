@@ -11,6 +11,30 @@
 # case.
 settings_management:
   all_years:
+    region_scope:
+      # "full" passes through unchanged (same as omitting region_scope column).
+      full: ~
+      # Simple aggregations: value is a column name in hierarchy.csv.
+      # No entry needed for "st", "interconnect", etc. — pg_to_switch.py detects
+      # them as hierarchy.csv column names automatically.
+      st:
+        region_scope: st
+      interconnect:
+        region_scope: interconnect
+      transreg:
+        region_scope: transreg
+      gulfcoast:
+        region_scope:
+          detail_by: ba
+          detail_values: [p87, p88, p58, p86, p89, p90]
+          aggregate_by: transreg
+      
+      # Mixed-resolution example (keep TX at full BA detail, aggregate rest by interconnect):
+      # tx_focus:
+      #   region_scope:
+      #     detail_by: st
+      #     detail_values: [TX]
+      #     aggregate_by: interconnect
     time_series:
       p1:
         reduce_time_domain: false
@@ -36,6 +60,15 @@ settings_management:
       s4x5:
         time_domain_periods: 4
         time_domain_days_per_period: 5
+      s6x5:
+        time_domain_periods: 6
+        time_domain_days_per_period: 5
+      s7x5:
+        time_domain_periods: 7
+        time_domain_days_per_period: 5
+      s20x7:
+        time_domain_periods: 20
+        time_domain_days_per_period: 7
       s10x5:
         time_domain_periods: 10
         time_domain_days_per_period: 5
@@ -50,6 +83,57 @@ settings_management:
               parameter_values:
                 # add dummy value that will be overridden by PG to avoid
                 # warnings from PG about empty parameter_values
+                New_Build: -1
+          2025:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                # add dummy value that will be overridden by PG to avoid
+                # warnings from PG about empty parameter_values
+                New_Build: -1
+          2028:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2029:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2030:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2035:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+      caelp:
+        # add the load growth and mark it as shiftable; but shifting
+        # will be constrained separately by load_growth_flexibility
+        demand_response_fn: load_adjustments_caelp.csv.zip
+        flexible_demand_resources:
+          2024:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                # add dummy value that will be overridden by PG to avoid
+                # warnings from PG about empty parameter_values
+                New_Build: -1
+          2025:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                # add dummy value that will be overridden by PG to avoid
+                # warnings from PG about empty parameter_values
+                New_Build: -1
+          2028:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
                 New_Build: -1
           2029:
             load_growth:
@@ -130,6 +214,278 @@ settings_management:
           MaxCapTag_Ban:
             # technology name for new gas, but not existing/planned
             NaturalGas: 1
+    
+    gen_clustering:
+      # Controls whether existing generators are clustered separately by utility/owner.
+      # When active, each targeted utility's units form their own sub-group within each
+      # (region, technology) pair and are clustered independently using the normal
+      # num_clusters setting.  Cluster labels become "{utility_id}_{k}" instead of "{k}".
+      #
+      # WARNING: this multiplies cluster counts — see generators.py warning output.
+      # Suppress specific technologies with exclude_technologies.
+      none: ~ # default: cluster by region+technology only (existing behaviour)
+      top10_co2:
+        # separate clusters for the 10 largest CO2-emitting utilities in the model
+        cluster_existing_by_utility:
+          top_n_co2: 10
+      top5_co2:
+        # separate clusters for the 5 largest CO2-emitting utilities in the model
+        cluster_existing_by_utility:
+          top_n_co2: 5
+      entergy:
+        # separate clusters for 213 utilities listed in EIA_ID_parent_lookup.csv
+        # covers 9 parent companies: AEP, Berkshire Hathaway, Dominion Energy,
+        # Duke Energy, Entergy, NextEra Energy, Southern Co., Vistra, Xcel Energy
+        cluster_existing_by_utility:
+          utility_ids:
+            # Entergy Corp.
+            - 814
+            - 11241
+            - 12465
+            - 12685
+            - 13478
+            - 55937
+      parent_cos:
+        # separate clusters for 213 utilities listed in EIA_ID_parent_lookup.csv
+        # covers 9 parent companies: AEP, Berkshire Hathaway, Dominion Energy,
+        # Duke Energy, Entergy, NextEra Energy, Southern Co., Vistra, Xcel Energy
+        cluster_existing_by_utility:
+          utility_ids:
+            # American Electric Power Co., Inc.
+            - 733
+            - 9324
+            - 15474
+            - 17698
+            - 19171
+            - 22053
+            - 49796
+            - 57372
+            - 58625
+            - 60571
+            # Berkshire Hathaway, Inc.
+            - 4210
+            - 8503
+            - 12341
+            - 13407
+            - 14354
+            - 15300
+            - 16729
+            - 17166
+            - 49919
+            - 54809
+            - 59359
+            - 59868
+            - 59869
+            - 59870
+            - 59871
+            - 59872
+            - 59873
+            - 59874
+            - 60434
+            - 60435
+            - 60436
+            - 60437
+            - 60438
+            - 60439
+            - 60440
+            - 60587
+            - 60588
+            - 60589
+            - 60590
+            - 60591
+            - 60592
+            - 60593
+            - 60594
+            - 60823
+            - 60826
+            - 60828
+            - 60829
+            - 60967
+            # Dominion Energy
+            - 5221
+            - 5248
+            - 17539
+            - 17554
+            - 19876
+            - 58468
+            # Duke Energy Corp.
+            - 3046
+            - 3542
+            - 5416
+            - 6455
+            - 15470
+            - 50123
+            - 55729
+            - 59980
+            - 60054
+            - 61943
+            # Entergy Corp.
+            - 814
+            - 11241
+            - 12465
+            - 12685
+            - 13478
+            - 55937
+            # NextEra Energy, Inc.
+            - 6017
+            - 6354
+            - 6452
+            - 6850
+            - 6854
+            - 6862
+            - 7531
+            - 8565
+            - 14629
+            - 14876
+            - 21970
+            - 31719
+            - 34717
+            - 34719
+            - 34721
+            - 34723
+            - 49963
+            - 50012
+            - 50014
+            - 50063
+            - 54717
+            - 54799
+            - 54870
+            - 55696
+            - 55785
+            - 55799
+            - 55862
+            - 55901
+            - 55906
+            - 55958
+            - 56121
+            - 56122
+            - 56123
+            - 56124
+            - 56415
+            - 56484
+            - 56555
+            - 56561
+            - 56622
+            - 56678
+            - 56698
+            - 56786
+            - 56787
+            - 56925
+            - 56926
+            - 57024
+            - 57026
+            - 57460
+            - 57503
+            - 58090
+            - 58121
+            - 58143
+            - 58180
+            - 58298
+            - 58353
+            - 58360
+            - 58451
+            - 58539
+            - 58545
+            - 59102
+            - 59211
+            - 59212
+            - 59790
+            - 59802
+            - 59803
+            - 59831
+            - 59842
+            - 59843
+            - 59844
+            - 59845
+            - 60208
+            - 60370
+            - 60397
+            - 60409
+            - 60476
+            - 60562
+            - 60614
+            - 60619
+            - 60842
+            - 60871
+            - 61133
+            - 61214
+            - 61291
+            - 61295
+            - 61416
+            - 61436
+            - 61458
+            - 61502
+            - 61530
+            - 61531
+            - 61537
+            - 61540
+            - 61562
+            - 61563
+            - 61905
+            - 61910
+            - 61912
+            - 61915
+            - 62023
+            - 62668
+            - 62913
+            - 62916
+            - 63073
+            - 63116
+            - 63128
+            - 63294
+            - 63487
+            - 63580
+            - 63582
+            # Southern Co.
+            - 195
+            - 7140
+            - 12686
+            - 17650
+            # Vistra Corp.
+            - 520
+            - 641
+            - 656
+            - 1074
+            - 4966
+            - 5504
+            - 5517
+            - 5761
+            - 10576
+            - 11741
+            - 12501
+            - 12568
+            - 21668
+            - 27031
+            - 54802
+            - 54803
+            - 55983
+            - 57141
+            - 57359
+            - 59917
+            - 59918
+            - 59919
+            - 59922
+            - 59923
+            - 59924
+            - 60477
+            - 61123
+            # Xcel Energy, Inc.
+            - 13781
+            - 15466
+            - 17718
+      # Example: separate clusters for one specific utility (replace 12345 with EIA ID)
+      # utility_12345:
+      #   cluster_existing_by_utility:
+      #     utility_ids: [12345]
+      #
+      # Example: top-10 CO2, but skip nuclear and hydro (already 1 cluster each)
+      # top10_co2_thermal:
+      #   cluster_existing_by_utility:
+      #     top_n_co2: 10
+      #     exclude_technologies:
+      #       - Nuclear
+      #       - Conventional Hydroelectric
+    
     policies:
       current: ~ # use default settings
       decarb:
