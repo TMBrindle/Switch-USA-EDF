@@ -55,9 +55,6 @@ user_load_scenario = "base"
 # load growth and exports will be stored here; pg/settings/flexible_load.yml/demand_response_fn
 # should point to this file
 demand_response_file = "load_adjustments_caelp.csv.zip"
-# load growth and exports will be stored here
-# should match pg/settings/flexible_load.yml/demand_response_fn
-demand_response_file = "load_adjustments.csv.zip"
 # should match pg/settings/flexible_load.yml/demand_response
 normal_growth_scenario = "base"
 
