@@ -14,6 +14,47 @@ as a fraction of in-zone load. Constraints can be set at two levels:
 All constraints are optional: missing files, missing rows, and blank cells are
 all treated as "no constraint".
 
+Data coverage and ratio adjustment
+-----------------------------------
+The historical gen/load ratios in the reference files are adjusted upward by a
+default factor of 1.30 to correct for two systematic biases in the source data:
+
+  1. EIA-923 undercounting (~19% of actual US generation missing)
+     The PUDL generation_fuel_eia923 table contains ~3,349 TWh/yr for 2020-2023,
+     vs the EIA-published US total of ~4,136 TWh/yr. The gap (~787 TWh/yr, 19%)
+     represents distributed generation, some CHP facilities, and generators that
+     only file the annual EIA-923 survey. After plant-map filtering (reeds_plant_map
+     covers ~95% of what is in EIA-923), the reference data captures ~77% of actual
+     US generation.
+
+  2. T&D losses (~6% expected gap between generation and consumption)
+     The load data is end-use consumption at the meter. Generation must exceed load
+     by ~6% (US average) to cover transmission and distribution losses. The true
+     aggregate gen/load ratio is therefore ~1.06, not 1.0.
+
+  Combined: raw (unadjusted) aggregate gen/load ratio ≈ 0.82 vs true value ~1.06.
+  Correction factor = 1.06 / 0.82 ≈ 1.30.
+
+  make_zone_ratios.py applies separate factors to the ratio columns:
+    historical_annual_ratio      ×1.30  (--coverage-adjustment,     default 1.30)
+    historical_max_annual_ratio  ×1.30  (--coverage-adjustment,     default 1.30)
+    historical_min_annual_ratio  ×1.00  (--min-coverage-adjustment, default 1.0)
+
+  The minimum is intentionally left unadjusted by default. Raising the floor by a
+  national-average factor adds false precision at the zone level and can make
+  constraints unnecessarily tight. The raw minimum is a conservative, data-backed
+  lower bound: it represents the lowest generation documented in EIA-923. Mean and
+  max are adjusted so that SPEC formulas like "mean*0.9" or "max" reference
+  realistic values (e.g. ERCOT: raw 0.63 → adjusted mean 1.19, adjusted max 1.27,
+  unadjusted min 0.87).
+
+  The correction is a national average factor. Zone-level EIA-923 coverage varies,
+  so adjusted ratios remain approximate — but far more realistic than raw values.
+
+  To disable all adjustment:   python make_zone_ratios.py --coverage-adjustment 1.0
+  To adjust min equally:       python make_zone_ratios.py --min-coverage-adjustment 1.30
+  To use a custom factor:      python make_zone_ratios.py --coverage-adjustment 1.20
+
 Files involved
 --------------
   make_zone_ratios.py                 script to compute historical reference data
@@ -220,6 +261,10 @@ APPENDIX — make_zone_ratios.py full option reference
   --max-annual-ratio S  Auto-fill max_annual_ratio column with formula S.
   --min-peak-share S    Auto-fill min_peak_share column with formula S.
   --max-peak-share S    Auto-fill max_peak_share column with formula S.
+  --coverage-adjustment F      Correction applied to historical_annual_ratio and
+                        historical_max_annual_ratio. Default: 1.30.
+  --min-coverage-adjustment F  Correction applied to historical_min_annual_ratio.
+                        Default: 1.0 (unadjusted — conservative floor).
   --output FILE         Output path (default: gen_zone_load_ratio.csv).
   --groups-output FILE  Groups output path (default: gen_zone_groups.csv in
                         same directory as --output).

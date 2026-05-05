@@ -46,6 +46,7 @@ zone/group per period with actual values and the applied constraint bounds.
 
 import os
 import pandas as pd
+from switch_model.utilities import apply_input_aliases
 from pyomo.environ import (
     Any,
     Constraint,
@@ -373,12 +374,12 @@ def load_inputs(m, switch_data, inputs_dir):
     # Zone-level constraints
     _load_constraint_csv(
         switch_data,
-        os.path.join(inputs_dir, "gen_zone_load_ratio.csv"),
+        apply_input_aliases(switch_data, os.path.join(inputs_dir, "gen_zone_load_ratio.csv")),
         zone_constraint_params,
     )
 
     # Zone group membership (GROUP_NAME, LOAD_ZONE pairs → GEN_RATIO_GROUP_ZONES)
-    groups_path = os.path.join(inputs_dir, "gen_zone_groups.csv")
+    groups_path = apply_input_aliases(switch_data, os.path.join(inputs_dir, "gen_zone_groups.csv"))
     if os.path.isfile(groups_path):
         gdf = pd.read_csv(groups_path)
         if not gdf.empty:
@@ -393,7 +394,7 @@ def load_inputs(m, switch_data, inputs_dir):
     # Group-level constraints
     _load_constraint_csv(
         switch_data,
-        os.path.join(inputs_dir, "gen_group_load_ratio.csv"),
+        apply_input_aliases(switch_data, os.path.join(inputs_dir, "gen_group_load_ratio.csv")),
         group_constraint_params,
     )
 
