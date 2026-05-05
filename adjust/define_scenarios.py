@@ -192,12 +192,20 @@ for tag in ("", "_prm"):
         if not "--include-module study_modules.reuse_build_plan" in " ".join(args)
     }
 
+    # Load any extra options that pg_to_switch.py stamped into the input dir
+    # (e.g. --include-module study_modules.gen_zone_ratio).
+    extra_opts_file = in_dir / "scenario_extra_options.txt"
+    extra_opts = []
+    if extra_opts_file.exists():
+        with open(extra_opts_file) as f:
+            extra_opts = [line.strip() for line in f if line.strip()]
+
     cases = []
     for c in [main_cases, peak_fuel_cases, low_growth_cases]:
         for scen, args in c.items():
             a = [
                 f"--scenario-name {scen} --inputs-dir {idir} --outputs-dir {odir}_{scen}"
-            ] + args
+            ] + extra_opts + args
             cases.append(" ".join(a))
 
     scenario_file = in_dir / "scenarios.txt"

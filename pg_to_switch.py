@@ -2600,8 +2600,8 @@ def _parse_gen_zone_ratio_spec(spec_str, df):
 
 def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
     """
-    Write gen_zone_load_ratio.csv and/or gen_group_load_ratio.csv +
-    gen_zone_ratio_group_by.csv to the scenario input folder if gen_zone_ratio
+    Write gen_zone_load_ratio.csv and/or gen_zone_groups.csv +
+    gen_group_load_ratio.csv to the scenario input folder if gen_zone_ratio
     constraints are configured in settings.
 
     Behaviour depends on whether the model's zones match the constraint
