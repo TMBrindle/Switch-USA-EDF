@@ -533,6 +533,13 @@ settings_management:
       # pg_to_switch.py writes the appropriate input files to the scenario dir
       # and adds --include-module study_modules.gen_zone_ratio to scenarios.txt.
       #
+      # gen_zone_ratio_agg names any column in hierarchy.csv (ba, st, hurdlereg,
+      # transreg, etc.). For BA-level models this is also the geographic scope over
+      # which constraints are aggregated (group constraints). For aggregated models
+      # (region_scope matching agg) it becomes a per-zone constraint.
+      # Group membership is derived live from hierarchy.csv — no pre-generated
+      # gen_zone_groups file is needed.
+      #
       # Reference files required at the project root:
       #   ba level:      gen_zone_load_ratio_ba.csv
       #                  Run: python make_zone_ratios.py --output gen_zone_load_ratio_ba.csv
@@ -540,10 +547,6 @@ settings_management:
       #                  Run: python make_zone_ratios.py --agg-by st
       #   transreg:      gen_zone_load_ratio_transreg.csv
       #                  Run: python make_zone_ratios.py --agg-by transreg --output gen_zone_load_ratio_transreg.csv
-      #
-      # For state/transreg constraints on a BA-level model (region_scope: full),
-      # pg_to_switch.py uses gen_zone_groups.csv (or gen_zone_groups_{agg}.csv)
-      # to write group-level constraints.
       #
       # Constraint specs (gen_zone_ratio_min_spec etc.) can be:
       #   uniform string:  "min", "mean*0.9", "0.5"  — same value for all periods
@@ -567,7 +570,7 @@ settings_management:
         gen_zone_ratio_agg: ba
         gen_zone_ratio_max_spec: max
       # ── State level ────────────────────────────────────────────────────────
-      # For BA-level models uses group constraints (gen_zone_groups.csv).
+      # For BA-level models uses group constraints (derived from hierarchy.csv).
       # For state-level models (region_scope: st) uses zone constraints.
       st_hist_range:
         gen_zone_ratio_agg: st

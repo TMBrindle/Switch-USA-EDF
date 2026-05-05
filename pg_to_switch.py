@@ -2600,8 +2600,8 @@ def _parse_gen_zone_ratio_spec(spec_str, df):
 
 def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
     """
-    Write gen_zone_load_ratio.csv and/or gen_zone_groups.csv +
-    gen_group_load_ratio.csv to the scenario input folder if gen_zone_ratio
+    Write gen_zone_load_ratio.csv and/or gen_group_load_ratio.csv +
+    gen_zone_ratio_group_by.csv to the scenario input folder if gen_zone_ratio
     constraints are configured in settings.
 
     Behaviour depends on whether the model's zones match the constraint
@@ -2611,14 +2611,15 @@ def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
         Writes gen_zone_load_ratio.csv.
 
       Group constraints (model uses p-zones, constraints at higher level):
-        Writes gen_zone_groups.csv + gen_group_load_ratio.csv.
+        Writes gen_group_load_ratio.csv + gen_zone_ratio_group_by.csv.
+        Group membership is derived live from hierarchy.csv using the
+        gen_zone_ratio_agg column — no pre-generated gen_zone_groups file needed.
 
     Reference files expected in the project directory:
       gen_zone_load_ratio_ba.csv      — BA (p-zone) level
       gen_zone_load_ratio_{agg}.csv   — other aggregation levels
       gen_zone_load_ratio.csv         — legacy state-level file (agg=st fallback)
-      gen_zone_groups_{agg}.csv       — agg→BA group mapping
-      gen_zone_groups.csv             — legacy state-level groups (agg=st fallback)
+      hierarchy.csv                   — zone→group mapping (all aggregation levels)
 
     Returns True if any constraint files were written, False otherwise.
     """
@@ -2723,24 +2724,30 @@ def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
         )
     else:
         # Model uses p-zones; constraints are at a higher aggregation level.
-        groups_file = script_dir / f"gen_zone_groups_{agg}.csv"
-        if not groups_file.exists():
-            groups_file = script_dir / "gen_zone_groups.csv"  # legacy fallback
-        if not groups_file.exists():
+        # Derive active groups directly from hierarchy.csv — no pre-generated
+        # gen_zone_groups file needed.
+        hier_file = script_dir / "hierarchy.csv"
+        if not hier_file.exists():
             raise FileNotFoundError(
-                f"Zone groups file not found for gen_zone_ratio_agg={agg!r}. "
-                f"Expected: {groups_file}. "
-                f"Run: python make_zone_ratios.py --agg-by {agg} "
-                f"--groups-output gen_zone_groups_{agg}.csv"
+                f"hierarchy.csv not found at {hier_file}; required to determine "
+                f"group membership for gen_zone_ratio_agg={agg!r}."
             )
-        groups_df = pd.read_csv(groups_file)
-        # Keep only groups whose member p-zones exist in this model
-        groups_df = groups_df[groups_df["LOAD_ZONE"].isin(model_zones)].copy()
-        active_groups = set(groups_df["GROUP_NAME"])
+        hier = pd.read_csv(hier_file)
+        if agg not in hier.columns:
+            raise ValueError(
+                f"gen_zone_ratio_agg={agg!r} is not a column in hierarchy.csv. "
+                f"Available columns: {hier.columns.tolist()}"
+            )
+        # Find the groups present in this model's zones
+        zone_groups = (
+            hier[hier["ba"].isin(model_zones)][["ba", agg]]
+            .dropna(subset=[agg])
+        )
+        active_groups = set(zone_groups[agg].astype(str))
         if not active_groups:
             logger.warning(
-                f"gen_zone_ratio: no zone groups had member zones in the model for "
-                f"gen_zone_ratio_agg={agg!r}. No constraint files written."
+                f"gen_zone_ratio: no groups found for model zones in hierarchy "
+                f"column '{agg}'. No constraint files written."
             )
             return False
         # Filter reference rows to active groups
@@ -2762,7 +2769,10 @@ def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
         group_expanded[group_out_cols].to_csv(
             out_folder / "gen_group_load_ratio.csv", index=False
         )
-        groups_df.to_csv(out_folder / "gen_zone_groups.csv", index=False)
+        # Tell the Switch module which hierarchy column defines the groups
+        pd.DataFrame({"hierarchy_col": [agg]}).to_csv(
+            out_folder / "gen_zone_ratio_group_by.csv", index=False
+        )
         n_groups = len(active_groups)
         logger.info(
             f"gen_zone_ratio: wrote group constraints for {n_groups} groups × "
