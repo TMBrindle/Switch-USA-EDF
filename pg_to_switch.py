@@ -2530,6 +2530,265 @@ def model_folder_names(results_folder, scen_name, case, year, myopic):
     return in_folder, out_folder
 
 
+def _resolve_spec_for_period(spec, period):
+    """
+    Resolve a gen_zone_ratio constraint spec for a specific model period.
+
+    spec can be:
+      str  — uniform value applied to all periods (e.g. "min", "mean*0.9")
+      dict — period-keyed values, e.g. {2028: "min", 2030: "min*0.9", 2035: "min*0.8"}
+             For periods not explicitly listed, uses the latest defined period that
+             is <= the requested period (step-wise carry-forward). Falls back to the
+             earliest defined period if no period qualifies.
+
+    Returns the resolved spec string, or None if spec is falsy.
+    """
+    if not spec:
+        return None
+    if isinstance(spec, str):
+        return spec
+    if isinstance(spec, dict):
+        keys = sorted(spec.keys())
+        # Latest key <= period
+        candidates = [k for k in keys if k <= period]
+        if candidates:
+            return spec[candidates[-1]]
+        # No key <= period: fall back to earliest defined
+        return spec[keys[0]]
+    raise ValueError(
+        f"gen_zone_ratio spec must be a string or a period-keyed dict, got {type(spec)}"
+    )
+
+
+def _parse_gen_zone_ratio_spec(spec_str, df):
+    """
+    Parse a gen/load ratio constraint specification string and return a Series.
+    Spec formats: '0.8', 'mean', 'min', 'max', 'mean*0.9', 'min-0.05', etc.
+    Mirrors the parse_spec() function in make_zone_ratios.py.
+    """
+    import re
+
+    base_cols = {
+        "mean": "historical_annual_ratio",
+        "min": "historical_min_annual_ratio",
+        "max": "historical_max_annual_ratio",
+    }
+    spec = spec_str.strip()
+    try:
+        val = float(spec)
+        return pd.Series(val, index=df.index)
+    except ValueError:
+        pass
+    m = re.match(r"^(mean|min|max)([*+\-])?([\d.]+)?$", spec, re.IGNORECASE)
+    if not m:
+        raise ValueError(
+            f"Cannot parse gen_zone_ratio spec {spec_str!r}. "
+            "Expected a number, 'mean', 'min', 'max', 'mean*0.9', 'min-0.05', etc."
+        )
+    base_name, op, val_str = m.groups()
+    base_series = df[base_cols[base_name.lower()]].copy()
+    if not op:
+        return base_series
+    val = float(val_str)
+    if op == "*":
+        return base_series * val
+    elif op == "+":
+        return base_series + val
+    elif op == "-":
+        return base_series - val
+
+
+def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
+    """
+    Write gen_zone_load_ratio.csv and/or gen_group_load_ratio.csv +
+    gen_zone_ratio_group_by.csv to the scenario input folder if gen_zone_ratio
+    constraints are configured in settings.
+
+    Behaviour depends on whether the model's zones match the constraint
+    aggregation level:
+
+      Zone constraints (zone names match reference LOAD_ZONE):
+        Writes gen_zone_load_ratio.csv.
+
+      Group constraints (model uses p-zones, constraints at higher level):
+        Writes gen_group_load_ratio.csv + gen_zone_ratio_group_by.csv.
+        Group membership is derived live from hierarchy.csv using the
+        gen_zone_ratio_agg column — no pre-generated gen_zone_groups file needed.
+
+    Reference files expected in the project directory:
+      gen_zone_load_ratio_ba.csv      — BA (p-zone) level
+      gen_zone_load_ratio_{agg}.csv   — other aggregation levels
+      gen_zone_load_ratio.csv         — legacy state-level file (agg=st fallback)
+      hierarchy.csv                   — zone→group mapping (all aggregation levels)
+
+    Returns True if any constraint files were written, False otherwise.
+    """
+    settings = first_value(scen_settings_dict)
+    agg = settings.get("gen_zone_ratio_agg")
+    if not agg or agg == "none":
+        return False
+
+    min_spec = settings.get("gen_zone_ratio_min_spec")
+    max_spec = settings.get("gen_zone_ratio_max_spec")
+    min_peak_spec = settings.get("gen_zone_ratio_min_peak_spec")
+    max_peak_spec = settings.get("gen_zone_ratio_max_peak_spec")
+
+    if not any([min_spec, max_spec, min_peak_spec, max_peak_spec]):
+        logger.warning(
+            f"gen_zone_ratio_agg={agg!r} is set but no constraint specs found "
+            "(gen_zone_ratio_min_spec, gen_zone_ratio_max_spec, etc.). "
+            "No constraint files will be written."
+        )
+        return False
+
+    script_dir = Path(__file__).parent
+    all_periods = sorted(scen_settings_dict.keys())
+    model_zones = set(settings.get("model_regions", []))
+
+    # ── Locate reference file ─────────────────────────────────────────────
+    ref_file = script_dir / f"gen_zone_load_ratio_{agg}.csv"
+    if not ref_file.exists() and agg == "st":
+        ref_file = script_dir / "gen_zone_load_ratio.csv"  # legacy name
+    if not ref_file.exists():
+        raise FileNotFoundError(
+            f"Reference file not found for gen_zone_ratio_agg={agg!r}. "
+            f"Expected: {ref_file}. "
+            + (
+                "Run: python make_zone_ratios.py "
+                + (f"--agg-by {agg} --output gen_zone_load_ratio_{agg}.csv" if agg != "ba"
+                   else "--output gen_zone_load_ratio_ba.csv")
+            )
+        )
+
+    ref_df = pd.read_csv(ref_file)
+
+    # ── Determine zone vs group constraints ───────────────────────────────
+    # If model zone names overlap with LOAD_ZONE values in the reference file,
+    # the model is already at this aggregation level → use zone constraints.
+    # Otherwise the model uses sub-zones (p-zones) → use group constraints.
+    use_zone_constraints = bool(model_zones.intersection(set(ref_df["LOAD_ZONE"])))
+
+    zone_out_cols = [
+        "LOAD_ZONE", "PERIOD",
+        "min_annual_ratio", "max_annual_ratio",
+        "min_peak_share", "max_peak_share",
+    ]
+
+    spec_columns = [
+        ("min_annual_ratio", min_spec),
+        ("max_annual_ratio", max_spec),
+        ("min_peak_share", min_peak_spec),
+        ("max_peak_share", max_peak_spec),
+    ]
+
+    def expand_for_periods(df):
+        """
+        Replicate rows for each model period, applying period-specific constraint
+        specs. Specs may be uniform strings or period-keyed dicts.
+        """
+        frames = []
+        for period in all_periods:
+            frame = df.copy()
+            frame["PERIOD"] = period
+            for col, spec in spec_columns:
+                resolved = _resolve_spec_for_period(spec, period)
+                if resolved:
+                    frame[col] = _parse_gen_zone_ratio_spec(resolved, df).round(4)
+                else:
+                    frame[col] = ""
+            frames.append(frame)
+        return (
+            pd.concat(frames, ignore_index=True)
+            .sort_values(["LOAD_ZONE", "PERIOD"])
+            .reset_index(drop=True)
+        )
+
+    if use_zone_constraints:
+        # Model zones ARE at the constraint aggregation level.
+        active_ref = ref_df[ref_df["LOAD_ZONE"].isin(model_zones)].copy()
+        if active_ref.empty:
+            logger.warning(
+                f"gen_zone_ratio: no reference zones matched model zones for "
+                f"gen_zone_ratio_agg={agg!r}. No constraint file written."
+            )
+            return False
+        expanded = expand_for_periods(active_ref)
+        expanded[zone_out_cols].to_csv(
+            out_folder / "gen_zone_load_ratio.csv", index=False
+        )
+        n_zones = active_ref["LOAD_ZONE"].nunique()
+        logger.info(
+            f"gen_zone_ratio: wrote zone constraints for {n_zones} zones × "
+            f"{len(all_periods)} period(s) → "
+            f"{short_fn(out_folder / 'gen_zone_load_ratio.csv')}"
+        )
+    else:
+        # Model uses p-zones; constraints are at a higher aggregation level.
+        # Derive active groups directly from hierarchy.csv — no pre-generated
+        # gen_zone_groups file needed.
+        hier_file = script_dir / "hierarchy.csv"
+        if not hier_file.exists():
+            raise FileNotFoundError(
+                f"hierarchy.csv not found at {hier_file}; required to determine "
+                f"group membership for gen_zone_ratio_agg={agg!r}."
+            )
+        hier = pd.read_csv(hier_file)
+        if agg not in hier.columns:
+            raise ValueError(
+                f"gen_zone_ratio_agg={agg!r} is not a column in hierarchy.csv. "
+                f"Available columns: {hier.columns.tolist()}"
+            )
+        # Find the groups present in this model's zones
+        zone_groups = (
+            hier[hier["ba"].isin(model_zones)][["ba", agg]]
+            .dropna(subset=[agg])
+        )
+        active_groups = set(zone_groups[agg].astype(str))
+        if not active_groups:
+            logger.warning(
+                f"gen_zone_ratio: no groups found for model zones in hierarchy "
+                f"column '{agg}'. No constraint files written."
+            )
+            return False
+        # Filter reference rows to active groups
+        active_ref = ref_df[ref_df["LOAD_ZONE"].isin(active_groups)].copy()
+        if active_ref.empty:
+            logger.warning(
+                f"gen_zone_ratio: no reference data found for active groups "
+                f"{sorted(active_groups)}. No constraint files written."
+            )
+            return False
+        expanded = expand_for_periods(active_ref)
+        # gen_group_load_ratio.csv uses GROUP_NAME instead of LOAD_ZONE
+        group_expanded = expanded.rename(columns={"LOAD_ZONE": "GROUP_NAME"})
+        group_out_cols = [
+            "GROUP_NAME", "PERIOD",
+            "min_annual_ratio", "max_annual_ratio",
+            "min_peak_share", "max_peak_share",
+        ]
+        group_expanded[group_out_cols].to_csv(
+            out_folder / "gen_group_load_ratio.csv", index=False
+        )
+        # Tell the Switch module which hierarchy column defines the groups
+        pd.DataFrame({"hierarchy_col": [agg]}).to_csv(
+            out_folder / "gen_zone_ratio_group_by.csv", index=False
+        )
+        n_groups = len(active_groups)
+        logger.info(
+            f"gen_zone_ratio: wrote group constraints for {n_groups} groups × "
+            f"{len(all_periods)} period(s) → "
+            f"{short_fn(out_folder / 'gen_group_load_ratio.csv')}"
+        )
+
+    # Write a marker file so define_scenarios.py knows to add the module to
+    # every scenario it generates for this case directory.
+    extra_opts_file = out_folder / "scenario_extra_options.txt"
+    with open(extra_opts_file, "w") as f:
+        f.write("--include-module study_modules.gen_zone_ratio\n")
+
+    return True
+
+
 def scenario_files(results_folder, case_settings, myopic):
     """
     Create switch/scenarios*.txt, defining all the cases to run.
@@ -2553,6 +2812,8 @@ def scenario_files(results_folder, case_settings, myopic):
         line += f"--inputs-dir {shlex.quote(str(in_folder))} --outputs-dir {shlex.quote(str(out_folder))} "
         if settings.get("switch_module_list"):
             line += f"--module-list {settings['switch_module_list']} "
+        if settings.get("gen_zone_ratio_agg") and settings.get("gen_zone_ratio_agg") != "none":
+            line += "--include-module study_modules.gen_zone_ratio "
         line += extra
         line = line.strip() + " "
         if myopic:
@@ -2926,6 +3187,7 @@ def main(
             settings_file=settings_file,
             out_folder=out_folder,
         )
+        write_gen_zone_ratio_files(scen_settings_dict, out_folder)
 
     scenario_files(results_folder, case_settings, myopic)
 

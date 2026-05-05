@@ -11,8 +11,9 @@ Data sources:
                  loads for 2007-2013); they are applied to projected demand levels.
                  We use model years 2020-2023, averaged over all 7 weather years,
                  as the best available proxy for recent historical loads.)
-  - Generation: pg_data/pudl.2025_08.sqlite -> generation_eia923
-                (monthly net generation by EIA plant, 2008-2025)
+  - Generation: pg_data/pudl.2025_08.sqlite -> generation_fuel_eia923
+                (monthly net generation by EIA plant × fuel, 2008-2025;
+                 ~15k plants vs ~1.9k in the unit-level generation_eia923 table)
   - Zone map:   pg/extra_inputs/reeds_plant_map.csv
                 (EIA plant_id_eia -> ReEDS BA, e.g. p86)
   - Hierarchy:  hierarchy.csv  (optional; needed for --agg-by)
@@ -23,10 +24,11 @@ Output:
     LOAD_ZONE                    - ReEDS p-zone (or aggregate zone name if --agg-by)
     PERIOD                       - placeholder (blank; fill with model periods before use)
     historical_gen_twh           - mean annual in-zone generation 2020-2023 (TWh)
+                                   NOTE: raw EIA-923 value, NOT coverage-adjusted
     historical_load_twh          - mean annual in-zone load 2020-2023 (TWh)
-    historical_annual_ratio      - mean annual gen/load ratio 2020-2023
-    historical_min_annual_ratio  - minimum annual gen/load ratio across 2020-2023
-    historical_max_annual_ratio  - maximum annual gen/load ratio across 2020-2023
+    historical_annual_ratio      - mean annual gen/load ratio, coverage-adjusted
+    historical_min_annual_ratio  - minimum annual gen/load ratio, coverage-adjusted
+    historical_max_annual_ratio  - maximum annual gen/load ratio, coverage-adjusted
     historical_peak_load_mw      - mean annual peak load (MW) averaged over 2020-2023
     min_annual_ratio             - constraint: min gen/load (blank or auto-populated)
     max_annual_ratio             - constraint: max gen/load (blank or auto-populated)
@@ -36,6 +38,39 @@ Output:
   gen_zone_groups.csv  (only when --agg-by is specified)
     Maps each aggregate zone name to its constituent ReEDS BA zones.
     Used by the gen_zone_ratio Switch module for group-level constraints.
+
+Coverage adjustment (--coverage-adjustment, default 1.30):
+  EIA-923 systematically undercounts generation relative to actual US totals.
+  Two compounding reasons:
+    1. EIA-923 coverage: the generation_fuel_eia923 table contains ~81% of actual
+       US generation (EIA published ~4,136 TWh/yr vs 3,349 TWh/yr in PUDL 2025-08).
+       Excluded generation includes small distributed generators, some CHP facilities,
+       and generators filing only the annual survey form.
+    2. Plant map gaps: reeds_plant_map.csv captures ~95% of what is in EIA-923,
+       dropping a further ~168 TWh/yr of unmapped plants.
+    3. T&D losses: the load data represents end-use consumption at the meter, so
+       generation must exceed load by ~6% (US average) to cover transmission and
+       distribution losses. The true aggregate gen/load ratio is therefore ~1.06,
+       not 1.0.
+
+  Combined effect: raw (unadjusted) aggregate gen/load ratio ≈ 0.82, when the
+  true value is ~1.06. The correction factor is 1.06 / 0.82 ≈ 1.30.
+
+  This script applies separate correction factors to the ratio columns:
+    historical_annual_ratio      ×1.30 (--coverage-adjustment, default 1.30)
+    historical_max_annual_ratio  ×1.30 (--coverage-adjustment, default 1.30)
+    historical_min_annual_ratio  ×1.00 (--min-coverage-adjustment, default 1.0)
+
+  The minimum ratio is intentionally left unadjusted by default. Raising the
+  floor by a national-average factor adds false precision at the zone level and
+  makes constraints unnecessarily restrictive. The raw minimum already provides a
+  conservative, data-backed floor: it represents the lowest generation documented
+  in EIA-923, which is a defensible lower bound for a constraint. Mean and max are
+  adjusted so SPEC formulas like "mean*0.9" or "max" reference realistic values.
+
+  Override with --coverage-adjustment / --min-coverage-adjustment as needed.
+  To apply the same factor to all columns: set --min-coverage-adjustment equal to
+  --coverage-adjustment. To disable all adjustment: set --coverage-adjustment 1.0.
 
 Constraint auto-population (--min-annual-ratio / --max-annual-ratio / etc.):
   Pass a SPEC string to pre-fill constraint columns for all zones. SPEC formats:
@@ -179,6 +214,36 @@ def build_parser():
         help="Auto-populate the max_peak_share constraint column. See --min-peak-share.",
     )
     p.add_argument(
+        "--coverage-adjustment",
+        metavar="FACTOR",
+        type=float,
+        default=1.30,
+        help=(
+            "Multiplicative correction applied to historical_annual_ratio and "
+            "historical_max_annual_ratio to account for EIA-923 undercounting "
+            "and T&D losses. "
+            "Default 1.30 = correction for ~77%% EIA-923 plant-map coverage × "
+            "~6%% T&D losses (true gen/load ≈ 1.06 vs raw measured ≈ 0.82). "
+            "Set to 1.0 to disable. "
+            "See also --min-coverage-adjustment."
+        ),
+    )
+    p.add_argument(
+        "--min-coverage-adjustment",
+        metavar="FACTOR",
+        type=float,
+        default=1.0,
+        help=(
+            "Multiplicative correction applied specifically to "
+            "historical_min_annual_ratio. Default 1.0 (no adjustment). "
+            "Keeping the minimum unadjusted produces a conservative floor: "
+            "it reflects the lowest generation actually documented in EIA-923, "
+            "without raising it by a national-average factor that may not apply "
+            "uniformly at the zone level. Set equal to --coverage-adjustment "
+            "to apply the same correction to all three ratio columns."
+        ),
+    )
+    p.add_argument(
         "--output",
         metavar="FILE",
         default=None,
@@ -208,7 +273,7 @@ def load_generation():
             CAST(strftime('%Y', report_date) AS INTEGER) AS year,
             plant_id_eia,
             SUM(net_generation_mwh) AS gen_mwh
-        FROM generation_eia923
+        FROM generation_fuel_eia923
         WHERE report_date >= :start AND report_date <= :end
         GROUP BY strftime('%Y', report_date), plant_id_eia
     """
@@ -330,7 +395,8 @@ def apply_hierarchy_agg(combined, hier, agg_col):
 def build_output(summary, args):
     """
     Add PERIOD placeholder and constraint columns (blank or auto-populated)
-    to the summary DataFrame.
+    to the summary DataFrame. Applies the coverage adjustment factor to ratio
+    columns before deriving constraint values.
     """
     base_cols = {
         "mean": "historical_annual_ratio",
@@ -339,6 +405,26 @@ def build_output(summary, args):
     }
 
     df = summary.copy()
+
+    # Apply coverage adjustments to ratio columns.
+    # historical_gen_twh is left uncorrected (raw EIA-923 measured value).
+    # Mean and max use --coverage-adjustment (default 1.30).
+    # Min uses --min-coverage-adjustment (default 1.0 — conservative unadjusted floor).
+    factor = args.coverage_adjustment
+    min_factor = args.min_coverage_adjustment
+    for col, f in [
+        ("historical_annual_ratio",     factor),
+        ("historical_max_annual_ratio", factor),
+        ("historical_min_annual_ratio", min_factor),
+    ]:
+        if f != 1.0:
+            df[col] = (df[col] * f).round(3)
+    if factor != 1.0 or min_factor != 1.0:
+        print(
+            f"Coverage adjustment: mean/max ×{factor:.3f}, "
+            f"min ×{min_factor:.3f} (applied to ratio columns)."
+        )
+
     df.insert(1, "PERIOD", "")
 
     for col, spec in [
