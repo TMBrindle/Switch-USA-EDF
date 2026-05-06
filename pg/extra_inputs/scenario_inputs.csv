@@ -78,3 +78,4 @@ s4x1_caelp_entergy_gulf,2035,s4x1,firm,caelp,yes,current,none,hist5,entergy,gulf
 s4x5_caelp_entergy_gulf,2028,s4x5,firm,caelp,yes,current,none,hist5,entergy,gulfcoast,no,constrained,zero,yes,yes,yes,yes
 s4x5_caelp_entergy_gulf,2030,s4x5,firm,caelp,yes,current,none,hist5,entergy,gulfcoast,no,constrained,zero,yes,yes,yes,yes
 s4x5_caelp_entergy_gulf,2035,s4x5,firm,caelp,yes,current,none,hist5,entergy,gulfcoast,no,constrained,zero,yes,yes,yes,yes
+s4x1_edf_med,2030,s4x1,firm,edf_epri_med,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
