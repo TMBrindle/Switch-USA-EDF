@@ -1,4 +1,4 @@
-﻿case_id,year,time_series,load_growth_flexibility,load_growth,allow_retirement,policies,resource_limits,fuel_price_forecast,gen_clustering,region_scope,make_split_models,transmission,trans_expansion,hurdle,degrade,asymmetry,build_minimum,gen_zone_ratio
+case_id,year,time_series,load_growth_flexibility,load_growth,allow_retirement,policies,resource_limits,fuel_price_forecast,gen_clustering,region_scope,make_split_models,transmission,trans_expansion,hurdle,degrade,asymmetry,build_minimum
 p1,2024,p1,none,none,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
 p1,2030,p1,firm,icf,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
 p1_low_gas,2030,p1,firm,icf,yes,current,low_gas,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
@@ -78,6 +78,4 @@ s4x1_caelp_entergy_gulf,2035,s4x1,firm,caelp,yes,current,none,hist5,entergy,gulf
 s4x5_caelp_entergy_gulf,2028,s4x5,firm,caelp,yes,current,none,hist5,entergy,gulfcoast,no,constrained,zero,yes,yes,yes,yes
 s4x5_caelp_entergy_gulf,2030,s4x5,firm,caelp,yes,current,none,hist5,entergy,gulfcoast,no,constrained,zero,yes,yes,yes,yes
 s4x5_caelp_entergy_gulf,2035,s4x5,firm,caelp,yes,current,none,hist5,entergy,gulfcoast,no,constrained,zero,yes,yes,yes,yes
-s4x1_caelp_parclust_zoned,2028,s4x1,firm,caelp,yes,current,none,hist5,parent_cos,full,no,constrained,zero,yes,yes,yes,yes,hurdlereg_min_only
-s4x1_caelp_parclust_zoned,2030,s4x1,firm,caelp,yes,current,none,hist5,parent_cos,full,no,constrained,zero,yes,yes,yes,yes,hurdlereg_min_only
-s4x1_caelp_parclust_zoned,2035,s4x1,firm,caelp,yes,current,none,hist5,parent_cos,full,no,constrained,zero,yes,yes,yes,yes,hurdlereg_min_only
+s4x1_edf_med,2030,s4x1,firm,edf_epri_med,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes

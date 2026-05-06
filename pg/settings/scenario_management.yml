@@ -111,6 +111,60 @@ settings_management:
               fraction_shiftable: 1.0
               parameter_values:
                 New_Build: -1
+      edf_epri_med:
+        # add the load growth and mark it as shiftable; but shifting
+        # will be constrained separately by load_growth_flexibility
+        demand_response_fn: load_adjustments_edf_epri_med.csv.zip
+        flexible_demand_resources:
+          2024:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                # add dummy value that will be overridden by PG to avoid
+                # warnings from PG about empty parameter_values
+                New_Build: -1
+          2025:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                # add dummy value that will be overridden by PG to avoid
+                # warnings from PG about empty parameter_values
+                New_Build: -1
+          2028:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2029:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2030:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2035:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2040:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2045:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2050:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
       caelp:
         # add the load growth and mark it as shiftable; but shifting
         # will be constrained separately by load_growth_flexibility
@@ -528,87 +582,6 @@ settings_management:
         build_minimum_policy: yes
       no:
         build_minimum_policy: no
-    gen_zone_ratio:
-      # Constrain in-zone generation as a fraction of in-zone load.
-      # pg_to_switch.py writes the appropriate input files to the scenario dir
-      # and adds --include-module study_modules.gen_zone_ratio to scenarios.txt.
-      #
-      # gen_zone_ratio_agg names any column in hierarchy.csv (ba, st, hurdlereg,
-      # transreg, etc.). For BA-level models this is also the geographic scope over
-      # which constraints are aggregated (group constraints). For aggregated models
-      # (region_scope matching agg) it becomes a per-zone constraint.
-      # Group membership is derived live from hierarchy.csv — no pre-generated
-      # gen_zone_groups file is needed.
-      #
-      # Reference files required at the project root:
-      #   ba level:      gen_zone_load_ratio_ba.csv
-      #                  Run: python make_zone_ratios.py --output gen_zone_load_ratio_ba.csv
-      #   state level:   gen_zone_load_ratio.csv (legacy) or gen_zone_load_ratio_st.csv
-      #                  Run: python make_zone_ratios.py --agg-by st
-      #   transreg:      gen_zone_load_ratio_transreg.csv
-      #                  Run: python make_zone_ratios.py --agg-by transreg --output gen_zone_load_ratio_transreg.csv
-      #
-      # Constraint specs (gen_zone_ratio_min_spec etc.) can be:
-      #   uniform string:  "min", "mean*0.9", "0.5"  — same value for all periods
-      #   period-keyed dict:  {2028: "min", 2030: "min*0.9", 2035: "min*0.8"}
-      #     Periods not listed inherit the spec from the latest preceding listed
-      #     period (step-wise carry-forward).
-      none: ~
-      # ── BA (p-zone) level ──────────────────────────────────────────────────
-      ba_hist_range:
-        gen_zone_ratio_agg: ba
-        gen_zone_ratio_min_spec: min
-        gen_zone_ratio_max_spec: max
-      ba_hist_tight:
-        gen_zone_ratio_agg: ba
-        gen_zone_ratio_min_spec: mean*0.9
-        gen_zone_ratio_max_spec: mean*1.1
-      ba_min_only:
-        gen_zone_ratio_agg: ba
-        gen_zone_ratio_min_spec: min
-      ba_max_only:
-        gen_zone_ratio_agg: ba
-        gen_zone_ratio_max_spec: max
-      # ── State level ────────────────────────────────────────────────────────
-      # For BA-level models uses group constraints (derived from hierarchy.csv).
-      # For state-level models (region_scope: st) uses zone constraints.
-      st_hist_range:
-        gen_zone_ratio_agg: st
-        gen_zone_ratio_min_spec: min
-        gen_zone_ratio_max_spec: max
-      st_hist_tight:
-        gen_zone_ratio_agg: st
-        gen_zone_ratio_min_spec: mean*0.9
-        gen_zone_ratio_max_spec: mean*1.1
-      st_min_only:
-        gen_zone_ratio_agg: st
-        gen_zone_ratio_min_spec: min
-      st_max_only:
-        gen_zone_ratio_agg: st
-        gen_zone_ratio_max_spec: max
-      # Example: floor tightens in near term then relaxes in later periods.
-      # Add or edit period keys to match your model periods.
-      st_loosening_floor:
-        gen_zone_ratio_agg: st
-        gen_zone_ratio_min_spec:
-          2028: min
-          2030: min*0.9
-          2035: min*0.7
-      # ── Transmission region level ──────────────────────────────────────────
-      transreg_hist_range:
-        gen_zone_ratio_agg: transreg
-        gen_zone_ratio_min_spec: min
-        gen_zone_ratio_max_spec: max
-      transreg_min_only:
-        gen_zone_ratio_agg: transreg
-        gen_zone_ratio_min_spec: min
-      hurdlereg_hist_range:
-        gen_zone_ratio_agg: hurdlereg
-        gen_zone_ratio_min_spec: min
-        gen_zone_ratio_max_spec: max
-      hurdlereg_min_only:
-        gen_zone_ratio_agg: hurdlereg
-        gen_zone_ratio_min_spec: min
     make_split_models:
       yes:
         model_adjustment_scripts:
