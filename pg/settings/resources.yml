@@ -104,6 +104,12 @@ regional_no_grouping: ~
 # Add code to ensure region names here are included above
 alt_num_clusters: ~
 
+# If Commercial/Industrial CHP capacity of a specific technology exceeds this
+# fraction of total zone capacity, that technology gets one extra cluster in
+# that zone. Set to ~ to disable. Example: 0.05 adds a cluster wherever
+# Comm/Ind CHP of a given tech exceeds 5% of zone total capacity.
+chp_cluster_threshold: 0.05
+
 # Derate the capacity of technologies that will be set as MUST_RUN in GenX by
 # their historical capacity factor. (These are ones that have no fuel cost but
 # also no time-varying output limit.)
