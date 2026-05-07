@@ -28,6 +28,7 @@ the lower growth case
 ####################
 from pathlib import Path
 import json
+import os
 import pandas as pd
 from powergenome.util import load_settings
 from powergenome.generators import GeneratorClusters
@@ -42,11 +43,13 @@ settings_dir = "pg/settings"
 # zonal annual growth rates; created by growth_rates/retrieve_icf_growth.py
 # note: we could use PowerGenome's alt_growth_rate setting instead of adding
 # a tranche of flexible load, but this lets us make it interruptible.
-growth_file = "growth_rates/zone_growth_caelp.csv"
+#growth_file = "growth_rates/zone_growth.csv"
+growth_case = "icf"
+growth_path = f"growth_rates/icf"
 reeds_load_table = "load_curves_nrel_reeds"
 base_year = 2023
 start_year = 2023
-end_year = 2035
+end_year = 2050
 # baseline loads will be stored here; pg/settings/demand.yml/regional_load_fn
 # should point to this file
 user_load_file = f"reeds_{base_year}_loads.csv.zip"
@@ -54,7 +57,7 @@ user_load_file = f"reeds_{base_year}_loads.csv.zip"
 user_load_scenario = "base"
 # load growth and exports will be stored here; pg/settings/flexible_load.yml/demand_response_fn
 # should point to this file
-demand_response_file = "load_adjustments_caelp.csv.zip"
+demand_response_file = f"load_adjustments_{growth_case}.csv.zip"
 # should match pg/settings/flexible_load.yml/demand_response
 normal_growth_scenario = "base"
 
@@ -147,22 +150,55 @@ base_stats = (
 
 # find the target growth rates, then apply those to get the target avg and peak
 # load levels
-print("Calculating model year target stats")
-target_rates = pd.read_csv(growth_file).rename(columns={"load_zone": "region"})
-for s in ["avg", "peak"]:
+
+#target_rates = pd.read_csv(growth_file).rename(columns={"load_zone": "region"})
+
+#Read names of growth rate csvs
+grFls  = os.listdir(growth_path)
+
+#Read all load growth rate files
+target_rates = pd.DataFrame()
+for fl in grFls:
+    #Extract years and store in a list of the form (start year, end year)
+    yrSplit = fl.split('_')[2]
+    yrSplit = yrSplit.split('.')[0]
+    yrs = [int(yr) for yr in yrSplit.split('-')]
+    #Read growth rates and calculate a modifier using exponential growth from the start year
+    growth = pd.read_csv(f"{growth_path}/{fl}")
     # remove any negative growth
-    target_rates[f"{s}_growth"] = target_rates[f"{s}_growth"].clip(0, None)
+    for s in ["avg", "peak"]:
+        growth[f"{s}_growth"] = growth[f"{s}_growth"].clip(0, None)
+    #Spread over all years in this block
+    growth = pd.concat([growth.assign(year=y) for y in range(start_year, end_year + 1)],
+                       ignore_index=True)
+    #Assign a modifier year-by-year to adjust growth timelines
+    for y in range(start_year, end_year + 1):
+        for s in ["avg", "peak"]:
+            localEnd = yrs[1] if y >= yrs[1] else y if y > yrs[0] else yrs[0]
+            yrSub = growth["year"] == y
+            growth.loc[yrSub, f"{s}_growth"] = (1 + growth.loc[yrSub, f"{s}_growth"]) ** (localEnd - yrs[0])
+    #If this is the first year pair, add to the overall dataset, otherwise merge and multiply
+    if target_rates.shape[0] == 0:
+        target_rates = growth
+    else:
+        target_rates = target_rates.merge(growth, on=["load_zone", "year"])
+        for s in ["avg", "peak"]:
+            vName = f"{s}_growth"
+            target_rates = target_rates.assign(
+                **{vName : target_rates[f"{vName}_x"] * target_rates[f"{vName}_y"]})
+        target_rates = target_rates[["load_zone", "year", "avg_growth", "peak_growth"]]
+
+#Rename zones column
+target_rates = target_rates.rename(columns={"load_zone": "region"})
+
 target_stats = base_stats.merge(target_rates)
-# spread to all possible model years
-target_stats = pd.concat(
-    [target_stats.assign(year=y) for y in range(start_year, end_year + 1)],
-    ignore_index=True,
-)
-# set target avg & peak MW using exponential growth from base_year
+
+# set target avg & peak MW, multiplying by modifier in growth dataset
 for s in ["avg", "peak"]:
-    target_stats[f"{s}_targ"] = target_stats[f"{s}_base"] * (
-        1 + target_stats[f"{s}_growth"]
-    ) ** (target_stats["year"] - base_year)
+    target_stats[f"{s}_targ"] = target_stats[f"{s}_base"] * (target_stats[f"{s}_growth"])
+
+#Write the target_stats data to a csv we can look at
+target_stats.to_csv(f"switch/Scripts/Growth_Profiles/{growth_case}_targets.csv", index=False)
 
 # Find the scale and offset to add to the base load levels to get the target
 # growth levels
@@ -185,6 +221,7 @@ growth["growth_mw"] = growth["load_mw"] * growth["fraction"] + growth["base"]
 # remove a few cases with shrinking loads (growth in peak but not mean);
 # may end up missing the mean target slightly
 growth["growth_mw"] = growth["growth_mw"].clip(0, None)
+growth["growth_mw"] = growth["growth_mw"].round(3)  # don't need more than kW resolution
 # check the shape overall
 # growth.query('year == 2030 & weather_year == 2013').eval('hour_of_year = time_index % 8760').groupby('hour_of_year')['growth_mw'].sum().plot(ylim=(0, None))
 
