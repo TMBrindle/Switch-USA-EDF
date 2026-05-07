@@ -23,19 +23,30 @@ gen_zone_load_ratio.csv
     min_annual_ratio, max_annual_ratio,
     min_peak_share, max_peak_share
 
-gen_zone_groups.csv
-  Maps group names to their constituent model zones. Generated automatically
-  by make_zone_ratios.py --agg-by <COLUMN>.
-    GROUP_NAME  - group identifier (e.g. 'LA', 'SERTP', 'MISO')
-    LOAD_ZONE   - model zone belonging to this group
+gen_zone_ratio_group_by.csv
+  Single-column file written by pg_to_switch.py that names which column of
+  hierarchy.csv defines group membership. Example contents:
+    hierarchy_col
+    hurdlereg
+  When present, GROUP_NAMEs in gen_group_load_ratio.csv are looked up only
+  in that column — no ambiguity is possible. When absent (hand-crafted
+  inputs), the module searches all hierarchy.csv columns and warns if a
+  GROUP_NAME matches more than one column.
 
 gen_group_load_ratio.csv
   Same column format as gen_zone_load_ratio.csv, but GROUP_NAME instead of
   LOAD_ZONE. Each row constrains the *sum* of gen and load across all model
-  zones in that group. GROUP_NAME must appear in gen_zone_groups.csv.
+  zones in that group. GROUP_NAMEs must be values in the hierarchy column
+  named by gen_zone_ratio_group_by.csv (e.g. 'hurdlereg' values like
+  'CAISO', 'Avista_Corp'; or 'st' values like 'CA', 'TX').
     GROUP_NAME, PERIOD,
     min_annual_ratio, max_annual_ratio,
     min_peak_share, max_peak_share
+
+hierarchy.csv
+  Required when gen_group_load_ratio.csv is present. First column must be
+  the model zone identifier ('ba'); all other columns are candidate grouping
+  dimensions. This is the same hierarchy.csv produced by pg_to_switch.py.
 
 ──────────────────────────────────────────────────────────────────────────────
 Output file: gen_zone_ratio_summary.csv
@@ -46,6 +57,7 @@ zone/group per period with actual values and the applied constraint bounds.
 
 import os
 import pandas as pd
+from switch_model.utilities import apply_input_aliases
 from pyomo.environ import (
     Any,
     Constraint,
@@ -179,7 +191,7 @@ def define_components(m):
     # B) GROUP-LEVEL CONSTRAINTS
     # ══════════════════════════════════════════════════════════════════════════
 
-    # Set of (group, zone) pairs loaded from gen_zone_groups.csv
+    # Set of (group, zone) pairs derived from hierarchy.csv
     m.GEN_RATIO_GROUP_ZONES = Set(
         dimen=2,
         within=Any * m.LOAD_ZONES,
@@ -353,7 +365,7 @@ def _load_constraint_csv(switch_data, path, param_map):
 def load_inputs(m, switch_data, inputs_dir):
     """
     Load zone-level constraints from gen_zone_load_ratio.csv,
-    zone group definitions from gen_zone_groups.csv, and
+    group membership from hierarchy.csv, and
     group-level constraints from gen_group_load_ratio.csv.
     All files are optional.
     """
@@ -373,27 +385,102 @@ def load_inputs(m, switch_data, inputs_dir):
     # Zone-level constraints
     _load_constraint_csv(
         switch_data,
-        os.path.join(inputs_dir, "gen_zone_load_ratio.csv"),
+        apply_input_aliases(switch_data, os.path.join(inputs_dir, "gen_zone_load_ratio.csv")),
         zone_constraint_params,
     )
 
-    # Zone group membership (GROUP_NAME, LOAD_ZONE pairs → GEN_RATIO_GROUP_ZONES)
-    groups_path = os.path.join(inputs_dir, "gen_zone_groups.csv")
-    if os.path.isfile(groups_path):
-        gdf = pd.read_csv(groups_path)
-        if not gdf.empty:
-            # Expect columns: GROUP_NAME, LOAD_ZONE
-            pairs = list(zip(gdf.iloc[:, 0], gdf.iloc[:, 1]))
-            if None not in switch_data._data:
-                switch_data._data[None] = {}
-            switch_data._data[None]["GEN_RATIO_GROUP_ZONES"] = {
-                None: set(pairs)
-            }
+    # Group membership: resolve GROUP_NAMEs from gen_group_load_ratio.csv
+    # against hierarchy.csv. Use the explicit column from
+    # gen_zone_ratio_group_by.csv when present; otherwise search all columns.
+    group_ratio_path = apply_input_aliases(
+        switch_data, os.path.join(inputs_dir, "gen_group_load_ratio.csv")
+    )
+    if os.path.isfile(group_ratio_path):
+        grl = pd.read_csv(group_ratio_path)
+        if not grl.empty:
+            referenced_groups = set(grl.iloc[:, 0].dropna().astype(str).unique())
+
+            hier_path = apply_input_aliases(
+                switch_data, os.path.join(inputs_dir, "hierarchy.csv")
+            )
+            if not os.path.isfile(hier_path):
+                print(
+                    "WARNING gen_zone_ratio: gen_group_load_ratio.csv is present but "
+                    f"hierarchy.csv was not found at {hier_path}; group constraints will be skipped."
+                )
+            else:
+                hier = pd.read_csv(hier_path)
+                zone_col = hier.columns[0]  # 'ba'
+
+                # Determine which hierarchy column defines group membership
+                group_by_path = apply_input_aliases(
+                    switch_data, os.path.join(inputs_dir, "gen_zone_ratio_group_by.csv")
+                )
+                hierarchy_col = None
+                if os.path.isfile(group_by_path):
+                    hierarchy_col = str(pd.read_csv(group_by_path).iloc[0, 0]).strip()
+                    if hierarchy_col not in hier.columns:
+                        print(
+                            f"WARNING gen_zone_ratio: group_by column '{hierarchy_col}' "
+                            "not found in hierarchy.csv — falling back to all-column search."
+                        )
+                        hierarchy_col = None
+
+                if hierarchy_col is not None:
+                    # Explicit column: fast, unambiguous lookup
+                    col_df = (
+                        hier[[zone_col, hierarchy_col]]
+                        .dropna(subset=[hierarchy_col])
+                        .assign(**{hierarchy_col: lambda d: d[hierarchy_col].astype(str)})
+                    )
+                    relevant = col_df[col_df[hierarchy_col].isin(referenced_groups)]
+                    missing = referenced_groups - set(relevant[hierarchy_col])
+                    for gname in sorted(missing):
+                        print(
+                            f"WARNING gen_zone_ratio: GROUP_NAME '{gname}' not found "
+                            f"in hierarchy.csv column '{hierarchy_col}'."
+                        )
+                    pairs = list(zip(relevant[hierarchy_col], relevant[zone_col]))
+                else:
+                    # No group_by config: search all columns (handles hand-crafted inputs)
+                    melted = (
+                        hier.melt(
+                            id_vars=zone_col,
+                            value_vars=list(hier.columns[1:]),
+                            var_name="_col",
+                            value_name="_val",
+                        )
+                        .dropna(subset=["_val"])
+                    )
+                    melted["_val"] = melted["_val"].astype(str)
+                    relevant = melted[melted["_val"].isin(referenced_groups)]
+                    col_counts = relevant.groupby("_val")["_col"].nunique()
+                    for gname, ncols in col_counts[col_counts > 1].items():
+                        cols = sorted(relevant.loc[relevant["_val"] == gname, "_col"].unique())
+                        print(
+                            f"WARNING gen_zone_ratio: GROUP_NAME '{gname}' appears in "
+                            f"{ncols} hierarchy columns ({', '.join(cols)}); "
+                            "all matching zones will be included."
+                        )
+                    missing = referenced_groups - set(relevant["_val"].unique())
+                    for gname in sorted(missing):
+                        print(
+                            f"WARNING gen_zone_ratio: GROUP_NAME '{gname}' not found in "
+                            "any hierarchy.csv column — group will have no member zones."
+                        )
+                    pairs = list(zip(relevant["_val"], relevant[zone_col]))
+
+                if pairs:
+                    if None not in switch_data._data:
+                        switch_data._data[None] = {}
+                    switch_data._data[None]["GEN_RATIO_GROUP_ZONES"] = {
+                        None: set(pairs)
+                    }
 
     # Group-level constraints
     _load_constraint_csv(
         switch_data,
-        os.path.join(inputs_dir, "gen_group_load_ratio.csv"),
+        group_ratio_path,
         group_constraint_params,
     )
 

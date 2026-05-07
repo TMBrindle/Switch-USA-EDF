@@ -273,3 +273,107 @@ the block is skipped entirely without touching the filesystem.
 | `hierarchy.csv` | Zone → NERC/transreg/transgrp/hurdlereg mapping used by `pg_to_switch.py` |
 | `transmission_connections.csv` | Planned/committed transmission projects with target year and MW |
 | `nerc_growth_pct.csv` | NERC regional transmission growth rates by period, used for `nerc_growth` expansion policy |
+
+---
+
+# In-Zone Generation Ratio Constraints
+
+---
+
+## 10. New Switch Module — In-Zone Generation Ratio Constraints
+
+**File (new):** `switch/study_modules/gen_zone_ratio.py`
+
+Constrains in-zone annual generation as an optional fraction of in-zone annual load,
+and/or in-zone generation as a fraction of contemporaneous load at every timepoint
+(hourly peak share). Operates at two levels:
+
+- **Zone-level** — applied per individual model zone (`LOAD_ZONE`)
+- **Group-level** — applied to summed generation and load across a named set of model
+  zones (e.g., all BAs in a state, utility service territory, or transmission region)
+
+All constraints are optional per zone/period; omit a row or leave cells blank to leave
+a constraint inactive. The module has no effect if none of the three input files are
+present.
+
+Pyomo constraints defined:
+
+| Constraint | Level | Direction |
+|---|---|---|
+| `Zone_Min_Annual_Gen_Ratio` | zone | annual gen ≥ ratio × annual load |
+| `Zone_Max_Annual_Gen_Ratio` | zone | annual gen ≤ ratio × annual load |
+| `Zone_Min_Peak_Share` | zone | hourly gen ≥ share × hourly load (every timepoint) |
+| `Zone_Max_Peak_Share` | zone | hourly gen ≤ share × hourly load (every timepoint) |
+| `Group_Min_Annual_Gen_Ratio` | group | group annual gen ≥ ratio × group annual load |
+| `Group_Max_Annual_Gen_Ratio` | group | group annual gen ≤ ratio × group annual load |
+| `Group_Min_Peak_Share` | group | group hourly gen ≥ share × group hourly load |
+| `Group_Max_Peak_Share` | group | group hourly gen ≤ share × group hourly load |
+
+**Input files (all optional):** `switch/in/<year>/<case>/`
+
+| File | Columns | Purpose |
+|---|---|---|
+| `gen_zone_load_ratio.csv` | `LOAD_ZONE, PERIOD, min_annual_ratio, max_annual_ratio, min_peak_share, max_peak_share` | Zone-level constraint bounds; extra `historical_*` reference columns are ignored |
+| `gen_zone_groups.csv` | `GROUP_NAME, LOAD_ZONE` | Maps group names to their constituent model zones |
+| `gen_group_load_ratio.csv` | `GROUP_NAME, PERIOD, min_annual_ratio, max_annual_ratio, min_peak_share, max_peak_share` | Group-level constraint bounds |
+
+All three files are loaded via `apply_input_aliases()`, so `--input-alias` flags work
+correctly (e.g., `--input-alias gen_group_load_ratio.csv=gen_group_load_ratio_max1.30.csv`).
+
+**Output file:** `outputs/gen_zone_ratio_summary.csv`
+
+Written after each solve. One row per zone/group per period containing actual solved
+values alongside the applied constraint bounds.
+- Columns: `TYPE, LOAD_ZONE, PERIOD, actual_annual_gen_twh, actual_annual_load_twh,
+  actual_annual_ratio, min_annual_ratio, max_annual_ratio, actual_min_hourly_gen_share,
+  actual_max_hourly_gen_share, min_peak_share, max_peak_share`
+- `TYPE` is `zone` for individual zone rows and `group` for aggregated group rows.
+
+---
+
+## 11. `modules.txt` — gen_zone_ratio Registration
+
+**File:** `switch/modules.txt`
+
+One new module added, after `study_modules.trans_build_minimum`:
+
+```
+study_modules.gen_zone_ratio
+```
+
+No load-order dependency with other study modules; it reads only `DispatchGen`,
+`zone_demand_mw`, and standard timescale sets from the core model.
+
+---
+
+## 12. Helper Script — `make_zone_ratios.py`
+
+**File (new):** `make_zone_ratios.py`
+
+Command-line utility that generates constraint input files from historical data.
+Pulls EIA-923 generation by ReEDS BA from PUDL and load curves from PowerGenome's
+`load_curves_nrel_reeds` table, computes 2020–2023 average annual and peak statistics,
+applies a coverage adjustment factor (default 1.30×, correcting for ~19% EIA-923
+undercounting and ~6% T&D losses), and writes scenario-ready CSV files.
+
+Key flags:
+
+| Flag | Purpose |
+|---|---|
+| `--agg-by <COLUMN>` | Aggregate BAs to a higher level (`state`, `transreg`, `nercr`, `transgrp`); generates both `gen_zone_groups.csv` and `gen_group_load_ratio.csv` |
+| `--min-annual-ratio SPEC` | Formula to auto-populate `min_annual_ratio` (e.g., `"min*0.95"` = 95% of 4-year minimum) |
+| `--max-annual-ratio SPEC` | Formula to auto-populate `max_annual_ratio` (e.g., `"max*1.30"`) |
+| `--coverage-adjustment FACTOR` | Override the default 1.30× upward correction |
+| `--output-dir PATH` | Write output files directly into a scenario inputs directory |
+
+**Reference data files committed to the repo root** (pre-computed for two aggregation levels):
+
+| File | Description |
+|---|---|
+| `gen_zone_load_ratio.csv` | BA-level reference ratios for all 134 ReEDS zones |
+| `gen_zone_load_ratio_BA.csv` | Alternative BA-level variant |
+| `gen_zone_load_ratio_hurdlereg.csv` | Aggregated to hurdling regions |
+| `gen_zone_load_ratio_hurdlereg_check.csv` | Diagnostic check file for hurdlereg aggregation |
+| `gen_zone_groups_hurdlereg.csv` | Zone → hurdlereg group membership mapping |
+
+Full usage examples and worked scenario designs are in `gen_zone_ratio_instructions.txt`.

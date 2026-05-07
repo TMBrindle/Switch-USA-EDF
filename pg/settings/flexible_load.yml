@@ -63,7 +63,7 @@ demand_response: base
 # Then the rows contain hourly loads for each of these cases / regions. There should be
 # one row per load hour, in order, with no explicit index.
 # This should be in the model time zone, not UTC.
-demand_response_fn: load_adjustments.csv.zip
+demand_response_fn: load_adjustments_edf_epri_med.csv.zip
 
 # `flexible_demand_resources` contains name of the flexible resource, fraction of
 # load that can be shifted, and model-specific parameters that will be applied
