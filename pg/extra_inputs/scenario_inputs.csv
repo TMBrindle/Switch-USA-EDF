@@ -36,9 +36,6 @@ s4x1_caelp,2035,s4x1,firm,caelp,yes,current,none,hist5,none,full,no,constrained,
 s4x1_caelp_decarb,2028,s4x1,firm,caelp,yes,decarb,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes,none
 s4x1_caelp_decarb,2030,s4x1,firm,caelp,yes,decarb,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes,none
 s4x1_caelp_decarb,2035,s4x1,firm,caelp,yes,decarb,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes,none
-s4x1_caelp,2028,s4x1,firm,caelp,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes,none
-s4x1_caelp,2030,s4x1,firm,caelp,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes,none
-s4x1_caelp,2035,s4x1,firm,caelp,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes,none
 s4x5_caelp,2028,s4x5,firm,caelp,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes,none
 s4x5_caelp,2030,s4x5,firm,caelp,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes,none
 s4x5_caelp,2035,s4x5,firm,caelp,yes,current,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes,none
