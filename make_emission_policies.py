@@ -353,12 +353,22 @@ tax_states = ["CA", "WA"]
 
 # start with the RGGI caps, then add CA and WA with a zero cap (they'll just pay
 # the slack price)
+# Use local 3rd-Program-Review cap file if present; fall back to ReEDS GitHub.
+# pg/extra_inputs/rggicon_3pr.csv encodes the 3rd PR model rule trajectory:
+#   2027: 69,806,919 short tons; declining 8,538,789/yr through 2033;
+#   then ~2,400,000/yr through 2037; flat thereafter pending 4th Program Review.
+# Units: short tons CO2 (same as RGGI allowance accounting).
+_rggicon_local = os.path.join(
+    os.path.dirname(__file__), "pg", "extra_inputs", "rggicon_3pr.csv"
+)
+_rggicon_url = "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/emission_constraints/rggicon.csv"
 rggi_cap = pd.read_csv(
-    "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/emission_constraints/rggicon.csv",
+    _rggicon_local if os.path.isfile(_rggicon_local) else _rggicon_url,
     names=["year", "cap"],
     header=None,
 ).query("year.isin(@possible_model_years)")
-# convert from tonnes to million tonnes
+# rggicon.csv stores values in metric tonnes (NREL pre-converts from RGGI's
+# short ton base caps). Divide by 1e6 to get million metric tonnes.
 rggi_cap["cap"] *= 0.000001
 rggi_states = pd.read_csv(
     "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/emission_constraints/rggi_states.csv"

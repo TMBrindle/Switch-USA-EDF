@@ -1659,8 +1659,47 @@ def other_tables(
                 dfs.append(co2_cap_long)
 
         # aggregate annual data and write to file
-        co2_cap_long = pd.concat(dfs, axis=0)
+        co2_cap_base = pd.concat(dfs, axis=0)
+
+        def _add_va_zones(df, va_fraction, va_zones):
+            """Return df with VA zone rows appended to ETS 1.
+            VA budget = va_fraction / (1 - va_fraction) × 10-state cap,
+            distributed equally across va_zones."""
+            ets1 = df[df["CO2_PROGRAM"] == "ETS 1"]
+            va_rows = []
+            for period, grp in ets1.groupby("PERIOD"):
+                total_cap = grp["carbon_cap_tco2_per_yr"].sum()
+                va_cap_per_zone = (
+                    total_cap * va_fraction / (1 - va_fraction) / len(va_zones)
+                )
+                for z in va_zones:
+                    va_rows.append({
+                        "CO2_PROGRAM": "ETS 1",
+                        "PERIOD": period,
+                        "LOAD_ZONE": z,
+                        "carbon_cap_tco2_per_yr": va_cap_per_zone,
+                        "carbon_cost_dollar_per_tco2": ".",
+                    })
+            return pd.concat([df, pd.DataFrame(va_rows)], axis=0) if va_rows else df
+
+        # Primary file: add VA zones if this case uses RGGI10+VA
+        va_fraction = first_year_settings.get("rggi_va_fraction")
+        va_zones = first_year_settings.get("rggi_va_zones") or []
+        co2_cap_long = (
+            _add_va_zones(co2_cap_base, va_fraction, va_zones)
+            if (va_fraction and va_zones)
+            else co2_cap_base
+        )
         co2_cap_long.to_csv(out_folder / "carbon_policies_regional.csv", index=False)
+
+        # Alias file: generate carbon_policies_regional_va.csv for RGGI10 base cases
+        # that define rggi_va_alias_fraction/rggi_va_alias_zones in scenario_management.yml.
+        va_alias_fraction = first_year_settings.get("rggi_va_alias_fraction")
+        va_alias_zones = first_year_settings.get("rggi_va_alias_zones") or []
+        if va_alias_fraction and va_alias_zones:
+            _add_va_zones(co2_cap_base, va_alias_fraction, va_alias_zones).to_csv(
+                out_folder / "carbon_policies_regional_va.csv", index=False
+            )
 
         # create alternative versions of the carbon cap
         if not co2_cap_long.empty:
@@ -1676,8 +1715,14 @@ def other_tables(
         # with switch_model.policies.carbon_policies or
         # stud_modules.carbon_policies
         co2_cap = co2_cap_long.query('CO2_PROGRAM == "ETS 1"')
+        # Convert "." (hard-cap sentinel) to NaN so pandas can aggregate numerically,
+        # then restore "." where all zones in a period used the hard cap.
+        co2_cap_numeric = co2_cap.copy()
+        co2_cap_numeric["carbon_cost_dollar_per_tco2"] = pd.to_numeric(
+            co2_cap_numeric["carbon_cost_dollar_per_tco2"], errors="coerce"
+        )
         co2_cap_all_regions = (
-            co2_cap.groupby("PERIOD")
+            co2_cap_numeric.groupby("PERIOD")
             .agg(
                 {
                     "carbon_cap_tco2_per_yr": "sum",
@@ -1690,6 +1735,10 @@ def other_tables(
                 }
             )
             .reset_index()
+        )
+        # Restore "." for periods where all zones had a hard cap (mean is NaN).
+        co2_cap_all_regions["carbon_cost_dollar_per_tco2"] = (
+            co2_cap_all_regions["carbon_cost_dollar_per_tco2"].fillna(".")
         )
         co2_cap_all_regions.to_csv(out_folder / "carbon_policies.csv", index=False)
 
@@ -1821,6 +1870,20 @@ def other_tables(
     # min_cap_req.csv and max_cap_req.csv
     cap_req_files("min", scen_settings_dict, out_folder)
     cap_req_files("max", scen_settings_dict, out_folder)
+
+    # Generate blank no-state-policy (_nsp) alias files for all state policy files.
+    # Solve commands use --input-alias to select these for no-policy scenario variants.
+    for _pfile in [
+        "rps_requirements.csv",
+        "rps_generators.csv",
+        "min_cap_requirements.csv",
+        "min_cap_generators.csv",
+    ]:
+        _src = out_folder / _pfile
+        if _src.exists():
+            pd.read_csv(_src, nrows=0).to_csv(
+                _src.with_stem(_src.stem + "_nsp"), index=False
+            )
 
     #####
     # interest and discount rates in financials.csv

@@ -50,6 +50,10 @@ model_adjustment_scripts:
     # run after add_extreme_days; will look for both regular and _prm versions
     # of model directory (if present) and create different files in them
     order: 11
+  Fix p18-p19 transmission line:
+    script: ../../adjust/fix_p18p19_transmission.py
+    # re-inserts line missing from NARIS2024 source data; idempotent
+    order: 12
 
 # Fallback escape-valve price for CO2 programs that aren't individually configured below.
 # Used by the decarb scenario (which overrides emission_policies_fn and uses a single
@@ -80,4 +84,4 @@ carbon_cost_by_program:
 # rejoins before the target model year. See I-16 in docs/issues/carbon_cap_design.md.
 carbon_ccr:
   "ETS 1":
-    ccr_pools_tco2_per_yr: [11750000, 11750000]  # Tier 1 and Tier 2, ~11.75 Mt each
+    ccr_pools_tco2_per_yr: [10656120, 10656120]  # Tier 1 and Tier 2: 11,746,358 short tons × 0.907185 = 10,656,120 metric tonnes

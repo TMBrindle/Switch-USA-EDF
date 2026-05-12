@@ -292,17 +292,24 @@ def post_solve(m, outputs_dir):
                 tiers = sorted(ccr_usage.keys())
                 price = 0.0
                 for tier in tiers:
-                    pool = value(m.ccr_pool_tco2_per_yr[pr, pe, tier])
                     used = ccr_usage[tier]
                     if used > 1e-3:  # tier is active
                         price = value(m.ccr_price_dollar_per_tco2[pr, pe, tier])
-                # if no CCR used, fall back to constraint dual
+                # if no CCR used, fall back to constraint dual.
+                # Dual-to-price conversion: the objective weights annual costs by
+                # bring_annual_costs_to_base_year[pe], so the dual of the annual
+                # emission constraint (scaled by 0.001) is in NPV units.
+                # Annualised $/tCO2 = -dual * 0.001 / bring_annual_costs_to_base_year.
+                # Note: barrier solver without crossover gives unreliable duals;
+                # with crossover=1 these are true LP duals (see I-19).
                 if price == 0.0:
                     dual = m.dual.get(constr)
-                    price = (-dual / 0.001) if dual is not None else 0.0
+                    npv_weight = value(m.bring_annual_costs_to_base_year[pe])
+                    price = (-dual * 0.001 / npv_weight) if dual is not None else ""
             else:
                 dual = m.dual.get(constr)
-                price = (-dual / 0.001) if dual is not None else ""
+                npv_weight = value(m.bring_annual_costs_to_base_year[pe])
+                price = (-dual * 0.001 / npv_weight) if dual is not None else ""
         else:
             # soft cap: price = escape-valve cost if constraint is binding
             price = escape_cost if violation > 1e-3 else 0.0
