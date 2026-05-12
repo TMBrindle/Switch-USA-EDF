@@ -51,13 +51,33 @@ model_adjustment_scripts:
     # of model directory (if present) and create different files in them
     order: 11
 
-# price to pay to go beyond carbon caps in emission_policies_fn (which may be
-# zero for a simple tax). Note: pg_to_switch.py is currently setup to use the
-# same price for all carbon programs
-# TODO: see which flags GenX used to implement this in MIP and use those
-# $33.43 is based on the average of California ($35.21) and
-# Washington (31.64) in 2024
+# Fallback escape-valve price for CO2 programs that aren't individually configured below.
+# Used by the decarb scenario (which overrides emission_policies_fn and uses a single
+# national $200/tonne carbon price to find the cheapest decarbonisation path).
+# $33.43 = average of CA ($35.21) and WA ($31.64) carbon prices in 2024.
 # https://icapcarbonaction.com/en/ets/usa-california-cap-and-trade-program
 # https://icapcarbonaction.com/en/ets/usa-washington-cap-and-invest-program
-# also see  for which policies apply
 carbon_cost_dollar_per_tco2: 33.43
+
+# Per-program CO2 escape-valve prices, applied by pg_to_switch.py in preference to the
+# scalar above. Programs absent from this dict use the scalar as fallback.
+# "." means no escape valve (hard cap — AnnualCapViolation bounded to 0 in the module).
+# CCR tiers are handled separately via carbon_ccr below and carbon_policies_ccr.csv.
+carbon_cost_by_program:
+  "ETS 1": .       # RGGI base cap — hard; CCR tiers in carbon_ccr add priced flexibility
+  "ETS 2": 33.43   # CA cap-and-trade price
+  "ETS 3": 33.43   # WA cap-and-invest price
+
+# CCR (Cost Containment Reserve) configuration for programs that have tiered reserves.
+# Pool sizes (tco2/yr) are fixed by the RGGI 3rd Program Review (effective 2027).
+# Trigger prices are year-specific and set in scenario_management.yml under
+# settings_management → <year> → policies → current → carbon_ccr_prices.
+# Units: short tons CO2 (consistent with rggicon.csv / RGGI allowance units).
+#
+# NOTE: pool sizes are for the current 10-state RGGI membership. VA previously
+# participated and may rejoin; CCR pools would then be recalculated proportionally —
+# revise ccr_pools_tco2_per_yr and verify against the updated Model Rule if VA
+# rejoins before the target model year. See I-16 in docs/issues/carbon_cap_design.md.
+carbon_ccr:
+  "ETS 1":
+    ccr_pools_tco2_per_yr: [11750000, 11750000]  # Tier 1 and Tier 2, ~11.75 Mt each

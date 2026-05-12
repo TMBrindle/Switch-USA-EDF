@@ -179,6 +179,13 @@ settings_management:
               parameter_values:
                 New_Build: -1
       none: ~
+      edf_epri_med:
+        # Uses the EDF/EPRI medium load growth scenario.
+        # demand_response_fn is already set to load_adjustments_edf_epri_med.csv.zip
+        # in flexible_load.yml, so no override is needed here — this entry is a
+        # no-op that exists purely to document the valid flag value and prevent
+        # build_scenario_settings() from raising an unknown-value error.
+        ~
 
     load_growth_flexibility:
       none: ~ # no effect, useful for historical cases
@@ -194,8 +201,13 @@ settings_management:
           Can_Retire:
             "": 0
     resource_limits:
+      # Used by p1_low_gas and p1_high_gas cases in scenario_inputs.csv.
+      # These ban new-build technologies via MaxCapTag_Ban. The p1 time series
+      # these cases use is too large to solve; they are research/inspection cases.
+      # TODO: consider migrating to define_scenarios.py-style variants once
+      # a solvable time series is used, rather than as separate pg cases.
       none: ~ # default
-      high_gas: # currently unused, see define_scenarios.py instead
+      high_gas: # bans new-build clean tech; p1_high_gas uses this
         model_tag_values:
           MaxCapTag_Ban:
             # tech names used for new-build non-gas techs, but not existing/planned
@@ -204,7 +216,7 @@ settings_management:
             LandbasedWind: 1
             Nuclear_Nuclear: 1
             Battery Storage: 1
-      low_gas: # currently unused, see define_scenarios.py instead
+      low_gas: # bans new-build natural gas; p1_low_gas uses this
         model_tag_values:
           MaxCapTag_Ban:
             # technology name for new gas, but not existing/planned
@@ -487,11 +499,18 @@ settings_management:
       #       - Conventional Hydroelectric
     
     policies:
-      current: ~ # use default settings
+      current:
+        # Per-program costs and hard RGGI cap; CCR prices are year-specific below.
+        carbon_cost_by_program:
+          "ETS 1": .       # hard RGGI base cap
+          "ETS 2": 33.43   # CA carbon price
+          "ETS 3": 33.43   # WA carbon price
       decarb:
         # national carbon tax at 200, to see what would be cheapest way to decarbonize
         emission_policies_fn: emission_policies_decarb.csv
         carbon_cost_dollar_per_tco2: 200
+        # override per-program costs so the scalar $200 applies to all programs
+        carbon_cost_by_program: {}
     transmission:
       constrained:
         transmission_policy: constrained
@@ -4156,6 +4175,11 @@ settings_management:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 499777.53333333327
   2030:
+    policies:
+      current:
+        # CCR Tier 1 and Tier 2 trigger prices for 2030: $19.50 × 1.07^3 and $29.25 × 1.07^3
+        carbon_ccr_prices:
+          "ETS 1": [23.89, 35.84]
     all_cases:
       # don't allow new nuclear before 2030 (too soon to finish)
       atb_new_gen:
@@ -4197,6 +4221,11 @@ settings_management:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 509444.19999999995
   2035:
+    policies:
+      current:
+        # CCR Tier 1 and Tier 2 trigger prices for 2035: $19.50 × 1.07^8 and $29.25 × 1.07^8
+        carbon_ccr_prices:
+          "ETS 1": [33.50, 50.25]
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:

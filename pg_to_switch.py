@@ -1646,9 +1646,13 @@ def other_tables(
                     var_name="CO2_PROGRAM",
                     value_name="carbon_cap_tco2_per_yr",
                 ).dropna(subset=["carbon_cap_tco2_per_yr"])
-                # Add the carbon cost if available
-                co2_cap_long["carbon_cost_dollar_per_tco2"] = scen_settings.get(
-                    "carbon_cost_dollar_per_tco2", "."
+                # Add the carbon cost — use per-program dict if available, otherwise scalar
+                cost_by_program = scen_settings.get("carbon_cost_by_program") or {}
+                scalar_cost = scen_settings.get("carbon_cost_dollar_per_tco2", ".")
+                co2_cap_long["carbon_cost_dollar_per_tco2"] = (
+                    co2_cap_long["CO2_PROGRAM"]
+                    .map(cost_by_program)
+                    .fillna(scalar_cost)
                 )
                 # reorder the columns for Switch
                 co2_cap_long = co2_cap_long[dfs[0].columns]
@@ -1688,6 +1692,42 @@ def other_tables(
             .reset_index()
         )
         co2_cap_all_regions.to_csv(out_folder / "carbon_policies.csv", index=False)
+
+        # create carbon_policies_ccr.csv — two-tier CCR for programs configured in
+        # carbon_ccr (pool sizes, from switch.yml) and carbon_ccr_prices (trigger prices,
+        # year-specific from scenario_management.yml).
+        ccr_rows = []
+        ccr_config = first_year_settings.get("carbon_ccr", {})
+        for model_year, scen_settings in scen_settings_dict.items():
+            ccr_prices = scen_settings.get("carbon_ccr_prices", {})
+            for program, prices in ccr_prices.items():
+                pools = (
+                    ccr_config.get(program, {}).get("ccr_pools_tco2_per_yr", [])
+                )
+                for tier_idx, price in enumerate(prices, start=1):
+                    pool = (
+                        pools[tier_idx - 1] if tier_idx - 1 < len(pools) else None
+                    )
+                    if pool is not None:
+                        ccr_rows.append(
+                            {
+                                "CO2_PROGRAM": program,
+                                "PERIOD": model_year,
+                                "ccr_tier": tier_idx,
+                                "ccr_pool_tco2_per_yr": pool,
+                                "ccr_price_dollar_per_tco2": price,
+                            }
+                        )
+        pd.DataFrame(
+            ccr_rows,
+            columns=[
+                "CO2_PROGRAM",
+                "PERIOD",
+                "ccr_tier",
+                "ccr_pool_tco2_per_yr",
+                "ccr_price_dollar_per_tco2",
+            ],
+        ).to_csv(out_folder / "carbon_policies_ccr.csv", index=False)
 
     #######
     # create rps_requirements.csv with clean energy standards / RPS requirements
