@@ -1,4 +1,4 @@
-"""Run all 16 RGGI solve variants sequentially with crossover=1 for reliable LP duals."""
+"""Run all 48 RGGI solve variants (3 years × 2 cases × 8 policy variants) with crossover=1."""
 import subprocess, sys
 
 NSP = [
@@ -11,29 +11,37 @@ VA = ["--input-alias", "carbon_policies_regional.csv=carbon_policies_regional_va
 HF = ["--input-alias", "gen_info.csv=gen_info.high_fossil.csv"]
 CROSSOVER = ["--solver-options-string", "crossover=1"]
 
-runs = [
-    # edf_med all 8
-    ("in/2035/s4x1_edf_med", "out/RGGI/2035/s4x1_edf_med/baseline",  []),
-    ("in/2035/s4x1_edf_med", "out/RGGI/2035/s4x1_edf_med/nsp",       NSP),
-    ("in/2035/s4x1_edf_med", "out/RGGI/2035/s4x1_edf_med/va",        VA),
-    ("in/2035/s4x1_edf_med", "out/RGGI/2035/s4x1_edf_med/hf",        HF),
-    ("in/2035/s4x1_edf_med", "out/RGGI/2035/s4x1_edf_med/nsp_va",    NSP + VA),
-    ("in/2035/s4x1_edf_med", "out/RGGI/2035/s4x1_edf_med/nsp_hf",    NSP + HF),
-    ("in/2035/s4x1_edf_med", "out/RGGI/2035/s4x1_edf_med/va_hf",     VA + HF),
-    ("in/2035/s4x1_edf_med", "out/RGGI/2035/s4x1_edf_med/nsp_va_hf", NSP + VA + HF),
-    # icf all 8
-    ("in/2035/s4x1_icf", "out/RGGI/2035/s4x1_icf/baseline",   []),
-    ("in/2035/s4x1_icf", "out/RGGI/2035/s4x1_icf/nsp",        NSP),
-    ("in/2035/s4x1_icf", "out/RGGI/2035/s4x1_icf/va",         VA),
-    ("in/2035/s4x1_icf", "out/RGGI/2035/s4x1_icf/hf",         HF),
-    ("in/2035/s4x1_icf", "out/RGGI/2035/s4x1_icf/nsp_va",     NSP + VA),
-    ("in/2035/s4x1_icf", "out/RGGI/2035/s4x1_icf/nsp_hf",     NSP + HF),
-    ("in/2035/s4x1_icf", "out/RGGI/2035/s4x1_icf/va_hf",      VA + HF),
-    ("in/2035/s4x1_icf", "out/RGGI/2035/s4x1_icf/nsp_va_hf",  NSP + VA + HF),
-]
+
+def runs_for_year(year):
+    y = str(year)
+    em = f"in/{y}/s4x1_edf_med"
+    ic = f"in/{y}/s4x1_icf"
+    o = f"out/RGGI/{y}"
+    return [
+        (em, f"{o}/s4x1_edf_med/baseline",  []),
+        (em, f"{o}/s4x1_edf_med/nsp",       NSP),
+        (em, f"{o}/s4x1_edf_med/va",        VA),
+        (em, f"{o}/s4x1_edf_med/hf",        HF),
+        (em, f"{o}/s4x1_edf_med/nsp_va",    NSP + VA),
+        (em, f"{o}/s4x1_edf_med/nsp_hf",    NSP + HF),
+        (em, f"{o}/s4x1_edf_med/va_hf",     VA + HF),
+        (em, f"{o}/s4x1_edf_med/nsp_va_hf", NSP + VA + HF),
+        (ic, f"{o}/s4x1_icf/baseline",      []),
+        (ic, f"{o}/s4x1_icf/nsp",           NSP),
+        (ic, f"{o}/s4x1_icf/va",            VA),
+        (ic, f"{o}/s4x1_icf/hf",            HF),
+        (ic, f"{o}/s4x1_icf/nsp_va",        NSP + VA),
+        (ic, f"{o}/s4x1_icf/nsp_hf",        NSP + HF),
+        (ic, f"{o}/s4x1_icf/va_hf",         VA + HF),
+        (ic, f"{o}/s4x1_icf/nsp_va_hf",     NSP + VA + HF),
+    ]
+
+
+years = [int(a) for a in sys.argv[1:]] if len(sys.argv) > 1 else [2028, 2030, 2035]
+runs = [r for y in years for r in runs_for_year(y)]
 
 for inputs, outputs, aliases in runs:
-    label = "/".join(outputs.split("/")[-2:])
+    label = "/".join(outputs.split("/")[-3:])
     print(f"=== START: {label} ===", flush=True)
     cmd = ["switch", "solve", "--inputs-dir", inputs, "--outputs-dir", outputs] + aliases + CROSSOVER
     result = subprocess.run(cmd)
@@ -42,4 +50,4 @@ for inputs, outputs, aliases in runs:
         sys.exit(1)
     print(f"=== DONE:  {label} ===", flush=True)
 
-print("All 16 solves complete.", flush=True)
+print(f"All {len(runs)} solves complete.", flush=True)

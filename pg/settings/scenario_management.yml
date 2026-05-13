@@ -508,14 +508,15 @@ settings_management:
       # RGGI membership options. RGGI10 = current 10-state program.
       # rggi_va_alias_* causes pg_to_switch to also write carbon_policies_regional_va.csv
       # into every RGGI10 input folder, ready for --input-alias at solve time.
-      # rggi_va_fraction is VA's share of the new 11-state total cap
-      # (placeholder pending EIA SEDS 2025 VA data).
+      # rggi_va_fraction is VA's share of the new 11-state total cap.
+      # Set to 0.25: slightly below VA's historical share, providing a conservative
+      # assumption for VA rejoining. VA budget = 10-state cap × (0.25/0.75) = cap/3.
       RGGI10:
-        rggi_va_alias_fraction: 0.136
+        rggi_va_alias_fraction: 0.25
         rggi_va_alias_zones: [p99, p100, p118, p124]
       # RGGI10+VA: use as primary case if VA membership is the base assumption.
       RGGI10+VA:
-        rggi_va_fraction: 0.136
+        rggi_va_fraction: 0.25
         rggi_va_zones: [p99, p100, p118, p124]
     transmission:
       constrained:
@@ -4100,6 +4101,13 @@ settings_management:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 480444.19999999995
   2028:
+    policies:
+      current:
+        # CCR Tier 1 and Tier 2 trigger prices for 2028 in $/metric tonne.
+        # RGGI sets prices in $/short ton: $19.50×1.07^1=$20.87 and $29.25×1.07^1=$31.30.
+        # Converted to $/metric tonne (÷0.907185): $23.00 and $34.50.
+        carbon_ccr_prices:
+          "ETS 1": [23.00, 34.50]
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
       # don't allow new nuclear before 2030 (too soon to finish)
