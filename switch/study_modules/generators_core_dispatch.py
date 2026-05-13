@@ -251,10 +251,10 @@ def define_components(mod):
             d = m.FUEL_BASED_GENS_IN_PERIOD_dict
         except AttributeError:
             # cache all items in one pass
-            d = m.FUEL_BASED_GENS_IN_PERIOD_dict = {p: [] for p in m.PERIODS}
+            d = m.FUEL_BASED_GENS_IN_PERIOD_dict = {per: [] for per in m.PERIODS}
             for g in m.FUEL_BASED_GENS:
-                for p in m.PERIODS_FOR_GEN[g]:
-                    d[p].append(g)
+                for per in m.PERIODS_FOR_GEN[g]:
+                    d[per].append(g)
         return d.pop(p)
 
     mod.FUEL_BASED_GENS_IN_PERIOD = Set(mod.PERIODS, initialize=init)
