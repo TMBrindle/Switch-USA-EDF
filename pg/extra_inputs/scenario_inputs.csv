@@ -81,6 +81,9 @@ s4x5_caelp_entergy_gulf,2035,s4x5,firm,caelp,yes,current,RGGI10,none,hist5,enter
 s4x1_edf_med,2028,s4x1,firm,edf_epri_med,yes,current,RGGI10,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
 s4x1_edf_med,2030,s4x1,firm,edf_epri_med,yes,current,RGGI10,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
 s4x1_edf_med,2035,s4x1,firm,edf_epri_med,yes,current,RGGI10,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
+s4x1_icf,2025,s4x1,firm,icf,yes,current,RGGI10,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
+s8x10_icf,2025,s8x10,firm,icf,yes,current,RGGI10,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
 s4x1_icf,2028,s4x1,firm,icf,yes,current,RGGI10,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
 s4x1_icf,2030,s4x1,firm,icf,yes,current,RGGI10,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
 s4x1_icf,2035,s4x1,firm,icf,yes,current,RGGI10,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes
+s16x10_icf,2025,s16x10,firm,icf,yes,current,RGGI10,none,hist5,none,full,no,constrained,zero,yes,yes,yes,yes

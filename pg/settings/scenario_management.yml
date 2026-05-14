@@ -57,6 +57,12 @@ settings_management:
         # all possible weather days, individually
         time_domain_periods: 2555
         time_domain_days_per_period: 1
+      s8x10:
+        time_domain_periods: 8
+        time_domain_days_per_period: 10
+      s16x10:
+        time_domain_periods: 16
+        time_domain_days_per_period: 10
       s4x5:
         time_domain_periods: 4
         time_domain_days_per_period: 5
