@@ -404,6 +404,19 @@ def load_inputs(m, switch_data, inputs_dir):
                 switch_data, os.path.join(inputs_dir, "hierarchy.csv")
             )
             if not os.path.isfile(hier_path):
+                # Walk up the directory tree to find a shared hierarchy.csv
+                # (e.g. project root when inputs_dir is switch/in/{year}/{case}/).
+                check = os.path.dirname(os.path.abspath(inputs_dir))
+                while True:
+                    candidate = os.path.join(check, "hierarchy.csv")
+                    if os.path.isfile(candidate):
+                        hier_path = candidate
+                        break
+                    parent = os.path.dirname(check)
+                    if parent == check:
+                        break
+                    check = parent
+            if not os.path.isfile(hier_path):
                 print(
                     "WARNING gen_zone_ratio: gen_group_load_ratio.csv is present but "
                     f"hierarchy.csv was not found at {hier_path}; group constraints will be skipped."
