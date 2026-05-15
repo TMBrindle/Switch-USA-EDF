@@ -359,6 +359,9 @@ def post_solve(m, outputs_dir):
             "clearing_price_dollar_per_tco2": (
                 round(price, 4) if isinstance(price, float) else price
             ),
+            "auction_revenue_dollar_per_yr": (
+                round(price * emissions, 0) if isinstance(price, float) else ""
+            ),
         }
         # CCR tier columns
         for tier in sorted(ccr_usage.keys()):
