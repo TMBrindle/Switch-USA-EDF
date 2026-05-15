@@ -4114,6 +4114,9 @@ settings_management:
         # Converted to $/metric tonne (÷0.907185): $23.00 and $34.50.
         carbon_ccr_prices:
           "ETS 1": [23.00, 34.50]
+        # Minimum reserve price 2028: $9.63/short ton ÷ 0.907185 = $10.62/metric tonne
+        carbon_floor_price_by_program:
+          "ETS 1": 10.62
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
       # don't allow new nuclear before 2030 (too soon to finish)
@@ -4202,6 +4205,9 @@ settings_management:
         # Converted to $/metric tonne (÷0.907185): $26.34 and $39.50.
         carbon_ccr_prices:
           "ETS 1": [26.34, 39.50]
+        # Minimum reserve price 2030: $11.02/short ton ÷ 0.907185 = $12.15/metric tonne
+        carbon_floor_price_by_program:
+          "ETS 1": 12.15
     all_cases:
       # don't allow new nuclear before 2030 (too soon to finish)
       atb_new_gen:
@@ -4250,6 +4256,9 @@ settings_management:
         # Converted to $/metric tonne (÷0.907185): $36.93 and $55.39.
         carbon_ccr_prices:
           "ETS 1": [36.93, 55.39]
+        # Minimum reserve price 2035: $15.46/short ton ÷ 0.907185 = $17.04/metric tonne
+        carbon_floor_price_by_program:
+          "ETS 1": 17.04
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:

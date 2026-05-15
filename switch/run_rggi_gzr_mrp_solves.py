@@ -1,17 +1,15 @@
-"""Run RGGI10+VA solve variants with RGGI_VA gen_zone_ratio >= 0.75 constraint.
+"""Run RGGI10+VA variants with both gen_zone_ratio (GZR) and minimum reserve price (MRP).
 
-Only runs the va and nsp_va variants (Virginia participates in RGGI10); skips
-baseline, nsp, hf, and combined-HF variants.
+GZR: RGGI_VA group min gen/load ratio >= 0.75 (--include-module gen_zone_ratio)
+MRP: RGGI auction floor prices (2028: $10.62/mt, 2030: $12.15/mt, 2035: $17.04/mt)
+     via carbon_policies_regional_va_mrp.csv alias
 
-Mirrors run_rggi_solves.py but adds --include-module study_modules.gen_zone_ratio.
-Input dirs must contain gen_group_load_ratio.csv and gen_zone_ratio_group_by.csv
-(already written to switch/in/{year}/s4x1_{edf_med,icf}/).
-Outputs go to out/RGGI_gzr/ to keep results separate from unconstrained runs.
+Only runs va and nsp_va variants. Outputs to out/RGGI_gzr_mrp/.
 
 Usage:
-  python run_rggi_gzr_solves.py              # all 3 years
-  python run_rggi_gzr_solves.py 2028         # single year
-  python run_rggi_gzr_solves.py 2028 2030    # two years
+  python run_rggi_gzr_mrp_solves.py              # all 3 years
+  python run_rggi_gzr_mrp_solves.py 2028         # single year
+  python run_rggi_gzr_mrp_solves.py 2028 2030    # two years
 """
 import subprocess, sys
 
@@ -21,7 +19,8 @@ NSP = [
     "--input-alias", "min_cap_requirements.csv=min_cap_requirements_nsp.csv",
     "--input-alias", "min_cap_generators.csv=min_cap_generators_nsp.csv",
 ]
-VA = ["--input-alias", "carbon_policies_regional.csv=carbon_policies_regional_va.csv"]
+# MRP alias replaces the standard VA carbon policy with the MRP-augmented version
+VA_MRP = ["--input-alias", "carbon_policies_regional.csv=carbon_policies_regional_va_mrp.csv"]
 GZR = ["--include-module", "study_modules.gen_zone_ratio"]
 CROSSOVER = ["--solver-options-string", "crossover=1"]
 
@@ -30,12 +29,12 @@ def runs_for_year(year):
     y = str(year)
     em = f"in/{y}/s4x1_edf_med"
     ic = f"in/{y}/s4x1_icf"
-    o = f"out/RGGI_gzr/{y}"
+    o = f"out/RGGI_gzr_mrp/{y}"
     return [
-        (em, f"{o}/s4x1_edf_med/va",     VA),
-        (em, f"{o}/s4x1_edf_med/nsp_va", NSP + VA),
-        (ic, f"{o}/s4x1_icf/va",         VA),
-        (ic, f"{o}/s4x1_icf/nsp_va",     NSP + VA),
+        (em, f"{o}/s4x1_edf_med/va",     VA_MRP),
+        (em, f"{o}/s4x1_edf_med/nsp_va", NSP + VA_MRP),
+        (ic, f"{o}/s4x1_icf/va",         VA_MRP),
+        (ic, f"{o}/s4x1_icf/nsp_va",     NSP + VA_MRP),
     ]
 
 

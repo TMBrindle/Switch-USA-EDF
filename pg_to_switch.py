@@ -1616,6 +1616,7 @@ def other_tables(
                     "LOAD_ZONE",
                     "carbon_cap_tco2_per_yr",
                     "carbon_cost_dollar_per_tco2",
+                    "carbon_floor_price_dollar_per_tco2",
                 ]
             )
         ]
@@ -1654,6 +1655,13 @@ def other_tables(
                     .map(cost_by_program)
                     .fillna(scalar_cost)
                 )
+                # Add the floor price (auction minimum reserve price, $/metric tonne)
+                floor_by_program = scen_settings.get("carbon_floor_price_by_program") or {}
+                co2_cap_long["carbon_floor_price_dollar_per_tco2"] = (
+                    co2_cap_long["CO2_PROGRAM"]
+                    .map(floor_by_program)
+                    .fillna(0.0)
+                )
                 # reorder the columns for Switch
                 co2_cap_long = co2_cap_long[dfs[0].columns]
                 dfs.append(co2_cap_long)
@@ -1672,6 +1680,12 @@ def other_tables(
                 va_cap_per_zone = (
                     total_cap * va_fraction / (1 - va_fraction) / len(va_zones)
                 )
+                # Inherit floor price from existing ETS 1 rows for this period
+                floor = (
+                    grp["carbon_floor_price_dollar_per_tco2"].iloc[0]
+                    if "carbon_floor_price_dollar_per_tco2" in grp.columns
+                    else 0.0
+                )
                 for z in va_zones:
                     va_rows.append({
                         "CO2_PROGRAM": "ETS 1",
@@ -1679,6 +1693,7 @@ def other_tables(
                         "LOAD_ZONE": z,
                         "carbon_cap_tco2_per_yr": va_cap_per_zone,
                         "carbon_cost_dollar_per_tco2": ".",
+                        "carbon_floor_price_dollar_per_tco2": floor,
                     })
             return pd.concat([df, pd.DataFrame(va_rows)], axis=0) if va_rows else df
 

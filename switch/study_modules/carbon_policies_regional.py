@@ -66,6 +66,15 @@ def define_components(m):
         default=float("inf"),
     )
 
+    # minimum reserve price: mandatory per-tCO2 cost regardless of cap tightness.
+    # When cap is non-binding (surplus), this is the only RGGI cost; clearing
+    # price = floor_price + cap_shadow_dual (shadow = 0 when cap non-binding).
+    m.carbon_floor_price_dollar_per_tco2 = Param(
+        m.REGIONAL_CO2_RULES,
+        within=NonNegativeReals,
+        default=0.0,
+    )
+
     # slack that relaxes the constraint at a cost; bounded to 0 for hard caps
     m.AnnualCapViolation = Var(
         m.REGIONAL_CO2_RULES,
@@ -191,8 +200,24 @@ def define_components(m):
                 for (pr, pe2, tier) in m.CCR_RULES
                 if pe2 == pe
             )
+            # Minimum reserve price: mandatory cost on all covered emissions.
+            # When cap is non-binding, floor_price is the full clearing price.
+            # When cap is binding, floor_price + cap_shadow_dual = clearing price.
+            + sum(
+                m.carbon_floor_price_dollar_per_tco2[pr, pe2, z]
+                * sum(
+                    m.DispatchEmissions[g, tp, f] * m.tp_weight_in_year[tp]
+                    for g in m.GENS_IN_ZONE[z]
+                    if g in m.FUEL_BASED_GENS
+                    for tp in m.TPS_FOR_GEN_IN_PERIOD[g, pe]
+                    for f in m.FUELS_FOR_GEN[g]
+                )
+                for (pr, pe2) in m.CO2_PROGRAM_PERIODS
+                if pe2 == pe
+                for z in m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe2]
+            )
         ),
-        doc="Annual cost of CO2 cap violations and CCR allowance purchases.",
+        doc="Annual cost of CO2 cap violations, CCR purchases, and reserve price floor.",
     )
     m.Cost_Components_Per_Period.append("EmissionsCost")
 
@@ -209,7 +234,11 @@ def load_inputs(m, switch_data, inputs_dir):
         ),
         optional=True,
         index=m.REGIONAL_CO2_RULES,
-        param=(m.carbon_cap_tco2_per_yr, m.carbon_cost_dollar_per_tco2),
+        param=(
+            m.carbon_cap_tco2_per_yr,
+            m.carbon_cost_dollar_per_tco2,
+            m.carbon_floor_price_dollar_per_tco2,
+        ),
     )
 
     # Load CCR data manually (mixed-type 3D index not handled well by load_aug)
@@ -282,19 +311,20 @@ def post_solve(m, outputs_dir):
             for tier in m.TIERS_IN_CCR_PROGRAM_PERIOD[pr, pe]:
                 ccr_usage[tier] = value(m.CCRPurchases[pr, pe, tier])
 
-        # Determine clearing price
+        # Determine clearing price (floor_price + scarcity premium from cap dual)
         escape_cost = value(m.carbon_cost_dollar_per_tco2[pr, pe, zones[0]])
         is_hard_cap = escape_cost == float("inf")
+        floor_price = value(m.carbon_floor_price_dollar_per_tco2[pr, pe, zones[0]])
 
         if is_hard_cap:
             # CCR-based price determination
             if ccr_usage:
                 tiers = sorted(ccr_usage.keys())
-                price = 0.0
+                scarcity = 0.0
                 for tier in tiers:
                     used = ccr_usage[tier]
                     if used > 1e-3:  # tier is active
-                        price = value(m.ccr_price_dollar_per_tco2[pr, pe, tier])
+                        scarcity = value(m.ccr_price_dollar_per_tco2[pr, pe, tier])
                 # if no CCR used, fall back to constraint dual.
                 # Dual-to-price conversion: the objective weights annual costs by
                 # bring_annual_costs_to_base_year[pe], so the dual of the annual
@@ -302,17 +332,21 @@ def post_solve(m, outputs_dir):
                 # Annualised $/tCO2 = -dual * 0.001 / bring_annual_costs_to_base_year.
                 # Note: barrier solver without crossover gives unreliable duals;
                 # with crossover=1 these are true LP duals (see I-19).
-                if price == 0.0:
+                if scarcity == 0.0:
                     dual = m.dual.get(constr)
                     npv_weight = value(m.bring_annual_costs_to_base_year[pe])
-                    price = (-dual * 0.001 / npv_weight) if dual is not None else ""
+                    scarcity = (-dual * 0.001 / npv_weight) if dual is not None else ""
             else:
                 dual = m.dual.get(constr)
                 npv_weight = value(m.bring_annual_costs_to_base_year[pe])
-                price = (-dual * 0.001 / npv_weight) if dual is not None else ""
+                scarcity = (-dual * 0.001 / npv_weight) if dual is not None else ""
+            # Total clearing price = floor (always paid) + scarcity premium
+            price = (
+                floor_price + scarcity if isinstance(scarcity, float) else scarcity
+            )
         else:
             # soft cap: price = escape-valve cost if constraint is binding
-            price = escape_cost if violation > 1e-3 else 0.0
+            price = escape_cost if violation > 1e-3 else floor_price
 
         row = {
             "CO2_PROGRAM": pr,
@@ -321,6 +355,7 @@ def post_solve(m, outputs_dir):
             "emissions_tco2_per_yr": round(emissions, 0),
             "surplus_tco2_per_yr": round(cap - emissions, 0),
             "violation_tco2_per_yr": round(violation, 0),
+            "floor_price_dollar_per_tco2": round(floor_price, 4),
             "clearing_price_dollar_per_tco2": (
                 round(price, 4) if isinstance(price, float) else price
             ),
