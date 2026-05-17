@@ -66,9 +66,9 @@ def define_components(m):
         default=float("inf"),
     )
 
-    # minimum reserve price: mandatory per-tCO2 cost regardless of cap tightness.
-    # When cap is non-binding (surplus), this is the only RGGI cost; clearing
-    # price = floor_price + cap_shadow_dual (shadow = 0 when cap non-binding).
+    # minimum reserve price: sets a floor on the allowance clearing price by
+    # restricting supply (see FloorAllowances). When cap is non-binding, the floor
+    # is the full clearing price. When CCR is triggered, the CCR price dominates.
     m.carbon_floor_price_dollar_per_tco2 = Param(
         m.REGIONAL_CO2_RULES,
         within=NonNegativeReals,
@@ -100,6 +100,44 @@ def define_components(m):
         initialize=lambda m, pr, pe: [
             z for (pr2, pe2, z) in m.REGIONAL_CO2_RULES if (pr2, pe2) == (pr, pe)
         ],
+    )
+
+    # sum of zone-level caps for each (program, period)
+    m.ProgramCap_tco2 = Param(
+        m.CO2_PROGRAM_PERIODS,
+        initialize=lambda m, pr, pe: sum(
+            m.carbon_cap_tco2_per_yr[pr, pe, z]
+            for z in m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe]
+        ),
+        within=Reals,
+    )
+
+    # program-level floor price (all zones share the same value; take the min zone)
+    m.carbon_floor_price_dollar_per_tco2_program = Param(
+        m.CO2_PROGRAM_PERIODS,
+        initialize=lambda m, pr, pe: m.carbon_floor_price_dollar_per_tco2[
+            pr, pe, min(m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe])
+        ],
+        within=NonNegativeReals,
+        default=0.0,
+    )
+
+    # ── Floor allowances (supply-restriction mechanism) ────────────────────────
+    # The state withholds (cap - FloorAllowances) allowances when the market price
+    # would fall below the floor. FloorAllowances replaces the fixed cap in the
+    # emissions constraint:
+    #   non-binding cap  → FloorAllowances = emissions, dual = floor_price
+    #   CCR active       → FloorAllowances = cap, dual = CCR_trigger (floor irrelevant)
+    #   binding, no CCR  → FloorAllowances = cap, dual ∈ [floor, CCR_trigger]
+    # When floor_price = 0: model freely sets FloorAllowances = cap → no change.
+    m.FloorAllowances = Var(
+        m.CO2_PROGRAM_PERIODS,
+        within=NonNegativeReals,
+        bounds=lambda m, pr, pe: (
+            0,
+            None if value(m.ProgramCap_tco2[pr, pe]) == float("inf")
+            else value(m.ProgramCap_tco2[pr, pe]),
+        ),
     )
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -141,11 +179,7 @@ def define_components(m):
     # ══════════════════════════════════════════════════════════════════════════
 
     def cap_rule(m, pr, pe):
-        cap = sum(
-            m.carbon_cap_tco2_per_yr[pr, pe, z]
-            for z in m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe]
-        )
-        if cap == float("inf"):
+        if m.ProgramCap_tco2[pr, pe] == float("inf"):
             return Constraint.Skip
 
         exceedance = sum(
@@ -172,8 +206,10 @@ def define_components(m):
             for f in m.FUELS_FOR_GEN[g]
         )
 
+        # FloorAllowances replaces the fixed cap; the state withholds
+        # (cap - FloorAllowances) allowances to enforce the price floor.
         # scale by 0.001 to improve numerical stability
-        return emissions * 0.001 <= (cap + exceedance + ccr_slack) * 0.001
+        return emissions * 0.001 <= (m.FloorAllowances[pr, pe] + exceedance + ccr_slack) * 0.001
 
     m.Enforce_Regional_Carbon_Cap = Constraint(m.CO2_PROGRAM_PERIODS, rule=cap_rule)
 
@@ -200,21 +236,15 @@ def define_components(m):
                 for (pr, pe2, tier) in m.CCR_RULES
                 if pe2 == pe
             )
-            # Minimum reserve price: mandatory cost on all covered emissions.
-            # When cap is non-binding, floor_price is the full clearing price.
-            # When cap is binding, floor_price + cap_shadow_dual = clearing price.
+            # Floor allowance cost: floor_price × FloorAllowances (supply-restriction
+            # mechanism). When cap is non-binding, FloorAllowances = emissions so
+            # cost = floor × emissions. When CCR is active, FloorAllowances = cap
+            # (flat cost) and the dual already captures the full clearing price.
             + sum(
-                m.carbon_floor_price_dollar_per_tco2[pr, pe2, z]
-                * sum(
-                    m.DispatchEmissions[g, tp, f] * m.tp_weight_in_year[tp]
-                    for g in m.GENS_IN_ZONE[z]
-                    if g in m.FUEL_BASED_GENS
-                    for tp in m.TPS_FOR_GEN_IN_PERIOD[g, pe]
-                    for f in m.FUELS_FOR_GEN[g]
-                )
+                m.carbon_floor_price_dollar_per_tco2_program[pr, pe2]
+                * m.FloorAllowances[pr, pe2]
                 for (pr, pe2) in m.CO2_PROGRAM_PERIODS
                 if pe2 == pe
-                for z in m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe2]
             )
         ),
         doc="Annual cost of CO2 cap violations, CCR purchases, and reserve price floor.",
@@ -317,33 +347,31 @@ def post_solve(m, outputs_dir):
         floor_price = value(m.carbon_floor_price_dollar_per_tco2[pr, pe, zones[0]])
 
         if is_hard_cap:
-            # CCR-based price determination
+            # Clearing price comes from the constraint dual. With the
+            # supply-restriction floor mechanism, the dual already encodes:
+            #   non-binding cap  → dual = floor_price
+            #   CCR active       → dual = CCR_trigger (floor irrelevant)
+            #   binding, no CCR  → dual = scarcity ∈ [floor, CCR_trigger]
+            # Dual-to-price conversion: objective weights annual costs by
+            # bring_annual_costs_to_base_year[pe], so the dual of the 0.001-scaled
+            # emission constraint is in NPV units.
+            # Annualised $/tCO2 = -dual * 0.001 / bring_annual_costs_to_base_year.
+            # Note: barrier solver without crossover gives unreliable duals;
+            # with crossover=1 these are true LP duals (see I-19).
             if ccr_usage:
                 tiers = sorted(ccr_usage.keys())
-                scarcity = 0.0
+                price = 0.0
                 for tier in tiers:
-                    used = ccr_usage[tier]
-                    if used > 1e-3:  # tier is active
-                        scarcity = value(m.ccr_price_dollar_per_tco2[pr, pe, tier])
-                # if no CCR used, fall back to constraint dual.
-                # Dual-to-price conversion: the objective weights annual costs by
-                # bring_annual_costs_to_base_year[pe], so the dual of the annual
-                # emission constraint (scaled by 0.001) is in NPV units.
-                # Annualised $/tCO2 = -dual * 0.001 / bring_annual_costs_to_base_year.
-                # Note: barrier solver without crossover gives unreliable duals;
-                # with crossover=1 these are true LP duals (see I-19).
-                if scarcity == 0.0:
+                    if ccr_usage[tier] > 1e-3:
+                        price = value(m.ccr_price_dollar_per_tco2[pr, pe, tier])
+                if price == 0.0:
                     dual = m.dual.get(constr)
                     npv_weight = value(m.bring_annual_costs_to_base_year[pe])
-                    scarcity = (-dual * 0.001 / npv_weight) if dual is not None else ""
+                    price = (-dual * 0.001 / npv_weight) if dual is not None else ""
             else:
                 dual = m.dual.get(constr)
                 npv_weight = value(m.bring_annual_costs_to_base_year[pe])
-                scarcity = (-dual * 0.001 / npv_weight) if dual is not None else ""
-            # Total clearing price = floor (always paid) + scarcity premium
-            price = (
-                floor_price + scarcity if isinstance(scarcity, float) else scarcity
-            )
+                price = (-dual * 0.001 / npv_weight) if dual is not None else ""
         else:
             # soft cap: price = escape-valve cost if constraint is binding
             price = escape_cost if violation > 1e-3 else floor_price
