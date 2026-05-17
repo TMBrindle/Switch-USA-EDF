@@ -23,6 +23,42 @@ def parse_arguments():
     return options
 
 
+def get_tp_duration_hours(in_dir):
+    """Look up tp_duration_hours for this case/year from scenario_inputs.csv.
+
+    Expected path structure: {project_root}/switch/in/{year}/{case_id}
+    scenario_inputs.csv is at:  {project_root}/pg/extra_inputs/scenario_inputs.csv
+    """
+    in_dir = Path(in_dir).resolve()
+    case_id = in_dir.name
+    try:
+        year = int(in_dir.parent.name)
+    except ValueError:
+        raise ValueError(
+            f"Cannot parse year from path {in_dir}; expected .../in/{{year}}/{{case_id}}"
+        )
+
+    # project root is 4 levels up: case_id / year / in / switch / project_root
+    si_path = in_dir.parent.parent.parent.parent / "pg" / "extra_inputs" / "scenario_inputs.csv"
+    if not si_path.exists():
+        raise FileNotFoundError(f"scenario_inputs.csv not found at {si_path}")
+
+    si = pd.read_csv(si_path)
+    if "tp_duration_hours" not in si.columns:
+        raise KeyError(
+            "tp_duration_hours column missing from scenario_inputs.csv; "
+            "add a column with values 1 or 2 for each case."
+        )
+
+    row = si[(si["case_id"] == case_id) & (si["year"] == year)]
+    if row.empty:
+        raise KeyError(
+            f"No row found for case_id={case_id!r}, year={year} in scenario_inputs.csv"
+        )
+
+    return int(row["tp_duration_hours"].iloc[0])
+
+
 # %% main code
 
 
@@ -33,7 +69,11 @@ def main():
     options = parse_arguments()
     in_dir = Path(options.in_dir)
     out_dir = in_dir
-    new_tp_duration = 2
+    new_tp_duration = get_tp_duration_hours(in_dir)
+
+    if new_tp_duration == 1:
+        print(f"tp_duration_hours=1 for {in_dir.parent.name}/{in_dir.name}; skipping timepoint merge.")
+        return
 
     def read(file):
         return pd.read_csv(in_dir / file, na_values=".")
