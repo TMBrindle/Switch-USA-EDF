@@ -1,0 +1,35 @@
+tech_long,tech_short
+Biomass,Biomass
+Conventional Steam Coal,Coal
+load_growth,Demand response
+distributed_generation,Distributed generation
+Geothermal,Geothermal
+Conventional Hydroelectric,Hydroelectric
+Small Hydroelectric,Hydroelectric
+Hydrogen_F-Frame CT_Moderate,Hydrogen
+Hydrogen_H-Frame CC_Moderate,Hydrogen
+Imports_base_base,Imports
+Natural Gas Fired Combined Cycle,Natural gas
+Natural Gas Fired Combustion Turbine,Natural gas
+Natural Gas Internal Combustion Engine,Natural gas
+Natural Gas Steam Turbine,Natural gas
+NaturalGas_F-Frame CT_Moderate,Natural gas
+NaturalGas_H-Frame CC_Moderate,Natural gas
+NaturalGas_H-Frame CC 95% CCS_Moderate,Natural gas
+Other_peaker,Natural gas
+Nuclear,Nuclear
+Nuclear_Nuclear_Moderate,Nuclear
+Petroleum Liquids,Oil
+Solar Photovoltaic,Solar
+UtilityPV_Class1_Moderate,Solar
+Batteries,Storage
+Battery_*_Moderate,Storage
+Hydroelectric Pumped Storage,Storage
+Utility-Scale Battery Storage_Lithium Ion_Advanced,Storage
+LandbasedWind_Class3_Moderate,Wind
+Onshore Wind Turbine,Wind
+OffShoreWind_Class12_Moderate_floating_0,Wind
+OffShoreWind_Class12_Moderate_floating_1,Wind
+OffShoreWind_Class3_Moderate_fixed_0,Wind
+OffShoreWind_Class3_Moderate_fixed_1,Wind
+Offshore Wind Turbine,Wind

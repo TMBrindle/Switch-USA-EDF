@@ -46,3 +46,4 @@
 # place fl_client.ini in ~/mindopt (not necessary to update ~/.mdo_profile to point to it here)
 # flag names can be found from `mindoptampl -=` and flag options can be found at https://opt.aliyun.com/doc/latest/en/html/API2/param/index.html
 # --solver mindoptampl --solver-options-string "method=2 solution_target=1"
+--input-alias max_cap_requirements.csv=max_cap_requirements_lowRestrictions.csv

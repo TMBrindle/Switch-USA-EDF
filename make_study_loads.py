@@ -38,8 +38,8 @@ settings_dir = "pg/settings"
 # note: we could use PowerGenome's alt_growth_rate setting instead of adding
 # a tranche of flexible load, but this lets us make it interruptible.
 #growth_file = "growth_rates/zone_growth.csv"
-growth_case = "edf_epri_med"
-growth_path = f"growth_rates/edf/epri_med"
+growth_case = "edf_epri_high"
+growth_path = f"D:/Large Data Files/Study Loads/growth_rates/epri_high"
 reeds_load_table = "load_curves_nrel_reeds"
 base_year = 2023
 start_year = 2023
