@@ -40,12 +40,12 @@ from pg_to_switch import short_fn
 
 # TODO: get from argv
 settings_dir = "pg/settings"
-# zonal annual growth rates; created by growth_rates/retrieve_icf_growth.py
-# note: we could use PowerGenome's alt_growth_rate setting instead of adding
-# a tranche of flexible load, but this lets us make it interruptible.
-#growth_file = "growth_rates/zone_growth.csv"
-growth_case = "icf"
-growth_path = f"growth_rates/icf"
+# Growth rate files produced by R script (growth_rates/<case>/dc/ and nondc/)
+# Each subdirectory contains zone_growth_YYYY-YYYY.csv files with columns
+# load_zone, avg_growth, peak_growth.
+growth_case = "epri_med"
+dc_growth_path = f"growth_rates/{growth_case}/dc"
+nondc_growth_path = f"growth_rates/{growth_case}/nondc"
 reeds_load_table = "load_curves_nrel_reeds"
 base_year = 2023
 start_year = 2023
@@ -66,9 +66,9 @@ lower_growth_base_year = 2025  # growth will be restrained after this year
 lower_growth_factor = 1 / 3  # reduction in growth beyond 2025 level
 lower_growth_scenario = "lower_growth"  # flexible_load.yml/demand_response
 
-# resource names
-# should match keys in pg/settings/flexible_load.yml/flexible_demand_resources
-load_growth_resource_name = "load_growth"
+# resource names; must match keys in pg/settings/flexible_load.yml/flexible_demand_resources
+dc_resource_name = "load_growth_datacenter"
+nondc_resource_name = "load_growth_electrification"
 exports_resource_name = "us_exports"
 export_averaging_years = [2024]
 # file within settings["RESOURCE_GROUPS"] with info on virtual generators
@@ -107,7 +107,7 @@ print(
     f"Reading {base_year} ReEDS loads from table {reeds_load_table} via "
     f"{pg_engine.url}"
 )
-base = pd.read_sql(
+base_loads = pd.read_sql(
     f"select * from {reeds_load_table} where year = {base_year}",
     con=pg_engine,
 ).rename(columns={"year": "base_year"})
@@ -116,15 +116,15 @@ base = pd.read_sql(
 # directly from PG_DB, but not when using user load profiles)
 n_steps = settings.get("utc_offset", 0)
 print(f"Applying {n_steps} hour offset to shift loads from UTC to model time zone.")
-base = base.sort_values(["region", "weather_year", "time_index"])
-base["load_mw"] = base.groupby(["region", "weather_year"])["load_mw"].transform(
+base_loads = base_loads.sort_values(["region", "weather_year", "time_index"])
+base_loads["load_mw"] = base_loads.groupby(["region", "weather_year"])["load_mw"].transform(
     lambda s: pd.np.roll(s.values, n_steps)
 )
 
 print(f"Saving {base_year} loads for {start_year}-{end_year} in {load_file_path}")
 base_wide = (
     pd.concat(
-        (base.assign(model_year=y) for y in range(start_year, end_year + 1)),
+        (base_loads.assign(model_year=y) for y in range(start_year, end_year + 1)),
         ignore_index=True,
     )
     .assign(scenario=user_load_scenario)
@@ -143,110 +143,100 @@ base_wide.to_csv(load_file_path, index=False)
 ####################
 print("Calculating base year stats")
 base_stats = (
-    base.groupby("region")
+    base_loads.groupby("region")
     .agg(avg_base=("load_mw", "mean"), peak_base=("load_mw", "max"))
     .reset_index()
 )
 
-# find the target growth rates, then apply those to get the target avg and peak
-# load levels
 
-#target_rates = pd.read_csv(growth_file).rename(columns={"load_zone": "region"})
+def read_compounded_growth_rates(growth_path):
+    """Read zone_growth_YYYY-YYYY.csv files and compound rates across year blocks."""
+    target_rates = pd.DataFrame()
+    for fl in sorted(os.listdir(growth_path)):
+        yrs = [int(y) for y in fl.split('_')[2].split('.')[0].split('-')]
+        rates = pd.read_csv(f"{growth_path}/{fl}")
+        for s in ["avg", "peak"]:
+            rates[f"{s}_growth"] = rates[f"{s}_growth"].clip(0, None)
+        rates = pd.concat(
+            [rates.assign(year=y) for y in range(start_year, end_year + 1)],
+            ignore_index=True,
+        )
+        for y in range(start_year, end_year + 1):
+            for s in ["avg", "peak"]:
+                localEnd = yrs[1] if y >= yrs[1] else y if y > yrs[0] else yrs[0]
+                mask = rates["year"] == y
+                rates.loc[mask, f"{s}_growth"] = (
+                    1 + rates.loc[mask, f"{s}_growth"]
+                ) ** (localEnd - yrs[0])
+        if target_rates.shape[0] == 0:
+            target_rates = rates
+        else:
+            target_rates = target_rates.merge(rates, on=["load_zone", "year"])
+            for s in ["avg", "peak"]:
+                v = f"{s}_growth"
+                target_rates = target_rates.assign(
+                    **{v: target_rates[f"{v}_x"] * target_rates[f"{v}_y"]}
+                )
+            target_rates = target_rates[["load_zone", "year", "avg_growth", "peak_growth"]]
+    return target_rates.rename(columns={"load_zone": "region"})
 
-#Read names of growth rate csvs
-grFls  = os.listdir(growth_path)
 
-#Read all load growth rate files
-target_rates = pd.DataFrame()
-for fl in grFls:
-    #Extract years and store in a list of the form (start year, end year)
-    yrSplit = fl.split('_')[2]
-    yrSplit = yrSplit.split('.')[0]
-    yrs = [int(yr) for yr in yrSplit.split('-')]
-    #Read growth rates and calculate a modifier using exponential growth from the start year
-    growth = pd.read_csv(f"{growth_path}/{fl}")
-    # remove any negative growth
+def build_growth_timeseries(rates, resource_name, scenario):
+    """Convert compounded growth rates to hourly timeseries for one resource.
+
+    Returns (target_stats DataFrame, long-form growth DataFrame).
+    """
+    # fraction f and offset b are found by solving:
+    # ab * (1 + f) + b = at  and  pb * (1 + f) + b = pt
+    # => f = (pt - at) / (pb - ab) - 1  and  b = at - ab * (1 + f)
+    ts = base_stats.merge(rates)
     for s in ["avg", "peak"]:
-        growth[f"{s}_growth"] = growth[f"{s}_growth"].clip(0, None)
-    #Spread over all years in this block
-    growth = pd.concat([growth.assign(year=y) for y in range(start_year, end_year + 1)],
-                       ignore_index=True)
-    #Assign a modifier year-by-year to adjust growth timelines
-    for y in range(start_year, end_year + 1):
-        for s in ["avg", "peak"]:
-            localEnd = yrs[1] if y >= yrs[1] else y if y > yrs[0] else yrs[0]
-            yrSub = growth["year"] == y
-            growth.loc[yrSub, f"{s}_growth"] = (1 + growth.loc[yrSub, f"{s}_growth"]) ** (localEnd - yrs[0])
-    #If this is the first year pair, add to the overall dataset, otherwise merge and multiply
-    if target_rates.shape[0] == 0:
-        target_rates = growth
-    else:
-        target_rates = target_rates.merge(growth, on=["load_zone", "year"])
-        for s in ["avg", "peak"]:
-            vName = f"{s}_growth"
-            target_rates = target_rates.assign(
-                **{vName : target_rates[f"{vName}_x"] * target_rates[f"{vName}_y"]})
-        target_rates = target_rates[["load_zone", "year", "avg_growth", "peak_growth"]]
+        ts[f"{s}_targ"] = ts[f"{s}_base"] * ts[f"{s}_growth"]
+    ts["fraction"] = ts.eval("(peak_targ - avg_targ) / (peak_base - avg_base) - 1")
+    ts["offset"] = ts.eval("avg_targ - avg_base * (1 + fraction)")
 
-#Rename zones column
-target_rates = target_rates.rename(columns={"load_zone": "region"})
+    g = base_loads.merge(ts[["region", "year", "offset", "fraction"]], on="region")
+    growth_mw = (g["load_mw"] * g["fraction"] + g["offset"]).clip(0, None).round(3)
+    # keep only the columns needed downstream (pivot + lower-growth merge);
+    # this dataframe has one row per region x weather_year x hour x model_year
+    # (~230M rows for the full BA/year range), so dropping unused columns and
+    # using category dtype for repeated strings avoids multi-GB memory blowup
+    g = pd.DataFrame(
+        {
+            "time_index": g["time_index"],
+            "region": g["region"].astype("category"),
+            "year": g["year"],
+            "growth_mw": growth_mw,
+            "resource_name": pd.Categorical([resource_name] * len(g)),
+            "scenario": pd.Categorical([scenario] * len(g)),
+        }
+    )
+    return ts, g
 
-target_stats = base_stats.merge(target_rates)
 
-# set target avg & peak MW, multiplying by modifier in growth dataset
-for s in ["avg", "peak"]:
-    target_stats[f"{s}_targ"] = target_stats[f"{s}_base"] * (target_stats[f"{s}_growth"])
+print(f"Calculating DC and non-DC load growth from {base_year} for {start_year}-{end_year}.")
+dc_rates = read_compounded_growth_rates(dc_growth_path)
+nondc_rates = read_compounded_growth_rates(nondc_growth_path)
 
-#Write the target_stats data to a csv we can look at
-target_stats.to_csv(f"switch/Scripts/Growth_Profiles/{growth_case}_targets.csv", index=False)
+dc_target_stats, dc_growth = build_growth_timeseries(dc_rates, dc_resource_name, normal_growth_scenario)
+nondc_target_stats, nondc_growth = build_growth_timeseries(nondc_rates, nondc_resource_name, normal_growth_scenario)
 
-# Find the scale and offset to add to the base load levels to get the target
-# growth levels
-# fraction f and base b are found by solving this equation:
-# ab * (1 + f) + b = at
-# pb * (1 + f) + b = pt
-# => pt - at = (pb - ab) * (1 + f)
-# => f = (pt - at) / (pb - ab) - 1
-# => b = at - ab * (1 + f)
-target_stats["fraction"] = target_stats.eval(
-    "(peak_targ - avg_targ) / (peak_base - avg_base) - 1"
-)
-target_stats["base"] = target_stats.eval("avg_targ - avg_base * (1 + fraction)")
+Path("switch/Scripts/Growth_Profiles").mkdir(parents=True, exist_ok=True)
+dc_target_stats.to_csv(f"switch/Scripts/Growth_Profiles/{growth_case}_dc_targets.csv", index=False)
+nondc_target_stats.to_csv(f"switch/Scripts/Growth_Profiles/{growth_case}_nondc_targets.csv", index=False)
 
-# Apply the base and fraction to calculate the incremental load through each year
-# This will be treated as "flexible load", possibly interruptible in some scenarios
-print(f"Calculating growth from {base_year} for {start_year}-{end_year}.")
-growth = base.merge(target_stats[["region", "year", "base", "fraction"]], on="region")
-growth["growth_mw"] = growth["load_mw"] * growth["fraction"] + growth["base"]
-# remove a few cases with shrinking loads (growth in peak but not mean);
-# may end up missing the mean target slightly
-growth["growth_mw"] = growth["growth_mw"].clip(0, None)
-growth["growth_mw"] = growth["growth_mw"].round(3)  # don't need more than kW resolution
-# check the shape overall
-# growth.query('year == 2030 & weather_year == 2013').eval('hour_of_year = time_index % 8760').groupby('hour_of_year')['growth_mw'].sum().plot(ylim=(0, None))
-
-# convert to correct form for PowerGenome demand_response_fn:
-# csv file with hourly profiles for demand response resources in each
-# region/year/scenario. The top four rows are
-#   1) the name of the DR resource (in settings['flexible_demand_resources'][2030].keys()),
-#   2) the model year,
-#   3) the scenario name (settings['demand_response'])
-#   4) the model region from `model_regions`
-growth["resource_name"] = load_growth_resource_name
-growth["scenario"] = normal_growth_scenario
-
-growth_wide = growth.pivot(
+dc_growth_wide = dc_growth.pivot(
     index="time_index",
     columns=["resource_name", "year", "scenario", "region"],
     values="growth_mw",
 ).sort_index(axis=0)
-
-# Don't write now; will be stored later
-# print(
-#     f"Saving hourly flexible load profiles for {start_year}-{end_year} in {dr_file_path}."
-# )
-# growth_wide.to_csv(dr_file_path, index=False)
-# print(f"Finished writing {dr_file_path}.")
+nondc_growth_wide = nondc_growth.pivot(
+    index="time_index",
+    columns=["resource_name", "year", "scenario", "region"],
+    values="growth_mw",
+).sort_index(axis=0)
+growth_wide = pd.concat([dc_growth_wide, nondc_growth_wide], axis=1)
+del dc_growth_wide, nondc_growth_wide
 
 # %%############
 # create lower-growth scenario (1/3 as much growth in 2026 and beyond)
@@ -254,22 +244,15 @@ print(
     f"Creating reduced growth scenario {lower_growth_scenario} with {lower_growth_factor} as much growth after {lower_growth_base_year}"
 )
 
-# 30s for this, will crash (by design) if multiple scenarios are present
-# keys = ["resource_name", "region", "time_index"]
-# base_mw = (
-#     growth.query("year == @lower_growth_base_year")
-#     .set_index(keys)['growth_mw']
-# )
-# growth_lower = growth[keys + ['growth_mw']]
-# # use set_index().index.map() to do a multi-column mapping
-# growth_lower['base_mw'] = growth_lower.set_index(keys).index.map(base_mw)
+# Apply lower-growth scaling to both resources together
+combined_growth = pd.concat([dc_growth, nondc_growth], ignore_index=True)
+del dc_growth, nondc_growth
 
-# 9s for this; will quietly produce duplicate rows if multiple scenarios are present
 keys = ["resource_name", "scenario", "region", "time_index"]
-base = growth.query("year == @lower_growth_base_year")[keys + ["growth_mw"]].rename(
+lower_base = combined_growth.query("year == @lower_growth_base_year")[keys + ["growth_mw"]].rename(
     columns={"growth_mw": "base_mw"}
 )
-growth_lower = growth[keys + ["year", "growth_mw"]].merge(base)
+growth_lower = combined_growth[keys + ["year", "growth_mw"]].merge(lower_base)
 
 growth_lower["scenario"] = lower_growth_scenario
 mask = growth_lower["year"] > lower_growth_base_year
@@ -284,7 +267,7 @@ growth_lower_wide = growth_lower.pivot(
     values="growth_mw",
 ).sort_index(axis=0)
 
-del growth, growth_lower  # large, no longer needed
+del combined_growth, growth_lower
 
 # %%############
 # Calculate net exports for each zone by month and hour, then use those to define

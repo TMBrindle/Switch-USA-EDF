@@ -17,6 +17,9 @@ switch/out/
 !growth_rates/
 growth_rates/*
 !growth_rates/*.csv
+# also include nested growth_rates/epri_med/dc and nondc output csvs
+!growth_rates/epri_med/
+!growth_rates/epri_med/**
 
 # user-specific configuration
 env.yml

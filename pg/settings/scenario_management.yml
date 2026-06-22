@@ -178,6 +178,65 @@ settings_management:
               fraction_shiftable: 1.0
               parameter_values:
                 New_Build: -1
+      epri_med:
+        # DC + non-DC growth from EPRI Powering Intelligence + AEO 2026 baseline
+        # Files produced by R script: growth_rates/epri_med/dc/ and nondc/
+        demand_response_fn: load_adjustments_epri_med.csv.zip
+        flexible_demand_resources:
+          2024:
+            load_growth_datacenter:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+            load_growth_electrification:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2025:
+            load_growth_datacenter:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+            load_growth_electrification:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2028:
+            load_growth_datacenter:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+            load_growth_electrification:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2029:
+            load_growth_datacenter:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+            load_growth_electrification:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2030:
+            load_growth_datacenter:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+            load_growth_electrification:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2035:
+            load_growth_datacenter:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+            load_growth_electrification:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
       none: ~
 
     load_growth_flexibility:
@@ -187,6 +246,8 @@ settings_management:
         model_tag_values:
           gen_max_annual_availability:
             load_growth: 0.001
+            load_growth_datacenter: 0.001
+            load_growth_electrification: 0.001
     allow_retirement:
       yes: ~ # allowed for thermal plants after 2024 by default
       no: # disable retirement for all plants in all years

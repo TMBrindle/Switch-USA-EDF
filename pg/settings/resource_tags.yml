@@ -236,6 +236,8 @@ model_tag_values:
     Hydroelectric Pumped Storage: 1
   FLEX:
     load_growth: 1
+    load_growth_datacenter: 1
+    load_growth_electrification: 1
     us_exports: 1
   HYDRO:
     Conventional Hydroelectric: 1
@@ -283,6 +285,8 @@ model_tag_values:
     Nuclear: -1
     Distributed_Generation: -1
     load_growth: -1
+    load_growth_datacenter: -1
+    load_growth_electrification: -1
     us_exports: -1
   CapRes_1:
     Conventional Steam Coal: 0.9
@@ -398,6 +402,8 @@ model_tag_values:
     distributed: 0 # assume reported production is actual (no derate)
     Imports: 0 # use reported imports with no derate
     load_growth: 0 # don't derate VPP since corresponding loads aren't derated (but maybe we should count some non-response?)
+    load_growth_datacenter: 0
+    load_growth_electrification: 0
     us_exports: 1 # this is a VPP corresponding to canceling scheduled US exports (load), which should never be used
   gen_scheduled_outage_rate:
     # From NERC GADS statistical brochures:
@@ -441,6 +447,8 @@ model_tag_values:
     distributed: 0 # assume reported production is actual (no derate)
     Imports: 0 # use reported imports with no derate
     load_growth: 0 # don't derate VPP since corresponding loads aren't derated (but maybe we should count some non-response?)
+    load_growth_datacenter: 0
+    load_growth_electrification: 0
     us_exports: 0 # this is a VPP corresponding to canceling scheduled US exports (load), which should never be used
 
   gen_max_annual_availability:
@@ -450,6 +458,8 @@ model_tag_values:
     "": 1.0
     # firm loads (0.0 reduction) by default, but may be adjusted in scenarios
     load_growth: 0.0
+    load_growth_datacenter: 0.0
+    load_growth_electrification: 0.0
     us_exports: 0.0
   gen_can_provide_spinning_reserves:
     # most gens can provide spinning reserves
@@ -458,6 +468,8 @@ model_tag_values:
     # availability (could revisit this to treat them as interruptible loads
     # that can be counted toward the reserve margin even if not interrupted)
     load_growth: 0
+    load_growth_datacenter: 0
+    load_growth_electrification: 0
     # no spinning reserves from the dummy generators created for the exports
     us_exports: 0
   Can_Retire:
