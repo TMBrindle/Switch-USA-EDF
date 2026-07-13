@@ -12,16 +12,20 @@ Key assumptions (confirm/adjust before trusting results):
     Industrial growth, since Commercial embeds AEO's own (likely stale)
     data center growth assumptions that we want to replace with EPRI's.
   - EPRI's Medium scenario only runs to 2030; DC load added beyond that is
-    extrapolated by shrinking the 2023-2030 absolute TWh added by EPRI_DECAY
-    per later block (data center buildout tapers as markets saturate).
-  - DC growth is computed as TWh added (state Medium-2030 minus state
+    extrapolated by shrinking the 2023-2030 absolute TWh/GW added by
+    EPRI_DECAY per later block (data center buildout tapers as markets
+    saturate).
+  - DC avg_growth is computed as TWh added (state Medium-2030 minus state
     Historical-2023), downscaled to each BA's share, then expressed as a
     rate relative to the BA's *total* baseline load (Switch_2023_baseline.csv)
     -- not the DC segment's own prior load, since many states have ~0
     historical DC load and a self-referential CAGR would be undefined there.
-  - A single national peak/annual growth ratio (from EIA-930 + EPRI
-    historical) is applied to scale DC avg_growth into DC peak_growth;
-    non-DC peak_growth is assumed to equal non-DC avg_growth (no separate
+  - DC peak_growth is computed analogously from EPRI's per-state Peak Load
+    (GW) additions, expressed relative to the BA's baseline average load
+    (same denominator as avg_growth). Because data centers run at near-100%
+    capacity factor (added_peak ≈ added_avg), the resulting peak_growth is
+    close to avg_growth and naturally produces a near-flat hourly DC addition.
+  - Non-DC peak_growth is assumed to equal non-DC avg_growth (no separate
     peak signal available from AEO sector totals).
   - Non-DC BA-level rates are a load_share_of_ba-weighted blend across the
     EMM zones a BA overlaps, per crosswalk_v7.
@@ -113,7 +117,7 @@ def aeo_nondc_growth():
 
 # ------------------------------------------------------------------ #
 # Stage 2: EPRI Medium-scenario DC load added by state, per block
-# (absolute TWh added, not a self-referential growth rate -- many states
+# (absolute TWh/GW added, not a self-referential growth rate -- many states
 # have ~0 historical DC load, which would make a CAGR undefined)
 # ------------------------------------------------------------------ #
 def epri_dc_added():
@@ -124,65 +128,42 @@ def epri_dc_added():
 
     hist_2023 = hist[hist["Year"] == 2023].set_index("State")["Annual Energy (TWh)"]
     med_2030 = med[med["Year"] == 2030].set_index("State")["Annual Energy (TWh)"]
+    hist_2023_peak = hist[hist["Year"] == 2023].set_index("State")["Peak Load (GW)"]
+    med_2030_peak = med[med["Year"] == 2030].set_index("State")["Peak Load (GW)"]
 
     states = sorted(set(hist_2023.index) | set(med_2030.index))
     added_2023_2030 = {
         s: med_2030.get(s, 0) - hist_2023.get(s, 0) for s in states
     }
+    added_2023_2030_peak = {
+        s: med_2030_peak.get(s, 0) - hist_2023_peak.get(s, 0) for s in states
+    }
 
     rows = []
-    for s, added in added_2023_2030.items():
-        rows.append({"state": s, "block": "2023-2030", "added_twh": added})
+    for s in states:
+        added = added_2023_2030[s]
+        added_pk = added_2023_2030_peak[s]
+        rows.append({"state": s, "block": "2023-2030", "added_twh": added, "added_peak_gw": added_pk})
         added_next = added * EPRI_DECAY
-        rows.append({"state": s, "block": "2030-2040", "added_twh": added_next})
-        rows.append({"state": s, "block": "2040-2050", "added_twh": added_next * EPRI_DECAY})
-    return pd.DataFrame(rows), hist
+        added_pk_next = added_pk * EPRI_DECAY
+        rows.append({"state": s, "block": "2030-2040", "added_twh": added_next, "added_peak_gw": added_pk_next})
+        rows.append({"state": s, "block": "2040-2050", "added_twh": added_next * EPRI_DECAY, "added_peak_gw": added_pk_next * EPRI_DECAY})
+    return pd.DataFrame(rows)
 
 
 # ------------------------------------------------------------------ #
-# Stage 3: peak/annual growth ratio, calibrated from EIA-930 history
-# plus EPRI historical DC load (single national scalar)
-# ------------------------------------------------------------------ #
-def peak_annual_ratio(epri_hist):
-    eia_hr = pd.read_parquet(
-        "https://s3.us-west-2.amazonaws.com/pudl.catalyst.coop/nightly/"
-        "core_eia930__hourly_operations.parquet",
-        columns=["datetime_utc", "demand_reported_mwh", "balancing_authority_code_eia"],
-    )
-    eia_hr = eia_hr.groupby("datetime_utc")["demand_reported_mwh"].sum().reset_index()
-    eia_hr["year"] = eia_hr["datetime_utc"].dt.year
-    eia_hr["date"] = eia_hr["datetime_utc"].dt.date
-
-    daily_peaks = eia_hr.groupby(["date", "year"])["demand_reported_mwh"].max().reset_index()
-    annual_avg_peak = daily_peaks.groupby("year")["demand_reported_mwh"].mean()
-    eia_annual = eia_hr.groupby("year")["demand_reported_mwh"].sum()
-
-    epri_pk = epri_hist.groupby("Year")["Peak Load (GW)"].sum() * 1e3  # GW -> MW
-    epri_an = epri_hist.groupby("Year")["Annual Energy (TWh)"].sum() * 1e6  # TWh -> MWh
-
-    years = sorted(
-        set(annual_avg_peak.index) & set(epri_pk.index) & set(eia_annual.index) & set(epri_an.index)
-    )
-    y0, y1 = years[0], years[-1]
-    n = y1 - y0
-
-    pk0 = annual_avg_peak[y0] + epri_pk[y0]
-    pk1 = annual_avg_peak[y1] + epri_pk[y1]
-    an0 = eia_annual[y0] + epri_an[y0]
-    an1 = eia_annual[y1] + epri_an[y1]
-
-    ratio = cagr(pk0, pk1, n) / cagr(an0, an1, n)
-    print(f"  Peak/annual growth ratio: {ratio:.3f} ({y0}-{y1})")
-    return ratio
-
-
-# ------------------------------------------------------------------ #
-# Stage 4: blend EMM rates / state DC additions down to ReEDS BAs and
+# Stage 3: blend EMM rates / state DC additions down to ReEDS BAs and
 # write output. DC growth is expressed relative to each BA's *total*
 # baseline load (Switch_2023_baseline.csv), not the DC segment's own
 # prior load, since many states have ~0 historical DC load.
+#
+# DC peak_growth uses EPRI's per-state Peak Load (GW) additions,
+# expressed on the same denominator (baseline average MW) as avg_growth.
+# Because data centers run at near-100% capacity factor, added_peak_gw ≈
+# added_avg_gw, so peak_growth ≈ avg_growth — producing a near-flat hourly
+# addition without needing a manually tuned national peak/energy ratio.
 # ------------------------------------------------------------------ #
-def write_outputs(nondc_emm, dc_added, peak_ratio):
+def write_outputs(nondc_emm, dc_added):
     cw = pd.read_csv("growth_rates/crosswalk_v7.csv")
     cw = cw[["ba", "abbr", "states", "load_share_of_ba", "ba_load_mwh"]]
     # weight for downscaling a *state's* added DC TWh to a ba: the ba's
@@ -213,16 +194,27 @@ def write_outputs(nondc_emm, dc_added, peak_ratio):
         dc_block = dc_added[dc_added["block"] == block]
         ba_added = (
             cw.merge(dc_block, left_on="states", right_on="state")
-            .assign(weighted=lambda d: d["state_load_share"] * d["added_twh"])
-            .groupby("ba")["weighted"].sum()
+            .assign(
+                weighted_twh=lambda d: d["state_load_share"] * d["added_twh"],
+                weighted_peak=lambda d: d["state_load_share"] * d["added_peak_gw"],
+            )
+            .groupby("ba")[["weighted_twh", "weighted_peak"]].sum()
             .reset_index()
-            .rename(columns={"weighted": "added_twh"})
+            .rename(columns={"weighted_twh": "added_twh", "weighted_peak": "added_peak_gw"})
         )
         dc_ba = ba_added.merge(baseline, on="ba")
+        # avg_growth: express added annual energy as a CAGR relative to baseline
         dc_ba["avg_growth"] = (
             1 + dc_ba["added_twh"] / dc_ba["DemandTWh"]
         ) ** (1 / n) - 1
-        dc_ba["peak_growth"] = dc_ba["avg_growth"] * peak_ratio
+        # peak_growth: express added peak (GW) on the same denominator (baseline
+        # average MW = DemandTWh * 1e6 / 8760), so that when build_growth_timeseries
+        # computes (peak_targ - avg_targ) / (peak_base - avg_base), the result is
+        # near zero — i.e., a flat hourly DC addition — because for data centers
+        # added_peak_gw ≈ added_avg_gw (capacity factor ≈ 100%).
+        dc_ba["peak_growth"] = (
+            1 + dc_ba["added_peak_gw"] * 1000 * 8760 / 1e6 / dc_ba["DemandTWh"]
+        ) ** (1 / n) - 1
         dc_ba = dc_ba.rename(columns={"ba": "load_zone"})[
             ["load_zone", "avg_growth", "peak_growth"]
         ]
@@ -238,12 +230,9 @@ if __name__ == "__main__":
     nondc_emm = aeo_nondc_growth()
 
     print("Stage 2: EPRI DC load added by state...")
-    dc_added, epri_hist = epri_dc_added()
+    dc_added = epri_dc_added()
 
-    print("Stage 3: peak/annual growth ratio...")
-    ratio = peak_annual_ratio(epri_hist)
-
-    print("Stage 4: blending to ReEDS BAs and writing output...")
-    write_outputs(nondc_emm, dc_added, ratio)
+    print("Stage 3: blending to ReEDS BAs and writing output...")
+    write_outputs(nondc_emm, dc_added)
 
     print("Done.")

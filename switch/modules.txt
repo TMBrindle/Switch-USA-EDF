@@ -37,6 +37,8 @@ study_modules.gen_zone_ratio
 study_modules.gen_om_by_period
 # apply annual operating limits to data center backup gens
 study_modules.gen_annual_availability_limits
+# cap annual capacity factor for fossil/nuclear (historical average for existing; 0.80 for new gas)
+study_modules.gen_cf_ceiling
 # allow unserved load (one zone comes out infeasible in 2024)
 # study_modules.unserved_load
 # uncomment the next two to reduce Pyomo memory (experimental):

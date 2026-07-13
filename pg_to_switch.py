@@ -979,6 +979,41 @@ def gen_info_file(
     ########
     # drop the enviro program columns and save the rest
     gen_info = gen_info.drop(columns=all_prog_cols)
+
+    ########
+    # Add annual CF ceiling for fossil/nuclear generators.
+    # Existing plants: use the PowerGenome regional historical average CF as the
+    # ceiling so SWITCH cannot run them above observed utilisation rates, but can
+    # still ramp them down ahead of retirement.
+    # New gas builds: cap at 80 % (top of the typical CCGT dispatch range).
+    # All other generators: no ceiling (column left blank).
+    _FOSSIL_NUCLEAR_SOURCES = {"naturalgas", "coal", "uranium", "distillate"}
+    _NEW_GAS_CF_CEILING = 0.80
+
+    _gens = gens.reset_index(drop=True)
+    _is_existing = (
+        _gens["existing"].fillna(False).astype(bool)
+        if "existing" in _gens.columns
+        else pd.Series(False, index=_gens.index)
+    )
+    _is_new_build = (
+        _gens["new_build"].fillna(False).astype(bool)
+        if "new_build" in _gens.columns
+        else pd.Series(False, index=_gens.index)
+    )
+    _is_fossil_nuclear = gen_info["gen_energy_source"].isin(_FOSSIL_NUCLEAR_SOURCES)
+    _is_gas = gen_info["gen_energy_source"] == "naturalgas"
+
+    _cf_ceiling = pd.Series(dtype="Float64", index=gen_info.index)
+
+    if "capacity_factor" in _gens.columns:
+        _existing_fossil = _is_existing & _is_fossil_nuclear & _gens["capacity_factor"].fillna(0).gt(0)
+        _cf_ceiling[_existing_fossil] = (_gens.loc[_existing_fossil, "capacity_factor"] * 1.25).clip(0, 1)
+
+    _cf_ceiling[_is_new_build & _is_gas] = _NEW_GAS_CF_CEILING
+
+    gen_info["gen_annual_cf_ceiling"] = _cf_ceiling
+
     gen_info.to_csv(out_folder / "gen_info.csv", index=False, na_rep=".")
 
     ########
@@ -2139,7 +2174,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
     # Cross-transreg blocking only applies when transmission_policy is "constrained".
     script_dir = Path(__file__).parent
     hierarchy_path = script_dir / "hierarchy.csv"
-    tx_conn_path = script_dir / "transmission_connections.csv"
+    tx_conn_path = script_dir / settings.get("tx_connections_fn", "transmission_connections.csv")
 
     trans_build_minimum_rows = []
     new_build_derate_rows = []
@@ -2152,6 +2187,24 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         zone_transreg = dict(zip(hierarchy["ba"], hierarchy["transreg"]))
         zone_transgrp = dict(zip(hierarchy["ba"], hierarchy["transgrp"]))
         zone_hurdlereg = dict(zip(hierarchy["ba"], hierarchy["hurdlereg"]))
+        zone_interconnect = dict(zip(hierarchy["ba"], hierarchy["interconnect"]))
+        zone_state = dict(zip(hierarchy["ba"], hierarchy["st"]))
+
+        # Zones in these interconnects are exempt from cross-region constraints
+        # (transreg blocking, degrade derate), unless either endpoint is in an
+        # excluded state.  Configured via open_intra_interconnect and
+        # open_intra_interconnect_exclude_states in scenario settings.
+        open_interconnects = set(settings.get("open_intra_interconnect", []))
+        exclude_states = set(settings.get("open_intra_interconnect_exclude_states", []))
+
+        def is_intra_open(lz1, lz2):
+            """True if both zones are in the same open interconnect, neither excluded."""
+            ic1 = zone_interconnect.get(lz1)
+            ic2 = zone_interconnect.get(lz2)
+            if not open_interconnects or ic1 != ic2 or ic1 not in open_interconnects:
+                return False
+            return (zone_state.get(lz1) not in exclude_states
+                    and zone_state.get(lz2) not in exclude_states)
 
         tx_conn = pd.read_csv(tx_conn_path)
 
@@ -2227,6 +2280,8 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         if tx_constrained:
             for idx, row in transmission_lines.iterrows():
                 lz1, lz2 = row["trans_lz1"], row["trans_lz2"]
+                if is_intra_open(lz1, lz2):
+                    continue  # exempt: both in open interconnect, neither excluded state
                 tr1 = zone_transreg.get(lz1)
                 tr2 = zone_transreg.get(lz2)
                 if tr1 and tr2 and tr1 != tr2:
@@ -2254,6 +2309,8 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         if settings.get("degrade_policy", "yes") == "yes":
             for _, row in transmission_lines.iterrows():
                 lz1, lz2 = row["trans_lz1"], row["trans_lz2"]
+                if is_intra_open(lz1, lz2):
+                    continue  # exempt: both in open interconnect, neither excluded state
                 tg1 = zone_transgrp.get(lz1)
                 tg2 = zone_transgrp.get(lz2)
                 if tg1 and tg2 and tg1 != tg2:

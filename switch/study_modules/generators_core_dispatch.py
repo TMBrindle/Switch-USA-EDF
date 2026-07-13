@@ -253,8 +253,8 @@ def define_components(mod):
             # cache all items in one pass
             d = m.FUEL_BASED_GENS_IN_PERIOD_dict = {p: [] for p in m.PERIODS}
             for g in m.FUEL_BASED_GENS:
-                for p in m.PERIODS_FOR_GEN[g]:
-                    d[p].append(g)
+                for _p in m.PERIODS_FOR_GEN[g]:
+                    d[_p].append(g)
         return d.pop(p)
 
     mod.FUEL_BASED_GENS_IN_PERIOD = Set(mod.PERIODS, initialize=init)

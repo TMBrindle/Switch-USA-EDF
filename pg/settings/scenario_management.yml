@@ -180,63 +180,29 @@ settings_management:
                 New_Build: -1
       epri_med:
         # DC + non-DC growth from EPRI Powering Intelligence + AEO 2026 baseline
-        # Files produced by R script: growth_rates/epri_med/dc/ and nondc/
+        # Files produced by make_epri_growth_rates.py: growth_rates/epri_med/dc/ and nondc/
+        # fraction_shiftable here is a ceiling; actual shiftable amount per run
+        # is set by load_growth_flexibility_datacenter / _electrification below
         demand_response_fn: load_adjustments_epri_med.csv.zip
         flexible_demand_resources:
-          2024:
+          2024: &epri_med_flex_resources
             load_growth_datacenter:
               fraction_shiftable: 1.0
               parameter_values:
                 New_Build: -1
+                Max_Flexible_Demand_Delay: 4
+                Flexible_Demand_Energy_Eff: 1.0
             load_growth_electrification:
               fraction_shiftable: 1.0
               parameter_values:
                 New_Build: -1
-          2025:
-            load_growth_datacenter:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
-            load_growth_electrification:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
-          2028:
-            load_growth_datacenter:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
-            load_growth_electrification:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
-          2029:
-            load_growth_datacenter:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
-            load_growth_electrification:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
-          2030:
-            load_growth_datacenter:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
-            load_growth_electrification:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
-          2035:
-            load_growth_datacenter:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
-            load_growth_electrification:
-              fraction_shiftable: 1.0
-              parameter_values:
-                New_Build: -1
+                Max_Flexible_Demand_Delay: 8
+                Flexible_Demand_Energy_Eff: 0.95
+          2025: *epri_med_flex_resources
+          2028: *epri_med_flex_resources
+          2029: *epri_med_flex_resources
+          2030: *epri_med_flex_resources
+          2035: *epri_med_flex_resources
       none: ~
 
     load_growth_flexibility:
@@ -248,6 +214,28 @@ settings_management:
             load_growth: 0.001
             load_growth_datacenter: 0.001
             load_growth_electrification: 0.001
+    # independent flexibility controls for the epri_med dc/electrification
+    # split, so each stream can be varied separately (e.g. for a
+    # substitutes/complements scenario matrix) instead of moving together
+    # under load_growth_flexibility above
+    load_growth_flexibility_datacenter:
+      none: ~ # no effect
+      firm: ~ # use default settings from flexible_load.yml (effectively firm)
+      flex: # ~15% of hours dispatchable
+        model_tag_values:
+          gen_max_annual_availability:
+            load_growth_datacenter: 0.15
+    load_growth_flexibility_electrification:
+      none: ~ # no effect
+      firm: ~ # use default settings from flexible_load.yml (effectively firm)
+      flex_ev: # managed EV charging window, ~30% of hours dispatchable
+        model_tag_values:
+          gen_max_annual_availability:
+            load_growth_electrification: 0.30
+      flex_full: # broader electrification flexibility, ~50% of hours dispatchable
+        model_tag_values:
+          gen_max_annual_availability:
+            load_growth_electrification: 0.50
     allow_retirement:
       yes: ~ # allowed for thermal plants after 2024 by default
       no: # disable retirement for all plants in all years
@@ -553,6 +541,10 @@ settings_management:
         # national carbon tax at 200, to see what would be cheapest way to decarbonize
         emission_policies_fn: emission_policies_decarb.csv
         carbon_cost_dollar_per_tco2: 200
+    tx_connections:
+      default: ~  # uses transmission_connections.csv (built-in default)
+      updated:
+        tx_connections_fn: transmission_connections_updated.csv
     transmission:
       constrained:
         transmission_policy: constrained
@@ -575,6 +567,13 @@ settings_management:
         degrade_policy: yes
       no:
         degrade_policy: no
+    open_intra_interconnect:
+      none: ~  # no exemptions: constraints apply to all zones
+      wecc_noCA:
+        # Lift transreg-blocking and degrade derate for intra-WECC lines,
+        # except lines that touch California zones.
+        open_intra_interconnect: [western]
+        open_intra_interconnect_exclude_states: [CA]
     asymmetry:
       yes:
         asymmetry_policy: yes

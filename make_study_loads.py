@@ -181,8 +181,13 @@ def read_compounded_growth_rates(growth_path):
     return target_rates.rename(columns={"load_zone": "region"})
 
 
-def build_growth_timeseries(rates, resource_name, scenario):
+def build_growth_timeseries(rates, resource_name, scenario, flat_profile=False):
     """Convert compounded growth rates to hourly timeseries for one resource.
+
+    flat_profile=True applies the growth as a constant hourly addition
+    (matching data centers' near-continuous load) instead of scaling it to
+    the region's existing peak/average shape (appropriate for load that
+    follows the same pattern as current demand, e.g. electrification).
 
     Returns (target_stats DataFrame, long-form growth DataFrame).
     """
@@ -192,8 +197,12 @@ def build_growth_timeseries(rates, resource_name, scenario):
     ts = base_stats.merge(rates)
     for s in ["avg", "peak"]:
         ts[f"{s}_targ"] = ts[f"{s}_base"] * ts[f"{s}_growth"]
-    ts["fraction"] = ts.eval("(peak_targ - avg_targ) / (peak_base - avg_base) - 1")
-    ts["offset"] = ts.eval("avg_targ - avg_base * (1 + fraction)")
+    if flat_profile:
+        ts["fraction"] = 0.0
+        ts["offset"] = ts.eval("avg_targ - avg_base")
+    else:
+        ts["fraction"] = ts.eval("(peak_targ - avg_targ) / (peak_base - avg_base) - 1")
+        ts["offset"] = ts.eval("avg_targ - avg_base * (1 + fraction)")
 
     g = base_loads.merge(ts[["region", "year", "offset", "fraction"]], on="region")
     growth_mw = (g["load_mw"] * g["fraction"] + g["offset"]).clip(0, None).round(3)
@@ -218,8 +227,12 @@ print(f"Calculating DC and non-DC load growth from {base_year} for {start_year}-
 dc_rates = read_compounded_growth_rates(dc_growth_path)
 nondc_rates = read_compounded_growth_rates(nondc_growth_path)
 
-dc_target_stats, dc_growth = build_growth_timeseries(dc_rates, dc_resource_name, normal_growth_scenario)
-nondc_target_stats, nondc_growth = build_growth_timeseries(nondc_rates, nondc_resource_name, normal_growth_scenario)
+dc_target_stats, dc_growth = build_growth_timeseries(
+    dc_rates, dc_resource_name, normal_growth_scenario, flat_profile=True
+)
+nondc_target_stats, nondc_growth = build_growth_timeseries(
+    nondc_rates, nondc_resource_name, normal_growth_scenario
+)
 
 Path("switch/Scripts/Growth_Profiles").mkdir(parents=True, exist_ok=True)
 dc_target_stats.to_csv(f"switch/Scripts/Growth_Profiles/{growth_case}_dc_targets.csv", index=False)
