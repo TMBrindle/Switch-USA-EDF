@@ -13,7 +13,25 @@ Usage:
   python run_rggi_gzr_solves.py 2028         # single year
   python run_rggi_gzr_solves.py 2028 2030    # two years
 """
-import subprocess, sys
+import os, subprocess, sys
+from pathlib import Path
+
+_tmp = Path("D:/tmp")
+_tmp.mkdir(exist_ok=True)
+os.environ["TMP"]    = str(_tmp)
+os.environ["TEMP"]   = str(_tmp)
+os.environ["TMPDIR"] = str(_tmp)
+
+SWITCH_DIR = Path(__file__).parent
+
+_py_dir = Path(sys.executable).parent
+SWITCH_EXE = _py_dir / "Scripts" / "switch.exe"
+if not SWITCH_EXE.exists():
+    SWITCH_EXE = _py_dir / "switch.exe"
+if not SWITCH_EXE.exists():
+    SWITCH_EXE = _py_dir / "switch"
+if not Path(SWITCH_EXE).exists():
+    SWITCH_EXE = Path("C:/ProgramData/miniconda3/envs/switch-pg-reeds/Scripts/switch.exe")
 
 NSP = [
     "--input-alias", "rps_requirements.csv=rps_requirements_nsp.csv",
@@ -46,10 +64,10 @@ for inputs, outputs, aliases in runs:
     label = "/".join(outputs.split("/")[-3:])
     print(f"=== START: {label} ===", flush=True)
     cmd = (
-        ["switch", "solve", "--inputs-dir", inputs, "--outputs-dir", outputs]
+        [str(SWITCH_EXE), "solve", "--inputs-dir", inputs, "--outputs-dir", outputs]
         + GZR + aliases + CROSSOVER
     )
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, cwd=SWITCH_DIR)
     if result.returncode != 0:
         print(f"FAILED: {label} (exit {result.returncode})", flush=True)
         sys.exit(1)
