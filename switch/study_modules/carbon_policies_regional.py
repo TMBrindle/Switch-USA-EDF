@@ -1,5 +1,6 @@
 """
-Implement regional carbon caps with optional two-tier CCR (Cost Containment Reserve).
+Implement regional carbon caps with optional two-tier CCR (Cost Containment Reserve)
+and optional allowance banking across periods.
 
 carbon_policies_regional.csv — base cap per program:
     CO2_PROGRAM: name of the program (there may be multiple)
@@ -7,18 +8,35 @@ carbon_policies_regional.csv — base cap per program:
     LOAD_ZONE: zone participating in the program
     carbon_cap_tco2_per_yr: zone-level cap; carbon trades freely within a program
     carbon_cost_dollar_per_tco2: escape-valve price; "." or omitted = hard cap (inf)
+    carbon_floor_price_dollar_per_tco2: MRP floor; "." or omitted = 0 (no floor)
 
 carbon_policies_ccr.csv — optional two-tier CCR for any program:
     CO2_PROGRAM, PERIOD, ccr_tier (1 or 2),
     ccr_pool_tco2_per_yr, ccr_price_dollar_per_tco2
+
+carbon_policies_banking.csv — optional allowance banking:
+    CO2_PROGRAM, initial_bank_tco2
+    One row per program. If absent, banking is disabled for all programs.
 
 The CCR adds priced flexibility on top of a hard base cap. If total emissions exceed the
 base cap the model can purchase Tier 1 allowances (up to the pool) at the Tier 1 price,
 then Tier 2 allowances (up to the pool) at the Tier 2 price. Emissions beyond both pools
 are infeasible (for programs with a hard base cap) or pay the escape-valve price.
 
+When banking is active, generators can purchase CCR allowances in excess of current
+compliance need (CCR_Banked) and carry the balance forward for use in future periods
+(BankDraw). The bank balance is cumulative: allowances purchased in any period are
+available in all future periods. An exogenous initial bank (initial_bank_tco2) represents
+the existing RGGI bank entering the first model period.
+
+Banking works in both myopic (single-period) and foresight (multi-period) solves:
+- Myopic: initial_bank acts as a compliance buffer; CCR_Banked is naturally zero
+  (no future period to benefit); pass_bank_balance.py forwards the end balance.
+- Foresight: the optimizer can bank CCR purchases in cheaper early periods for use
+  when the cap tightens in later periods.
+
 For soft-cap programs (CA, WA — escape-valve cost is finite), AnnualCapViolation remains
-the standard slack mechanism and CCR is not used.
+the standard slack mechanism and CCR/banking are not used.
 """
 
 import os
@@ -141,6 +159,17 @@ def define_components(m):
     )
 
     # ══════════════════════════════════════════════════════════════════════════
+    # ALLOWANCE BANKING (carbon_policies_banking.csv — optional)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # Programs with banking active. Empty set if carbon_policies_banking.csv absent.
+    m.BANKING_PROGRAMS = Set(within=Any)
+
+    # Exogenous bank balance (tCO2) entering the first model period.
+    # Represents the existing RGGI bank at the start of the study horizon.
+    m.initial_bank_tco2 = Param(m.BANKING_PROGRAMS, within=NonNegativeReals, default=0.0)
+
+    # ══════════════════════════════════════════════════════════════════════════
     # CCR TIERS (carbon_policies_ccr.csv)
     # ══════════════════════════════════════════════════════════════════════════
 
@@ -151,7 +180,8 @@ def define_components(m):
 
     m.ccr_price_dollar_per_tco2 = Param(m.CCR_RULES, within=NonNegativeReals)
 
-    # allowances purchased from each CCR tier; bounded by pool size
+    # allowances purchased from each CCR tier for current-period compliance;
+    # bounded by pool size (for banking programs, CCR_Banked further shares the pool)
     m.CCRPurchases = Var(
         m.CCR_RULES,
         within=NonNegativeReals,
@@ -172,6 +202,83 @@ def define_components(m):
         initialize=lambda m, pr, pe: sorted(
             tier for (pr2, pe2, tier) in m.CCR_RULES if (pr2, pe2) == (pr, pe)
         ),
+    )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # BANKING VARIABLES AND CONSTRAINTS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # (program, period) pairs where banking is active
+    m.BANKING_CO2_PROGRAM_PERIODS = Set(
+        dimen=2,
+        initialize=lambda m: [
+            (pr, pe) for (pr, pe) in m.CO2_PROGRAM_PERIODS
+            if pr in m.BANKING_PROGRAMS
+        ],
+    )
+
+    # (program, period, tier) CCR rules for banking programs
+    m.CCR_BANKING_RULES = Set(
+        dimen=3,
+        initialize=lambda m: [
+            (pr, pe, tier) for (pr, pe, tier) in m.CCR_RULES
+            if pr in m.BANKING_PROGRAMS
+        ],
+    )
+
+    # Bank balance at END of each period; non-negative (can't owe allowances)
+    m.AllowanceBank = Var(m.BANKING_CO2_PROGRAM_PERIODS, within=NonNegativeReals)
+
+    # CCR allowances purchased above current-period compliance need, for banking
+    m.CCR_Banked = Var(m.CCR_BANKING_RULES, within=NonNegativeReals)
+
+    # Allowances drawn from the bank to supplement current-period compliance
+    m.BankDraw = Var(m.BANKING_CO2_PROGRAM_PERIODS, within=NonNegativeReals)
+
+    def _prev_period(m, pr, pe):
+        """Previous period for program pr before pe, or None if pe is the first."""
+        periods = sorted(pe2 for (pr2, pe2) in m.CO2_PROGRAM_PERIODS if pr2 == pr)
+        idx = periods.index(pe)
+        return periods[idx - 1] if idx > 0 else None
+
+    def _bank_start(m, pr, pe):
+        """Bank balance available at the start of period pe for program pr."""
+        prev = _prev_period(m, pr, pe)
+        return m.initial_bank_tco2[pr] if prev is None else m.AllowanceBank[pr, prev]
+
+    # Joint CCR pool constraint for banking programs:
+    # compliance purchases + banked purchases <= pool per tier
+    m.CCR_Joint_Pool = Constraint(
+        m.CCR_BANKING_RULES,
+        rule=lambda m, pr, pe, tier: (
+            m.CCRPurchases[pr, pe, tier] + m.CCR_Banked[pr, pe, tier]
+            <= m.ccr_pool_tco2_per_yr[pr, pe, tier]
+        ),
+    )
+
+    # Bank balance evolution: end_balance = start + CCR_banked_this_period - drawn
+    def bank_evolution_rule(m, pr, pe):
+        ccr_banked = (
+            sum(
+                m.CCR_Banked[pr, pe, tier]
+                for tier in m.TIERS_IN_CCR_PROGRAM_PERIOD[pr, pe]
+            )
+            if (pr, pe) in m.CCR_PROGRAM_PERIODS
+            else 0
+        )
+        return (
+            m.AllowanceBank[pr, pe]
+            == _bank_start(m, pr, pe) + ccr_banked - m.BankDraw[pr, pe]
+        )
+
+    m.AllowanceBank_Evolution = Constraint(
+        m.BANKING_CO2_PROGRAM_PERIODS, rule=bank_evolution_rule
+    )
+
+    # BankDraw cannot exceed the balance available at the start of the period
+    m.BankDraw_Limit = Constraint(
+        m.BANKING_CO2_PROGRAM_PERIODS,
+        rule=lambda m, pr, pe: m.BankDraw[pr, pe] <= _bank_start(m, pr, pe),
     )
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -197,6 +304,9 @@ def define_components(m):
             else 0
         )
 
+        # Allowances drawn from the bank provide additional compliance headroom
+        bank_draw = m.BankDraw[pr, pe] if pr in m.BANKING_PROGRAMS else 0
+
         emissions = sum(
             m.DispatchEmissions[g, tp, f] * m.tp_weight_in_year[tp]
             for z in m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe]
@@ -208,8 +318,12 @@ def define_components(m):
 
         # FloorAllowances replaces the fixed cap; the state withholds
         # (cap - FloorAllowances) allowances to enforce the price floor.
+        # BankDraw supplements the auctioned supply from the bank.
         # scale by 0.001 to improve numerical stability
-        return emissions * 0.001 <= (m.FloorAllowances[pr, pe] + exceedance + ccr_slack) * 0.001
+        return (
+            emissions * 0.001
+            <= (m.FloorAllowances[pr, pe] + exceedance + ccr_slack + bank_draw) * 0.001
+        )
 
     m.Enforce_Regional_Carbon_Cap = Constraint(m.CO2_PROGRAM_PERIODS, rule=cap_rule)
 
@@ -229,7 +343,7 @@ def define_components(m):
                 for z in m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe2]
                 if m.carbon_cost_dollar_per_tco2[pr, pe2, z] != float("inf")
             )
-            # CCR purchase costs
+            # CCR compliance purchase costs
             + sum(
                 m.CCRPurchases[pr, pe2, tier]
                 * m.ccr_price_dollar_per_tco2[pr, pe2, tier]
@@ -246,16 +360,25 @@ def define_components(m):
                 for (pr, pe2) in m.CO2_PROGRAM_PERIODS
                 if pe2 == pe
             )
+            # CCR banking costs: allowances purchased for future-period compliance
+            # are paid at the CCR price in the period they are purchased
+            + sum(
+                m.CCR_Banked[pr, pe2, tier]
+                * m.ccr_price_dollar_per_tco2[pr, pe2, tier]
+                for (pr, pe2, tier) in m.CCR_BANKING_RULES
+                if pe2 == pe
+            )
         ),
-        doc="Annual cost of CO2 cap violations, CCR purchases, and reserve price floor.",
+        doc="Annual cost of CO2 cap violations, CCR purchases, floor, and banking.",
     )
     m.Cost_Components_Per_Period.append("EmissionsCost")
 
 
 def load_inputs(m, switch_data, inputs_dir):
     """
-    Load carbon_policies_regional.csv (base caps) and
-    carbon_policies_ccr.csv (CCR tier specs, optional).
+    Load carbon_policies_regional.csv (base caps),
+    carbon_policies_ccr.csv (CCR tier specs, optional), and
+    carbon_policies_banking.csv (allowance banking, optional).
     """
     switch_data.load_aug(
         filename=apply_input_aliases(
@@ -299,11 +422,32 @@ def load_inputs(m, switch_data, inputs_dir):
                 for row in ccr.itertuples()
             }
 
+    # Load banking configuration (optional; absent = no banking)
+    banking_path = apply_input_aliases(
+        switch_data, os.path.join(inputs_dir, "carbon_policies_banking.csv")
+    )
+    if os.path.isfile(banking_path):
+        banking = pd.read_csv(banking_path)
+        if not banking.empty:
+            if None not in switch_data._data:
+                switch_data._data[None] = {}
+            switch_data._data[None]["BANKING_PROGRAMS"] = {
+                None: set(banking["CO2_PROGRAM"].tolist())
+            }
+            switch_data._data[None]["initial_bank_tco2"] = {
+                row.CO2_PROGRAM: float(row.initial_bank_tco2)
+                for row in banking.itertuples()
+            }
+
 
 def post_solve(m, outputs_dir):
     """
     Write carbon_program_clearing_prices.csv with per-program results:
-    actual emissions, cap, CCR usage, and allowance clearing price.
+    actual emissions, cap, CCR usage, bank draws, and allowance clearing price.
+
+    Also writes allowance_bank_balance.csv when banking is active, for use
+    by pass_bank_balance.py to chain the end-of-period balance into the next
+    myopic solve's initial bank.
 
     Clearing price for hard-cap programs is extracted from the constraint dual.
     Sign convention: Pyomo minimisation duals are negative for <= constraints;
@@ -313,7 +457,15 @@ def post_solve(m, outputs_dir):
     For CCR: when Tier 1 purchases < pool, price = Tier 1 trigger; when Tier 1
     is exhausted and Tier 2 > 0, price = Tier 2 trigger.
     """
+
+    def _prev_period(pr, pe):
+        periods = sorted(pe2 for (pr2, pe2) in m.CO2_PROGRAM_PERIODS if pr2 == pr)
+        idx = periods.index(pe)
+        return periods[idx - 1] if idx > 0 else None
+
     rows = []
+    bank_rows = []
+
     for pr, pe in m.CO2_PROGRAM_PERIODS:
         constr = m.Enforce_Regional_Carbon_Cap[pr, pe]
         zones = list(m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe])
@@ -340,6 +492,30 @@ def post_solve(m, outputs_dir):
         if (pr, pe) in m.CCR_PROGRAM_PERIODS:
             for tier in m.TIERS_IN_CCR_PROGRAM_PERIOD[pr, pe]:
                 ccr_usage[tier] = value(m.CCRPurchases[pr, pe, tier])
+
+        # Banking quantities
+        banking_active = pr in m.BANKING_PROGRAMS
+        if banking_active:
+            prev = _prev_period(pr, pe)
+            bank_start_val = (
+                value(m.initial_bank_tco2[pr]) if prev is None
+                else value(m.AllowanceBank[pr, prev])
+            )
+            bank_draw_val = value(m.BankDraw[pr, pe])
+            ccr_banked_val = (
+                sum(value(m.CCR_Banked[pr, pe, tier])
+                    for tier in m.TIERS_IN_CCR_PROGRAM_PERIOD[pr, pe])
+                if (pr, pe) in m.CCR_PROGRAM_PERIODS else 0
+            )
+            bank_end_val = value(m.AllowanceBank[pr, pe])
+            bank_rows.append({
+                "CO2_PROGRAM": pr,
+                "PERIOD": pe,
+                "bank_start_tco2": round(bank_start_val, 0),
+                "ccr_banked_tco2": round(ccr_banked_val, 0),
+                "bank_draw_tco2": round(bank_draw_val, 0),
+                "bank_end_tco2": round(bank_end_val, 0),
+            })
 
         # Determine clearing price (floor_price + scarcity premium from cap dual)
         escape_cost = value(m.carbon_cost_dollar_per_tco2[pr, pe, zones[0]])
@@ -400,8 +576,20 @@ def post_solve(m, outputs_dir):
             row[f"ccr_tier{tier}_price_dollar_per_tco2"] = value(
                 m.ccr_price_dollar_per_tco2[pr, pe, tier]
             )
+        # Banking columns (present only when banking is active for this program)
+        if banking_active:
+            row["bank_start_tco2"] = round(bank_start_val, 0)
+            row["ccr_banked_tco2"] = round(ccr_banked_val, 0)
+            row["bank_draw_tco2"] = round(bank_draw_val, 0)
+            row["bank_end_tco2"] = round(bank_end_val, 0)
+
         rows.append(row)
 
     out_path = os.path.join(outputs_dir, "carbon_program_clearing_prices.csv")
     pd.DataFrame(rows).to_csv(out_path, index=False)
     print(f"carbon_policies_regional: wrote {out_path} ({len(rows)} program-period rows)")
+
+    if bank_rows:
+        bank_path = os.path.join(outputs_dir, "allowance_bank_balance.csv")
+        pd.DataFrame(bank_rows).to_csv(bank_path, index=False)
+        print(f"carbon_policies_regional: wrote {bank_path} ({len(bank_rows)} rows)")

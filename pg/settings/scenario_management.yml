@@ -520,6 +520,14 @@ settings_management:
       RGGI10:
         rggi_va_alias_fraction: 0.25
         rggi_va_alias_zones: [p99, p100, p118, p124]
+        # Pre-built banking variant files; all are written to every RGGI10 input
+        # folder at pg_to_switch time. Solve scripts select via --input-alias.
+        # Keys are variant names; values are {CO2_PROGRAM: initial_bank_tco2} dicts.
+        carbon_banking_variants:
+          bank_60:
+            ETS 1: 60000000
+          bank_150:
+            ETS 1: 150000000
       # RGGI10+VA: use as primary case if VA membership is the base assumption.
       RGGI10+VA:
         rggi_va_fraction: 0.25
@@ -670,6 +678,21 @@ settings_management:
               study_modules.unserved_load
             order: 5
       no: ~ # default settings
+    allowance_banking:
+      # Controls which pre-built carbon_policies_banking_{variant}.csv is selected
+      # at solve time via --input-alias. Banking files are written for all variants
+      # configured in carbon_banking_variants (under the rggi dimension) whenever
+      # an RGGI10 case is built by pg_to_switch.
+      none: ~ # no alias; carbon_policies_banking.csv absent → banking disabled
+      bank_60:
+        allowance_banking_variant: bank_60
+      bank_150:
+        allowance_banking_variant: bank_150
+    tp_duration_hours:
+      # Controls increase_timepoint_duration.py; no settings_management entry needed.
+      # Values are integers (1 or 2); add variants here only to suppress the warning.
+      1: ~
+      2: ~
     fuel_price_forecast:
       aeo2025: # get coal and gas from AEO 2025 reference
         eia_series_fuel_names:

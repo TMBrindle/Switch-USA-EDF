@@ -283,6 +283,38 @@ def post_solve(m, outdir):
     trans = trans.drop(columns=["BuildTx"])
     to_csv(trans, chained(next_in_path, "transmission_lines.csv"))
 
+    # Forward allowance bank balance if banking is active for this period.
+    # Reads allowance_bank_balance.csv from this period's outputs and updates
+    # initial_bank_tco2 in all carbon_policies_banking_*.csv files in next period.
+    bank_balance_file = out_path / "allowance_bank_balance.csv"
+    if bank_balance_file.exists():
+        bank_df = pd.read_csv(bank_balance_file)
+        if not bank_df.empty:
+            end_balances = {
+                str(row.CO2_PROGRAM): float(row.bank_end_tco2)
+                for row in bank_df.itertuples()
+            }
+            banking_files = list(next_in_path.glob("carbon_policies_banking_*.csv"))
+            for bf in banking_files:
+                bdf = pd.read_csv(bf)
+                if bdf.empty or "CO2_PROGRAM" not in bdf.columns:
+                    continue
+                updated = False
+                for idx, row in bdf.iterrows():
+                    prog = str(row["CO2_PROGRAM"])
+                    if prog in end_balances:
+                        bdf.at[idx, "initial_bank_tco2"] = int(end_balances[prog])
+                        updated = True
+                if updated:
+                    bdf.to_csv(bf, index=False)
+            if banking_files:
+                print(
+                    f"prepare_next_stage: forwarded bank balances to {next_in_path.name}: "
+                    + ", ".join(
+                        f"{p}={v:,.0f} tCO2" for p, v in end_balances.items()
+                    )
+                )
+
 
 class Test:
     """

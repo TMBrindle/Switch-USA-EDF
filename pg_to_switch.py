@@ -1793,6 +1793,27 @@ def other_tables(
             ],
         ).to_csv(out_folder / "carbon_policies_ccr.csv", index=False)
 
+        # create carbon_policies_banking_{variant}.csv files
+        # Written for all variants whenever the RGGI10 case defines carbon_banking_variants.
+        # Solve scripts select via --input-alias carbon_policies_banking.csv=...
+        banking_variants = first_year_settings.get("carbon_banking_variants", {})
+        if banking_variants:
+            for variant_name, program_banks in banking_variants.items():
+                rows = [
+                    {"CO2_PROGRAM": prog, "initial_bank_tco2": int(bank_tco2)}
+                    for prog, bank_tco2 in program_banks.items()
+                ]
+                pd.DataFrame(
+                    rows, columns=["CO2_PROGRAM", "initial_bank_tco2"]
+                ).to_csv(
+                    out_folder / f"carbon_policies_banking_{variant_name}.csv",
+                    index=False,
+                )
+            logger.info(
+                f"created carbon_policies_banking_*.csv "
+                f"({', '.join(banking_variants.keys())})"
+            )
+
     #######
     # create rps_requirements.csv with clean energy standards / RPS requirements
     dfs = [
@@ -2932,6 +2953,12 @@ def scenario_files(results_folder, case_settings, myopic):
             line += f"--module-list {settings['switch_module_list']} "
         if settings.get("gen_zone_ratio_agg") and settings.get("gen_zone_ratio_agg") != "none":
             line += "--include-module study_modules.gen_zone_ratio "
+        banking_variant = settings.get("allowance_banking_variant")
+        if banking_variant:
+            line += (
+                f"--input-alias carbon_policies_banking.csv="
+                f"carbon_policies_banking_{banking_variant}.csv "
+            )
         line += extra
         line = line.strip() + " "
         if myopic:
