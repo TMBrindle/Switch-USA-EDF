@@ -3995,6 +3995,33 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 451444.19999999995
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2025:
     all_cases:
       # disable new-build and economic retirement for historical case
@@ -4030,6 +4057,33 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 461110.86666666664
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2026:
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
@@ -4069,6 +4123,33 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 470777.53333333327
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2027:
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
@@ -4108,6 +4189,33 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 480444.19999999995
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2028:
     policies:
       current:
@@ -4157,6 +4265,33 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 490110.86666666664
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2029:
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
@@ -4199,6 +4334,33 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 499777.53333333327
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 7966.7
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 60125.0
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 2162.7
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 48446.0
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3808.9
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 10420.2
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15453.4
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 52487.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 21195.8
   2030:
     policies:
       current:
@@ -4250,6 +4412,33 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 509444.19999999995
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8211.5
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 64427.9
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 2288.8
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 51574.2
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3996.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 10767.7
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 16253.0
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 56377.6
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22658.4
   2035:
     policies:
       current:
