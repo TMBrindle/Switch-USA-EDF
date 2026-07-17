@@ -375,17 +375,17 @@ Key flags:
 | `--coverage-adjustment FACTOR` | Override the default 1.30× upward correction |
 | `--output-dir PATH` | Write output files directly into a scenario inputs directory |
 
-**Reference data files committed to the repo root** (pre-computed for two aggregation levels):
+**Reference data files committed under `pg/extra_inputs/gen_zone/`** (pre-computed for two aggregation levels):
 
 | File | Description |
 |---|---|
 | `gen_zone_load_ratio.csv` | BA-level reference ratios for all 134 ReEDS zones |
-| `gen_zone_load_ratio_BA.csv` | Alternative BA-level variant |
+| `gen_zone_load_ratio_ba.csv` | Alternative BA-level variant |
 | `gen_zone_load_ratio_hurdlereg.csv` | Aggregated to hurdling regions |
-| `gen_zone_load_ratio_hurdlereg_check.csv` | Diagnostic check file for hurdlereg aggregation |
-| `gen_zone_groups_hurdlereg.csv` | Zone → hurdlereg group membership mapping |
+| `archive/gen_zone_load_ratio_hurdlereg_check.csv` | Diagnostic check file for hurdlereg aggregation (stale; not read by any code) |
+| `archive/gen_zone_groups_hurdlereg.csv` | Zone → hurdlereg group membership mapping (stale; groups are now derived live from `hierarchy.csv`) |
 
-Full usage examples and worked scenario designs are in `gen_zone_ratio_instructions.txt`.
+Full usage examples and worked scenario designs are in `pg/extra_inputs/gen_zone/gen_zone_ratio_instructions.txt`.
 
 ---
 

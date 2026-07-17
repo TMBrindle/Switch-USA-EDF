@@ -77,7 +77,7 @@ Run from the project root:
 
   python make_zone_ratios.py
 
-This writes gen_zone_load_ratio.csv to the project root with 134 BA rows.
+This writes gen_zone_load_ratio.csv to pg/extra_inputs/gen_zone/ with 134 BA rows.
 Columns:
   LOAD_ZONE                    p-zone name (e.g. p86)
   PERIOD                       blank — fill in before use
@@ -98,7 +98,7 @@ Copy gen_zone_load_ratio.csv to the scenario inputs directory.
 Keep only the zones you want to constrain (delete all other rows).
 Fill in the PERIOD column and the constraint columns.
 
-  cp gen_zone_load_ratio.csv switch/in/foresight/<scenario>/gen_zone_load_ratio.csv
+  cp pg/extra_inputs/gen_zone/gen_zone_load_ratio.csv switch/in/foresight/<scenario>/gen_zone_load_ratio.csv
 
 Example (constrain p86 annual ratio for all periods):
 
@@ -265,7 +265,7 @@ APPENDIX — make_zone_ratios.py full option reference
                         historical_max_annual_ratio. Default: 1.30.
   --min-coverage-adjustment F  Correction applied to historical_min_annual_ratio.
                         Default: 1.0 (unadjusted — conservative floor).
-  --output FILE         Output path (default: gen_zone_load_ratio.csv).
+  --output FILE         Output path (default: pg/extra_inputs/gen_zone/gen_zone_load_ratio.csv).
   --groups-output FILE  Groups output path (default: gen_zone_groups.csv in
                         same directory as --output).
 

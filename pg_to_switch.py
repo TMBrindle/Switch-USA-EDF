@@ -2797,17 +2797,18 @@ def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
     model_zones = set(settings.get("model_regions", []))
 
     # ── Locate reference file ─────────────────────────────────────────────
-    ref_file = script_dir / f"gen_zone_load_ratio_{agg}.csv"
+    gen_zone_dir = script_dir / "pg" / "extra_inputs" / "gen_zone"
+    ref_file = gen_zone_dir / f"gen_zone_load_ratio_{agg}.csv"
     if not ref_file.exists() and agg == "st":
-        ref_file = script_dir / "gen_zone_load_ratio.csv"  # legacy name
+        ref_file = gen_zone_dir / "gen_zone_load_ratio.csv"  # legacy name
     if not ref_file.exists():
         raise FileNotFoundError(
             f"Reference file not found for gen_zone_ratio_agg={agg!r}. "
             f"Expected: {ref_file}. "
             + (
                 "Run: python make_zone_ratios.py "
-                + (f"--agg-by {agg} --output gen_zone_load_ratio_{agg}.csv" if agg != "ba"
-                   else "--output gen_zone_load_ratio_ba.csv")
+                + (f"--agg-by {agg} --output pg/extra_inputs/gen_zone/gen_zone_load_ratio_{agg}.csv" if agg != "ba"
+                   else "--output pg/extra_inputs/gen_zone/gen_zone_load_ratio_ba.csv")
             )
         )
 
