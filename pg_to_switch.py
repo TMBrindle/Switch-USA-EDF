@@ -2417,7 +2417,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
 
         # --- Feature: hurdle costs for cross-hurdlereg lines ---
         if settings.get("hurdle_policy", "yes") == "yes":
-            hurdle_path = script_dir / "cost_hurdle_intra.csv"
+            hurdle_path = script_dir / "pg" / "extra_inputs" / "transmission" / "cost_hurdle_intra.csv"
             if hurdle_path.exists():
                 hurdle_df = pd.read_csv(hurdle_path).set_index("t")
                 available_years = sorted(hurdle_df.index.tolist())
@@ -2504,7 +2504,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         trans_path_expansion_limit = None
 
     elif trans_expansion_policy == "nerc_growth":
-        nerc_growth_path = script_dir / "nerc_growth_pct.csv"
+        nerc_growth_path = script_dir / "pg" / "extra_inputs" / "transmission" / "nerc_growth_pct.csv"
         if not nerc_growth_path.exists():
             raise FileNotFoundError(
                 f"nerc_growth_pct.csv not found at {nerc_growth_path}; "
