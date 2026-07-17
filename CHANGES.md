@@ -177,7 +177,7 @@ Changed the transmission constraints source from REFS2009 to NARIS:
 
 ### 7b. `patch_pg_resource_groups.py`
 The last section (lines 291–323) was replaced to regenerate
-`pg/extra_inputs/reeds_ba_tx_NARIS_avg.csv` from local source files instead of
+`pg/extra_inputs/transmission/reeds_ba_tx_NARIS_avg.csv` from local source files instead of
 downloading REFS2009 from GitHub:
 
 - AC lines: averages `(MW_f0 + MW_r0) / 2` from

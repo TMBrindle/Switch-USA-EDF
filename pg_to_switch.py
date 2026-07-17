@@ -2290,7 +2290,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
     # Cross-transreg blocking only applies when transmission_policy is "constrained".
     script_dir = Path(__file__).parent
     hierarchy_path = script_dir / "hierarchy.csv"
-    tx_conn_path = script_dir / "transmission_connections.csv"
+    tx_conn_path = script_dir / "pg" / "extra_inputs" / "transmission" / "transmission_connections.csv"
 
     trans_build_minimum_rows = []
     new_build_derate_rows = []
@@ -2441,8 +2441,8 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
 
     # --- Feature: asymmetric directional capacity from NARIS2024 AC and nonAC files ---
     if settings.get("asymmetry_policy", "yes") == "yes":
-        ac_path = script_dir / "transmission_capacity_init_AC_ba_NARIS2024.csv"
-        nonac_path = script_dir / "transmission_capacity_init_nonAC_ba.csv"
+        ac_path = script_dir / "pg" / "extra_inputs" / "transmission" / "transmission_capacity_init_AC_ba_NARIS2024.csv"
+        nonac_path = script_dir / "pg" / "extra_inputs" / "transmission" / "transmission_capacity_init_nonAC_ba.csv"
     else:
         ac_path = nonac_path = None
 
