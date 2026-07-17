@@ -498,6 +498,20 @@ settings_management:
     #     storage cost figure. Flagged as lower-confidence/incomplete;
     #     `ccs90` is the fully-supported option. No natural-gas 30% (partial-
     #     capture) ATB technology was found, so `ccs30_coal` is coal-only.
+    #
+    # TODO (flagged, not implemented): per the repo owner, ATB itself does
+    # include higher-capture-rate technology variants (95%/97%) beyond the
+    # 90% combos used below -- this axis intentionally does NOT add a
+    # `ccs95`/`ccs97` config yet, only because
+    # co2_pipeline_cost_percentiles.csv (this repo's transport/storage cost
+    # reference) currently has no rows for them, the same "incomplete data"
+    # reason ccs30_coal is flagged above. Once transport/storage cost data
+    # for the 95%/97% ATB variants is sourced (added to that CSV, or a
+    # revised co2_pipeline_filters percentile/source), a `ccs95`/`ccs97`
+    # config can be added here following the exact same pattern as `ccs90`
+    # (ccs_fuel_map + ccs_capture_rate + co2_pipeline_filters). Do not add
+    # one before that cost data exists -- see the "don't invent" rationale
+    # throughout this axis's comments.
     ccs_capture_rate:
       none: ~
       ccs90: # fully supported: ATB cost curve + transport/storage cost data
