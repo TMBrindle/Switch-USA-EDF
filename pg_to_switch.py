@@ -1316,7 +1316,7 @@ def gen_tables(
 
         # find build_year, capacity_mw and capacity_mwh for existing generating
         # units online in this model_year for each gen cluster
-        eia_unit_info = eia_build_info(gc)
+        eia_unit_info = eia_build_info(gc, year_settings)
         unit_df = gen_df.merge(eia_unit_info, on="Resource", how="left")
         unit_dfs.append(unit_df)
 
@@ -1488,7 +1488,68 @@ def set_retirement_age(df, settings):
     return df
 
 
-def eia_build_info(gc: GeneratorClusters):
+def apply_predetermined_retirement_override(units: pd.DataFrame, settings) -> pd.DataFrame:
+    """
+    Push back predetermined (EIA-860m-sourced) retirement dates that fall
+    within a configured window, for units matching a configured technology
+    scope. Used by the `retirement_policy` axis's `blocked_2030_coal` /
+    `blocked_2030_coal_gas` configs (see scenario_management.yml) to make
+    "block retirements through 2029/30" actually affect the predetermined
+    retirement schedule, not just SWITCH's endogenous economic retirement
+    (Can_Retire) -- see the long comment on the `retirement_policy` axis for
+    the full background on why both mechanisms are needed together.
+
+    Deliberately does NOT touch the cached EIA-860m workbook or PowerGenome
+    itself (unlike update_coal_closures.py, which corrects that data against
+    the GEM tracker for a different purpose) -- this only adjusts the
+    `retirement_year` column of the unit-level dataframe pg_to_switch.py
+    already builds from PowerGenome's output, before it's used to infer each
+    unit's SWITCH build_year (see the comment a few lines below this call:
+    "infer the build date from retirement_year and retirement_age ... will
+    cause it to retire at the right time").
+
+    `settings["predetermined_retirement_override"]`, if present, should be:
+        technologies: [coal]              # or [coal, "natural gas"]
+        window: [2026, 2029]              # inclusive both ends
+        target_year: 2030
+
+    Technology matching is case-insensitive substring containment against
+    the `technology` column (same convention as the Can_Retire model tag in
+    resource_tags.yml, e.g. "Coal" matches "Conventional Steam Coal", "Coal
+    Integrated Gasification Combined Cycle", etc.; "Natural Gas" matches all
+    "Natural Gas Fired ..." / "Natural Gas ... Turbine" technologies).
+
+    Window boundaries are inclusive on both ends: a unit retiring exactly in
+    the window's first or last year is in scope. Units retiring before the
+    window (already offline) or after it (already past the target year) are
+    left untouched.
+    """
+    override = (settings or {}).get("predetermined_retirement_override")
+    if not override:
+        return units
+
+    technologies = [t.lower() for t in override["technologies"]]
+    window_start, window_end = override["window"]
+    target_year = override["target_year"]
+
+    tech_match = units["technology"].str.lower().apply(
+        lambda tech: any(t in tech for t in technologies)
+    )
+    in_window = units["retirement_year"].between(window_start, window_end)
+    to_override = tech_match & in_window
+
+    if to_override.any():
+        logger.info(
+            f"predetermined_retirement_override: pushing back {to_override.sum()} "
+            f"unit(s) with retirement_year in [{window_start}, {window_end}] to "
+            f"{target_year} (technologies matching {override['technologies']})"
+        )
+        units.loc[to_override, "retirement_year"] = target_year
+
+    return units
+
+
+def eia_build_info(gc: GeneratorClusters, settings=None):
     """
     Return a dataframe showing Resource, plant_gen_id, build_year, capacity_mw
     and capacity_mwh for all EIA generating units that were aggregated for the
@@ -1498,8 +1559,13 @@ def eia_build_info(gc: GeneratorClusters):
     factor if specified in gc.settings (typical for small hydro, geothermal,
     possibly biomass)
 
-    Inputs: - gc: GeneratorClusters object previously used to call
-    gc.create_all_generators
+    Inputs:
+        - gc: GeneratorClusters object previously used to call
+          gc.create_all_generators
+        - settings: year_settings dict, used only to read
+          `predetermined_retirement_override` (see
+          apply_predetermined_retirement_override() above); may be omitted
+          if that override isn't needed.
     """
 
     units = gc.all_units.copy()
@@ -1535,6 +1601,11 @@ def eia_build_info(gc: GeneratorClusters):
             .transform("min")
             .values
         )
+
+    # scenario-driven predetermined-retirement-date override (retirement_policy
+    # axis's blocked_2030_* configs) -- must run BEFORE build_year is inferred
+    # below, since that's what actually makes the later retirement date "stick"
+    units = apply_predetermined_retirement_override(units, settings)
 
     # infer the build date from retirement_year and retirement_age
     # (may not be the right year, but will cause it to retire at the right

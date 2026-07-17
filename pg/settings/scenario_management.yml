@@ -311,49 +311,65 @@ settings_management:
       none: ~
       caa_2024_rule: ~ # TODO: wire up once the repo owner answers the above
     # ─────────────────────────────────────────────────────────────────────
-    # retirement_policy: overrides to the SWITCH-side early/economic
-    # retirement decision (Can_Retire), independent of clean_power_regs (the
-    # current-policy scenario blocks retirements with clean_power_regs=none
-    # -- these two axes must be able to move independently, and they do,
-    # since they touch unrelated settings).
+    # retirement_policy: overrides to BOTH retirement mechanisms in this
+    # pipeline, independent of clean_power_regs (the current-policy scenario
+    # blocks retirements with clean_power_regs=none -- these two axes must be
+    # able to move independently, and they do, since they touch unrelated
+    # settings).
     #
-    # *** IMPORTANT PIPELINE FINDING (see final report for full writeup) ***
-    # Can_Retire (resource_tags.yml / model_tag_values here) ONLY controls
-    # whether SWITCH's optimizer is ALLOWED to retire a plant early for
-    # economic reasons. It does NOT affect the PREDETERMINED retirement
-    # schedule that is already baked into Existing_Cap_MW by PowerGenome,
-    # upstream of this file and upstream of resource_tags.yml -- that
-    # schedule comes from each unit's EIA-860m "planned retirement date"
-    # (cross-checked/updated against the Global Energy Monitor coal tracker
-    # by update_coal_closures.py, which edits the cached EIA-860m workbook
-    # directly) via PowerGenome's GeneratorClusters/label_retirement_year
-    # logic, long before pg_to_switch.py runs. So `blocked_2030` below WILL
-    # stop the optimizer from choosing to retire coal (a cost-driven
-    # decision) before 2030, but will NOT stop a specific unit with an
-    # EIA-860m-reported planned retirement date before 2030 from dropping
-    # out of Existing_Cap_MW / gen_build_predetermined.csv on schedule. Truly
-    # blocking those predetermined retirements would require new
-    # PowerGenome-input-side tooling (e.g. a scenario-specific EIA-860m
-    # override, analogous to update_coal_closures.py but pushing dates LATER
-    # instead of earlier) that does not exist in this repo yet -- flagged as
-    # a follow-up, not built here.
+    # *** TWO SEPARATE RETIREMENT MECHANISMS -- blocked_2030_* configs wire
+    # up BOTH, since blocking retirement only "works" if both are active: ***
+    #   1. Can_Retire (resource_tags.yml / model_tag_values here) controls
+    #      whether SWITCH's optimizer is ALLOWED to retire a plant early for
+    #      economic reasons (an endogenous decision).
+    #   2. predetermined_retirement_override (new setting, read by
+    #      pg_to_switch.py's apply_predetermined_retirement_override(),
+    #      called from eia_build_info()) controls the PREDETERMINED
+    #      retirement schedule that is otherwise baked into
+    #      Existing_Cap_MW/gen_build_predetermined.csv from each unit's
+    #      EIA-860m "planned retirement date", via PowerGenome's
+    #      GeneratorClusters/label_retirement_year logic. Per repo-owner
+    #      direction, this does NOT edit the 860m input data or
+    #      PowerGenome itself (that's what update_coal_closures.py does, for
+    #      the different purpose of correcting 860m against the GEM
+    #      tracker -- left untouched). Instead, pg_to_switch.py's own
+    #      eia_build_info() -- which already has to fabricate a synthetic
+    #      "build_year" from each unit's retirement_year purely so SWITCH's
+    #      age-based expiration reproduces the right retirement year (see
+    #      the comment right above where build_year is computed) -- now
+    #      pushes any in-scope unit's retirement_year forward to 2030 BEFORE
+    #      that build_year gets computed, if the original date falls in
+    #      [2026, 2029] (inclusive both ends). Units retiring in 2025 or
+    #      earlier (already gone) or in 2030+ (already past the target) are
+    #      untouched.
     #
-    # *** STOP-AND-ASK: does blocked_2030 cover coal only, or coal+gas? ***
-    # Left open pending the pipeline investigation above. Scaffolded here as
-    # coal-only (the unambiguous half); the Natural Gas line is commented
-    # out and ready to uncomment once the repo owner confirms scope.
+    # Coal-only vs. coal+gas is exposed as two sibling configs (rather than a
+    # sub-parameter within one config) so scenario_inputs.csv rows just pick
+    # a `retirement_policy` value like every other axis, with no extra
+    # column needed.
     retirement_policy:
       baseline: ~ # default model behavior (see resource_tags.yml Can_Retire)
       accelerated: ~ # Biden-era baseline: no additional blocking beyond the
         # model's default economics (Coal/Natural Gas already Can_Retire=1)
-        # -- "accelerated" relative to blocked_2030, not an invented faster
+        # -- "accelerated" relative to blocked_2030_*, not an invented faster
         # schedule on top of default economic retirement.
-      blocked_2030:
+      blocked_2030_coal:
         model_tag_values:
           Can_Retire:
             Coal: 0
-            # Natural Gas: 0   # STOP-AND-ASK: uncomment if current-policy
-            # scenario should also block early gas retirement through 2029
+        predetermined_retirement_override:
+          technologies: [coal]
+          window: [2026, 2029]
+          target_year: 2030
+      blocked_2030_coal_gas:
+        model_tag_values:
+          Can_Retire:
+            Coal: 0
+            Natural Gas: 0
+        predetermined_retirement_override:
+          technologies: [coal, natural gas]
+          window: [2026, 2029]
+          target_year: 2030
     # ─────────────────────────────────────────────────────────────────────
     # offshore_wind_policy: caps new offshore wind builds at projects with an
     # executed lease and/or approved Construction and Operations Plan (COP),
@@ -4683,12 +4699,19 @@ settings_management:
           max_mw: 21195.8
   2030:
     retirement_policy:
-      blocked_2030:
-        # re-enable early/economic coal retirement from 2030 onward (blocked
-        # only through 2029 -- see the retirement_policy axis comment above)
+      # re-enable early/economic retirement from 2030 onward (blocked only
+      # through 2029 -- see the retirement_policy axis comment above; the
+      # predetermined_retirement_override needs no per-year toggle since it
+      # only ever touches units with a fixed retirement_year in [2026,2029])
+      blocked_2030_coal:
         model_tag_values:
           Can_Retire:
             Coal: 1
+      blocked_2030_coal_gas:
+        model_tag_values:
+          Can_Retire:
+            Coal: 1
+            Natural Gas: 1
     policies:
       current:
         # CCR Tier 1 and Tier 2 trigger prices for 2030 in $/metric tonne.
@@ -4768,10 +4791,15 @@ settings_management:
           max_mw: 22658.4
   2035:
     retirement_policy:
-      blocked_2030:
+      blocked_2030_coal:
         model_tag_values:
           Can_Retire:
             Coal: 1
+      blocked_2030_coal_gas:
+        model_tag_values:
+          Can_Retire:
+            Coal: 1
+            Natural Gas: 1
     policies:
       current:
         # CCR Tier 1 and Tier 2 trigger prices for 2035 in $/metric tonne.
@@ -4823,10 +4851,15 @@ settings_management:
           max_mw: 557777.5333333333
   2040:
     retirement_policy:
-      blocked_2030:
+      blocked_2030_coal:
         model_tag_values:
           Can_Retire:
             Coal: 1
+      blocked_2030_coal_gas:
+        model_tag_values:
+          Can_Retire:
+            Coal: 1
+            Natural Gas: 1
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:
@@ -4868,10 +4901,15 @@ settings_management:
           max_mw: 606110.8666666666
   2045:
     retirement_policy:
-      blocked_2030:
+      blocked_2030_coal:
         model_tag_values:
           Can_Retire:
             Coal: 1
+      blocked_2030_coal_gas:
+        model_tag_values:
+          Can_Retire:
+            Coal: 1
+            Natural Gas: 1
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:
@@ -4913,10 +4951,15 @@ settings_management:
           max_mw: 654444.2
   2050:
     retirement_policy:
-      blocked_2030:
+      blocked_2030_coal:
         model_tag_values:
           Can_Retire:
             Coal: 1
+      blocked_2030_coal_gas:
+        model_tag_values:
+          Can_Retire:
+            Coal: 1
+            Natural Gas: 1
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:
