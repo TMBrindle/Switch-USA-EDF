@@ -200,6 +200,88 @@ settings_management:
         model_tag_values:
           Can_Retire:
             "": 0
+    # ─────────────────────────────────────────────────────────────────────
+    # tax_credits: per-credit on/off control for the federal clean-energy
+    # tax credit family, so the "current-policy" scenario can drop some
+    # credits (e.g. wind/solar) while keeping others (e.g. storage, nuclear)
+    # active, rather than a single blanket switch.
+    #
+    # Two distinct mechanisms are used, matching how each credit actually
+    # pays out:
+    #   - Storage ITC (48E) is a one-time, capex-based credit -> modeled as
+    #     an atb_modifiers capex multiplier (as it always has been in this
+    #     repo). Split out from the old unconditional blanket cut in
+    #     resources.yml so it can move independently of the other credits.
+    #     NOTE: the base atb_modifiers in resources.yml still applies the
+    #     30% storage ITC by default (for backward compatibility with
+    #     existing scenario_inputs.csv rows that don't reference this axis);
+    #     the configs below only need to override it when a credit is
+    #     removed.
+    #   - 45Y/48E (technology-neutral clean electricity PTC/ITC, elected as
+    #     a PTC here), 45U (existing nuclear PTC), 45Q (carbon capture,
+    #     translated to $/MWh), and 45V (clean hydrogen, translated to an
+    #     effective $/MWh) are all per-MWh production credits -> modeled as
+    #     a dispatch-based opex credit via the new `tax_credit_values`
+    #     setting (technology substring -> $/MWh), written to
+    #     gen_tax_credits.csv by pg_to_switch.py and applied by
+    #     study_modules.gen_tax_credits. That module keeps the credit as its
+    #     OWN cost component (Gen_Tax_Credit_Value_by_Period) and its own
+    #     post-solve report (tax_credit_value.csv) -- it is never netted
+    #     into Gen_Variable_OM_by_Period / opex reporting, so total credit $
+    #     by scenario/technology/period can be read on its own.
+    #
+    # PLACEHOLDER VALUES: the $/MWh figures below are 2024 statutory base
+    # rates (before any inflation adjustment, domestic-content/energy-
+    # community bonus adders, or prevailing-wage multipliers), used here as
+    # clearly-labeled holding values, not as a precise levelized estimate:
+    #   - 45Y/48E base rate: $0.0275/kWh = $27.5/MWh (26 USC 45Y; same base
+    #     rate as the 45U nuclear PTC).
+    #   - 45U existing nuclear PTC: $15/MWh base rate, phasing down as
+    #     merchant power price rises above $25/MWh and phasing out entirely
+    #     for periods after 2032 (26 USC 45U) -- phase-down/expiration is
+    #     NOT modeled here (flat rate in all periods); revisit if results
+    #     are sensitive to this.
+    #   - 45Q: $85/tonne CO2 captured and stored (power sector, prevailing
+    #     wage) -- not yet wired to a technology because no CCS resource is
+    #     currently in atb_new_gen/modified_atb_new_gen (see commented-out
+    #     NGCCS100 example in resources.yml); scaffolded key included for
+    #     when a CCS tech is added, translated to $/MWh at that time.
+    #   - 45V: $0.60-$3.00/kg H2 depending on lifecycle carbon intensity --
+    #     not wired to a technology (no hydrogen generator modeled); same
+    #     scaffolding-only status as 45Q.
+    # None of these figures have been reviewed against IRS guidance for
+    # inflation adjustment or against a levelized $/MWh translation for 45Q/
+    # 45V; treat as a starting point pending review.
+    tax_credits:
+      full_ira: # Jan 2025 policy: all credits in effect (Biden-era baseline)
+        tax_credit_values:
+          LandbasedWind: 27.5 # 45Y/48E
+          OffShoreWind: 27.5 # 45Y/48E
+          UtilityPV: 27.5 # 45Y/48E
+          # NOTE: Geothermal's ITC is still applied unconditionally via the
+          # base atb_modifiers in resources.yml (not moved into this axis;
+          # only storage was in scope for the split-out per project
+          # instructions). Revisit if geothermal needs to vary too.
+          Nuclear: 15 # 45U (existing nuclear PTC)
+          # 45Q, 45V: scaffolded, no matching technology in atb_new_gen today
+        atb_modifiers:
+          batteries:
+            capex_mw: [mul, 0.7] # 48E storage ITC (30%) -- same as default
+            capex_mwh: [mul, 0.7]
+      no_wind_solar: # current-policy scenario: 45Y/48E dropped for wind/solar,
+        # storage ITC and nuclear PTC retained
+        tax_credit_values:
+          Nuclear: 15 # 45U retained
+        atb_modifiers:
+          batteries:
+            capex_mw: [mul, 0.7] # storage ITC retained
+            capex_mwh: [mul, 0.7]
+      repealed: # all credits removed
+        tax_credit_values: {}
+        atb_modifiers:
+          batteries:
+            capex_mw: [mul, 1.0] # storage ITC repealed
+            capex_mwh: [mul, 1.0]
     resource_limits:
       # Used by p1_low_gas and p1_high_gas cases in scenario_inputs.csv.
       # These ban new-build technologies via MaxCapTag_Ban. The p1 time series

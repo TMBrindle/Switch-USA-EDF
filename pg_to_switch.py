@@ -1023,6 +1023,84 @@ def gen_info_file(
         out_folder / "gen_om_by_period.csv", index=False, na_rep="."
     )
 
+    ########
+    # save PTC-style per-MWh federal tax credit values (45Y/48E, 45U, 45Q,
+    # 45V) to gen_tax_credits.csv, read by study_modules.gen_tax_credits.
+    # This is a deliberately separate, opex-style (per-MWh dispatch credit)
+    # mechanism from the blanket capex ITC in resources.yml's atb_modifiers
+    # -- see the `tax_credits` axis in scenario_management.yml.
+    gen_tax_credits_file(gens_by_model_year, settings, out_folder)
+
+
+def gen_tax_credits_file(gens_by_model_year: pd.DataFrame, settings, out_folder: Path):
+    """
+    Write gen_tax_credits.csv (GENERATION_PROJECT, PERIOD,
+    gen_ptc_value_per_mwh) from the `tax_credit_values` setting, a dict of
+    {technology substring: $/MWh credit}, e.g.
+
+        tax_credit_values:
+          LandbasedWind: 27.5   # 45Y clean electricity PTC placeholder
+          OffShoreWind: 27.5
+          UtilityPV: 27.5
+          Nuclear: 15           # 45U existing nuclear PTC placeholder
+          NaturalGas CCS100: 20 # 45Q, translated to $/MWh -- placeholder
+
+    Technology names are matched case-insensitively against the `technology`
+    column using substring containment (same convention as
+    cost_multiplier_technology_map elsewhere in this pipeline). If a
+    generator's technology matches more than one key, the credits are
+    additive (a generator could in principle qualify under one PTC only in
+    practice, but scenario authors are responsible for not double-specifying
+    overlapping keys).
+
+    Only PowerGenome year-round, technology-uniform credit magnitudes are
+    supported here -- there is no vintage-based phase-out/expiration logic
+    (e.g. the real 45Y PTC only pays out for a project's first ~10 years).
+    That refinement is a documented gap, not implemented in this scaffold.
+
+    VINTAGE GATING (new-build only, not pre-existing fleet): PTC-style
+    credits (45Y/48E, 45U, 45Q, 45V) only apply to newly-built capacity, not
+    to wind/solar/etc. that was already online before the credit-bearing
+    scenario takes effect. In this pipeline, existing (pre-determined) fleet
+    and new-build technology options are already represented as SEPARATE
+    GENERATION_PROJECT/Resource rows -- see the `new_build` boolean on
+    `gens_by_model_year` (also used above to filter gen_om_by_period.csv,
+    and by gen_info_table()/eia_build_info() to distinguish predetermined
+    existing units from new-build clusters). We therefore restrict this
+    credit to rows where `new_build` is True; existing-fleet rows
+    (`Existing_Cap_MW > 0`, `new_build` False) are excluded entirely, so a
+    pre-2025 wind/solar plant never earns a credit here even though its
+    GENERATION_PROJECT technology matches a `tax_credit_values` key. (Within
+    a new-build resource's own multi-period build schedule, DispatchGen
+    reflects cumulative capacity added across periods, but since none of
+    that capacity predates the resource's creation, this still correctly
+    excludes 100% of the pre-existing fleet -- it does not need per-vintage
+    build-year granularity beyond that to satisfy the "new capacity only"
+    requirement.)
+    """
+    tax_credit_values = settings.get("tax_credit_values") or {}
+    if not tax_credit_values:
+        # nothing to write; study_modules.gen_tax_credits treats a missing/
+        # empty file as "no credits" (all defaults to 0)
+        return
+
+    # new-build only -- see "VINTAGE GATING" note above
+    gens = gens_by_model_year.query("new_build").copy()
+    gens["gen_ptc_value_per_mwh"] = 0.0
+    tech_lower = gens["technology"].str.lower()
+    for tech_substr, dollar_per_mwh in tax_credit_values.items():
+        mask = tech_lower.str.contains(tech_substr.lower(), regex=False)
+        gens.loc[mask, "gen_ptc_value_per_mwh"] += dollar_per_mwh
+
+    gen_tax_credits = gens.loc[
+        gens["gen_ptc_value_per_mwh"] > 0,
+        ["Resource", "model_year", "gen_ptc_value_per_mwh"],
+    ].rename(columns={"Resource": "GENERATION_PROJECT", "model_year": "PERIOD"})
+
+    gen_tax_credits.to_csv(
+        out_folder / "gen_tax_credits.csv", index=False, na_rep="."
+    )
+
 
 def graph_color_tables(out_folder, gen_info):
     """

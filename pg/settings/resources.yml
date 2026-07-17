@@ -446,7 +446,13 @@ atb_modifiers:
     # https://www.pnnl.gov/main/publications/external/technical_reports/PNNL-28866.pdf).
     Var_OM_Cost_per_MWh: [add, 0.15]
     Var_OM_Cost_per_MWh_In: 0.15 # not in database, so set directly
-    # 30% federal ITC applies to batteries and geothermal
+    # Storage ITC (48E), default/base-case value: 30% federal ITC. This is
+    # ALSO the default under every scenario, so existing scenario_inputs.csv
+    # rows that don't set the `tax_credits` axis keep this unchanged. Scenario
+    # rows that DO set `tax_credits` (see scenario_management.yml) can
+    # override this independently of the other credits (45Y/48E, 45Q, 45V,
+    # 45U), which is why it's kept as a distinct atb_modifiers entry instead
+    # of folded into a single blanket multiplier.
     capex_mw: [mul, 0.7]
     capex_mwh: [mul, 0.7]
 
