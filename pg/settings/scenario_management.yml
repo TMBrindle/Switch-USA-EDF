@@ -28,7 +28,7 @@ settings_management:
           detail_by: ba
           detail_values: [p87, p88, p58, p86, p89, p90]
           aggregate_by: transreg
-      
+
       # Mixed-resolution example (keep TX at full BA detail, aggregate rest by interconnect):
       # tx_focus:
       #   region_scope:
@@ -57,6 +57,12 @@ settings_management:
         # all possible weather days, individually
         time_domain_periods: 2555
         time_domain_days_per_period: 1
+      s8x10:
+        time_domain_periods: 8
+        time_domain_days_per_period: 10
+      s16x10:
+        time_domain_periods: 16
+        time_domain_days_per_period: 10
       s4x5:
         time_domain_periods: 4
         time_domain_days_per_period: 5
@@ -179,6 +185,7 @@ settings_management:
               parameter_values:
                 New_Build: -1
       none: ~
+      edf_epri_med: ~
 
     load_growth_flexibility:
       none: ~ # no effect, useful for historical cases
@@ -194,8 +201,13 @@ settings_management:
           Can_Retire:
             "": 0
     resource_limits:
+      # Used by p1_low_gas and p1_high_gas cases in scenario_inputs.csv.
+      # These ban new-build technologies via MaxCapTag_Ban. The p1 time series
+      # these cases use is too large to solve; they are research/inspection cases.
+      # TODO: consider migrating to define_scenarios.py-style variants once
+      # a solvable time series is used, rather than as separate pg cases.
       none: ~ # default
-      high_gas: # currently unused, see define_scenarios.py instead
+      high_gas: # bans new-build clean tech; p1_high_gas uses this
         model_tag_values:
           MaxCapTag_Ban:
             # tech names used for new-build non-gas techs, but not existing/planned
@@ -204,7 +216,7 @@ settings_management:
             LandbasedWind: 1
             Nuclear_Nuclear: 1
             Battery Storage: 1
-      low_gas: # currently unused, see define_scenarios.py instead
+      low_gas: # bans new-build natural gas; p1_low_gas uses this
         model_tag_values:
           MaxCapTag_Ban:
             # technology name for new gas, but not existing/planned
@@ -214,7 +226,7 @@ settings_management:
           MaxCapTag_Ban:
             # technology name for new gas, but not existing/planned
             NaturalGas: 1
-    
+
     gen_clustering:
       # Controls whether existing generators are clustered separately by utility/owner.
       # When active, each targeted utility's units form their own sub-group within each
@@ -239,12 +251,12 @@ settings_management:
         cluster_existing_by_utility:
           utility_ids:
             # Entergy Corp.
-            - 814
-            - 11241
-            - 12465
-            - 12685
-            - 13478
-            - 55937
+          - 814
+          - 11241
+          - 12465
+          - 12685
+          - 13478
+          - 55937
       parent_cos:
         # separate clusters for 213 utilities listed in EIA_ID_parent_lookup.csv
         # covers 9 parent companies: AEP, Berkshire Hathaway, Dominion Energy,
@@ -252,227 +264,227 @@ settings_management:
         cluster_existing_by_utility:
           utility_ids:
             # American Electric Power Co., Inc.
-            - 733
-            - 9324
-            - 15474
-            - 17698
-            - 19171
-            - 22053
-            - 49796
-            - 57372
-            - 58625
-            - 60571
+          - 733
+          - 9324
+          - 15474
+          - 17698
+          - 19171
+          - 22053
+          - 49796
+          - 57372
+          - 58625
+          - 60571
             # Berkshire Hathaway, Inc.
-            - 4210
-            - 8503
-            - 12341
-            - 13407
-            - 14354
-            - 15300
-            - 16729
-            - 17166
-            - 49919
-            - 54809
-            - 59359
-            - 59868
-            - 59869
-            - 59870
-            - 59871
-            - 59872
-            - 59873
-            - 59874
-            - 60434
-            - 60435
-            - 60436
-            - 60437
-            - 60438
-            - 60439
-            - 60440
-            - 60587
-            - 60588
-            - 60589
-            - 60590
-            - 60591
-            - 60592
-            - 60593
-            - 60594
-            - 60823
-            - 60826
-            - 60828
-            - 60829
-            - 60967
+          - 4210
+          - 8503
+          - 12341
+          - 13407
+          - 14354
+          - 15300
+          - 16729
+          - 17166
+          - 49919
+          - 54809
+          - 59359
+          - 59868
+          - 59869
+          - 59870
+          - 59871
+          - 59872
+          - 59873
+          - 59874
+          - 60434
+          - 60435
+          - 60436
+          - 60437
+          - 60438
+          - 60439
+          - 60440
+          - 60587
+          - 60588
+          - 60589
+          - 60590
+          - 60591
+          - 60592
+          - 60593
+          - 60594
+          - 60823
+          - 60826
+          - 60828
+          - 60829
+          - 60967
             # Dominion Energy
-            - 5221
-            - 5248
-            - 17539
-            - 17554
-            - 19876
-            - 58468
+          - 5221
+          - 5248
+          - 17539
+          - 17554
+          - 19876
+          - 58468
             # Duke Energy Corp.
-            - 3046
-            - 3542
-            - 5416
-            - 6455
-            - 15470
-            - 50123
-            - 55729
-            - 59980
-            - 60054
-            - 61943
+          - 3046
+          - 3542
+          - 5416
+          - 6455
+          - 15470
+          - 50123
+          - 55729
+          - 59980
+          - 60054
+          - 61943
             # Entergy Corp.
-            - 814
-            - 11241
-            - 12465
-            - 12685
-            - 13478
-            - 55937
+          - 814
+          - 11241
+          - 12465
+          - 12685
+          - 13478
+          - 55937
             # NextEra Energy, Inc.
-            - 6017
-            - 6354
-            - 6452
-            - 6850
-            - 6854
-            - 6862
-            - 7531
-            - 8565
-            - 14629
-            - 14876
-            - 21970
-            - 31719
-            - 34717
-            - 34719
-            - 34721
-            - 34723
-            - 49963
-            - 50012
-            - 50014
-            - 50063
-            - 54717
-            - 54799
-            - 54870
-            - 55696
-            - 55785
-            - 55799
-            - 55862
-            - 55901
-            - 55906
-            - 55958
-            - 56121
-            - 56122
-            - 56123
-            - 56124
-            - 56415
-            - 56484
-            - 56555
-            - 56561
-            - 56622
-            - 56678
-            - 56698
-            - 56786
-            - 56787
-            - 56925
-            - 56926
-            - 57024
-            - 57026
-            - 57460
-            - 57503
-            - 58090
-            - 58121
-            - 58143
-            - 58180
-            - 58298
-            - 58353
-            - 58360
-            - 58451
-            - 58539
-            - 58545
-            - 59102
-            - 59211
-            - 59212
-            - 59790
-            - 59802
-            - 59803
-            - 59831
-            - 59842
-            - 59843
-            - 59844
-            - 59845
-            - 60208
-            - 60370
-            - 60397
-            - 60409
-            - 60476
-            - 60562
-            - 60614
-            - 60619
-            - 60842
-            - 60871
-            - 61133
-            - 61214
-            - 61291
-            - 61295
-            - 61416
-            - 61436
-            - 61458
-            - 61502
-            - 61530
-            - 61531
-            - 61537
-            - 61540
-            - 61562
-            - 61563
-            - 61905
-            - 61910
-            - 61912
-            - 61915
-            - 62023
-            - 62668
-            - 62913
-            - 62916
-            - 63073
-            - 63116
-            - 63128
-            - 63294
-            - 63487
-            - 63580
-            - 63582
+          - 6017
+          - 6354
+          - 6452
+          - 6850
+          - 6854
+          - 6862
+          - 7531
+          - 8565
+          - 14629
+          - 14876
+          - 21970
+          - 31719
+          - 34717
+          - 34719
+          - 34721
+          - 34723
+          - 49963
+          - 50012
+          - 50014
+          - 50063
+          - 54717
+          - 54799
+          - 54870
+          - 55696
+          - 55785
+          - 55799
+          - 55862
+          - 55901
+          - 55906
+          - 55958
+          - 56121
+          - 56122
+          - 56123
+          - 56124
+          - 56415
+          - 56484
+          - 56555
+          - 56561
+          - 56622
+          - 56678
+          - 56698
+          - 56786
+          - 56787
+          - 56925
+          - 56926
+          - 57024
+          - 57026
+          - 57460
+          - 57503
+          - 58090
+          - 58121
+          - 58143
+          - 58180
+          - 58298
+          - 58353
+          - 58360
+          - 58451
+          - 58539
+          - 58545
+          - 59102
+          - 59211
+          - 59212
+          - 59790
+          - 59802
+          - 59803
+          - 59831
+          - 59842
+          - 59843
+          - 59844
+          - 59845
+          - 60208
+          - 60370
+          - 60397
+          - 60409
+          - 60476
+          - 60562
+          - 60614
+          - 60619
+          - 60842
+          - 60871
+          - 61133
+          - 61214
+          - 61291
+          - 61295
+          - 61416
+          - 61436
+          - 61458
+          - 61502
+          - 61530
+          - 61531
+          - 61537
+          - 61540
+          - 61562
+          - 61563
+          - 61905
+          - 61910
+          - 61912
+          - 61915
+          - 62023
+          - 62668
+          - 62913
+          - 62916
+          - 63073
+          - 63116
+          - 63128
+          - 63294
+          - 63487
+          - 63580
+          - 63582
             # Southern Co.
-            - 195
-            - 7140
-            - 12686
-            - 17650
+          - 195
+          - 7140
+          - 12686
+          - 17650
             # Vistra Corp.
-            - 520
-            - 641
-            - 656
-            - 1074
-            - 4966
-            - 5504
-            - 5517
-            - 5761
-            - 10576
-            - 11741
-            - 12501
-            - 12568
-            - 21668
-            - 27031
-            - 54802
-            - 54803
-            - 55983
-            - 57141
-            - 57359
-            - 59917
-            - 59918
-            - 59919
-            - 59922
-            - 59923
-            - 59924
-            - 60477
-            - 61123
+          - 520
+          - 641
+          - 656
+          - 1074
+          - 4966
+          - 5504
+          - 5517
+          - 5761
+          - 10576
+          - 11741
+          - 12501
+          - 12568
+          - 21668
+          - 27031
+          - 54802
+          - 54803
+          - 55983
+          - 57141
+          - 57359
+          - 59917
+          - 59918
+          - 59919
+          - 59922
+          - 59923
+          - 59924
+          - 60477
+          - 61123
             # Xcel Energy, Inc.
-            - 13781
-            - 15466
-            - 17718
+          - 13781
+          - 15466
+          - 17718
       # Example: separate clusters for one specific utility (replace 12345 with EIA ID)
       # utility_12345:
       #   cluster_existing_by_utility:
@@ -485,13 +497,33 @@ settings_management:
       #     exclude_technologies:
       #       - Nuclear
       #       - Conventional Hydroelectric
-    
     policies:
-      current: ~ # use default settings
+      current:
+        # Per-program costs and hard RGGI cap; CCR prices are year-specific below.
+        carbon_cost_by_program:
+          "ETS 1": .       # hard RGGI base cap
+          "ETS 2": 33.43   # CA carbon price
+          "ETS 3": 33.43   # WA carbon price
       decarb:
         # national carbon tax at 200, to see what would be cheapest way to decarbonize
         emission_policies_fn: emission_policies_decarb.csv
         carbon_cost_dollar_per_tco2: 200
+        # override per-program costs so the scalar $200 applies to all programs
+        carbon_cost_by_program: {}
+    rggi:
+      # RGGI membership options. RGGI10 = current 10-state program.
+      # rggi_va_alias_* causes pg_to_switch to also write carbon_policies_regional_va.csv
+      # into every RGGI10 input folder, ready for --input-alias at solve time.
+      # rggi_va_fraction is VA's share of the new 11-state total cap.
+      # Set to 0.25: slightly below VA's historical share, providing a conservative
+      # assumption for VA rejoining. VA budget = 10-state cap × (0.25/0.75) = cap/3.
+      RGGI10:
+        rggi_va_alias_fraction: 0.25
+        rggi_va_alias_zones: [p99, p100, p118, p124]
+      # RGGI10+VA: use as primary case if VA membership is the base assumption.
+      RGGI10+VA:
+        rggi_va_fraction: 0.25
+        rggi_va_zones: [p99, p100, p118, p124]
     transmission:
       constrained:
         transmission_policy: constrained
@@ -613,7 +645,9 @@ settings_management:
       yes:
         model_adjustment_scripts:
           # drop some scripts by setting to ~:
-          Increase timepoint duration to 2 hours: ~ # keep 1-hour resolution
+          # tp_duration_hours in scenario_inputs.csv controls resolution; suppress
+          # the script here too so make_split_models cases always stay at 1-hour.
+          Increase timepoint duration to 2 hours: ~ # must match tp_duration_hours=1 in scenario_inputs.csv
           Add extreme day: ~
           # add this adjustment script:
           Make resource adequacy models:
@@ -3937,8 +3971,8 @@ settings_management:
       renewables_clusters:
         # don't define clusters for any new-build techs except imports
         # (prevents warnings when there are no atb_new_gen techs)
-        - region: all
-          technology: imports
+      - region: all
+        technology: imports
       # use year-specific data for derating
       capacity_factor_default_year_filter: [2024]
       MinCapReq: # managed by make_emission_policies.py
@@ -3961,6 +3995,33 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 451444.19999999995
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2025:
     all_cases:
       # disable new-build and economic retirement for historical case
@@ -3972,8 +4033,8 @@ settings_management:
       renewables_clusters:
         # don't define clusters for any new-build techs except imports
         # (prevents warnings when there are no atb_new_gen techs)
-        - region: all
-          technology: imports
+      - region: all
+        technology: imports
       # use year-specific data for derating (not available for 2025 yet)
       # capacity_factor_default_year_filter: [2025]
       MinCapReq: # managed by make_emission_policies.py
@@ -3996,18 +4057,45 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 461110.86666666664
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2026:
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
       # don't allow new nuclear before 2030 (too soon to finish)
       atb_new_gen:
-        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
-        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-        - [LandbasedWind, Class3, Moderate, 1]
+      - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
+      - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+      - [LandbasedWind, Class3, Moderate, 1]
           # - [OffShoreWind, Class12, Moderate, 1]
-        - [OffShoreWind, Class3, Moderate, 1]
-        - [UtilityPV, Class1, Moderate, 1]
-        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+      - [OffShoreWind, Class3, Moderate, 1]
+      - [UtilityPV, Class1, Moderate, 1]
+      - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
           # - [Nuclear, Nuclear - Large, Moderate, 1000]
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CT_offshorewind:
@@ -4035,18 +4123,45 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 470777.53333333327
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2027:
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
       # don't allow new nuclear before 2030 (too soon to finish)
       atb_new_gen:
-        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
-        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-        - [LandbasedWind, Class3, Moderate, 1]
+      - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
+      - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+      - [LandbasedWind, Class3, Moderate, 1]
           # - [OffShoreWind, Class12, Moderate, 1]
-        - [OffShoreWind, Class3, Moderate, 1]
-        - [UtilityPV, Class1, Moderate, 1]
-        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+      - [OffShoreWind, Class3, Moderate, 1]
+      - [UtilityPV, Class1, Moderate, 1]
+      - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
           # - [Nuclear, Nuclear - Large, Moderate, 1000]
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CT_offshorewind:
@@ -4074,18 +4189,55 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 480444.19999999995
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2028:
+    policies:
+      current:
+        # CCR Tier 1 and Tier 2 trigger prices for 2028 in $/metric tonne.
+        # RGGI sets prices in $/short ton: $19.50×1.07^1=$20.87 and $29.25×1.07^1=$31.30.
+        # Converted to $/metric tonne (÷0.907185): $23.00 and $34.50.
+        carbon_ccr_prices:
+          "ETS 1": [23.00, 34.50]
+        # Minimum reserve price 2028: $9.63/short ton ÷ 0.907185 = $10.62/metric tonne
+        carbon_floor_price_by_program:
+          "ETS 1": 10.62
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
       # don't allow new nuclear before 2030 (too soon to finish)
       atb_new_gen:
-        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
-        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-        - [LandbasedWind, Class3, Moderate, 1]
+      - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
+      - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+      - [LandbasedWind, Class3, Moderate, 1]
           # - [OffShoreWind, Class12, Moderate, 1]
-        - [OffShoreWind, Class3, Moderate, 1]
-        - [UtilityPV, Class1, Moderate, 1]
-        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+      - [OffShoreWind, Class3, Moderate, 1]
+      - [UtilityPV, Class1, Moderate, 1]
+      - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
           # - [Nuclear, Nuclear - Large, Moderate, 1000]
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CT_offshorewind:
@@ -4113,18 +4265,45 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 490110.86666666664
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8973.3
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 57936.5
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 1555.3
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 45081.7
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3322.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 19013.5
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15477.7
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 41803.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22839.7
   2029:
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
       # don't allow new nuclear before 2030 (too soon to finish)
       atb_new_gen:
-        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
-        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-        - [LandbasedWind, Class3, Moderate, 1]
+      - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
+      - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+      - [LandbasedWind, Class3, Moderate, 1]
           # - [OffShoreWind, Class12, Moderate, 1]
-        - [OffShoreWind, Class3, Moderate, 1]
-        - [UtilityPV, Class1, Moderate, 1]
-        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+      - [OffShoreWind, Class3, Moderate, 1]
+      - [UtilityPV, Class1, Moderate, 1]
+      - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
           # - [Nuclear, Nuclear - Large, Moderate, 1000]
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CT_offshorewind:
@@ -4155,17 +4334,54 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 499777.53333333327
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 7966.7
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 60125.0
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 2162.7
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 48446.0
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3808.9
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 10420.2
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 15453.4
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 52487.2
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 21195.8
   2030:
+    policies:
+      current:
+        # CCR Tier 1 and Tier 2 trigger prices for 2030 in $/metric tonne.
+        # RGGI sets prices in $/short ton: $19.50×1.07^3=$23.89 and $29.25×1.07^3=$35.83.
+        # Converted to $/metric tonne (÷0.907185): $26.34 and $39.50.
+        carbon_ccr_prices:
+          "ETS 1": [26.34, 39.50]
+        # Minimum reserve price 2030: $11.02/short ton ÷ 0.907185 = $12.15/metric tonne
+        carbon_floor_price_by_program:
+          "ETS 1": 12.15
     all_cases:
       # don't allow new nuclear before 2030 (too soon to finish)
       atb_new_gen:
-        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
-        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-        - [LandbasedWind, Class3, Moderate, 1]
-        - [OffShoreWind, Class12, Moderate, 1]
-        - [OffShoreWind, Class3, Moderate, 1]
-        - [UtilityPV, Class1, Moderate, 1]
-        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+      - [NaturalGas, 1-on-1 Combined Cycle (H-Frame), Moderate, 500]
+      - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+      - [LandbasedWind, Class3, Moderate, 1]
+      - [OffShoreWind, Class12, Moderate, 1]
+      - [OffShoreWind, Class3, Moderate, 1]
+      - [UtilityPV, Class1, Moderate, 1]
+      - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
           # - [Nuclear, Nuclear - Large, Moderate, 1000]
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CT_offshorewind:
@@ -4196,7 +4412,44 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 509444.19999999995
+        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
+          description: CAISO Wind Growth Limit
+          max_mw: 8211.5
+        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
+          description: ERCOT Wind Growth Limit
+          max_mw: 64427.9
+        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
+          description: ISONE Wind Growth Limit
+          max_mw: 2288.8
+        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
+          description: MISO Wind Growth Limit
+          max_mw: 51574.2
+        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
+          description: NYISO Wind Growth Limit
+          max_mw: 3996.8
+        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
+          description: NorthernGrid Wind Growth Limit
+          max_mw: 10767.7
+        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
+          description: PJM Wind Growth Limit
+          max_mw: 16253.0
+        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
+          description: SPP Wind Growth Limit
+          max_mw: 56377.6
+        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
+          description: WestConnect Wind Growth Limit
+          max_mw: 22658.4
   2035:
+    policies:
+      current:
+        # CCR Tier 1 and Tier 2 trigger prices for 2035 in $/metric tonne.
+        # RGGI sets prices in $/short ton: $19.50×1.07^8=$33.50 and $29.25×1.07^8=$50.25.
+        # Converted to $/metric tonne (÷0.907185): $36.93 and $55.39.
+        carbon_ccr_prices:
+          "ETS 1": [36.93, 55.39]
+        # Minimum reserve price 2035: $15.46/short ton ÷ 0.907185 = $17.04/metric tonne
+        carbon_floor_price_by_program:
+          "ETS 1": 17.04
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:

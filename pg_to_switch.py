@@ -1616,6 +1616,7 @@ def other_tables(
                     "LOAD_ZONE",
                     "carbon_cap_tco2_per_yr",
                     "carbon_cost_dollar_per_tco2",
+                    "carbon_floor_price_dollar_per_tco2",
                 ]
             )
         ]
@@ -1646,17 +1647,74 @@ def other_tables(
                     var_name="CO2_PROGRAM",
                     value_name="carbon_cap_tco2_per_yr",
                 ).dropna(subset=["carbon_cap_tco2_per_yr"])
-                # Add the carbon cost if available
-                co2_cap_long["carbon_cost_dollar_per_tco2"] = scen_settings.get(
-                    "carbon_cost_dollar_per_tco2", "."
+                # Add the carbon cost — use per-program dict if available, otherwise scalar
+                cost_by_program = scen_settings.get("carbon_cost_by_program") or {}
+                scalar_cost = scen_settings.get("carbon_cost_dollar_per_tco2", ".")
+                co2_cap_long["carbon_cost_dollar_per_tco2"] = (
+                    co2_cap_long["CO2_PROGRAM"]
+                    .map(cost_by_program)
+                    .fillna(scalar_cost)
+                )
+                # Add the floor price (auction minimum reserve price, $/metric tonne)
+                floor_by_program = scen_settings.get("carbon_floor_price_by_program") or {}
+                co2_cap_long["carbon_floor_price_dollar_per_tco2"] = (
+                    co2_cap_long["CO2_PROGRAM"]
+                    .map(floor_by_program)
+                    .fillna(0.0)
                 )
                 # reorder the columns for Switch
                 co2_cap_long = co2_cap_long[dfs[0].columns]
                 dfs.append(co2_cap_long)
 
         # aggregate annual data and write to file
-        co2_cap_long = pd.concat(dfs, axis=0)
+        co2_cap_base = pd.concat(dfs, axis=0)
+
+        def _add_va_zones(df, va_fraction, va_zones):
+            """Return df with VA zone rows appended to ETS 1.
+            VA budget = va_fraction / (1 - va_fraction) × 10-state cap,
+            distributed equally across va_zones."""
+            ets1 = df[df["CO2_PROGRAM"] == "ETS 1"]
+            va_rows = []
+            for period, grp in ets1.groupby("PERIOD"):
+                total_cap = grp["carbon_cap_tco2_per_yr"].sum()
+                va_cap_per_zone = (
+                    total_cap * va_fraction / (1 - va_fraction) / len(va_zones)
+                )
+                # Inherit floor price from existing ETS 1 rows for this period
+                floor = (
+                    grp["carbon_floor_price_dollar_per_tco2"].iloc[0]
+                    if "carbon_floor_price_dollar_per_tco2" in grp.columns
+                    else 0.0
+                )
+                for z in va_zones:
+                    va_rows.append({
+                        "CO2_PROGRAM": "ETS 1",
+                        "PERIOD": period,
+                        "LOAD_ZONE": z,
+                        "carbon_cap_tco2_per_yr": va_cap_per_zone,
+                        "carbon_cost_dollar_per_tco2": ".",
+                        "carbon_floor_price_dollar_per_tco2": floor,
+                    })
+            return pd.concat([df, pd.DataFrame(va_rows)], axis=0) if va_rows else df
+
+        # Primary file: add VA zones if this case uses RGGI10+VA
+        va_fraction = first_year_settings.get("rggi_va_fraction")
+        va_zones = first_year_settings.get("rggi_va_zones") or []
+        co2_cap_long = (
+            _add_va_zones(co2_cap_base, va_fraction, va_zones)
+            if (va_fraction and va_zones)
+            else co2_cap_base
+        )
         co2_cap_long.to_csv(out_folder / "carbon_policies_regional.csv", index=False)
+
+        # Alias file: generate carbon_policies_regional_va.csv for RGGI10 base cases
+        # that define rggi_va_alias_fraction/rggi_va_alias_zones in scenario_management.yml.
+        va_alias_fraction = first_year_settings.get("rggi_va_alias_fraction")
+        va_alias_zones = first_year_settings.get("rggi_va_alias_zones") or []
+        if va_alias_fraction and va_alias_zones:
+            _add_va_zones(co2_cap_base, va_alias_fraction, va_alias_zones).to_csv(
+                out_folder / "carbon_policies_regional_va.csv", index=False
+            )
 
         # create alternative versions of the carbon cap
         if not co2_cap_long.empty:
@@ -1672,8 +1730,14 @@ def other_tables(
         # with switch_model.policies.carbon_policies or
         # stud_modules.carbon_policies
         co2_cap = co2_cap_long.query('CO2_PROGRAM == "ETS 1"')
+        # Convert "." (hard-cap sentinel) to NaN so pandas can aggregate numerically,
+        # then restore "." where all zones in a period used the hard cap.
+        co2_cap_numeric = co2_cap.copy()
+        co2_cap_numeric["carbon_cost_dollar_per_tco2"] = pd.to_numeric(
+            co2_cap_numeric["carbon_cost_dollar_per_tco2"], errors="coerce"
+        )
         co2_cap_all_regions = (
-            co2_cap.groupby("PERIOD")
+            co2_cap_numeric.groupby("PERIOD")
             .agg(
                 {
                     "carbon_cap_tco2_per_yr": "sum",
@@ -1687,7 +1751,47 @@ def other_tables(
             )
             .reset_index()
         )
+        # Restore "." for periods where all zones had a hard cap (mean is NaN).
+        co2_cap_all_regions["carbon_cost_dollar_per_tco2"] = (
+            co2_cap_all_regions["carbon_cost_dollar_per_tco2"].fillna(".")
+        )
         co2_cap_all_regions.to_csv(out_folder / "carbon_policies.csv", index=False)
+
+        # create carbon_policies_ccr.csv — two-tier CCR for programs configured in
+        # carbon_ccr (pool sizes, from switch.yml) and carbon_ccr_prices (trigger prices,
+        # year-specific from scenario_management.yml).
+        ccr_rows = []
+        ccr_config = first_year_settings.get("carbon_ccr", {})
+        for model_year, scen_settings in scen_settings_dict.items():
+            ccr_prices = scen_settings.get("carbon_ccr_prices", {})
+            for program, prices in ccr_prices.items():
+                pools = (
+                    ccr_config.get(program, {}).get("ccr_pools_tco2_per_yr", [])
+                )
+                for tier_idx, price in enumerate(prices, start=1):
+                    pool = (
+                        pools[tier_idx - 1] if tier_idx - 1 < len(pools) else None
+                    )
+                    if pool is not None:
+                        ccr_rows.append(
+                            {
+                                "CO2_PROGRAM": program,
+                                "PERIOD": model_year,
+                                "ccr_tier": tier_idx,
+                                "ccr_pool_tco2_per_yr": pool,
+                                "ccr_price_dollar_per_tco2": price,
+                            }
+                        )
+        pd.DataFrame(
+            ccr_rows,
+            columns=[
+                "CO2_PROGRAM",
+                "PERIOD",
+                "ccr_tier",
+                "ccr_pool_tco2_per_yr",
+                "ccr_price_dollar_per_tco2",
+            ],
+        ).to_csv(out_folder / "carbon_policies_ccr.csv", index=False)
 
     #######
     # create rps_requirements.csv with clean energy standards / RPS requirements
@@ -1781,6 +1885,20 @@ def other_tables(
     # min_cap_req.csv and max_cap_req.csv
     cap_req_files("min", scen_settings_dict, out_folder)
     cap_req_files("max", scen_settings_dict, out_folder)
+
+    # Generate blank no-state-policy (_nsp) alias files for all state policy files.
+    # Solve commands use --input-alias to select these for no-policy scenario variants.
+    for _pfile in [
+        "rps_requirements.csv",
+        "rps_generators.csv",
+        "min_cap_requirements.csv",
+        "min_cap_generators.csv",
+    ]:
+        _src = out_folder / _pfile
+        if _src.exists():
+            pd.read_csv(_src, nrows=0).to_csv(
+                _src.with_stem(_src.stem + "_nsp"), index=False
+            )
 
     #####
     # interest and discount rates in financials.csv
@@ -1899,18 +2017,51 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
             mcr = mcr[dfs[0].columns]
             dfs.append(mcr)
     # aggregate across years and write to file
-    mcr = pd.concat(dfs, axis=0)
-    mcr.to_csv(out_folder / f"{minmax}_cap_requirements.csv", index=False)
+    mcr = pd.concat(dfs, axis=0).reset_index(drop=True)
 
     # remove any generator assignments for inactive min_cap programs
     out_file = out_folder / f"{minmax}_cap_generators.csv"
     try:
         limited_cap_gens = pd.read_csv(out_file)
     except FileNotFoundError:
-        pass
+        limited_cap_gens = None
     else:
         limited_cap_gens = limited_cap_gens.merge(mcr[f"{MINMAX}_CAP_PROGRAM"])
         limited_cap_gens.to_csv(out_file, index=False)
+
+    if minmax == "max" and limited_cap_gens is not None and not limited_cap_gens.empty:
+        # A max_cap_mw below the predetermined (already-built/committed) capacity
+        # of a program's tagged generators makes the model immediately infeasible,
+        # regardless of anything else -- the fixed predetermined-build variables
+        # can't be "unbuilt" to satisfy the cap. Raise the cap to that floor.
+        try:
+            pred = pd.read_csv(out_folder / "gen_build_predetermined.csv")
+        except FileNotFoundError:
+            pred = None
+        if pred is not None:
+            pred = pred.copy()
+            pred["build_gen_predetermined"] = pd.to_numeric(
+                pred["build_gen_predetermined"], errors="coerce"
+            ).fillna(0)
+            pred_by_gen = pred.groupby("GENERATION_PROJECT")["build_gen_predetermined"].sum()
+            pred_floor = (
+                limited_cap_gens.assign(
+                    predetermined_mw=limited_cap_gens["MAX_CAP_GEN"].map(pred_by_gen).fillna(0)
+                )
+                .groupby("MAX_CAP_PROGRAM")["predetermined_mw"]
+                .sum()
+            )
+            for idx, row in mcr.iterrows():
+                floor_mw = pred_floor.get(row["MAX_CAP_PROGRAM"], 0)
+                if floor_mw > row["max_cap_mw"]:
+                    print(
+                        f"WARNING cap_req_files: {row['MAX_CAP_PROGRAM']} ({row['PERIOD']}) "
+                        f"max_cap_mw {row['max_cap_mw']:.1f} is below predetermined capacity "
+                        f"{floor_mw:.1f}; raising cap to the predetermined floor."
+                    )
+                    mcr.loc[idx, "max_cap_mw"] = floor_mw
+
+    mcr.to_csv(out_folder / f"{minmax}_cap_requirements.csv", index=False)
 
 
 def model_adjustment_scripts(scen_settings_dict, settings_file, out_folder):

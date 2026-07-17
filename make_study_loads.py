@@ -44,8 +44,8 @@ settings_dir = "pg/settings"
 # note: we could use PowerGenome's alt_growth_rate setting instead of adding
 # a tranche of flexible load, but this lets us make it interruptible.
 #growth_file = "growth_rates/zone_growth.csv"
-growth_case = "icf"
-growth_path = f"growth_rates/icf"
+growth_case = "edf_epri_med"
+growth_path = f"growth_rates/epri_med"
 reeds_load_table = "load_curves_nrel_reeds"
 base_year = 2023
 start_year = 2023
@@ -198,7 +198,7 @@ for s in ["avg", "peak"]:
     target_stats[f"{s}_targ"] = target_stats[f"{s}_base"] * (target_stats[f"{s}_growth"])
 
 #Write the target_stats data to a csv we can look at
-target_stats.to_csv(f"switch/Scripts/Growth_Profiles/{growth_case}_targets.csv", index=False)
+target_stats.to_csv(f"switch/Growth_Profiles/{growth_case}_targets.csv", index=False)
 
 # Find the scale and offset to add to the base load levels to get the target
 # growth levels
