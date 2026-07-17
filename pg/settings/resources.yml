@@ -507,7 +507,16 @@ modified_atb_new_gen:
     fixed_o_m_mw: 0
     variable_o_m_mwh: 0
 
-  # example
+  # example -- left commented out. The clean_power_regs.caa_2024_rule and
+  # ccs_capture_rate scenario axes (scenario_management.yml) instead use
+  # NaturalGas/CCCCSAvgCF and Coal/CCS90AvgCF DIRECTLY in atb_new_gen (no
+  # modified_atb_new_gen needed -- these are native ATB tech_detail
+  # categories with their own cost curves, verified via this repo's own
+  # co2_pipeline_cost_percentiles.csv reference data, which is why 90% -- not
+  # the "CCS100" custom variant sketched below -- is the capture rate those
+  # axes use). This example is kept only as a template for adding a
+  # different CCS variant later; its specific added-cost figures were never
+  # independently verified against a cited source.
   # NGCCS100:
   #   new_technology: NaturalGas
   #   new_tech_detail: CCS100

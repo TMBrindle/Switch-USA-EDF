@@ -356,29 +356,24 @@ settings_management:
     # stood" as "rule stands" regardless of litigation risk at that time.
     # `none` is the no-rule config (Scenarios 2/3).
     #
-    # PROVISIONS IMPLEMENTED (both via the predetermined-retirement-override
-    # mechanism built for retirement_policy, and via atb_new_gen):
+    # PROVISIONS IMPLEMENTED, now via REAL CCS technology options (see the
+    # "CCS DATA INVESTIGATION" note below the ccs_capture_rate axis further
+    # down for what was actually verified in PowerGenome/this repo's data)
+    # rather than the earlier retirement/ban-only proxy:
     #
-    #   1. New gas -- 111(b) NSPS: base-load new stationary combustion
-    #      turbines (EPA's subcategory for units with a projected capacity
-    #      factor > 40%) must meet an emission standard reflecting 90% CO2
-    #      capture and storage, effective January 1, 2032 (the rule offers
-    #      an alternative low-GHG-hydrogen-cofiring compliance pathway --
-    #      NOT modeled here, since no hydrogen-cofiring generator exists in
-    #      this pipeline). Modeled as: ban new unabated
-    #      "1-on-1 Combined Cycle (H-Frame)" (the only base-load-type new
-    #      gas technology in atb_new_gen -- "Combustion Turbine (F-Frame)"
-    #      is treated as the peaking/low-load technology, exempt from the
-    #      90% CCS subcategory) starting with the first modeled period at or
-    #      after the Jan 2032 deadline (the 2035 period; this model has no
-    #      2032 period). No CCS-equipped gas technology is currently active
-    #      in atb_new_gen/modified_atb_new_gen to offer as an alternative
-    #      (see the commented-out NGCCS100 example in resources.yml), so
-    #      this simplifies to "no new unabated CC after 2032" rather than
-    #      "CCS-equipped CC becomes the only new-CC option." New CC built in
-    #      periods before 2032 is grandfathered (not retroactively forced to
-    #      retrofit) since this pipeline has no CCS-retrofit lever --
-    #      documented simplification, not a rule provision.
+    #   1. New gas -- 111(b) NSPS: base-load new gas must meet a standard
+    #      reflecting 90% CO2 capture, effective January 1, 2032 (the rule's
+    #      alternative low-GHG-hydrogen-cofiring pathway is NOT modeled --
+    #      no hydrogen-cofiring generator exists in this pipeline). Modeled
+    #      as: starting with the first modeled period at/after Jan 2032 (the
+    #      2035 period), drop unabated "1-on-1 Combined Cycle (H-Frame)" from
+    #      atb_new_gen and ADD [NaturalGas, CCCCSAvgCF, Moderate, 645] (a
+    #      real, ATB-native 90%-capture combined-cycle technology -- verified
+    #      present in this repo's own CO2 pipeline cost reference data, see
+    #      below) as the new base-load gas option. "Combustion Turbine
+    #      (F-Frame)" (peaking/low-load, exempt from the CCS subcategory)
+    #      stays available unabated throughout. New CC built before 2032 is
+    #      still grandfathered (not retroactively forced to retrofit).
     #
     #   2. Existing coal -- 111(d) Emission Guidelines: EPA subcategorizes
     #      existing coal steam EGUs by committed retirement date:
@@ -388,33 +383,145 @@ settings_management:
     #        c. Operating past Jan 1, 2039 (no committed retirement in that
     #           window): must install 90% CCS by Jan 1, 2032, or cease
     #           operation.
-    #      Subcategory (a) needs no override (already exempt). Subcategory
-    #      (b)'s 40% gas co-fire has no cost/emissions lever in this
-    #      pipeline (no per-unit fuel-blend mechanism) and is NOT modeled --
-    #      documented simplification; those units are left on their
-    #      predetermined retirement schedule. Subcategory (c) is modeled via
-    #      `clean_power_regs_retirement_override` below: any coal unit whose
-    #      predetermined retirement_year is after 2039 (i.e. not committed
-    #      to retire in the exempt or gas-cofiring windows) is forced to
-    #      retire by 2032, since this pipeline has no CCS-retrofit lever to
-    #      represent the "install CCS and keep operating" branch -- this is
-    #      the compliance-cost-maximizing proxy (retire rather than
-    #      uneconomically retrofit), not a literal rule requirement, and
-    #      should be revisited if a CCS-retrofit option is ever added.
+    #      Subcategory (a) needs no override. Subcategory (b)'s 40% gas
+    #      co-fire still has no cost/emissions lever in this pipeline (no
+    #      per-unit fuel-blend mechanism) and is NOT modeled -- documented
+    #      simplification; those units stay on their predetermined
+    #      retirement schedule. Subcategory (c): the PREVIOUS version of this
+    #      config force-retired these units by 2032
+    #      (clean_power_regs_retirement_override, no_retirement_before mode)
+    #      as a proxy for "no CCS-retrofit lever exists." That override has
+    #      been REMOVED. Instead, [Coal, CCS90AvgCF, Moderate, 650] (also
+    #      ATB-native and verified below) is added to atb_new_gen for 2035+,
+    #      so the model can choose to build new coal-CCS capacity as an
+    #      economic alternative to losing that generation to retirement --
+    #      this lets cost-optimization pick between (i) existing coal running
+    #      out its predetermined/economic retirement schedule unchanged,
+    #      (ii) new coal-CCS capacity, or (iii) other resources, rather than
+    #      forcing retirement outright.
+    #      LIMITATION, still not fully resolved: SWITCH has no mechanism to
+    #      require that a SPECIFIC existing coal GENERATION_PROJECT either
+    #      retrofits or retires -- "new coal-CCS becomes buildable" and "the
+    #      old unit's own retirement is unforced" are two independent model
+    #      decisions, not a coupled retrofit-or-retire choice for the same
+    #      physical unit. This is a portfolio-level proxy for the rule's
+    #      intent, not literal per-unit enforcement, and should be revisited
+    #      if a true generator-level retrofit mechanism is ever built.
     #
     # See switch/study_modules/clean_power_regs.py -- still a documented
-    # no-op module; no new Pyomo constraints were needed since both
-    # provisions are implementable via existing input-generation levers
-    # (atb_new_gen + the retirement-override mechanism) rather than new
-    # model math.
+    # no-op module; no new Pyomo constraints were needed (CCS is modeled via
+    # existing input-generation levers: atb_new_gen + PowerGenome's built-in
+    # ccs_fuel_map/ccs_capture_rate/co2_pipeline_filters settings, all
+    # verified to exist and to already have matching cost data in this
+    # pipeline -- not new model math).
+    #
+    # caa_2024_rule bakes in the SAME settings as ccs_capture_rate.ccs90
+    # below (90% is literally what the rule requires for both provisions),
+    # so it's self-sufficient even if a scenario row doesn't also set the
+    # separate ccs_capture_rate axis. If a scenario row sets BOTH
+    # clean_power_regs=caa_2024_rule and ccs_capture_rate=ccs30_coal, the two
+    # axes' ccs_fuel_map/ccs_capture_rate dicts will collide (whichever axis
+    # is merged last wins) -- not a supported combination; pick one or the
+    # other for coal CCS treatment.
     clean_power_regs:
       none: ~
       caa_2024_rule:
-        clean_power_regs_retirement_override:
-          technologies: [coal]
-          mode: no_retirement_before
-          threshold_year: 2039
-          target_year: 2032
+        ccs_fuel_map:
+          Coal_CCS90AvgCF: coal_ccs90
+          NaturalGas_CCCCSAvgCF: naturalgas_ccs90
+        ccs_capture_rate:
+          coal_ccs90: 0.9
+          naturalgas_ccs90: 0.9
+        co2_pipeline_filters:
+          - technology: NaturalGas
+            tech_detail: CCCCSAvgCF
+            with_backbone: false
+            percentile: 25
+          - technology: Coal
+            tech_detail: CCS90AvgCF
+            with_backbone: false
+            percentile: 25
+    # ─────────────────────────────────────────────────────────────────────
+    # ccs_capture_rate: standalone toggle for CCS fuel/emissions treatment,
+    # independent of clean_power_regs (e.g. for testing CCS economics outside
+    # the regulatory-compliance context). clean_power_regs.caa_2024_rule
+    # already bakes in the ccs90 settings directly (see above) so it doesn't
+    # depend on this axis also being selected correctly.
+    #
+    # *** CCS DATA INVESTIGATION -- what PowerGenome/this repo's data
+    # actually supports, verified by direct inspection (not assumed): ***
+    #   - PowerGenome has a generic, built-in CCS mechanism: `ccs_fuel_map`
+    #     (technology -> ccs fuel name, e.g. "Coal_CCS90AvgCF: coal_ccs90"),
+    #     `ccs_capture_rate` (ccs fuel name -> capture fraction 0-1), and
+    #     `ccs_disposal_cost` ($/tonne CO2, added to fuel cost) --
+    #     powergenome/fuels.py's adjust_ccs_fuels(). This reduces the fuel's
+    #     CO2_content_tons_per_MMBtu by the capture fraction and (if
+    #     ccs_disposal_cost is set) adds a per-MMBtu cost for the CO2
+    #     captured.
+    #   - The technology/tech_detail names themselves (e.g.
+    #     "Coal_CCS90AvgCF", "NaturalGas_CCCCSAvgCF", "Coal_CCS30AvgCF") are
+    #     NREL ATB technology categories with their own capex/heat-rate cost
+    #     curves in the technology_costs_nrelatb table (queried live via
+    #     PG_DB) -- confirmed via PowerGenome's own reference/example
+    #     settings files (example_systems/*/settings/{fuels,resources}.yml)
+    #     and this repo's existing cost_multiplier_technology_map in
+    #     resources.yml, which already groups "USC with 30% CCS" ->
+    #     [Coal_CCS30AvgCF, Coal_CCS30HighCF], "USC with 90% CCS" ->
+    #     [Coal_CCS90AvgCF, Coal_CCS90HighCF], and "CC with 90% CCS" ->
+    #     [NaturalGas_CCCCSAvgCF, NaturalGas_CCCCSHighCF, ...]. This
+    #     environment has no live PG_DB connection to directly query
+    #     `select distinct technology, tech_detail from
+    #     technology_costs_nrelatb`, so exact availability in the specific
+    #     ATB 2024 vintage this repo uses (atb_data_year: 2024) should still
+    #     be spot-checked with that query before a real solve -- but the
+    #     technology names themselves are not invented; they come directly
+    #     from PowerGenome's own code/example configs.
+    #   - DEFINITIVE finding on capture rate, from data ALREADY IN THIS REPO:
+    #     pg/extra_inputs/co2_pipeline_cost_percentiles.csv (this repo's own
+    #     CO2 transport/storage cost reference, likely NETL-sourced) has a
+    #     `capture_rate` column and covers EXACTLY TWO technology/tech_detail
+    #     combinations, BOTH at 90%: Coal/CCS90AvgCF (capacity_mw=650) and
+    #     NaturalGas/CCCCSAvgCF (capacity_mw=645). There is NO 95%, 97%, or
+    #     100% entry anywhere in that file, and no 30% entry either. This is
+    #     the definitive answer to "which capture rates does this pipeline's
+    #     data actually support with full cost data (capex/heat-rate AND
+    #     transport/storage cost)": 90% only, for both coal and gas. The
+    #     95%/97% figures floated when this was scoped are NOT present in
+    #     this repo's data and are NOT used below.
+    #   - Coal_CCS30AvgCF (30% capture) is exposed below as `ccs30_coal`
+    #     since PowerGenome's own reference configs show it as a real ATB
+    #     technology (so it should have a capex/heat-rate cost curve), but it
+    #     is INCOMPLETE for this repo: co2_pipeline_cost_percentiles.csv has
+    #     no transport/storage cost row for it, so `ccs30_coal` leaves
+    #     `ccs_disposal_cost` unset (PowerGenome's own $0 default, with its
+    #     existing debug-log warning) rather than inventing a transport/
+    #     storage cost figure. Flagged as lower-confidence/incomplete;
+    #     `ccs90` is the fully-supported option. No natural-gas 30% (partial-
+    #     capture) ATB technology was found, so `ccs30_coal` is coal-only.
+    ccs_capture_rate:
+      none: ~
+      ccs90: # fully supported: ATB cost curve + transport/storage cost data
+        ccs_fuel_map:
+          Coal_CCS90AvgCF: coal_ccs90
+          NaturalGas_CCCCSAvgCF: naturalgas_ccs90
+        ccs_capture_rate:
+          coal_ccs90: 0.9
+          naturalgas_ccs90: 0.9
+        co2_pipeline_filters:
+          - technology: NaturalGas
+            tech_detail: CCCCSAvgCF
+            with_backbone: false
+            percentile: 25
+          - technology: Coal
+            tech_detail: CCS90AvgCF
+            with_backbone: false
+            percentile: 25
+      ccs30_coal: # coal only; ATB cost curve exists but no transport/
+        # storage cost data in this repo -- incomplete, see note above
+        ccs_fuel_map:
+          Coal_CCS30AvgCF: coal_ccs30
+        ccs_capture_rate:
+          coal_ccs30: 0.3
     # ─────────────────────────────────────────────────────────────────────
     # retirement_policy: overrides to BOTH retirement mechanisms in this
     # pipeline, independent of clean_power_regs (the current-policy scenario
@@ -4935,15 +5042,24 @@ settings_management:
             Coal: 1
             Natural Gas: 1
     clean_power_regs:
-      # 111(b) NSPS new-gas CCS requirement (see the axis comment under
+      # 111(b)/111(d) CCS compliance pathways (see the axis comment under
       # all_years for the full citation/provisions): starting with the first
       # modeled period at/after the Jan 1, 2032 compliance date, drop new
-      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen. This
-      # replicates resources.yml's base atb_new_gen list (so nothing else is
-      # silently dropped) minus that one entry.
+      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen and add
+      # the two ATB-native, cost-data-verified CCS technologies (90% capture)
+      # as real build options: NaturalGas/CCCCSAvgCF (new-gas compliance
+      # pathway) and Coal/CCS90AvgCF (existing-coal compliance alternative to
+      # forced retirement). This replicates resources.yml's base atb_new_gen
+      # list (so nothing else is silently dropped) minus the unabated CC
+      # entry, plus the two CCS entries. Sizes (645/650 MW) match the
+      # reference plant sizes in this repo's own
+      # pg/extra_inputs/co2_pipeline_cost_percentiles.csv (NETL Cost &
+      # Performance Baseline reference sizes for these technologies).
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+          - [NaturalGas, CCCCSAvgCF, Moderate, 645]
+          - [Coal, CCS90AvgCF, Moderate, 650]
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
@@ -5011,15 +5127,24 @@ settings_management:
             Coal: 1
             Natural Gas: 1
     clean_power_regs:
-      # 111(b) NSPS new-gas CCS requirement (see the axis comment under
+      # 111(b)/111(d) CCS compliance pathways (see the axis comment under
       # all_years for the full citation/provisions): starting with the first
       # modeled period at/after the Jan 1, 2032 compliance date, drop new
-      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen. This
-      # replicates resources.yml's base atb_new_gen list (so nothing else is
-      # silently dropped) minus that one entry.
+      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen and add
+      # the two ATB-native, cost-data-verified CCS technologies (90% capture)
+      # as real build options: NaturalGas/CCCCSAvgCF (new-gas compliance
+      # pathway) and Coal/CCS90AvgCF (existing-coal compliance alternative to
+      # forced retirement). This replicates resources.yml's base atb_new_gen
+      # list (so nothing else is silently dropped) minus the unabated CC
+      # entry, plus the two CCS entries. Sizes (645/650 MW) match the
+      # reference plant sizes in this repo's own
+      # pg/extra_inputs/co2_pipeline_cost_percentiles.csv (NETL Cost &
+      # Performance Baseline reference sizes for these technologies).
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+          - [NaturalGas, CCCCSAvgCF, Moderate, 645]
+          - [Coal, CCS90AvgCF, Moderate, 650]
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
@@ -5077,15 +5202,24 @@ settings_management:
             Coal: 1
             Natural Gas: 1
     clean_power_regs:
-      # 111(b) NSPS new-gas CCS requirement (see the axis comment under
+      # 111(b)/111(d) CCS compliance pathways (see the axis comment under
       # all_years for the full citation/provisions): starting with the first
       # modeled period at/after the Jan 1, 2032 compliance date, drop new
-      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen. This
-      # replicates resources.yml's base atb_new_gen list (so nothing else is
-      # silently dropped) minus that one entry.
+      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen and add
+      # the two ATB-native, cost-data-verified CCS technologies (90% capture)
+      # as real build options: NaturalGas/CCCCSAvgCF (new-gas compliance
+      # pathway) and Coal/CCS90AvgCF (existing-coal compliance alternative to
+      # forced retirement). This replicates resources.yml's base atb_new_gen
+      # list (so nothing else is silently dropped) minus the unabated CC
+      # entry, plus the two CCS entries. Sizes (645/650 MW) match the
+      # reference plant sizes in this repo's own
+      # pg/extra_inputs/co2_pipeline_cost_percentiles.csv (NETL Cost &
+      # Performance Baseline reference sizes for these technologies).
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+          - [NaturalGas, CCCCSAvgCF, Moderate, 645]
+          - [Coal, CCS90AvgCF, Moderate, 650]
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
@@ -5143,15 +5277,24 @@ settings_management:
             Coal: 1
             Natural Gas: 1
     clean_power_regs:
-      # 111(b) NSPS new-gas CCS requirement (see the axis comment under
+      # 111(b)/111(d) CCS compliance pathways (see the axis comment under
       # all_years for the full citation/provisions): starting with the first
       # modeled period at/after the Jan 1, 2032 compliance date, drop new
-      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen. This
-      # replicates resources.yml's base atb_new_gen list (so nothing else is
-      # silently dropped) minus that one entry.
+      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen and add
+      # the two ATB-native, cost-data-verified CCS technologies (90% capture)
+      # as real build options: NaturalGas/CCCCSAvgCF (new-gas compliance
+      # pathway) and Coal/CCS90AvgCF (existing-coal compliance alternative to
+      # forced retirement). This replicates resources.yml's base atb_new_gen
+      # list (so nothing else is silently dropped) minus the unabated CC
+      # entry, plus the two CCS entries. Sizes (645/650 MW) match the
+      # reference plant sizes in this repo's own
+      # pg/extra_inputs/co2_pipeline_cost_percentiles.csv (NETL Cost &
+      # Performance Baseline reference sizes for these technologies).
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+          - [NaturalGas, CCCCSAvgCF, Moderate, 645]
+          - [Coal, CCS90AvgCF, Moderate, 650]
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]

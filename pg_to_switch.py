@@ -1497,7 +1497,13 @@ def set_retirement_age(df, settings):
 # merging (dict/list values from different axes are not deep-merged).
 PREDETERMINED_RETIREMENT_OVERRIDE_KEYS = [
     "predetermined_retirement_override",  # retirement_policy axis (blocked_2030_*)
-    "clean_power_regs_retirement_override",  # clean_power_regs axis (caa_2024_rule)
+    # clean_power_regs.caa_2024_rule used to set this key to force early
+    # retirement of long-lived coal as a proxy for "no CCS-retrofit lever
+    # exists" -- removed once CCS became a real atb_new_gen option (coal can
+    # now compete as new-build CCS capacity instead of being forced to
+    # retire). Left registered here as reusable, available infrastructure in
+    # case a future config wants a similar override.
+    "clean_power_regs_retirement_override",
 ]
 
 
