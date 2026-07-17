@@ -185,7 +185,58 @@ settings_management:
               parameter_values:
                 New_Build: -1
       none: ~
-      edf_epri_med: ~
+      # High-demand (data-center growth) sensitivity. This is the confirmed
+      # landing spot for it -- flexible_load.yml's `demand_response_fn`
+      # already defaults to load_adjustments_edf_epri_med.csv.zip (this is
+      # the base/default growth file for this repo, not caelp-style special
+      # casing), and make_study_loads.py already has `growth_case =
+      # "edf_epri_med"` / `growth_path = "growth_rates/epri_med"` set as its
+      # active configuration. See the final report for the full state
+      # check: switch/Growth_Profiles/edf_epri_med_targets.csv already has
+      # real (non-placeholder) computed growth-target numbers through 2050
+      # for every region, but growth_rates/epri_med/ (the SOURCE data
+      # make_study_loads.py would need to regenerate it) and
+      # load_adjustments_edf_epri_med.csv.zip (the actual demand_response_fn
+      # file flexible_load.yml points to) are both currently MISSING from
+      # this branch -- flagging that as a pre-existing gap, not something
+      # introduced here. NOT invented here: no growth numbers were written
+      # or modified by this axis config; only the `flexible_demand_resources`
+      # wiring below (identical shape to `icf`/`caelp` above) was added so
+      # this config is structurally ready the moment real figures/files land.
+      edf_epri_med:
+        flexible_demand_resources:
+          2024:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                # add dummy value that will be overridden by PG to avoid
+                # warnings from PG about empty parameter_values
+                New_Build: -1
+          2025:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2028:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2029:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2030:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
+          2035:
+            load_growth:
+              fraction_shiftable: 1.0
+              parameter_values:
+                New_Build: -1
 
     load_growth_flexibility:
       none: ~ # no effect, useful for historical cases
@@ -429,26 +480,52 @@ settings_management:
     # executed lease and/or approved Construction and Operations Plan (COP),
     # as of Jan 2025.
     #
-    # *** STOP-AND-ASK: SCAFFOLDING ONLY -- NO PROJECT LIST WIRED UP ***
-    # `capped_2025` needs a BOEM lease/permit status project list as of Jan
-    # 2025 (e.g. BOEM's public lease/permitting records at
-    # https://www.boem.gov/renewable-energy/lease-and-grant-information) to
-    # know which specific projects/zones are eligible. No such list has been
-    # fabricated here. Once the repo owner supplies it (as a CSV of
-    # project/zone -> executed-lease-or-COP status), the intended mechanism
-    # is:
-    #   - a new resource tag (e.g. MaxCapTag_OffshoreWindLeaseCap) applied
-    #     only to OffShoreWind new-build resources in zones/clusters NOT on
-    #     the eligible list, with MaxCapReq max_mw: 0 for that tag (banning
-    #     new-build there), following the same MaxCapTag_Ban pattern used by
-    #     resource_limits above.
-    #   - eligible-project zones remain unconstrained (or keep whatever
-    #     MinCapReq state-level floors already apply).
-    # `capped_2025` is left as a no-op (~) until that data exists, so it
-    # doesn't silently pretend to enforce a cap it can't actually enforce.
+    # *** RESEARCH-DERIVED PROJECT LIST -- REPO OWNER SHOULD SANITY-CHECK ***
+    # pg/extra_inputs/offshore_wind/boem_projects_jan2025.csv lists the
+    # projects compiled from BOEM's public lease/permitting pages and press
+    # releases (state-activity pages under
+    # https://www.boem.gov/renewable-energy/state-activities/*, and BOEM
+    # newsroom press releases -- individually cited per row) plus
+    # Wikipedia's "List of offshore wind farms in the United States" for a
+    # few lease-only entries. As of Jan 2025, BOEM had approved Construction
+    # and Operations Plans for 11 commercial-scale projects (BOEM's own
+    # Dec 20, 2024 SouthCoast Wind announcement calls it "the nation's
+    # eleventh commercial-scale offshore wind energy project" --
+    # https://www.boem.gov/renewable-energy/state-activities/southcoast-wind-formerly-mayflower-wind).
+    # This is a RESEARCH COMPILATION, not a live BOEM data pull -- OCS-A
+    # numbers, capacities, and dates (especially for the pre-COP,
+    # lease-only rows: CA, Gulf of Maine, Oregon, Gulf of Mexico) should be
+    # cross-checked against BOEM's live Lease and Grant Information page
+    # (https://www.boem.gov/renewable-energy/lease-and-grant-information)
+    # before relying on this for anything beyond scenario scaffolding. One
+    # ambiguous case is flagged in the CSV: Ocean Wind 1 (NJ) had an
+    # approved COP (Jul 2023) but was cancelled by the developer before Jan
+    # 2025 -- excluded from the mechanism below pending repo-owner judgment
+    # on how to treat it.
+    #
+    # MECHANISM: rather than a hand-built per-project/per-zone MW cap (this
+    # pipeline's resource clusters don't have per-lease-area granularity to
+    # match against), `capped_2025` bans ALL NEW-BUILD OffShoreWind
+    # (MaxCapTag_Ban, same pattern as resource_limits.low_gas below) --
+    # fixed (Class3) and floating (Class12) alike. This relies on
+    # PowerGenome's existing `proposed_status_included` filter in
+    # resources.yml (statuses V/TS/U/T -- under construction or regulatory
+    # approvals received), which already carries forward every project on
+    # the CSV's "COP approved" list as an EXISTING/PLANNED generator (not a
+    # "new build" candidate this axis touches), sourced from EIA-860m rather
+    # than this hand-compiled table. In other words: the CSV is the
+    # research/audit reference confirming which specific projects should
+    # already be showing up as existing/planned capacity; the actual
+    # eligibility gate enforced here is "nothing NEW beyond what's already
+    # in PowerGenome's regulatory-approved pipeline." Lease-only (no COP)
+    # projects in the CSV are correctly excluded either way, since they
+    # would not yet carry a V/TS/U/T status in EIA-860m.
     offshore_wind_policy:
       open: ~
-      capped_2025: ~ # TODO: wire up once BOEM project list is supplied
+      capped_2025:
+        model_tag_values:
+          MaxCapTag_Ban:
+            OffShoreWind: 1
     # ─────────────────────────────────────────────────────────────────────
     # barrier_reduction: a distinct POLICY-REFORM config (streamlined
     # interconnection/permitting), NOT a milder version of the
@@ -547,13 +624,16 @@ settings_management:
         model_tag_values:
           MaxCapTag_WindGrowth:
             Wind: 0 # removes both LandbasedWind and OffShoreWind from the cap
+          # Explicitly un-bans OffShoreWind regardless of whatever
+          # offshore_wind_policy config a scenario row also selects -- `full`
+          # is meant to strip every deployment constraint this build knows
+          # about, so it should win over offshore_wind_policy.capped_2025 if
+          # both happen to be selected together in the same scenario row.
+          MaxCapTag_Ban:
+            OffShoreWind: 0
         # gen_zone_ratio_agg / gen_zone_ratio_min_spec / gen_zone_ratio_max_spec
         # intentionally omitted (unset = no constraint, same effect as the
         # gen_zone_ratio axis's "none" config).
-        # offshore wind cap: nothing to remove yet since offshore_wind_policy
-        # .capped_2025 is itself still a no-op pending the BOEM project list
-        # (see above) -- once that mechanism exists, `full` should also zero
-        # out its MaxCapTag here.
     resource_limits:
       # Used by p1_low_gas and p1_high_gas cases in scenario_inputs.csv.
       # These ban new-build technologies via MaxCapTag_Ban. The p1 time series
