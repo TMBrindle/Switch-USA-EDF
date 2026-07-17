@@ -954,6 +954,42 @@ settings_management:
               study_modules.unserved_load
             order: 5
       no: ~ # default settings
+    # ─────────────────────────────────────────────────────────────────────
+    # PROPOSAL -- NOT YET APPLIED to any config below. For the current-policy
+    # scenario (tariff cost adders + higher gas price), see the final report
+    # for full citations. Summary of the proposed figures, for review before
+    # wiring anything in:
+    #   - Tariffs: steel/aluminum Section 232 tariffs (25% Feb 2025, raised
+    #     to 50% Jun 2025) added an estimated $0.10-0.15/W to solar hardware
+    #     costs in 2025 (pv magazine USA / CSIS). Solar module tariffs
+    #     (AD/CVD on Cambodia/Malaysia/Thailand/Vietnam, finalized Apr 21
+    #     2025) range from 14% up to >3000% depending on country/producer;
+    #     combined with Section 301 tariffs on Chinese cells/wafers/
+    #     polysilicon (up to 175-195%), reporting cites solar module list
+    #     prices up 10-15% and battery/storage system costs up to 25% in
+    #     2025 (solar.com, solarreviews.com, CSIS). PROPOSED holding values
+    #     for a current-policy `atb_modifiers`-style capex adder: UtilityPV
+    #     +12%, LandbasedWind +8% (steel/tower content, less import-exposed
+    #     than solar), OffShoreWind +12% (steel-intensive), batteries +20%
+    #     (midpoint of the up-to-25% figure). NOT technology- or
+    #     supply-chain-specific; a real estimate would need engineering
+    #     bill-of-materials detail this build doesn't have.
+    #   - Higher gas price: this repo already has an `aeo2025` reference-case
+    #     config below (EIA series NG, `aeo_fuel_scenarios: reference`).
+    #     PROPOSED: add a sibling `aeo2025_high_gas` config using EIA AEO
+    #     2025's "Low Oil and Gas Supply" side case (tighter supply -> higher
+    #     price) in place of `reference` for naturalgas, as a sourced (not
+    #     invented) higher-price case. EIA's AEO2025 reference case has
+    #     Henry Hub reaching ~$3.80/MMBtu by 2030 (Rigzone/EIA long-term
+    #     outlook coverage); the exact $/MMBtu path for the "Low Oil and Gas
+    #     Supply" side case has not been pulled from the AEO2025 table set
+    #     here and should be verified against EIA's AEO Data Browser
+    #     (https://www.eia.gov/outlooks/aeo/data/browser/) before use, along
+    #     with confirming PowerGenome/this repo's `aeo_fuel_scenarios` key
+    #     accepts that exact case-name string.
+    # Revisit and get repo-owner sign-off on these figures before adding a
+    # real `tariffs` or `aeo2025_high_gas` config that scenario_inputs.csv
+    # rows can reference.
     fuel_price_forecast:
       aeo2025: # get coal and gas from AEO 2025 reference
         eia_series_fuel_names:
