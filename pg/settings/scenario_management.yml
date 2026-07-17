@@ -506,7 +506,7 @@ settings_management:
           "ETS 3": 33.43   # WA carbon price
       decarb:
         # national carbon tax at 200, to see what would be cheapest way to decarbonize
-        emission_policies_fn: emission_policies_decarb.csv
+        emission_policies_fn: rggi_carbon/emission_policies_decarb.csv
         carbon_cost_dollar_per_tco2: 200
         # override per-program costs so the scalar $200 applies to all programs
         carbon_cost_by_program: {}

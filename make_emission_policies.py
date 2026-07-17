@@ -420,12 +420,12 @@ tax_states = ["CA", "WA"]
 # start with the RGGI caps, then add CA and WA with a zero cap (they'll just pay
 # the slack price)
 # Use local 3rd-Program-Review cap file if present; fall back to ReEDS GitHub.
-# pg/extra_inputs/rggicon_3pr.csv encodes the 3rd PR model rule trajectory:
+# pg/extra_inputs/rggi_carbon/rggicon_3pr.csv encodes the 3rd PR model rule trajectory:
 #   2027: 69,806,919 short tons; declining 8,538,789/yr through 2033;
 #   then ~2,400,000/yr through 2037; flat thereafter pending 4th Program Review.
 # Units: short tons CO2 (same as RGGI allowance accounting).
 _rggicon_local = os.path.join(
-    os.path.dirname(__file__), "pg", "extra_inputs", "rggicon_3pr.csv"
+    os.path.dirname(__file__), "pg", "extra_inputs", "rggi_carbon", "rggicon_3pr.csv"
 )
 _rggicon_url = "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/emission_constraints/rggicon.csv"
 rggi_cap = pd.read_csv(
@@ -569,8 +569,8 @@ update_model_tag_names(osw_region["program"], "MinCapTag_")
 # %% #####################################
 # merge ESRs and CO2 targets and save to input_folder
 for file, cdf in [
-    ("emission_policies_current.csv", co2_wide),
-    ("emission_policies_decarb.csv", decarb_co2_wide),
+    ("rggi_carbon/emission_policies_current.csv", co2_wide),
+    ("rggi_carbon/emission_policies_decarb.csv", decarb_co2_wide),
 ]:
     ep = pd.concat([esr_wide, cdf], axis=1)
 
