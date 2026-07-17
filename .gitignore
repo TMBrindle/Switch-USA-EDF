@@ -12,6 +12,8 @@ switch/out/
 !adjust/**
 !PowerGenome/
 !PowerGenome/**
+!Guides and documentation/
+!Guides and documentation/**
 
 # include growth_rates/*.csv
 !growth_rates/

@@ -1,8 +1,17 @@
-# Transmission Modeling Changes
+# Changes to the Switch-USA-PG-ReEDS Pipeline
 
-This document records all changes made to add asymmetric transmission, new-build
-capacity derating, hurdle costs, and planned project build minimums to the
-ReEDS/Switch/PowerGenome pipeline.
+This document is the definitive, cumulative record of changes made to the
+ReEDS/Switch/PowerGenome pipeline relative to `edf-baseline`. Sections are
+numbered in the rough order features were added; each documents what changed,
+what files were touched, and what input files/columns control it. Usage
+guidance (how to prep inputs, build/toggle scenarios, caveats) for the more
+recent, more complex features lives in `Guides and documentation/` — this file
+covers *what changed*; the guides cover *how to use it*.
+
+Originally this document only covered transmission modeling changes (§1–9)
+and the in-zone generation ratio module (§10–12). §13 onward were migrated
+in from a separate `docs/CHANGELOG.md` (now superseded by this file) and
+extended with additional detail on the merge described in §20.
 
 ---
 
@@ -377,3 +386,413 @@ Key flags:
 | `gen_zone_groups_hurdlereg.csv` | Zone → hurdlereg group membership mapping |
 
 Full usage examples and worked scenario designs are in `gen_zone_ratio_instructions.txt`.
+
+---
+
+# RGGI Carbon Cap Framework
+
+---
+
+## 13. RGGI Regional Carbon Cap — Hard Cap, Two-Tier CCR, 48-Run Matrix
+
+**Date:** 2026-05-12 · **Branch:** `tom/carbon-caps`
+**See also:** `Guides and documentation/rggi_scenario_framework.md`,
+`Guides and documentation/rggi_hard_cap_ccr_and_floor.md` (§14 below extends this
+further — the floor-price mechanism described there was added after this entry)
+
+**Files changed:**
+- `pg/extra_inputs/scenario_inputs.csv` — added `rggi` column (default `RGGI10`); 2028/2030 rows for edf_med and icf
+- `pg/extra_inputs/rggicon_3pr.csv` (new) — RGGI 3rd Program Review cap trajectory
+- `pg/settings/scenario_management.yml` — `rggi` section; 2028 CCR prices; removed `state_policy_on`
+- `pg/settings/switch.yml` — registered `fix_p18p19_transmission.py` at order 12
+- `pg_to_switch.py` — VA zone alias generation; NSP blank alias file generation
+- `adjust/fix_p18p19_transmission.py` (new) — idempotent p18-p19 transmission line fix
+- `switch/study_modules/carbon_policies_regional.py` — two-tier CCR with pool caps; clearing price CSV output
+- `switch/Growth_Profiles/` (new) — load growth target CSVs
+
+### RGGI hard cap + two-tier CCR
+
+Replaced the previous soft escape valve with a hard RGGI base cap (ETS 1) plus two
+bounded CCR tiers (ETS 1_CCR1, ETS 1_CCR2). CCR pools are 10.66 Mt/yr each; trigger
+prices escalate at 7%/yr from a 2027 base of $19.50/$29.25 per short ton.
+
+CCR prices per model year ($/tCO₂):
+
+| Year | CCR T1 | CCR T2 |
+|------|--------|--------|
+| 2028 | $23.00 | $34.50 |
+| 2030 | $26.34 | $39.50 |
+| 2035 | $36.93 | $55.39 |
+
+### Hybrid alias run matrix
+
+Rather than running `pg_to_switch.py` for every policy variant, the framework uses
+`--input-alias` flags at solve time. `pg_to_switch.py` automatically generates alias
+files in every input folder: blank `_nsp` files for policy variants and
+`carbon_policies_regional_va.csv` for the RGGI10+VA cap variant.
+
+### Clearing price output
+
+`carbon_policies_regional.py` writes `carbon_program_clearing_prices.csv` to every
+output folder, reporting cap, emissions, CCR purchases, and LP dual price per
+program per period. (Column list superseded — see §14.)
+
+**Important:** always run with `--solver-options-string "crossover=1"`. Without
+crossover, the Gurobi barrier solver reports degenerate duals that lock to CCR
+trigger prices even when no CCR is drawn.
+
+### p18-p19 transmission fix
+
+Permanent fix via `adjust/fix_p18p19_transmission.py` (auto-run at order 12 after
+every `pg_to_switch.py` build), replacing the previous manual re-insertion step.
+
+---
+
+## 14. RGGI Floor Price, Per-Program Hard/Soft Caps, Auction Revenue, RGGI_VA gen_zone_ratio
+
+**Date:** 2026-05-15 to 2026-07-17 · **Branch:** `tom/regional-wind-caps` (merged via PR #7)
+**See also:** `Guides and documentation/rggi_hard_cap_ccr_and_floor.md` for full
+usage guidance, worked examples, and caveats — this section is a change summary only.
+
+**Files changed:**
+- `switch/study_modules/carbon_policies_regional.py` — `carbon_cost_by_program`
+  per-program hard/soft cap support; `FloorAllowances` supply-restriction mechanism
+  replacing an earlier flat floor-cost adder; `auction_revenue_dollar_per_yr` output column
+- `pg_to_switch.py` — reads `carbon_cost_by_program`/`carbon_floor_price_by_program`
+  from scenario settings; VA zones inherit floor price from ETS 1 rows
+- `pg/settings/switch.yml` — `carbon_cost_by_program`, `carbon_ccr` (pool sizes) moved here
+- `pg/settings/scenario_management.yml` — year-specific `carbon_ccr_prices` and
+  `carbon_floor_price_by_program` for 2028/2030/2035
+- `switch/study_modules/gen_zone_ratio.py` — directory walk-up to find `hierarchy.csv`
+  when absent from `inputs_dir` (fixes a **silent constraint skip** affecting all
+  `gen_zone_ratio` scenarios, not just RGGI_VA — see caveat below)
+- `hierarchy.csv` — new `rggi_va` column (16 RGGI+VA zones mapped to `RGGI_VA`)
+- `switch/study_modules/generators_core_dispatch.py` — fixed a variable-shadowing bug
+  in `FUEL_BASED_GENS_IN_PERIOD` init that silently corrupted results in multi-period
+  (foresight) models only (myopic runs were unaffected)
+
+### Per-program hard vs. soft cap
+
+RGGI (ETS 1) now enforces as a true hard cap (`AnnualCapViolation` bounded to 0),
+matching how RGGI allowances actually function, while CA (ETS 2) and WA (ETS 3)
+retain their soft escape-valve pricing. Controlled by `carbon_cost_by_program` in
+`pg/settings/switch.yml` (`"."` = hard cap).
+
+### Minimum reserve price via supply restriction (`FloorAllowances`)
+
+The RGGI/CA/WA auction minimum reserve price is now modeled as a
+`FloorAllowances` decision variable that restricts allowance supply (rather than
+a flat per-zone cost adder, the initial approach from 2026-05-15). The
+constraint dual directly encodes the clearing price in all three regimes
+(non-binding cap → floor price; CCR active → CCR trigger; binding without CCR →
+between the two) with no post-solve floor/scarcity-premium arithmetic needed.
+See `Guides and documentation/rggi_hard_cap_ccr_and_floor.md` Part 3 for the full
+mechanism and how to set/clear floor prices per program/year.
+
+### Auction revenue output
+
+`carbon_program_clearing_prices.csv` gained `floor_price_dollar_per_tco2` and
+`auction_revenue_dollar_per_yr` (`clearing_price × emissions`) columns, letting
+system-cost comparisons across RGGI policy variants separate the transfer
+payment (auction revenue) from net resource cost.
+
+### RGGI_VA gen_zone_ratio constraint + hierarchy.csv walk-up fix
+
+A new `rggi_va` column in `hierarchy.csv` lets `gen_zone_ratio` be scoped to the
+combined RGGI+VA footprint. While building this, a bug was found and fixed in
+`gen_zone_ratio.py`: it previously required `hierarchy.csv` to be present
+directly in the model's `inputs_dir`, and **silently skipped all group-level
+constraints** (with no error) if it wasn't there. It now walks up to 6 parent
+directories looking for `hierarchy.csv`. **This affects every `gen_zone_ratio`
+scenario that predates this fix, not just RGGI_VA** — any `gen_zone_ratio`
+group constraint run against a case where `hierarchy.csv` wasn't copied into
+the per-case inputs dir may have silently gone unenforced. There is not yet a
+preset `rggi_va` entry under `gen_zone_ratio:` in `scenario_management.yml` —
+see the guide for how to add one.
+
+### FUEL_BASED_GENS_IN_PERIOD shadowing bug
+
+An inner loop variable `p` shadowed the outer function parameter `p` in
+`generators_core_dispatch.py`, causing `d.pop(p)` to remove the wrong period's
+entry on the first call. Only manifests in multi-period (foresight) models.
+This set (`FUEL_BASED_GENS`, filtered by `TPS_FOR_GEN_IN_PERIOD`) feeds directly
+into the RGGI emissions constraint in `carbon_policies_regional.py`, so any
+foresight-mode RGGI results generated before this fix should be treated as
+suspect and re-run.
+
+---
+
+# Regional Wind Growth Caps & Zonal LMP Output
+
+---
+
+## 15. Regional (Per-Transreg) Wind Growth Caps
+
+**Date:** 2026-07-16 · **Branch:** `tom/regional-wind-caps` (merged via PR #7)
+**See also:** `Guides and documentation/regional_wind_caps_and_zonal_lmp.md` for
+full usage guidance, the three-tier methodology, and caveats.
+
+**Files changed:**
+- `make_emission_policies.py` — disaggregates the existing national
+  `MaxCapTag_WindGrowth` limit into nine per-transreg caps
+  (`MaxCapTag_WindGrowth_CAISO/ERCOT/ISONE/MISO/NYISO/NorthernGrid/PJM/SPP/WestConnect`)
+  via a three-tier methodology: ≤2028 pipeline method (LBNL interconnection queue),
+  2029–2030 regional historical-share method (EIA 860M), ≥2031 national cap only
+- `pg/settings/model_definition.yml`, `regional_resource_tags.yml`,
+  `resource_tags.yml`, `scenario_management.yml` — carry the new tag names and
+  per-period `max_mw` values
+- `pg/update_max_cap_files.py` (new) — regenerates `max_cap_generators.csv` /
+  `max_cap_requirements.csv` for existing case folders without a full `pg_to_switch.py` rerun
+
+**New required input:** `docs/analysis/RGGI/lbnl_queue_by_state.csv` (generated
+from `LBNL_Ix_Queue_Data_File_thru2025.xlsx` by
+`docs/analysis/RGGI/lbnl_queue_vs_model.py`) — the ≤2028 pipeline tier raises
+`FileNotFoundError` without it.
+
+---
+
+## 16. `write_zonal_lmp` Study Module
+
+**Date:** 2026-07-16 · **Branch:** `tom/regional-wind-caps` (merged via PR #7)
+**See also:** `Guides and documentation/regional_wind_caps_and_zonal_lmp.md`
+
+**File (new):** `switch/study_modules/write_zonal_lmp.py`
+
+Derives zonal LMPs ($/MWh) from the `Distributed_Energy_Balance[z, t]` constraint
+dual, dividing by `tp_weight_in_year[t]`. Writes `zonal_lmp.csv` (per zone ×
+timepoint, with an `is_extreme_day` flag) and `zonal_lmp_annual.csv`
+(load-weighted annual average, excluding extreme-day timepoints). Requires
+`switch_model.transmission.local_td` and a `dual` Suffix (already satisfied if
+`study_modules.write_dual_costs` loads first); silently no-ops with a printed
+message if either is missing. New CLI flag: `--lmp-extreme-day-threshold`
+(default 2.0).
+
+---
+
+## 17. Bug Fixes Found During Feature-Validation Testing (PR #7)
+
+**Date:** 2026-07-17 · **Branch:** `tom/regional-wind-caps` (merged via PR #7)
+
+- **`write_zonal_lmp.py` sort crash** — `sorted()` calls on `m.TIMEPOINTS` /
+  `m.LOAD_ZONES` lacked a `key=`, crashing on mixed int/str IDs. Fixed with `key=str`.
+- **`adjust/increase_timepoint_duration.py` path lookup** — hardcoded a fixed
+  parent-directory depth to locate `pg/extra_inputs/scenario_inputs.csv`, breaking
+  on foresight builds (`.../switch/in/foresight/{case_id}`, no single `{year}`
+  directory) and other nonstandard layouts. Now searches upward for the file and,
+  when no year can be parsed from the path, matches by `case_id` alone
+  (requiring all matched rows to agree on `tp_duration_hours`).
+- **`pg_to_switch.py` predetermined-capacity floor on `MaxCapTag_*`/`MinCapTag_*`
+  caps** — `cap_req_files()` could previously write a `max_cap_mw` below
+  already-committed predetermined capacity for a program's tagged generators,
+  making the model unconditionally infeasible regardless of any other input.
+  Every `pg_to_switch.py` run now automatically floors the cap at the summed
+  predetermined capacity and prints a `WARNING cap_req_files:` message when it
+  does so. **Applies to every `MaxCapTag_*`/`MinCapTag_*` program**, not just
+  the new regional wind caps.
+
+---
+
+## 18. Explicit `tp_duration_hours` Column
+
+**Date:** 2026-05-17 · **Branch:** `tom/carbon-caps`
+
+Added a `tp_duration_hours` column (`1` or `2`) to `pg/extra_inputs/scenario_inputs.csv`,
+making timepoint resolution an explicit, visible scenario dimension instead of an
+implicit default buried in `switch.yml`'s `model_adjustment_scripts` ordering.
+`adjust/increase_timepoint_duration.py` reads this column per case/year, raises a
+clear error if it's missing, and skips the 2-hour merge entirely when
+`tp_duration_hours == 1`. For `make_split_models: yes` cases, the timepoint-merge
+script must also be explicitly suppressed in `scenario_management.yml` — the two
+settings are not cross-validated against each other, so they can drift out of sync
+(see caveat in `Guides and documentation/rggi_hard_cap_ccr_and_floor.md` §6).
+
+---
+
+# Earlier Changes (migrated from `docs/CHANGELOG.md`)
+
+---
+
+## 19. gen_zone_ratio — apply_input_aliases Bug Fix + New Scenario Files
+
+**Date:** 2026-05-01
+
+**Files changed:**
+- `switch/study_modules/gen_zone_ratio.py`
+- `switch/in/2035/s4x1_caelp_parclust_zoned/gen_group_load_ratio_max1.30.csv` (new)
+
+### Bug fix — apply_input_aliases bypass
+
+The `_load_constraint_csv` helper in `gen_zone_ratio.py` called
+`pd.read_csv(os.path.join(inputs_dir, filename))` directly, bypassing Switch's
+`apply_input_aliases()`. This caused all
+`--input-alias gen_group_load_ratio.csv=gen_group_load_ratio_max*.csv` runs to
+silently use the baseline (no-max) file, making max×1.5 / ×2.0 / ×3.0 runs
+identical to the min-only baseline.
+
+Fix applied:
+```python
+from switch_model.utilities import apply_input_aliases
+```
+All three file paths in `load_inputs` now wrapped:
+```python
+apply_input_aliases(switch_data, os.path.join(inputs_dir, "gen_group_load_ratio.csv"))
+apply_input_aliases(switch_data, os.path.join(inputs_dir, "gen_zone_groups.csv"))
+apply_input_aliases(switch_data, os.path.join(inputs_dir, "gen_zone_load_ratio.csv"))
+```
+
+**Impact:** All prior max× scenario runs (×1.5, ×2.0, ×3.0) before this fix are
+invalid results.
+
+### New scenario file — gen_group_load_ratio_max1.30.csv
+
+31 hurdlereg groups, PERIOD=2035. Each row: `min_annual_ratio = historical_min`,
+`max_annual_ratio = historical_max × 1.30`. Activated via:
+```
+--input-alias gen_group_load_ratio.csv=gen_group_load_ratio_max1.30.csv
+```
+
+Feasibility: confirmed feasible for `s4x1_caelp_parclust_zoned_high_fossil_build`
+and `s4x1_caelp_parclust_zoned_high_renewable`. At ×1.0 (historical max), 12
+groups bind simultaneously → infeasible. The tightest feasible multiplier in
+high_fossil is approximately ×1.25–1.30 with PacifiCorp_West as the binding
+constraint.
+
+### Analysis scripts added (root directory)
+
+- `compare_gen_scenarios.py` — dispatch_zonal_annual_summary comparison between
+  two runs; maps zones to states/hurdlereg
+- `compare_capacity_scenarios.py` — gen_cap/BuildGen/SuspendGen comparison; uses
+  gen_info.csv join (BuildGen.csv has no LOAD_ZONE column)
+- `check_ratio_violations.py` — identifies hurdlereg groups exceeding historical
+  max ratio in a given run
+
+### Key findings from scenario comparison (high_fossil_build unconstrained vs max×1.30)
+
+- PacifiCorp_West (p6+p8): model builds 4,399 MW new gas CC in OR at 90% CF for
+  export to CA via existing corridors. Max×1.30 eliminates this; cost increases ~$200M.
+- CA substitutes local gas when OR imports cut (CF 11% → 21%), doubling CA emissions.
+- Oregon CES not binding: `unbundled_rec_limit_fraction=1.0` allows OR CES met
+  100% via RECs elsewhere.
+
+### Key findings from scenario comparison (high_renewable unconstrained vs max×1.30)
+
+- Solar redistribution: 6,966 MW solar shifts from TVA to Southern Co —
+  constraint redirects solar to regions with actual load.
+- CA unrealistic new gas: ~38,000 MW new gas CC built in CA zones under
+  unconstrained run (I-07).
+- CA carbon cost increase: 5.0M additional tCO2 × $33.43/ton ≈ $168M ≈ 24% of
+  $705M total cost increase.
+- CA CES compliance via BPA-area URECs: 366M MWh unbundled RECs from p14 (I-09).
+
+See `docs/issues/ca_policy_realism.md` and
+`docs/issues/gen_zone_ratio_next_steps.md` for filed issues and next steps
+(local/untracked reference docs).
+
+---
+
+## 20. Region Scope / Geographic Aggregation (`pg_to_switch.py`)
+
+**Date:** 2026-04-01
+
+**Files changed:** `pg_to_switch.py`, `pg/extra_inputs/scenario_inputs.csv`
+
+Added scenario-manageable geographic aggregation via a `region_scope` column in
+`scenario_inputs.csv`. Allows the 134-BA model to be aggregated into 48 states
+(`st`) or 3 interconnects (`interconnect`) for smaller, faster solves. All
+policy types are remapped after aggregation.
+
+Key functions added to `pg_to_switch.py`:
+- `build_region_scope()` — builds zone_map and region_aggregations from `hierarchy.csv`
+- `_patch_aggregate_zone_settings()` — remaps p-zone references in PG settings to aggregate zones
+- `_patch_zone_keyed()` — deep-merges nested dicts (critical for `regional_tag_values`)
+- `remap_policies()` — remaps all 5 policy CSVs after generator building
+
+Policy types handled: CO2 caps (summed), RPS (zone remapped), PRR zones,
+min/max cap requirements (MW summed, program names remapped).
+
+**Bug fix (2026-03-31):** `load_settings()` pre-expands `region:"all"`
+renewables_clusters entries to p1–p134 before the scope injection runs. Fixed
+by replacing p-zone `region` values with aggregate zone names in the injection
+block and deduplicating. Without this fix no solar/wind/offshore ATB resources
+were built for aggregate zones.
+
+**Known limitation:** Interconnect-level model is currently infeasible for
+offshore wind due to state mandate aggregation — see
+`docs/issues/offshore_wind_infeasibility.md` (local/untracked reference doc).
+
+---
+
+## 21. Coal VOM Fix (`nrelatb.py`)
+
+**Date:** ~2026-03-28
+
+**Files changed:** `PowerGenome/powergenome/nrelatb.py` (lines 857–869)
+
+Replaced the flat $1.78/MWh (2017$) coal variable O&M value with FGD-binary
+values from EPA IPM Platform v6, Chapter 4, Table 4-8 (2019$):
+
+| FGD status | VOM (2019$) | VOM (~2024$) |
+|---|---|---|
+| With FGD (≥50% of cluster) | $5.20/MWh | ~$6.39/MWh |
+| Without FGD (<50%) | $2.85/MWh | ~$3.50/MWh |
+
+Uses `np.mean(fgd) >= 0.5` threshold (same `fgd` array already computed for
+fixed O&M). Inflates from 2019$ using existing `inflation_price_adjustment()`.
+87% of coal capacity by MW has FGD installed.
+
+**Related files:** `coal_vom.csv` (zone-specific IPM values for reference),
+`PowerGenome/data/coal_fgd/fgd_output.csv` (plant-level FGD status).
+
+---
+
+## 22. NGCC VOM Adjustment Reverted
+
+**Date:** ~2026-03-28
+
+**Files changed:** `.bat` run scripts in `switch/`
+
+Removed the `--alias gen_info=gen_info_adjusted.csv` flag from run scripts.
+Future runs use standard `gen_info.csv` with PowerGenome's base CC VOM
+(~$4.69/MWh in 2024$). The adjusted file (`gen_info_adjusted.csv`, CC VOM
+~$2.50/MWh) is retained in `switch/in/foresight/s4x1_caelp_parclust_prm/` for
+reference but is no longer active.
+
+---
+
+## 23. Utility-Based Generator Clustering
+
+**Date:** ~2026-03-25
+
+**Files changed:** `PowerGenome/powergenome/generators.py`,
+`pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv`
+
+Added `cluster_existing_by_utility` support via a new `gen_clustering` column in
+`scenario_inputs.csv`. Allows separate generator clusters per utility/owner
+within each (region, technology) group, enabling attribution of generation
+decisions to specific utilities in Switch outputs.
+
+Design choices:
+- `num_clusters[tech]` applies independently within each utility sub-group
+  (total = (n_utilities + 1) × num_clusters[tech])
+- CO2 ranking is global across all regions/technologies
+- Cluster labels: `{utility_id}_{k}` for targeted utilities, `other_{k}` for the remainder
+- Resource IDs: `{region}_{technology}_{utility_id}_{k}`
+- Pre-flight warning logs the cluster count expansion table before the
+  clustering loop runs
+
+Scenarios defined in `scenario_management.yml`: `none`, `top5_co2`, `top10_co2`.
+
+Test run `s4x1_caelp_ut5clust` (2030, top5_co2): produced 162 clusters vs. 79 baseline.
+Top-5 utilities by CO2: 195, 6452, 7140, 18642, 19876.
+
+---
+
+## 24. Historical Period Policy Removal Script
+
+**Date:** ~2026-03
+
+**Files changed:** `switch/study_modules/` (commit `c3afbe6`)
+
+Added a script to remove RPS, CES, min-cap, and max-cap policies for historical
+(non-planning) periods. Prevents constraint infeasibility in historical
+calibration runs where future policy targets should not apply.
