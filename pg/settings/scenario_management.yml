@@ -448,6 +448,28 @@ settings_management:
     # already bakes in the ccs90 settings directly (see above) so it doesn't
     # depend on this axis also being selected correctly.
     #
+    # *** DO NOT SELECT A NON-`none` ccs_capture_rate VALUE IN THE SAME
+    # SCENARIO ROW AS clean_power_regs: caa_2024_rule ***. `ccs90` sets the
+    # exact same ccs_fuel_map/ccs_capture_rate/co2_pipeline_filters keys as
+    # caa_2024_rule (by design -- both represent the same 90% capture rate),
+    # which means PowerGenome's settings-merge conflict guard will raise a
+    # ValueError if both columns are non-`none` in the same row, EVEN THOUGH
+    # the values are identical (the guard only checks whether a key was
+    # already touched by a different category/level flag, not whether the
+    # values agree). This is left as-is/undsolved at the YAML level (per
+    # repo-owner direction) rather than reworked, because `ccs_capture_rate`
+    # can't make CCS technologies buildable on its own anyway -- the
+    # atb_new_gen entries that actually make Coal/CCS90AvgCF and
+    # NaturalGas/CCCCSAvgCF buildable only exist inside
+    # clean_power_regs.caa_2024_rule's year-block overrides (2035+), not
+    # here. So in practice: CCS availability is controlled ENTIRELY by
+    # clean_power_regs today. `ccs_capture_rate` is reserved for a future
+    # scenario architecture where CCS build options become selectable
+    # independently of the regulatory driver (e.g. a voluntary-CCS
+    # sensitivity) -- until that atb_new_gen wiring exists elsewhere, treat
+    # `ccs_capture_rate` and `clean_power_regs` as mutually exclusive when
+    # picking scenario_inputs.csv values (leave one at `none`).
+    #
     # *** CCS DATA INVESTIGATION -- what PowerGenome/this repo's data
     # actually supports, verified by direct inspection (not assumed): ***
     #   - PowerGenome has a generic, built-in CCS mechanism: `ccs_fuel_map`
@@ -650,22 +672,49 @@ settings_management:
     # ─────────────────────────────────────────────────────────────────────
     # barrier_reduction: a distinct POLICY-REFORM config (streamlined
     # interconnection/permitting), NOT a milder version of the
-    # constraint_removal sensitivity below, even though both touch
-    # gen_zone_ratio, trans_path_expansion_limit (via trans_expansion), and
-    # MaxCapTag_WindGrowth. `reform` applies a PARTIAL relaxation to those
-    # three mechanisms, plus an RE/storage cost-reduction proxy representing
-    # subsidized interconnection/grid-upgrade costs.
+    # constraint_removal sensitivity below, even though both are meant to
+    # relax gen_zone_ratio, trans_path_expansion_limit, and
+    # MaxCapTag_WindGrowth.
+    #
+    # *** COMPOSABILITY FIX (was crashing) -- each axis now touches ONLY the
+    # keys it's uniquely responsible for. Earlier versions of this axis (and
+    # of tariffs/constraint_removal) set trans_expansion_policy,
+    # gen_zone_ratio_agg/min_spec/max_spec, and full copies of
+    # atb_modifiers.{batteries,geothermal,ngcc,ngct} directly. Since
+    # PowerGenome's settings-merge (build_scenario_settings in
+    # powergenome/util.py) hard-crashes with a ValueError whenever two
+    # DIFFERENT scenario_inputs.csv columns touch the exact same flattened
+    # settings key in the same row (regardless of whether the values agree),
+    # that meant `barrier_reduction: reform` collided with: every
+    # non-`none`/`zero` value of the PRE-EXISTING trans_expansion and
+    # gen_zone_ratio columns (both of which already exist in every
+    # scenario_inputs.csv row today), with tax_credits (any config), with
+    # tariffs, and with constraint_removal. Fixed by removing those three
+    # categories of keys from `reform` entirely:
+    #   - trans_expansion_policy: REMOVED. To get the intended NERC-growth
+    #     transmission relaxation, ALSO select `trans_expansion: nerc_growth`
+    #     (the pre-existing axis) in the same scenario row.
+    #   - gen_zone_ratio_agg/min_spec/max_spec: REMOVED. To get an
+    #     intentionally loosened envelope, ALSO select a relaxed
+    #     `gen_zone_ratio` config (pre-existing axis, e.g. `st_hist_range` or
+    #     looser) in the same scenario row; leaving `gen_zone_ratio: none`
+    #     (today's universal default) is also compatible (no constraint at
+    #     all) with `reform`.
+    #   - atb_modifiers.{batteries,geothermal,ngcc,ngct}: REMOVED (was a
+    #     full copy of resources.yml's base entries, added defensively in
+    #     case this axis's atb_modifiers fully replaced rather than
+    #     deep-merged with the base dict -- update_dictionary() in
+    #     PowerGenome actually recurses into nested dicts, so this
+    #     replication was unnecessary AND was the direct cause of the
+    #     tax_credits/tariffs collisions). `reform` now only sets its own
+    #     uniquely-named atb_modifiers entries (below), which compose safely
+    #     with whatever tax_credits/tariffs also set for batteries/
+    #     geothermal/ngcc/ngct.
     #
     # *** PLACEHOLDER / HOLDING VALUES -- not derived from a specific policy
     # proposal, chosen only to be a defensible, implementable middle ground
     # between `none` and full removal. Revisit if scenario results turn out
     # sensitive to these: ***
-    #   - gen_zone_ratio: loosen the historical min/max envelope by 30% at
-    #     state level (vs. the unloosened "st_hist_range" config, and vs.
-    #     fully removing the constraint under constraint_removal).
-    #   - trans_path_expansion_limit: allow NERC-region-growth-based
-    #     expansion (trans_expansion_policy: nerc_growth) instead of the
-    #     default "zero growth" limit, but NOT fully unlimited.
     #   - MaxCapTag_WindGrowth: exempt LandbasedWind ONLY (not OffShoreWind)
     #     from the national wind supply-chain growth cap, as a placeholder
     #     proxy for onshore-specific interconnection-queue reform. Chosen
@@ -674,43 +723,19 @@ settings_management:
     #     make_emission_policies.py to support a scenario-driven multiplier,
     #     which hasn't been built.
     #   - RE/storage cost-reduction proxy: 10% capex reduction on new
-    #     UtilityPV, LandbasedWind, OffShoreWind (both classes), and
-    #     batteries, representing subsidized/streamlined interconnection and
-    #     grid-upgrade costs. Duplicates the base atb_modifiers entries
-    #     (ngcc/ngct/batteries/geothermal) alongside the new reform entries
-    #     so nothing from the base file is silently dropped if this scenario
-    #     axis's atb_modifiers replaces (rather than deep-merges with) the
-    #     base dict.
+    #     UtilityPV, LandbasedWind, and OffShoreWind (both classes),
+    #     representing subsidized/streamlined interconnection and
+    #     grid-upgrade costs. Batteries intentionally NOT included here (no
+    #     unique storage-specific "barrier reduction" rationale was proposed
+    #     for batteries the way there was for tariffs' import-cost story;
+    #     revisit if that's wanted).
     barrier_reduction:
       none: ~
       reform:
-        gen_zone_ratio_agg: st
-        gen_zone_ratio_min_spec: min*0.7
-        gen_zone_ratio_max_spec: max*1.3
-        trans_expansion_policy: nerc_growth
         model_tag_values:
           MaxCapTag_WindGrowth:
             LandbasedWind: 0
         atb_modifiers:
-          batteries:
-            technology: Utility-Scale Battery Storage
-            tech_detail: Lithium Ion
-            Var_OM_Cost_per_MWh: [add, 0.15]
-            Var_OM_Cost_per_MWh_In: 0.15
-            capex_mw: [mul, 0.63] # 0.7 (storage ITC) x 0.9 (reform proxy)
-            capex_mwh: [mul, 0.63]
-          geothermal:
-            technology: Geothermal
-            tech_detail: "*"
-            capex_mw: [mul, 0.7]
-          ngcc:
-            technology: NaturalGas
-            tech_detail: 1-on-1 Combined Cycle (H-Frame)
-            capex_mw: 2061000
-          ngct:
-            technology: NaturalGas
-            tech_detail: Combustion Turbine (F-Frame)
-            capex_mw: 1606000
           utilitypv_reform:
             technology: UtilityPV
             tech_detail: Class1
@@ -738,20 +763,46 @@ settings_management:
     # of gen_zone_ratio / trans_path_expansion_limit / MaxCapTag_WindGrowth /
     # retirement flags, and is confirmed to stay active/untouched here --
     # `full` below does not reference or modify it.
+    #
+    # *** COMPOSABILITY FIX (was crashing) -- see the matching note under
+    # barrier_reduction above for the general problem (PowerGenome's
+    # settings-merge hard-crashes on any key touched by two different
+    # scenario_inputs.csv columns in the same row). Two specific fixes here:
+    #   - trans_expansion_policy: REMOVED (was colliding with the
+    #     pre-existing trans_expansion column on EVERY row, and with
+    #     barrier_reduction: reform). To get full transmission-expansion
+    #     removal, ALSO select `trans_expansion: unlimited` (pre-existing
+    #     axis) in the same scenario row.
+    #   - Un-banning OffShoreWind: previously set
+    #     model_tag_values.MaxCapTag_Ban.OffShoreWind: 0, which collides
+    #     directly with offshore_wind_policy.capped_2025 setting the same
+    #     key to 1 (same leaf key, different values -- still a crash; the
+    #     conflict guard doesn't check value equality). Fixed by instead
+    #     raising MaxCapReq.MaxCapTag_Ban.max_mw (the shared ceiling that
+    #     ALL MaxCapTag_Ban=1 resources are limited to, currently 0 by
+    #     default in resources.yml, and never touched by
+    #     offshore_wind_policy or any other axis here) to a large number.
+    #     This achieves the same practical effect -- the ban becomes
+    #     non-binding -- via a key offshore_wind_policy never sets, so there
+    #     is no collision even though offshore_wind_policy still tags
+    #     OffShoreWind as MaxCapTag_Ban=1. NOTE: MaxCapTag_Ban is shared
+    #     infrastructure also used by resource_limits (low_gas/high_gas/
+    #     increased_ambition, legacy p1_low_gas/p1_high_gas
+    #     research/inspection cases) -- raising its ceiling here also lifts
+    #     any ban resource_limits sets, if that axis is ALSO selected
+    #     non-`none` in the same row. Not expected to matter for the
+    #     Scenario 1-3 / sensitivity rows this build is aimed at (none of
+    #     them use resource_limits), but flagged here for completeness.
     constraint_removal:
       none: ~
       full:
-        trans_expansion_policy: unlimited
         model_tag_values:
           MaxCapTag_WindGrowth:
             Wind: 0 # removes both LandbasedWind and OffShoreWind from the cap
-          # Explicitly un-bans OffShoreWind regardless of whatever
-          # offshore_wind_policy config a scenario row also selects -- `full`
-          # is meant to strip every deployment constraint this build knows
-          # about, so it should win over offshore_wind_policy.capped_2025 if
-          # both happen to be selected together in the same scenario row.
+        MaxCapReq:
           MaxCapTag_Ban:
-            OffShoreWind: 0
+            description: banned technologies
+            max_mw: 999999999 # effectively unlimited -- see note above
         # gen_zone_ratio_agg / gen_zone_ratio_min_spec / gen_zone_ratio_max_spec
         # intentionally omitted (unset = no constraint, same effect as the
         # gen_zone_ratio axis's "none" config).
@@ -1246,42 +1297,34 @@ settings_management:
     # would need engineering bill-of-materials detail this build doesn't
     # have.
     #
-    # Replicates the full base atb_modifiers dict (batteries/geothermal/
-    # ngcc/ngct) alongside the tariff-specific entries so nothing from
-    # resources.yml is silently dropped if this axis's atb_modifiers
-    # replaces (rather than deep-merges with) the base dict -- same pattern
-    # as barrier_reduction above. COMPOSABILITY CAVEAT: batteries' capex
-    # here (0.7 storage ITC x 1.20 tariff = 0.84) assumes the default/
-    # full_ira storage ITC is in effect; if a scenario row combines
-    # `tariffs` with `tax_credits: repealed` (storage ITC off), the two
-    # axes' atb_modifiers.batteries entries will collide (whichever axis is
-    # merged last wins) rather than compose -- not a supported combination
-    # without manually reconciling the capex multiplier. Scenario 2's
-    # intended composition (tax_credits: no_wind_solar, which keeps the
-    # storage ITC) is internally consistent with the 0.84 used here.
+    # *** COMPOSABILITY FIX (was crashing) -- see the matching note under
+    # barrier_reduction above for the general problem. This axis previously
+    # re-declared atb_modifiers.batteries/geothermal/ngcc/ngct in full
+    # (colliding with tax_credits and barrier_reduction on the exact same
+    # keys). Fixed properly, not just by removing the replication: verified
+    # in PowerGenome's nrelatb.py (the atb_modifiers application loop) that
+    # each atb_modifiers dict entry is applied as an INDEPENDENT operation,
+    # matched by its own `technology`/`tech_detail` fields and applied to
+    # whatever the CURRENT value already is -- so multiple differently-named
+    # entries that target the SAME technology/tech_detail correctly COMPOUND
+    # in dict-iteration order, they don't overwrite each other. So instead of
+    # baking in "0.7 (ITC) x 1.20 (tariff) = 0.84" as a single hardcoded
+    # batteries entry, this now uses its own uniquely-named
+    # `batteries_tariff` entry with ONLY the tariff's own x1.20 factor. It
+    # composes correctly with whatever tax_credits sets for batteries
+    # (0.7 for full_ira/no_wind_solar, 1.0 for repealed) with NO collision
+    # and no "assumes full_ira" caveat needed. Geothermal/ngcc/ngct are not
+    # touched at all (no tariff-specific adjustment was ever proposed for
+    # them; they keep whatever the base resources.yml or other axes set).
     tariffs:
       none: ~
       section232_2025:
         atb_modifiers:
-          batteries:
+          batteries_tariff:
             technology: Utility-Scale Battery Storage
             tech_detail: Lithium Ion
-            Var_OM_Cost_per_MWh: [add, 0.15]
-            Var_OM_Cost_per_MWh_In: 0.15
-            capex_mw: [mul, 0.84] # 0.7 (storage ITC) x 1.20 (tariff adder)
-            capex_mwh: [mul, 0.84]
-          geothermal:
-            technology: Geothermal
-            tech_detail: "*"
-            capex_mw: [mul, 0.7]
-          ngcc:
-            technology: NaturalGas
-            tech_detail: 1-on-1 Combined Cycle (H-Frame)
-            capex_mw: 2061000
-          ngct:
-            technology: NaturalGas
-            tech_detail: Combustion Turbine (F-Frame)
-            capex_mw: 1606000
+            capex_mw: [mul, 1.20]
+            capex_mwh: [mul, 1.20]
           utilitypv_tariff:
             technology: UtilityPV
             tech_detail: Class1
