@@ -23,26 +23,49 @@ def parse_arguments():
     return options
 
 
-def get_tp_duration_hours(in_dir):
-    """Look up tp_duration_hours for this case/year from scenario_inputs.csv.
+def find_scenario_inputs_csv(in_dir, max_levels=8):
+    """Walk up from in_dir looking for pg/extra_inputs/scenario_inputs.csv.
 
-    Expected path structure: {project_root}/switch/in/{year}/{case_id}
-    scenario_inputs.csv is at:  {project_root}/pg/extra_inputs/scenario_inputs.csv
+    This avoids hardcoding the project root at a fixed depth below in_dir, so it
+    works regardless of how deeply nested the inputs dir is (e.g. the normal
+    .../switch/in/{year}/{case_id}, a foresight build at .../switch/in/foresight/{case_id},
+    or a test-only tree like .../switch/in_tests/{year}/{case_id}).
+    """
+    check = in_dir
+    for _ in range(max_levels):
+        candidate = check / "pg" / "extra_inputs" / "scenario_inputs.csv"
+        if candidate.exists():
+            return candidate
+        parent = check.parent
+        if parent == check:
+            break
+        check = parent
+    raise FileNotFoundError(
+        f"Could not find pg/extra_inputs/scenario_inputs.csv by walking up from {in_dir} "
+        f"(searched up to {max_levels} parent directories)."
+    )
+
+
+def get_tp_duration_hours(in_dir):
+    """Look up tp_duration_hours for this case (and year, if available) from
+    scenario_inputs.csv.
+
+    Handles both per-year layouts (.../in/{year}/{case_id}, where year is parsed
+    from the parent directory name) and foresight/multi-period layouts
+    (.../in/foresight/{case_id}, where there's no single year in the path — in
+    that case all scenario_inputs.csv rows for case_id must agree on
+    tp_duration_hours, since the built inputs apply one resolution across all
+    periods).
     """
     in_dir = Path(in_dir).resolve()
     case_id = in_dir.name
+
     try:
         year = int(in_dir.parent.name)
     except ValueError:
-        raise ValueError(
-            f"Cannot parse year from path {in_dir}; expected .../in/{{year}}/{{case_id}}"
-        )
+        year = None  # no year in path (e.g. a foresight build) — match on case_id only
 
-    # project root is 4 levels up: case_id / year / in / switch / project_root
-    si_path = in_dir.parent.parent.parent.parent / "pg" / "extra_inputs" / "scenario_inputs.csv"
-    if not si_path.exists():
-        raise FileNotFoundError(f"scenario_inputs.csv not found at {si_path}")
-
+    si_path = find_scenario_inputs_csv(in_dir)
     si = pd.read_csv(si_path)
     if "tp_duration_hours" not in si.columns:
         raise KeyError(
@@ -50,13 +73,27 @@ def get_tp_duration_hours(in_dir):
             "add a column with values 1 or 2 for each case."
         )
 
-    row = si[(si["case_id"] == case_id) & (si["year"] == year)]
-    if row.empty:
-        raise KeyError(
-            f"No row found for case_id={case_id!r}, year={year} in scenario_inputs.csv"
+    if year is not None:
+        rows = si[(si["case_id"] == case_id) & (si["year"] == year)]
+        if rows.empty:
+            raise KeyError(
+                f"No row found for case_id={case_id!r}, year={year} in scenario_inputs.csv"
+            )
+    else:
+        rows = si[si["case_id"] == case_id]
+        if rows.empty:
+            raise KeyError(f"No rows found for case_id={case_id!r} in scenario_inputs.csv")
+
+    values = rows["tp_duration_hours"].unique()
+    if len(values) > 1:
+        raise ValueError(
+            f"scenario_inputs.csv has inconsistent tp_duration_hours values {sorted(values)} "
+            f"for case_id={case_id!r}"
+            + (f", year={year}" if year is not None else " across its periods")
+            + " — a single built inputs dir can only use one resolution."
         )
 
-    return int(row["tp_duration_hours"].iloc[0])
+    return int(values[0])
 
 
 # %% main code

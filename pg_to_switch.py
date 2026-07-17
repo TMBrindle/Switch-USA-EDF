@@ -2017,18 +2017,51 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
             mcr = mcr[dfs[0].columns]
             dfs.append(mcr)
     # aggregate across years and write to file
-    mcr = pd.concat(dfs, axis=0)
-    mcr.to_csv(out_folder / f"{minmax}_cap_requirements.csv", index=False)
+    mcr = pd.concat(dfs, axis=0).reset_index(drop=True)
 
     # remove any generator assignments for inactive min_cap programs
     out_file = out_folder / f"{minmax}_cap_generators.csv"
     try:
         limited_cap_gens = pd.read_csv(out_file)
     except FileNotFoundError:
-        pass
+        limited_cap_gens = None
     else:
         limited_cap_gens = limited_cap_gens.merge(mcr[f"{MINMAX}_CAP_PROGRAM"])
         limited_cap_gens.to_csv(out_file, index=False)
+
+    if minmax == "max" and limited_cap_gens is not None and not limited_cap_gens.empty:
+        # A max_cap_mw below the predetermined (already-built/committed) capacity
+        # of a program's tagged generators makes the model immediately infeasible,
+        # regardless of anything else -- the fixed predetermined-build variables
+        # can't be "unbuilt" to satisfy the cap. Raise the cap to that floor.
+        try:
+            pred = pd.read_csv(out_folder / "gen_build_predetermined.csv")
+        except FileNotFoundError:
+            pred = None
+        if pred is not None:
+            pred = pred.copy()
+            pred["build_gen_predetermined"] = pd.to_numeric(
+                pred["build_gen_predetermined"], errors="coerce"
+            ).fillna(0)
+            pred_by_gen = pred.groupby("GENERATION_PROJECT")["build_gen_predetermined"].sum()
+            pred_floor = (
+                limited_cap_gens.assign(
+                    predetermined_mw=limited_cap_gens["MAX_CAP_GEN"].map(pred_by_gen).fillna(0)
+                )
+                .groupby("MAX_CAP_PROGRAM")["predetermined_mw"]
+                .sum()
+            )
+            for idx, row in mcr.iterrows():
+                floor_mw = pred_floor.get(row["MAX_CAP_PROGRAM"], 0)
+                if floor_mw > row["max_cap_mw"]:
+                    print(
+                        f"WARNING cap_req_files: {row['MAX_CAP_PROGRAM']} ({row['PERIOD']}) "
+                        f"max_cap_mw {row['max_cap_mw']:.1f} is below predetermined capacity "
+                        f"{floor_mw:.1f}; raising cap to the predetermined floor."
+                    )
+                    mcr.loc[idx, "max_cap_mw"] = floor_mw
+
+    mcr.to_csv(out_folder / f"{minmax}_cap_requirements.csv", index=False)
 
 
 def model_adjustment_scripts(scen_settings_dict, settings_file, out_folder):

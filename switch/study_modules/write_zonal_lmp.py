@@ -67,14 +67,14 @@ def post_solve(m, outputs_dir):
             "lmp_real_per_mwh", "load_mw", "tp_weight_hr", "is_extreme_day",
         ])
 
-        for t in sorted(m.TIMEPOINTS):
+        for t in sorted(m.TIMEPOINTS, key=str):
             tp_weight = value(m.tp_weight_in_year[t])
             period = m.tp_period[t]
             ts = m.tp_ts[t]
             scale = value(m.ts_scale_to_period[ts])
             is_extreme = scale < threshold
 
-            for z in sorted(m.LOAD_ZONES):
+            for z in sorted(m.LOAD_ZONES, key=str):
                 constr = m.Distributed_Energy_Balance[z, t]
                 dual_per_mw = m.dual.get(constr, 0.0)
                 lmp = dual_per_mw / tp_weight if tp_weight else 0.0
@@ -109,7 +109,7 @@ def post_solve(m, outputs_dir):
             "lmp_annual_avg_real_per_mwh",
             "load_weighted_twh",
         ])
-        for (z, p) in sorted(annual_acc):
+        for (z, p) in sorted(annual_acc, key=lambda zp: (str(zp[0]), str(zp[1]))):
             lmp_wt_sum, load_wt_sum = annual_acc[(z, p)]
             avg_lmp = lmp_wt_sum / load_wt_sum if load_wt_sum else 0.0
             load_twh = load_wt_sum / 1e6  # MW × hr → TWh
