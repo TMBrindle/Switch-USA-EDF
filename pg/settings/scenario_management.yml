@@ -283,33 +283,87 @@ settings_management:
             capex_mw: [mul, 1.0] # storage ITC repealed
             capex_mwh: [mul, 1.0]
     # ─────────────────────────────────────────────────────────────────────
-    # clean_power_regs: EPA Clean Air Act 111(b)/(d) rule ("Clean Power Plan
-    # 2.0") -- a new-gas CCS build requirement bundled with the existing-coal
-    # compliance pathway it drives. Bundled into a single axis (rather than
-    # two) because both provisions come from the same rulemaking and are
-    # meant to toggle together.
+    # clean_power_regs: EPA's final GHG rule for the power sector ("Clean
+    # Power Plan 2.0"), covering both provisions that come from the same
+    # rulemaking, bundled into one axis since they're meant to toggle
+    # together:
+    #   - New Source Performance Standards (CAA 111(b)) for new/modified/
+    #     reconstructed fossil-fuel-fired combustion turbines
+    #   - Emission Guidelines (CAA 111(d)) for existing coal-fired steam EGUs
     #
-    # *** STOP-AND-ASK: SCAFFOLDING ONLY -- NO RULE PROVISIONS IMPLEMENTED ***
-    # The repo owner needs to confirm, before any real thresholds go in:
-    #   1. Source/citation to use. Planning conversation referenced the 2024
-    #      EPA rule (finalized Apr 2024: 90% CCS on new baseload gas
-    #      combustion turbines by 2032; phased existing-coal requirements
-    #      including retirement-based and CCS-based compliance pathways by
-    #      unit subcategory). That rule is under active litigation into
-    #      2025 (stayed for existing coal provisions as of early 2025 per
-    #      public reporting at the time of this scaffolding; new-gas
-    #      provisions' litigation status should also be reconfirmed).
-    #   2. Interpretation: does "Jan 2025 policy as it stood" mean the rule
-    #      AS FINALIZED (assume it survives litigation), or a more
-    #      conservative reading that treats it as largely non-binding given
-    #      the litigation posture at that time?
-    #   3. Exact compliance thresholds/dates/subcategories to encode once
-    #      (1) and (2) are answered.
-    # See switch/study_modules/clean_power_regs.py for the module skeleton
-    # this axis is meant to eventually drive (currently a documented no-op).
+    # CITATION: "New Source Performance Standards for Greenhouse Gas
+    # Emissions From New, Modified, and Reconstructed Fossil Fuel-Fired
+    # Electric Generating Units; Emission Guidelines for Greenhouse Gas
+    # Emissions From Existing Fossil Fuel-Fired Electric Generating Units;
+    # and Repeal of the Affordable Clean Energy Rule," 89 Fed. Reg. 39798
+    # (May 9, 2024), FR Doc. 2024-09233, Docket ID EPA-HQ-OAR-2023-0072,
+    # codified at 40 CFR Part 60. Effective July 8, 2024.
+    # https://www.federalregister.gov/documents/2024/05/09/2024-09233/
+    #
+    # Per repo-owner direction: `caa_2024_rule` implements the rule AS
+    # FINALIZED (in full legal effect), treating "Jan 2025 policy as it
+    # stood" as "rule stands" regardless of litigation risk at that time.
+    # `none` is the no-rule config (Scenarios 2/3).
+    #
+    # PROVISIONS IMPLEMENTED (both via the predetermined-retirement-override
+    # mechanism built for retirement_policy, and via atb_new_gen):
+    #
+    #   1. New gas -- 111(b) NSPS: base-load new stationary combustion
+    #      turbines (EPA's subcategory for units with a projected capacity
+    #      factor > 40%) must meet an emission standard reflecting 90% CO2
+    #      capture and storage, effective January 1, 2032 (the rule offers
+    #      an alternative low-GHG-hydrogen-cofiring compliance pathway --
+    #      NOT modeled here, since no hydrogen-cofiring generator exists in
+    #      this pipeline). Modeled as: ban new unabated
+    #      "1-on-1 Combined Cycle (H-Frame)" (the only base-load-type new
+    #      gas technology in atb_new_gen -- "Combustion Turbine (F-Frame)"
+    #      is treated as the peaking/low-load technology, exempt from the
+    #      90% CCS subcategory) starting with the first modeled period at or
+    #      after the Jan 2032 deadline (the 2035 period; this model has no
+    #      2032 period). No CCS-equipped gas technology is currently active
+    #      in atb_new_gen/modified_atb_new_gen to offer as an alternative
+    #      (see the commented-out NGCCS100 example in resources.yml), so
+    #      this simplifies to "no new unabated CC after 2032" rather than
+    #      "CCS-equipped CC becomes the only new-CC option." New CC built in
+    #      periods before 2032 is grandfathered (not retroactively forced to
+    #      retrofit) since this pipeline has no CCS-retrofit lever --
+    #      documented simplification, not a rule provision.
+    #
+    #   2. Existing coal -- 111(d) Emission Guidelines: EPA subcategorizes
+    #      existing coal steam EGUs by committed retirement date:
+    #        a. Retiring by Jan 1, 2032: exempt from new CO2 controls.
+    #        b. Operating past Jan 1, 2032 but retiring by Jan 1, 2039: must
+    #           co-fire 40% natural gas (by heat input) starting in 2030.
+    #        c. Operating past Jan 1, 2039 (no committed retirement in that
+    #           window): must install 90% CCS by Jan 1, 2032, or cease
+    #           operation.
+    #      Subcategory (a) needs no override (already exempt). Subcategory
+    #      (b)'s 40% gas co-fire has no cost/emissions lever in this
+    #      pipeline (no per-unit fuel-blend mechanism) and is NOT modeled --
+    #      documented simplification; those units are left on their
+    #      predetermined retirement schedule. Subcategory (c) is modeled via
+    #      `clean_power_regs_retirement_override` below: any coal unit whose
+    #      predetermined retirement_year is after 2039 (i.e. not committed
+    #      to retire in the exempt or gas-cofiring windows) is forced to
+    #      retire by 2032, since this pipeline has no CCS-retrofit lever to
+    #      represent the "install CCS and keep operating" branch -- this is
+    #      the compliance-cost-maximizing proxy (retire rather than
+    #      uneconomically retrofit), not a literal rule requirement, and
+    #      should be revisited if a CCS-retrofit option is ever added.
+    #
+    # See switch/study_modules/clean_power_regs.py -- still a documented
+    # no-op module; no new Pyomo constraints were needed since both
+    # provisions are implementable via existing input-generation levers
+    # (atb_new_gen + the retirement-override mechanism) rather than new
+    # model math.
     clean_power_regs:
       none: ~
-      caa_2024_rule: ~ # TODO: wire up once the repo owner answers the above
+      caa_2024_rule:
+        clean_power_regs_retirement_override:
+          technologies: [coal]
+          mode: no_retirement_before
+          threshold_year: 2039
+          target_year: 2032
     # ─────────────────────────────────────────────────────────────────────
     # retirement_policy: overrides to BOTH retirement mechanisms in this
     # pipeline, independent of clean_power_regs (the current-policy scenario
@@ -4800,6 +4854,22 @@ settings_management:
           Can_Retire:
             Coal: 1
             Natural Gas: 1
+    clean_power_regs:
+      # 111(b) NSPS new-gas CCS requirement (see the axis comment under
+      # all_years for the full citation/provisions): starting with the first
+      # modeled period at/after the Jan 1, 2032 compliance date, drop new
+      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen. This
+      # replicates resources.yml's base atb_new_gen list (so nothing else is
+      # silently dropped) minus that one entry.
+      caa_2024_rule:
+        atb_new_gen:
+          - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+          - [LandbasedWind, Class3, Moderate, 1]
+          - [OffShoreWind, Class12, Moderate, 1]
+          - [OffShoreWind, Class3, Moderate, 1]
+          - [UtilityPV, Class1, Moderate, 1]
+          - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+          - [Nuclear, Nuclear - Large, Moderate, 1000]
     policies:
       current:
         # CCR Tier 1 and Tier 2 trigger prices for 2035 in $/metric tonne.
@@ -4860,6 +4930,22 @@ settings_management:
           Can_Retire:
             Coal: 1
             Natural Gas: 1
+    clean_power_regs:
+      # 111(b) NSPS new-gas CCS requirement (see the axis comment under
+      # all_years for the full citation/provisions): starting with the first
+      # modeled period at/after the Jan 1, 2032 compliance date, drop new
+      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen. This
+      # replicates resources.yml's base atb_new_gen list (so nothing else is
+      # silently dropped) minus that one entry.
+      caa_2024_rule:
+        atb_new_gen:
+          - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+          - [LandbasedWind, Class3, Moderate, 1]
+          - [OffShoreWind, Class12, Moderate, 1]
+          - [OffShoreWind, Class3, Moderate, 1]
+          - [UtilityPV, Class1, Moderate, 1]
+          - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+          - [Nuclear, Nuclear - Large, Moderate, 1000]
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:
@@ -4910,6 +4996,22 @@ settings_management:
           Can_Retire:
             Coal: 1
             Natural Gas: 1
+    clean_power_regs:
+      # 111(b) NSPS new-gas CCS requirement (see the axis comment under
+      # all_years for the full citation/provisions): starting with the first
+      # modeled period at/after the Jan 1, 2032 compliance date, drop new
+      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen. This
+      # replicates resources.yml's base atb_new_gen list (so nothing else is
+      # silently dropped) minus that one entry.
+      caa_2024_rule:
+        atb_new_gen:
+          - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+          - [LandbasedWind, Class3, Moderate, 1]
+          - [OffShoreWind, Class12, Moderate, 1]
+          - [OffShoreWind, Class3, Moderate, 1]
+          - [UtilityPV, Class1, Moderate, 1]
+          - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+          - [Nuclear, Nuclear - Large, Moderate, 1000]
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:
@@ -4960,6 +5062,22 @@ settings_management:
           Can_Retire:
             Coal: 1
             Natural Gas: 1
+    clean_power_regs:
+      # 111(b) NSPS new-gas CCS requirement (see the axis comment under
+      # all_years for the full citation/provisions): starting with the first
+      # modeled period at/after the Jan 1, 2032 compliance date, drop new
+      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen. This
+      # replicates resources.yml's base atb_new_gen list (so nothing else is
+      # silently dropped) minus that one entry.
+      caa_2024_rule:
+        atb_new_gen:
+          - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+          - [LandbasedWind, Class3, Moderate, 1]
+          - [OffShoreWind, Class12, Moderate, 1]
+          - [OffShoreWind, Class3, Moderate, 1]
+          - [UtilityPV, Class1, Moderate, 1]
+          - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+          - [Nuclear, Nuclear - Large, Moderate, 1000]
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:

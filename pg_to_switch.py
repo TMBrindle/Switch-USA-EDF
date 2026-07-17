@@ -1488,16 +1488,34 @@ def set_retirement_age(df, settings):
     return df
 
 
+# Settings keys that may each carry a predetermined-retirement-date override
+# (or list of them -- see apply_predetermined_retirement_override()). Kept as
+# separate keys per scenario axis, rather than one shared key, so that two
+# independent axes (e.g. retirement_policy and clean_power_regs) can each
+# contribute their own override(s) in the same scenario without one axis's
+# YAML settings silently clobbering the other's during settings_management
+# merging (dict/list values from different axes are not deep-merged).
+PREDETERMINED_RETIREMENT_OVERRIDE_KEYS = [
+    "predetermined_retirement_override",  # retirement_policy axis (blocked_2030_*)
+    "clean_power_regs_retirement_override",  # clean_power_regs axis (caa_2024_rule)
+]
+
+
 def apply_predetermined_retirement_override(units: pd.DataFrame, settings) -> pd.DataFrame:
     """
-    Push back predetermined (EIA-860m-sourced) retirement dates that fall
-    within a configured window, for units matching a configured technology
-    scope. Used by the `retirement_policy` axis's `blocked_2030_coal` /
-    `blocked_2030_coal_gas` configs (see scenario_management.yml) to make
-    "block retirements through 2029/30" actually affect the predetermined
-    retirement schedule, not just SWITCH's endogenous economic retirement
-    (Can_Retire) -- see the long comment on the `retirement_policy` axis for
-    the full background on why both mechanisms are needed together.
+    Adjust predetermined (EIA-860m-sourced) retirement dates for units
+    matching a configured technology scope, per one or more override rules
+    gathered from PREDETERMINED_RETIREMENT_OVERRIDE_KEYS. Used by:
+      - the `retirement_policy` axis's `blocked_2030_coal` /
+        `blocked_2030_coal_gas` configs, to make "block retirements through
+        2029/30" actually affect the predetermined retirement schedule, not
+        just SWITCH's endogenous economic retirement (Can_Retire) -- see the
+        long comment on the `retirement_policy` axis for why both mechanisms
+        are needed together.
+      - the `clean_power_regs` axis's `caa_2024_rule` config, to represent
+        the existing-coal compliance pathway under EPA's 111(d) emission
+        guidelines (89 FR 39798, May 9, 2024) -- see that axis's comment for
+        the rule citation and the three retirement-date subcategories.
 
     Deliberately does NOT touch the cached EIA-860m workbook or PowerGenome
     itself (unlike update_coal_closures.py, which corrects that data against
@@ -1508,10 +1526,26 @@ def apply_predetermined_retirement_override(units: pd.DataFrame, settings) -> pd
     "infer the build date from retirement_year and retirement_age ... will
     cause it to retire at the right time").
 
-    `settings["predetermined_retirement_override"]`, if present, should be:
-        technologies: [coal]              # or [coal, "natural gas"]
-        window: [2026, 2029]              # inclusive both ends
-        target_year: 2030
+    Each settings key may hold a single rule (dict) or a list of rules; all
+    rules found across all keys are applied in order (KEYS order, then list
+    order within a key). Each rule is a dict with:
+        technologies: [coal]   # or [coal, "natural gas"], etc.
+        mode: window | no_retirement_before
+        target_year: <int>
+      and, depending on mode:
+        window mode:
+          window: [start, end]   # inclusive both ends
+          -> units with retirement_year in [start, end] are moved to
+             target_year. Used to PUSH BACK (delay) a retirement that would
+             otherwise happen soon.
+        no_retirement_before mode:
+          threshold_year: <int>
+          -> units with retirement_year > threshold_year (i.e. not already
+             committed to retire by/before that year) are moved to
+             target_year. Used to FORCE AN EARLIER retirement on units that
+             haven't committed to retire soon enough to be exempt from a
+             requirement this pipeline can't otherwise represent (e.g. a
+             CCS retrofit).
 
     Technology matching is case-insensitive substring containment against
     the `technology` column (same convention as the Can_Retire model tag in
@@ -1519,32 +1553,45 @@ def apply_predetermined_retirement_override(units: pd.DataFrame, settings) -> pd
     Integrated Gasification Combined Cycle", etc.; "Natural Gas" matches all
     "Natural Gas Fired ..." / "Natural Gas ... Turbine" technologies).
 
-    Window boundaries are inclusive on both ends: a unit retiring exactly in
-    the window's first or last year is in scope. Units retiring before the
-    window (already offline) or after it (already past the target year) are
-    left untouched.
+    `window` boundaries are inclusive on both ends. Units outside a rule's
+    scope (technology or date range) are left untouched by that rule.
     """
-    override = (settings or {}).get("predetermined_retirement_override")
-    if not override:
-        return units
+    settings = settings or {}
+    rules = []
+    for key in PREDETERMINED_RETIREMENT_OVERRIDE_KEYS:
+        val = settings.get(key)
+        if not val:
+            continue
+        rules.extend(val if isinstance(val, list) else [val])
 
-    technologies = [t.lower() for t in override["technologies"]]
-    window_start, window_end = override["window"]
-    target_year = override["target_year"]
+    for rule in rules:
+        technologies = [t.lower() for t in rule["technologies"]]
+        target_year = rule["target_year"]
+        mode = rule.get("mode", "window")
 
-    tech_match = units["technology"].str.lower().apply(
-        lambda tech: any(t in tech for t in technologies)
-    )
-    in_window = units["retirement_year"].between(window_start, window_end)
-    to_override = tech_match & in_window
-
-    if to_override.any():
-        logger.info(
-            f"predetermined_retirement_override: pushing back {to_override.sum()} "
-            f"unit(s) with retirement_year in [{window_start}, {window_end}] to "
-            f"{target_year} (technologies matching {override['technologies']})"
+        tech_match = units["technology"].str.lower().apply(
+            lambda tech: any(t in tech for t in technologies)
         )
-        units.loc[to_override, "retirement_year"] = target_year
+
+        if mode == "window":
+            window_start, window_end = rule["window"]
+            in_scope = units["retirement_year"].between(window_start, window_end)
+            verb, range_desc = "pushing back", f"in [{window_start}, {window_end}]"
+        elif mode == "no_retirement_before":
+            threshold_year = rule["threshold_year"]
+            in_scope = units["retirement_year"] > threshold_year
+            verb, range_desc = "forcing earlier retirement for", f"> {threshold_year}"
+        else:
+            raise ValueError(f"Unrecognized predetermined_retirement_override mode: {mode}")
+
+        to_override = tech_match & in_scope
+        if to_override.any():
+            logger.info(
+                f"predetermined_retirement_override: {verb} {to_override.sum()} "
+                f"unit(s) with retirement_year {range_desc} to {target_year} "
+                f"(technologies matching {rule['technologies']})"
+            )
+            units.loc[to_override, "retirement_year"] = target_year
 
     return units
 
