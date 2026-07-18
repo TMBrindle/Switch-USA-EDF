@@ -216,6 +216,21 @@ model_tag_values:
     Petroleum Liquids: 1
     Wood/Wood Waste Biomass: 1
     NaturalGas_: 1
+    # Generic match for new-build coal technologies (mirrors NaturalGas_
+    # above), needed because the real ATB2024 CCS tech_detail names
+    # (Coal_95%-CCS, Coal_99%-CCS -- see the "CCS ATB DATA FIX" note in
+    # scenario_management.yml) don't contain any of the specific
+    # existing-fleet coal technology strings already listed here
+    # (e.g. "Conventional Steam Coal", "Coal Integrated Gasification
+    # Combined Cycle") and so fell through GenX's resource-tag validation
+    # with no THERM/VRE/MUST_RUN/STOR/FLEX/HYDRO tag at all. Matching is a
+    # case-insensitive substring check on the technology name with
+    # underscores stripped (add_resource_tags() in PowerGenome's
+    # generators.py), so "Coal_" (stripped to "Coal") matches
+    # "Coal_95%-CCS_Moderate" / "Coal_99%-CCS_Moderate" correctly, and is
+    # harmless/redundant for the existing-fleet coal entries above (they all
+    # already contain "Coal" too).
+    Coal_: 1
   VRE:
     Distributed_Generation: 1
     CSP: 1
