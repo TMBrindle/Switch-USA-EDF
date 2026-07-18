@@ -420,7 +420,7 @@ settings_management:
     #      no hydrogen-cofiring generator exists in this pipeline). Modeled
     #      as: starting with the first modeled period at/after Jan 2032 (the
     #      2035 period), drop unabated "1-on-1 Combined Cycle (H-Frame)" from
-    #      atb_new_gen and ADD [NaturalGas, CCCCSAvgCF, Moderate, 645] (a
+    #      atb_new_gen and ADD [NaturalGas, CCCCSAvgCF, Conservative, 645] (a
     #      real, ATB-native 90%-capture combined-cycle technology -- verified
     #      present in this repo's own CO2 pipeline cost reference data, see
     #      below) as the new base-load gas option. "Combustion Turbine
@@ -440,26 +440,71 @@ settings_management:
     #      co-fire still has no cost/emissions lever in this pipeline (no
     #      per-unit fuel-blend mechanism) and is NOT modeled -- documented
     #      simplification; those units stay on their predetermined
-    #      retirement schedule. Subcategory (c): the PREVIOUS version of this
+    #      retirement schedule. Subcategory (c): an earlier version of this
     #      config force-retired these units by 2032
-    #      (clean_power_regs_retirement_override, no_retirement_before mode)
-    #      as a proxy for "no CCS-retrofit lever exists." That override has
-    #      been REMOVED. Instead, [Coal, CCS90AvgCF, Moderate, 650] (also
-    #      ATB-native and verified below) is added to atb_new_gen for 2035+,
-    #      so the model can choose to build new coal-CCS capacity as an
-    #      economic alternative to losing that generation to retirement --
-    #      this lets cost-optimization pick between (i) existing coal running
-    #      out its predetermined/economic retirement schedule unchanged,
-    #      (ii) new coal-CCS capacity, or (iii) other resources, rather than
-    #      forcing retirement outright.
-    #      LIMITATION, still not fully resolved: SWITCH has no mechanism to
-    #      require that a SPECIFIC existing coal GENERATION_PROJECT either
-    #      retrofits or retires -- "new coal-CCS becomes buildable" and "the
-    #      old unit's own retirement is unforced" are two independent model
-    #      decisions, not a coupled retrofit-or-retire choice for the same
-    #      physical unit. This is a portfolio-level proxy for the rule's
-    #      intent, not literal per-unit enforcement, and should be revisited
-    #      if a true generator-level retrofit mechanism is ever built.
+    #      (clean_power_regs_retirement_override, no_retirement_before mode),
+    #      then a later version replaced that with
+    #      [Coal, CCS90AvgCF, Moderate, 650] added to atb_new_gen (a
+    #      new-build coal-CCS alternative to losing that generation to
+    #      retirement). *** THAT COAL-CCS ENTRY IS NOW DISABLED/REMOVED ***
+    #      (see "CCS ATB DATA FIX" note immediately below) pending real ATB
+    #      data verification -- it is not currently wired to anything. As a
+    #      result, subcategory (c) coal is CURRENTLY UNENFORCED: those units
+    #      just continue on their normal predetermined/economic retirement
+    #      schedule, with neither a forced-retirement proxy nor a CCS
+    #      alternative. Two ways to close this gap once someone with real
+    #      PG_DB access confirms a working Coal/CCS90AvgCF combination (see
+    #      below): (a) re-add the atb_new_gen entry with the verified
+    #      cost_case, or (b) reinstate the clean_power_regs_retirement_override
+    #      (no_retirement_before, coal, threshold_year 2039, target_year
+    #      2032) as an interim measure -- the infrastructure for (b) is still
+    #      in pg_to_switch.py (PREDETERMINED_RETIREMENT_OVERRIDE_KEYS still
+    #      lists this key), just not currently populated by this config. Not
+    #      deciding between (a)/(b) here -- flagging for the repo owner.
+    #
+    #   *** CCS ATB DATA FIX (root-caused from a real build failure) ***
+    #      A real run of s4x1_fedpol_biden (clean_power_regs: caa_2024_rule)
+    #      via pg_to_switch.py crashed at year 2035 with `ValueError:
+    #      Investment variable capex costs contains nan values` from
+    #      powergenome/financials.py's investment_cost_calculator(), called
+    #      from nrelatb.py's atb_new_generators(). Root cause, traced through
+    #      nrelatb.py: single_generator_row() filters
+    #      technology_costs_nrelatb on technology + tech_detail + cost_case +
+    #      basis_year.isin(model_year_range) and takes .mean() -- if that
+    #      5-way filter (technology/tech_detail/financial_case/cost_case/
+    #      atb_year) matches ZERO rows, .mean() of an empty selection is NaN,
+    #      and fetch_atb_costs()'s earlier validity check
+    #      (db_col_values()/valid_inputs) does NOT catch this: it only
+    #      verifies each individual token (e.g. "Moderate", "CCS90AvgCF")
+    #      appears SOMEWHERE in its column, not that the full combination has
+    #      actual rows. Both new atb_new_gen entries originally used
+    #      cost_case "Moderate" -- unverified by this build (no DB access in
+    #      this environment; confirmed via env vars in both Bash and
+    #      PowerShell, and a filesystem search, that PG_DB -- a sqlite file
+    #      path per powergenome/params.py -- is not configured here).
+    #      Fixed with what WAS verifiable without DB access: PowerGenome's
+    #      own reference example configs
+    #      (PowerGenome/example_systems/{CA_AZ,CONUS-3-zone,ISONE,
+    #      WECC-6-zone}/settings/resources.yml) ALL FOUR consistently use
+    #      `[NaturalGas, CCCCSAvgCF, Conservative, 500]` (never Moderate) in
+    #      their real, working atb_new_gen lists, with the comment "ATB
+    #      CCCCS conservative case represents current technology" -- strong,
+    #      repeated, real-world evidence. Fixed NaturalGas/CCCCSAvgCF's
+    #      cost_case to Conservative accordingly (high confidence).
+    #      No equivalent example anywhere builds new coal (CCS or otherwise)
+    #      as a real atb_new_gen entry -- zero working precedent to check
+    #      Coal/CCS90AvgCF's cost_case against (the only related evidence
+    #      found, a "Coal_CCS90AvgCF_Moderate" retirement-age table entry in
+    #      one example config, is a weak signal, not proof the investment-
+    #      cost query returns rows). Rather than guess and risk a second
+    #      failed build, the Coal/CCS90AvgCF atb_new_gen entry has been
+    #      REMOVED for now (see subcategory (c) note above for the
+    #      consequence). *** ASK: someone with real PG_DB access should run
+    #      `SELECT DISTINCT cost_case, atb_year, financial_case FROM
+    #      technology_costs_nrelatb WHERE technology='Coal' AND
+    #      tech_detail='CCS90AvgCF'` (and the equivalent existence check for
+    #      `financial_case='Market'`, `atb_year=2024`) to find a valid
+    #      combination, then this entry can be restored. ***
     #
     # See switch/study_modules/clean_power_regs.py -- still a documented
     # no-op module; no new Pyomo constraints were needed (CCS is modeled via
@@ -479,6 +524,12 @@ settings_management:
     clean_power_regs:
       none: ~
       caa_2024_rule:
+        # NOTE: Coal_CCS90AvgCF here is currently INERT -- kept in this
+        # fuel/emissions mapping for when the atb_new_gen entry is restored
+        # (see "CCS ATB DATA FIX" above), but since no Coal/CCS90AvgCF
+        # generator is currently buildable anywhere (that atb_new_gen entry
+        # was removed), this mapping has nothing to match against and does
+        # nothing today. NaturalGas_CCCCSAvgCF is live/active.
         ccs_fuel_map:
           Coal_CCS90AvgCF: coal_ccs90
           NaturalGas_CCCCSAvgCF: naturalgas_ccs90
@@ -589,7 +640,15 @@ settings_management:
     # throughout this axis's comments.
     ccs_capture_rate:
       none: ~
-      ccs90: # fully supported: ATB cost curve + transport/storage cost data
+      ccs90: # fully supported: ATB cost curve + transport/storage cost data.
+        # UPDATE from a real build failure: NaturalGas/CCCCSAvgCF's capex
+        # query returns NaN with cost_case "Moderate" -- must be built with
+        # atb_new_gen cost_case "Conservative" instead (see the
+        # "CCS ATB DATA FIX" note under clean_power_regs above for the full
+        # root cause and evidence). Coal_CCS90AvgCF's correct cost_case is
+        # still unverified (no real ATB/DB access in this environment) --
+        # this mapping is inert until a working atb_new_gen entry for it
+        # exists somewhere (there currently isn't one anywhere in this repo).
         ccs_fuel_map:
           Coal_CCS90AvgCF: coal_ccs90
           NaturalGas_CCCCSAvgCF: naturalgas_ccs90
@@ -5760,8 +5819,11 @@ settings_management:
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-          - [NaturalGas, CCCCSAvgCF, Moderate, 645]
-          - [Coal, CCS90AvgCF, Moderate, 650]
+          # cost_case Conservative, NOT Moderate -- see the "CCS ATB DATA FIX"
+          # note above for why.
+          - [NaturalGas, CCCCSAvgCF, Conservative, 645]
+          # Coal/CCS90AvgCF intentionally OMITTED -- see note above; disabled
+          # pending real ATB data verification, not silently dropped.
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
@@ -5845,8 +5907,11 @@ settings_management:
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-          - [NaturalGas, CCCCSAvgCF, Moderate, 645]
-          - [Coal, CCS90AvgCF, Moderate, 650]
+          # cost_case Conservative, NOT Moderate -- see the "CCS ATB DATA FIX"
+          # note above for why.
+          - [NaturalGas, CCCCSAvgCF, Conservative, 645]
+          # Coal/CCS90AvgCF intentionally OMITTED -- see note above; disabled
+          # pending real ATB data verification, not silently dropped.
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
@@ -5920,8 +5985,11 @@ settings_management:
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-          - [NaturalGas, CCCCSAvgCF, Moderate, 645]
-          - [Coal, CCS90AvgCF, Moderate, 650]
+          # cost_case Conservative, NOT Moderate -- see the "CCS ATB DATA FIX"
+          # note above for why.
+          - [NaturalGas, CCCCSAvgCF, Conservative, 645]
+          # Coal/CCS90AvgCF intentionally OMITTED -- see note above; disabled
+          # pending real ATB data verification, not silently dropped.
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
@@ -5995,8 +6063,11 @@ settings_management:
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-          - [NaturalGas, CCCCSAvgCF, Moderate, 645]
-          - [Coal, CCS90AvgCF, Moderate, 650]
+          # cost_case Conservative, NOT Moderate -- see the "CCS ATB DATA FIX"
+          # note above for why.
+          - [NaturalGas, CCCCSAvgCF, Conservative, 645]
+          # Coal/CCS90AvgCF intentionally OMITTED -- see note above; disabled
+          # pending real ATB data verification, not silently dropped.
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
