@@ -600,8 +600,19 @@ cost_multiplier_fn: AEO_2020_regional_cost_corrections.csv
 cost_multiplier_technology_map:
   Ultra-supercritical coal (USC): [Coal_newAvgCF, Coal_newHighCF]
   # IGCC: [Coal_IGCCAvgCF, Coal_IGCCAvgCF]
+  # USC with 30% CCS: value list references Coal_CCS30AvgCF/HighCF, ATB
+  # tech_detail names that stopped being populated after atb_year=2022 (NREL
+  # restructured CCS category names starting ~ATB2023 -- see the "CCS ATB
+  # DATA FIX" note in scenario_management.yml for the full root-cause
+  # history). Left as-is/unused since no 30%-capture coal technology is
+  # currently in atb_new_gen anywhere in this repo; update if one is added.
   USC with 30% CCS: [Coal_CCS30AvgCF, Coal_CCS30HighCF]
-  USC with 90% CCS: [Coal_CCS90AvgCF, Coal_CCS90HighCF]
+  # USC with 90% CCS: updated to the real ATB2024 tech_detail names (95% and
+  # 99% capture -- ATB dropped the old "CCS90AvgCF" 90%-capture category
+  # itself; 95%/99% are the actual available tiers). See
+  # scenario_management.yml's clean_power_regs/ccs_capture_rate axes for
+  # where these are used.
+  USC with 90% CCS: [Coal_95%-CCS, Coal_99%-CCS]
   CT - aeroderivative: []
   CT - industrial frame:
     [
@@ -616,14 +627,13 @@ cost_multiplier_technology_map:
       NaturalGas_CCHighCF,
       NaturalGas_2-on-1 Combined Cycle (H-Frame),
     ]
+  # CC with 90% CCS: updated to the real ATB2024 tech_detail names (95% and
+  # 97% capture -- same reasoning as USC with 90% CCS above; the old
+  # "CCCCSAvgCF" name stopped being populated after atb_year=2022).
   CC with 90% CCS:
     [
-      NaturalGas_CCCCSAvgCF,
-      NaturalGas_CCCCSHighCF,
-      NGCCS100,
-      NaturalGas_CCS100,
-      NaturalGas_CCS100_low,
-      NaturalGas_CCS100_high,
+      NaturalGas_1-on-1 Combined Cycle (H-Frame) 95% CCS,
+      NaturalGas_1-on-1 Combined Cycle (H-Frame) 97% CCS,
     ]
   Fuel cells: []
   Advanced nuclear:

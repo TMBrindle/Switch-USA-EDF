@@ -420,13 +420,14 @@ settings_management:
     #      no hydrogen-cofiring generator exists in this pipeline). Modeled
     #      as: starting with the first modeled period at/after Jan 2032 (the
     #      2035 period), drop unabated "1-on-1 Combined Cycle (H-Frame)" from
-    #      atb_new_gen and ADD [NaturalGas, CCCCSAvgCF, Conservative, 645] (a
-    #      real, ATB-native 90%-capture combined-cycle technology -- verified
-    #      present in this repo's own CO2 pipeline cost reference data, see
-    #      below) as the new base-load gas option. "Combustion Turbine
-    #      (F-Frame)" (peaking/low-load, exempt from the CCS subcategory)
-    #      stays available unabated throughout. New CC built before 2032 is
-    #      still grandfathered (not retroactively forced to retrofit).
+    #      atb_new_gen and ADD
+    #      [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate,
+    #      645] (real ATB2024 95%-capture combined-cycle data -- see "CCS ATB
+    #      DATA FIX" below) as the new base-load gas option. "Combustion
+    #      Turbine (F-Frame)" (peaking/low-load, exempt from the CCS
+    #      subcategory) stays available unabated throughout. New CC built
+    #      before 2032 is still grandfathered (not retroactively forced to
+    #      retrofit).
     #
     #   2. Existing coal -- 111(d) Emission Guidelines: EPA subcategorizes
     #      existing coal steam EGUs by committed retirement date:
@@ -440,180 +441,150 @@ settings_management:
     #      co-fire still has no cost/emissions lever in this pipeline (no
     #      per-unit fuel-blend mechanism) and is NOT modeled -- documented
     #      simplification; those units stay on their predetermined
-    #      retirement schedule. Subcategory (c) -- a new-build coal-CCS
-    #      alternative to losing that generation to retirement -- is
-    #      CURRENTLY NOT MODELED: Coal/CCS90AvgCF has been removed from
-    #      atb_new_gen again (see "CCS ATB DATA FIX" below, round 3) after
-    #      two failed attempts to fix a real build crash. As a result,
-    #      subcategory (c) coal is UNENFORCED: those units just continue on
-    #      their normal predetermined/economic retirement schedule, with
-    #      neither a forced-retirement proxy nor a CCS alternative. An
-    #      earlier version of this config force-retired these units by 2032
-    #      (clean_power_regs_retirement_override, no_retirement_before mode)
-    #      -- the infrastructure for that is still in pg_to_switch.py
-    #      (PREDETERMINED_RETIREMENT_OVERRIDE_KEYS still lists this key) if
-    #      the repo owner wants to reinstate it as an interim measure. Not
-    #      deciding that here -- flagging for the repo owner, same as before.
-    #      LIMITATION if/when coal-CCS is ever restored: SWITCH has no
-    #      mechanism to require that a SPECIFIC existing coal
-    #      GENERATION_PROJECT either retrofits or retires -- "new coal-CCS
-    #      becomes buildable" and "the old unit's own retirement is unforced"
-    #      would be two independent model decisions, not a coupled
-    #      retrofit-or-retire choice for the same physical unit.
+    #      retirement schedule. Subcategory (c) is modeled by
+    #      [Coal, 95%-CCS, Moderate, 650] in atb_new_gen (2035+, real
+    #      ATB2024 data -- see "CCS ATB DATA FIX" below) -- a new-build
+    #      coal-CCS alternative to losing that generation to retirement. This
+    #      lets cost-optimization choose between (i) existing coal on its
+    #      predetermined/economic retirement schedule, (ii) new coal-CCS
+    #      capacity, or (iii) other resources, rather than forcing retirement
+    #      outright. An earlier version of this config force-retired these
+    #      units by 2032 (clean_power_regs_retirement_override,
+    #      no_retirement_before mode) -- REMOVED in favor of this real build
+    #      option.
+    #      LIMITATION, still not resolved: SWITCH has no mechanism to require
+    #      that a SPECIFIC existing coal GENERATION_PROJECT either retrofits
+    #      or retires -- "new coal-CCS becomes buildable" and "the old unit's
+    #      own retirement is unforced" are two independent model decisions,
+    #      not a coupled retrofit-or-retire choice for the same physical
+    #      unit. Portfolio-level proxy for the rule's intent, not literal
+    #      per-unit enforcement.
     #
-    #   *** CCS ATB DATA FIX (root-caused three times now -- full history
-    #   kept for traceability so this doesn't get re-litigated with a wrong
-    #   theory a fourth time) ***
+    #   *** CCS ATB DATA FIX -- ROUND 4, RESOLVED (full history kept for
+    #   traceability; rounds 1-3 pursued wrong theories in good faith with
+    #   the evidence available at the time) ***
     #      A real run of s4x1_fedpol_biden (clean_power_regs: caa_2024_rule)
-    #      via pg_to_switch.py crashes at year 2035 with `ValueError:
-    #      Investment variable capex costs contains nan values` from
-    #      powergenome/financials.py's investment_cost_calculator(), called
-    #      from nrelatb.py's atb_new_generators() (this repo's atb_data_year
-    #      is 2024 throughout).
-    #      ROUND 1 (no DB access): traced the crash mechanism through
-    #      nrelatb.py -- single_generator_row() filters
-    #      technology_costs_nrelatb on technology + tech_detail + cost_case +
-    #      basis_year.isin(model_year_range) and takes .mean(); an empty
-    #      filter result means NaN, uncaught by fetch_atb_costs()'s upstream
-    #      validity check (which only confirms each token individually
-    #      exists somewhere in its column). Fixed NaturalGas/CCCCSAvgCF's
-    #      cost_case Moderate -> Conservative based on PowerGenome's own
-    #      reference example configs (this fix held up in every later round;
-    #      not revisited). For Coal/CCS90AvgCF, lacking any working-example
-    #      precedent, REMOVED the atb_new_gen entry rather than guess.
-    #      ROUND 2 (real PG_DB/ATB access, via pg/settings/env.yml): the repo
-    #      owner queried technology_costs_nrelatb directly and found valid
-    #      non-null Coal/CCS90AvgCF capex at cost_case=Moderate,
-    #      financial_case=Market, atb_year=2022 (not 2024 -- this repo's
-    #      actual atb_data_year -- see round 3). Hypothesized the real cause
-    #      was instead a NaN regional cost multiplier: resources.yml's
-    #      cost_multiplier_technology_map maps "USC with 90% CCS" ->
-    #      Coal_CCS90AvgCF, and PowerGenome's
-    #      AEO_2020_regional_cost_corrections.csv has NaN in that column for
-    #      3 of 27 NERC regions (NYCW/CANO/CASO -> model regions p128/p9/
-    #      p10+p11). RESTORED the atb_new_gen entry and added
-    #      regional_tag_values (MaxCapTag_Ban=1 for "CCS90AvgCF" in those 4
-    #      regions) to exclude them.
-    #      ROUND 2 DID NOT FIX THE CRASH -- same traceback, same line, after
-    #      a real re-run. Re-examined the code more carefully: within
-    #      nrelatb.py, investment_cost_calculator() is called EXACTLY TWICE
-    #      (building Inv_Cost_per_MWyr/Inv_Cost_per_MWhyr), both operating on
-    #      `new_gen_df` -- the GENERIC, economy-wide dataframe from
-    #      single_generator_row(), which has ONE ROW PER atb_new_gen entry,
-    #      not yet split by region. The per-region step
-    #      (parallel_region_renewables -> regional_capex_multiplier) runs
-    #      LATER and only MULTIPLIES the already-computed Inv_Cost_per_MWyr
-    #      by a regional factor (`df["Inv_Cost_per_MWyr"] *=
-    #      df["technology"].map(tech_multiplier_map)`) -- it never calls
-    #      investment_cost_calculator() again, and atb_new_generators()
-    #      itself does `results = results.fillna(0)` right after the
-    #      regional-multiplier step, which would silently zero out any NaN
-    #      introduced there anyway. So a NaN regional multiplier CANNOT be
-    #      what's crashing investment_cost_calculator() -- that call happens
-    #      earlier and is unaffected by anything region-specific. This also
-    #      means neither of the coordinator's preferred fix options was
-    #      actually viable for THIS crash: (1) no per-region atb_new_gen
-    #      scoping exists anywhere in this PowerGenome fork -- confirmed by
-    #      this same code reading, since atb_new_gen is applied as a single
-    #      economy-wide list with regional variation entering only at the
-    #      later multiplier step, so there was never a way to construct
-    #      Coal/CCS90AvgCF only in the "good" regions; (2) a corrected
-    #      regional-multiplier CSV would fix a real (separate) data issue but
-    #      not this crash, since the crash predates any regional multiplier
-    #      being applied.
-    #      ROUND 3 (this round): the actual cause is still that
-    #      single_generator_row()'s GENERIC query -- technology=Coal,
-    #      tech_detail=CCS90AvgCF, cost_case=Moderate, financial_case=Market,
-    #      atb_year=2024 (this repo's setting, NOT the atb_year=2022 the
-    #      round-2 query used), basis_year in model_year_range -- returns
-    #      zero rows, or at least a NaN-producing capex_mw mean. REMOVED the
-    #      atb_new_gen entry again (matching round 1) rather than guess a
-    #      third time. Left the round-2 regional_tag_values in place (see
-    #      below) since it's harmless (Coal/CCS90AvgCF isn't buildable
-    #      anywhere right now, so the tag matches nothing) and may still be
-    #      useful once/if a real fix for the generic-stage issue is found --
-    #      but it is NOT the fix, and should not be mistaken for one again.
-    #      OPEN DIAGNOSTIC QUESTION for whoever has real PG_DB access next:
-    #      run `SELECT DISTINCT atb_year FROM technology_costs_nrelatb WHERE
-    #      technology='Coal' AND tech_detail='CCS90AvgCF'` to see which ATB
-    #      publication vintages carry this technology at all (hypothesis:
-    #      ATB2024 may have dropped/renamed the coal-CCS category that
-    #      ATB2022 still had -- NREL has trimmed fossil-CCS coverage in
-    #      recent ATB editions), then, if 2024 is present,
-    #      `SELECT technology, tech_detail, cost_case, financial_case,
-    #      atb_year, basis_year, parameter, parameter_value FROM
-    #      technology_costs_nrelatb WHERE technology='Coal' AND
-    #      tech_detail='CCS90AvgCF' AND cost_case='Moderate' AND
-    #      financial_case='Market' AND atb_year=2024 ORDER BY basis_year,
-    #      parameter` to see exactly which basis_years/parameters are
-    #      present or missing at THIS repo's actual atb_data_year. If
-    #      ATB2024 genuinely has no usable Coal/CCS90AvgCF data, there is no
-    #      fix available within this pipeline's atb_new_gen mechanism (a
-    #      different atb_data_year can't be requested per-technology -- it's
-    #      a single global setting used for every technology in one query
-    #      pass) and the technology should stay disabled; if it does exist
-    #      but under a different cost_case/tech_detail spelling, that would
-    #      be the actual round-4 fix.
-    #      NOTE (round 2, still valid): `new_gen_not_available` (documented
-    #      in resources.yml/PowerGenome's wiki as exactly the right settings
-    #      key for "exclude a technology in specific regions") was checked
-    #      and found to NOT be implemented anywhere in this PowerGenome
-    #      fork's Python code -- dead/vestigial documentation, not a real
-    #      mechanism, at least in this checked-out version. Confirmed again
-    #      in round 3 that this wouldn't have helped anyway, since the crash
-    #      is not region-specific in the first place.
+    #      via pg_to_switch.py repeatedly crashed at year 2035 with
+    #      `ValueError: Investment variable capex costs contains nan values`
+    #      from powergenome/financials.py's investment_cost_calculator(),
+    #      called from nrelatb.py's atb_new_generators().
+    #      ROUND 1 (no DB access): fixed NaturalGas/CCCCSAvgCF's cost_case
+    #      Moderate -> Conservative based on PowerGenome's reference example
+    #      configs (a real, valid fix for a DIFFERENT problem than what
+    #      turned out to be the actual root cause below -- but harmless,
+    #      since Conservative also has valid pre-2023 data). Removed
+    #      Coal/CCS90AvgCF from atb_new_gen, lacking any working-example
+    #      precedent to guess a cost_case from.
+    #      ROUND 2 (real PG_DB access): found valid Coal/CCS90AvgCF data at
+    #      atb_year=2022 and hypothesized a NaN regional cost multiplier
+    #      (AEO_2020_regional_cost_corrections.csv's "USC with 90% CCS"
+    #      column is NaN for 3 of 27 NERC regions -> model regions p9/p10/
+    #      p11/p128) was the cause. Restored the atb_new_gen entry and added
+    #      a regional_tag_values MaxCapTag_Ban exclusion for those regions.
+    #      Did NOT fix the crash (same traceback after a real re-run).
+    #      ROUND 3 (code re-read, still no DB access): proved the round-2
+    #      theory couldn't be right -- investment_cost_calculator() runs on
+    #      the GENERIC, economy-wide new_gen_df, strictly BEFORE the
+    #      per-region multiplier step, so a NaN regional multiplier can't
+    #      reach it (and would get fillna(0)'d anyway if it could). Removed
+    #      Coal/CCS90AvgCF again and asked for an atb_year-specific DB check.
+    #      ROUND 4 (real DB access, DEFINITIVE): NREL restructured ATB's
+    #      coal-CCS and gas-CCS technology category NAMES starting ~ATB2023.
+    #      The old names (Coal/CCS90AvgCF, Coal/CCS30AvgCF,
+    #      NaturalGas/CCCCSAvgCF) simply stopped being populated in
+    #      technology_costs_nrelatb after atb_year=2022 -- they still exist
+    #      as historical rows, just not at atb_year=2024 (this repo's
+    #      setting), which is exactly why fetch_atb_costs()'s SQL filter
+    #      (`AND atb_year == 2024`) returned zero rows -> NaN mean -> crash,
+    #      regardless of cost_case or region. These names were never usable
+    #      in this database at atb_year=2024. The real ATB2024 names,
+    #      confirmed via direct query (non-null capex_mw at basis_year=2035,
+    #      cost_case=Moderate, financial_case=Market for all four):
+    #        Coal / 95%-CCS               -- 95% capture, $5,558,419/MW
+    #        Coal / 99%-CCS               -- 99% capture, $5,664,918/MW
+    #        NaturalGas / 1-on-1 Combined Cycle (H-Frame) 95% CCS
+    #                                      -- 95% capture, $2,653,279/MW
+    #        NaturalGas / 1-on-1 Combined Cycle (H-Frame) 97% CCS
+    #                                      -- 97% capture, $2,685,595/MW
+    #      (the gas CCS tech_detail names are built off "1-on-1 Combined
+    #      Cycle (H-Frame)", the exact base gas technology already used
+    #      elsewhere in this repo's atb_new_gen -- good naming consistency
+    #      from NREL). This also resolves the earlier "95%/97% not
+    #      available" TODO that used to sit near the ccs_capture_rate axis --
+    #      those rates were always available, just under these names.
+    #      caa_2024_rule now uses the 95% tier for both technologies (exceeds
+    #      the rule's 90% threshold; the 99%/97% tier is available separately
+    #      via ccs_capture_rate: ccs99, see below, but isn't the default
+    #      paired with the rule). regional_tag_values (round 2) is left in
+    #      place lower down since it's harmless, but is UNRELATED to this fix
+    #      and should not be mistaken for one.
+    #      REMAINING KNOWN GAP (not a crash risk, low priority per repo
+    #      owner): AEO_2020_regional_cost_corrections.csv's "USC with 90%
+    #      CCS" column is still NaN for NYCW/CANO/CASO (p9/p10/p11/p128) --
+    #      but regional_capex_multiplier() fills NaN with that column's
+    #      cross-region AVERAGE before use
+    #      (`tech_multiplier.fillna(avg_multiplier)`), so those 3 regions get
+    #      an averaged (not a real) coal-CCS regional cost multiplier. A
+    #      modeling-accuracy footnote, not a bug.
+    #      NOTE (round 2/3, still valid): `new_gen_not_available` (documented
+    #      as the "right" settings key for per-region tech exclusion) was
+    #      confirmed NOT implemented anywhere in this PowerGenome fork's
+    #      Python code -- dead/vestigial documentation.
     #
     # See switch/study_modules/clean_power_regs.py -- still a documented
     # no-op module; no new Pyomo constraints were needed (CCS is modeled via
     # existing input-generation levers: atb_new_gen + PowerGenome's built-in
-    # ccs_fuel_map/ccs_capture_rate/co2_pipeline_filters settings, all
-    # verified to exist and to already have matching cost data in this
-    # pipeline -- not new model math).
+    # ccs_fuel_map/ccs_capture_rate settings, both real/consumed -- not new
+    # model math).
     #
-    # caa_2024_rule bakes in the SAME settings as ccs_capture_rate.ccs90
-    # below (90% is literally what the rule requires for both provisions),
-    # so it's self-sufficient even if a scenario row doesn't also set the
-    # separate ccs_capture_rate axis. If a scenario row sets BOTH
-    # clean_power_regs=caa_2024_rule and ccs_capture_rate=ccs30_coal, the two
-    # axes' ccs_fuel_map/ccs_capture_rate dicts will collide (whichever axis
-    # is merged last wins) -- not a supported combination; pick one or the
-    # other for coal CCS treatment.
+    # caa_2024_rule bakes in the SAME settings as ccs_capture_rate.ccs95
+    # below (95% is the tier used for both provisions here), so it's
+    # self-sufficient even if a scenario row doesn't also set the separate
+    # ccs_capture_rate axis. If a scenario row sets BOTH
+    # clean_power_regs=caa_2024_rule and ccs_capture_rate=ccs99, the two
+    # axes' ccs_fuel_map/ccs_capture_rate dicts will collide on the coal/gas
+    # keys (PowerGenome's settings-merge conflict guard raises a ValueError
+    # for any key touched by two different scenario_inputs.csv columns) --
+    # not a supported combination; pick one or the other for CCS capture-rate
+    # treatment.
     clean_power_regs:
       none: ~
       caa_2024_rule:
+        # Real ATB2024 technology/tech_detail names (see "CCS ATB DATA FIX"
+        # round 4 above) at the 95% capture tier, matching the atb_new_gen
+        # entries in the year blocks below.
         ccs_fuel_map:
-          Coal_CCS90AvgCF: coal_ccs90
-          NaturalGas_CCCCSAvgCF: naturalgas_ccs90
+          Coal_95%-CCS: coal_ccs95
+          NaturalGas_1-on-1 Combined Cycle (H-Frame) 95% CCS: naturalgas_ccs95
         ccs_capture_rate:
-          coal_ccs90: 0.9
-          naturalgas_ccs90: 0.9
-        co2_pipeline_filters:
-          - technology: NaturalGas
-            tech_detail: CCCCSAvgCF
-            with_backbone: false
-            percentile: 25
-          - technology: Coal
-            tech_detail: CCS90AvgCF
-            with_backbone: false
-            percentile: 25
-        # *** NOT THE FIX for the current crash (see "CCS ATB DATA FIX"
-        # round 3 above) -- kept only because it's harmless and may still be
-        # useful for a DIFFERENT, real regional-multiplier data gap
-        # (AEO_2020_regional_cost_corrections.csv's NaN "USC with 90% CCS"
-        # cells for NYCW/CANO/CASO) once/if Coal/CCS90AvgCF's generic
-        # (economy-wide) construction issue is separately resolved and the
-        # atb_new_gen entry is restored. Right now Coal/CCS90AvgCF isn't
-        # buildable anywhere (the atb_new_gen entry is removed), so this tag
-        # has nothing to match and does nothing. regional_tag_values is a
-        # real, PowerGenome-consumed mechanism (generators.py/util.py) --
-        # unlike `new_gen_not_available`, confirmed not implemented anywhere
-        # in this fork. "CCS90AvgCF" is a precise substring match (rather
-        # than "Coal") so this can never accidentally match some other coal
-        # technology. MaxCapTag_Ban's shared max_mw: 0 ceiling
-        # (resources.yml, unconditional/global) is what would zero out
-        # capacity for tagged resources IF this technology were buildable --
-        # same mechanism resource_limits/offshore_wind_policy use elsewhere,
-        # scoped by region here via regional_tag_values.
+          coal_ccs95: 0.95
+          naturalgas_ccs95: 0.95
+        # co2_pipeline_filters intentionally NOT set: this repo's own CO2
+        # transport/storage cost reference
+        # (pg/extra_inputs/co2_pipeline_cost_percentiles.csv) only has rows
+        # for the old, dead ATB names (Coal/CCS90AvgCF,
+        # NaturalGas/CCCCSAvgCF) -- see "CCS ATB DATA FIX" round 4. Pointing
+        # co2_pipeline_filters at the real new names would not just be inert
+        # (like leaving it at the old names would be): merge_co2_pipeline_
+        # costs() in PowerGenome's co2_pipeline_cost.py DROPS a resource
+        # entirely from every region if a co2_pipeline_filters entry matches
+        # it but the referenced cost file has no rows for it (logs a warning
+        # and removes those rows via `df_co2_costs.drop(index=drop_idx)`),
+        # which would silently make the new CCS technologies unbuildable
+        # again -- worse than just omitting the filter. CO2 transport/
+        # storage cost for these technologies is therefore $0 (PowerGenome's
+        # documented default when no filter/ccs_disposal_cost is set) until
+        # someone sources real transport/storage cost data for the new
+        # tech_detail names and updates that CSV -- not invented here.
+        #
+        # regional_tag_values below targets the OLD, now-dead "CCS90AvgCF"
+        # name and is NOT the fix for anything active today (see "CCS ATB
+        # DATA FIX" round 2/4) -- left in place only as a harmless template
+        # for the still-real, separate regional-multiplier data gap
+        # documented above (NYCW/CANO/CASO), which PowerGenome already
+        # papers over via fillna(avg) rather than crashing, so no functional
+        # fix is needed. Update the tech match string to "95%-CCS" (or
+        # remove this block) if that gap is ever worth actually addressing.
         regional_tag_values:
           p9:
             MaxCapTag_Ban:
@@ -631,22 +602,21 @@ settings_management:
     # ccs_capture_rate: standalone toggle for CCS fuel/emissions treatment,
     # independent of clean_power_regs (e.g. for testing CCS economics outside
     # the regulatory-compliance context). clean_power_regs.caa_2024_rule
-    # already bakes in the ccs90 settings directly (see above) so it doesn't
+    # already bakes in the ccs95 settings directly (see above) so it doesn't
     # depend on this axis also being selected correctly.
     #
     # *** DO NOT SELECT A NON-`none` ccs_capture_rate VALUE IN THE SAME
-    # SCENARIO ROW AS clean_power_regs: caa_2024_rule ***. `ccs90` sets the
-    # exact same ccs_fuel_map/ccs_capture_rate/co2_pipeline_filters keys as
-    # caa_2024_rule (by design -- both represent the same 90% capture rate),
-    # which means PowerGenome's settings-merge conflict guard will raise a
-    # ValueError if both columns are non-`none` in the same row, EVEN THOUGH
-    # the values are identical (the guard only checks whether a key was
-    # already touched by a different category/level flag, not whether the
-    # values agree). This is left as-is/undsolved at the YAML level (per
-    # repo-owner direction) rather than reworked, because `ccs_capture_rate`
-    # can't make CCS technologies buildable on its own anyway -- the
-    # atb_new_gen entries that actually make Coal/CCS90AvgCF and
-    # NaturalGas/CCCCSAvgCF buildable only exist inside
+    # SCENARIO ROW AS clean_power_regs: caa_2024_rule ***. `ccs95` sets the
+    # exact same ccs_fuel_map/ccs_capture_rate keys as caa_2024_rule (by
+    # design -- both represent the same 95% capture tier), which means
+    # PowerGenome's settings-merge conflict guard will raise a ValueError if
+    # both columns are non-`none` in the same row, even though the values are
+    # identical (the guard only checks whether a key was already touched by a
+    # different category/level flag, not whether the values agree). Left
+    # as-is at the YAML level (per repo-owner direction) rather than
+    # reworked, because `ccs_capture_rate` can't make CCS technologies
+    # buildable on its own anyway -- the atb_new_gen entries that actually
+    # make Coal/95%-CCS and the gas CCS variant buildable only exist inside
     # clean_power_regs.caa_2024_rule's year-block overrides (2035+), not
     # here. So in practice: CCS availability is controlled ENTIRELY by
     # clean_power_regs today. `ccs_capture_rate` is reserved for a future
@@ -656,111 +626,55 @@ settings_management:
     # `ccs_capture_rate` and `clean_power_regs` as mutually exclusive when
     # picking scenario_inputs.csv values (leave one at `none`).
     #
-    # *** CCS DATA INVESTIGATION -- what PowerGenome/this repo's data
-    # actually supports, verified by direct inspection (not assumed): ***
-    #   - PowerGenome has a generic, built-in CCS mechanism: `ccs_fuel_map`
-    #     (technology -> ccs fuel name, e.g. "Coal_CCS90AvgCF: coal_ccs90"),
-    #     `ccs_capture_rate` (ccs fuel name -> capture fraction 0-1), and
-    #     `ccs_disposal_cost` ($/tonne CO2, added to fuel cost) --
-    #     powergenome/fuels.py's adjust_ccs_fuels(). This reduces the fuel's
-    #     CO2_content_tons_per_MMBtu by the capture fraction and (if
-    #     ccs_disposal_cost is set) adds a per-MMBtu cost for the CO2
-    #     captured.
-    #   - The technology/tech_detail names themselves (e.g.
-    #     "Coal_CCS90AvgCF", "NaturalGas_CCCCSAvgCF", "Coal_CCS30AvgCF") are
-    #     NREL ATB technology categories with their own capex/heat-rate cost
-    #     curves in the technology_costs_nrelatb table (queried live via
-    #     PG_DB) -- confirmed via PowerGenome's own reference/example
-    #     settings files (example_systems/*/settings/{fuels,resources}.yml)
-    #     and this repo's existing cost_multiplier_technology_map in
-    #     resources.yml, which already groups "USC with 30% CCS" ->
-    #     [Coal_CCS30AvgCF, Coal_CCS30HighCF], "USC with 90% CCS" ->
-    #     [Coal_CCS90AvgCF, Coal_CCS90HighCF], and "CC with 90% CCS" ->
-    #     [NaturalGas_CCCCSAvgCF, NaturalGas_CCCCSHighCF, ...]. This
-    #     environment has no live PG_DB connection to directly query
-    #     `select distinct technology, tech_detail from
-    #     technology_costs_nrelatb`, so exact availability in the specific
-    #     ATB 2024 vintage this repo uses (atb_data_year: 2024) should still
-    #     be spot-checked with that query before a real solve -- but the
-    #     technology names themselves are not invented; they come directly
-    #     from PowerGenome's own code/example configs.
-    #   - DEFINITIVE finding on capture rate, from data ALREADY IN THIS REPO:
-    #     pg/extra_inputs/co2_pipeline_cost_percentiles.csv (this repo's own
-    #     CO2 transport/storage cost reference, likely NETL-sourced) has a
-    #     `capture_rate` column and covers EXACTLY TWO technology/tech_detail
-    #     combinations, BOTH at 90%: Coal/CCS90AvgCF (capacity_mw=650) and
-    #     NaturalGas/CCCCSAvgCF (capacity_mw=645). There is NO 95%, 97%, or
-    #     100% entry anywhere in that file, and no 30% entry either. This is
-    #     the definitive answer to "which capture rates does this pipeline's
-    #     data actually support with full cost data (capex/heat-rate AND
-    #     transport/storage cost)": 90% only, for both coal and gas. The
-    #     95%/97% figures floated when this was scoped are NOT present in
-    #     this repo's data and are NOT used below.
-    #   - Coal_CCS30AvgCF (30% capture) is exposed below as `ccs30_coal`
-    #     since PowerGenome's own reference configs show it as a real ATB
-    #     technology (so it should have a capex/heat-rate cost curve), but it
-    #     is INCOMPLETE for this repo: co2_pipeline_cost_percentiles.csv has
-    #     no transport/storage cost row for it, so `ccs30_coal` leaves
-    #     `ccs_disposal_cost` unset (PowerGenome's own $0 default, with its
-    #     existing debug-log warning) rather than inventing a transport/
-    #     storage cost figure. Flagged as lower-confidence/incomplete;
-    #     `ccs90` is the fully-supported option. No natural-gas 30% (partial-
-    #     capture) ATB technology was found, so `ccs30_coal` is coal-only.
-    #
-    # TODO (flagged, not implemented): per the repo owner, ATB itself does
-    # include higher-capture-rate technology variants (95%/97%) beyond the
-    # 90% combos used below -- this axis intentionally does NOT add a
-    # `ccs95`/`ccs97` config yet, only because
-    # co2_pipeline_cost_percentiles.csv (this repo's transport/storage cost
-    # reference) currently has no rows for them, the same "incomplete data"
-    # reason ccs30_coal is flagged above. Once transport/storage cost data
-    # for the 95%/97% ATB variants is sourced (added to that CSV, or a
-    # revised co2_pipeline_filters percentile/source), a `ccs95`/`ccs97`
-    # config can be added here following the exact same pattern as `ccs90`
-    # (ccs_fuel_map + ccs_capture_rate + co2_pipeline_filters). Do not add
-    # one before that cost data exists -- see the "don't invent" rationale
-    # throughout this axis's comments.
+    # *** CCS DATA -- real ATB2024 names, resolved after a 4-round
+    # misdiagnosis (full history in the "CCS ATB DATA FIX" note under
+    # clean_power_regs above; short version here): the OLD names this axis
+    # used to reference (Coal_CCS90AvgCF, Coal_CCS30AvgCF,
+    # NaturalGas_CCCCSAvgCF) stopped being populated in ATB after
+    # atb_year=2022 -- NREL restructured the CCS technology category names
+    # starting ~ATB2023, and this repo's atb_data_year=2024 only has data
+    # under the NEW names. Confirmed via direct DB query (non-null capex_mw
+    # at basis_year=2035, cost_case=Moderate, financial_case=Market):
+    #   Coal / 95%-CCS                                          -- 95%,  $5,558,419/MW
+    #   Coal / 99%-CCS                                          -- 99%,  $5,664,918/MW
+    #   NaturalGas / 1-on-1 Combined Cycle (H-Frame) 95% CCS     -- 95%,  $2,653,279/MW
+    #   NaturalGas / 1-on-1 Combined Cycle (H-Frame) 97% CCS     -- 97%,  $2,685,595/MW
+    # (No 99%-capture gas category exists -- gas tops out at 97%.) These are
+    # the ONLY two tiers exposed below: `ccs95` (matches what
+    # clean_power_regs.caa_2024_rule bakes in) and `ccs99` (the
+    # highest-capture tier available for each fuel: 99% coal / 97% gas, since
+    # there's no 99%-gas category to pair with 99%-coal).
+    #   - No 30%-capture coal category was found under the new ATB2024
+    #     naming scheme in this investigation -- the old `ccs30_coal` config
+    #     (Coal_CCS30AvgCF, also a dead pre-2023 name) has been REMOVED
+    #     rather than guessed at a new name for a technology nobody asked to
+    #     restore. Add it back if a real ATB2024 partial-capture coal
+    #     category is confirmed to exist and is wanted.
+    #   - co2_pipeline_filters is intentionally NOT set here, same reasoning
+    #     as clean_power_regs.caa_2024_rule above: this repo's own
+    #     pg/extra_inputs/co2_pipeline_cost_percentiles.csv only has rows for
+    #     the old dead names, and pointing co2_pipeline_filters at the new
+    #     names would cause PowerGenome to DROP the resource entirely in
+    #     every region (not just leave it uncosted) -- see the detailed note
+    #     under clean_power_regs.caa_2024_rule. CO2 transport/storage cost
+    #     for these technologies defaults to $0 until that CSV is
+    #     regenerated for the new tech_detail names.
     ccs_capture_rate:
       none: ~
-      ccs90: # fully supported: ATB cost curve + transport/storage cost data.
-        # UPDATE from real build failures (fixed/re-investigated 3 times --
-        # see the "CCS ATB DATA FIX" note under clean_power_regs above for
-        # the full history): NaturalGas/CCCCSAvgCF must be built with
-        # atb_new_gen cost_case "Conservative" (not "Moderate", which returns
-        # NaN capex) -- this held up across all rounds. Coal/CCS90AvgCF is
-        # UNRESOLVED as of round 3: it is NOT currently buildable anywhere in
-        # this pipeline (removed from clean_power_regs.caa_2024_rule's
-        # atb_new_gen again after a regional-cost-multiplier fix attempt
-        # failed to resolve a real crash) -- open diagnostic question in the
-        # note above about whether this repo's atb_data_year=2024 even has
-        # usable Coal/CCS90AvgCF data at all. This axis (ccs_capture_rate)
-        # never added either technology to atb_new_gen on its own -- that
-        # only happens inside clean_power_regs.caa_2024_rule -- so selecting
-        # `ccs90` here without also selecting clean_power_regs: caa_2024_rule
-        # has no buildable-technology effect regardless (see the "DO NOT
-        # SELECT..." warning above), and even with caa_2024_rule selected,
-        # only the gas pathway is currently live.
+      ccs95: # matches clean_power_regs.caa_2024_rule's tier exactly
         ccs_fuel_map:
-          Coal_CCS90AvgCF: coal_ccs90
-          NaturalGas_CCCCSAvgCF: naturalgas_ccs90
+          Coal_95%-CCS: coal_ccs95
+          NaturalGas_1-on-1 Combined Cycle (H-Frame) 95% CCS: naturalgas_ccs95
         ccs_capture_rate:
-          coal_ccs90: 0.9
-          naturalgas_ccs90: 0.9
-        co2_pipeline_filters:
-          - technology: NaturalGas
-            tech_detail: CCCCSAvgCF
-            with_backbone: false
-            percentile: 25
-          - technology: Coal
-            tech_detail: CCS90AvgCF
-            with_backbone: false
-            percentile: 25
-      ccs30_coal: # coal only; ATB cost curve exists but no transport/
-        # storage cost data in this repo -- incomplete, see note above
+          coal_ccs95: 0.95
+          naturalgas_ccs95: 0.95
+      ccs99: # highest available tier per fuel: 99% coal, 97% gas (no 99%-gas category exists)
         ccs_fuel_map:
-          Coal_CCS30AvgCF: coal_ccs30
+          Coal_99%-CCS: coal_ccs99
+          NaturalGas_1-on-1 Combined Cycle (H-Frame) 97% CCS: naturalgas_ccs97
         ccs_capture_rate:
-          coal_ccs30: 0.3
+          coal_ccs99: 0.99
+          naturalgas_ccs97: 0.97
     # ─────────────────────────────────────────────────────────────────────
     # retirement_policy: overrides to BOTH retirement mechanisms in this
     # pipeline, independent of clean_power_regs (the current-policy scenario
@@ -5910,18 +5824,17 @@ settings_management:
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-          # cost_case Conservative, NOT Moderate -- see the "CCS ATB DATA FIX"
-          # note above for why.
-          - [NaturalGas, CCCCSAvgCF, Conservative, 645]
-          # Coal/CCS90AvgCF intentionally OMITTED -- see the "CCS ATB DATA
-          # FIX" note above (round 3): the crash occurs in the GENERIC,
-          # economy-wide capex computation inside nrelatb.py's
-          # atb_new_generators(), before any per-region cost multiplier is
-          # ever applied, so a regional exclusion (this axis's
-          # regional_tag_values, still present below for when this is
-          # re-enabled) cannot prevent it. Disabled pending a real-data
-          # diagnostic distinguishing an ATB-2024-specific data gap from
-          # something else; not silently dropped.
+          # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
+          # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
+          # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
+          # (NREL restructured CCS category names ~ATB2023+); THIS repo's
+          # atb_data_year=2024 only has the technologies below. 95% capture
+          # is used here (exceeds the rule's 90% threshold) as the
+          # compliance-appropriate tier; the 99%/97% tier is available too
+          # via the standalone ccs_capture_rate axis (ccs99) for scenarios
+          # that want it, but isn't the default paired with the rule here.
+          - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
+          - [Coal, 95%-CCS, Moderate, 650]
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
@@ -6005,18 +5918,17 @@ settings_management:
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-          # cost_case Conservative, NOT Moderate -- see the "CCS ATB DATA FIX"
-          # note above for why.
-          - [NaturalGas, CCCCSAvgCF, Conservative, 645]
-          # Coal/CCS90AvgCF intentionally OMITTED -- see the "CCS ATB DATA
-          # FIX" note above (round 3): the crash occurs in the GENERIC,
-          # economy-wide capex computation inside nrelatb.py's
-          # atb_new_generators(), before any per-region cost multiplier is
-          # ever applied, so a regional exclusion (this axis's
-          # regional_tag_values, still present below for when this is
-          # re-enabled) cannot prevent it. Disabled pending a real-data
-          # diagnostic distinguishing an ATB-2024-specific data gap from
-          # something else; not silently dropped.
+          # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
+          # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
+          # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
+          # (NREL restructured CCS category names ~ATB2023+); THIS repo's
+          # atb_data_year=2024 only has the technologies below. 95% capture
+          # is used here (exceeds the rule's 90% threshold) as the
+          # compliance-appropriate tier; the 99%/97% tier is available too
+          # via the standalone ccs_capture_rate axis (ccs99) for scenarios
+          # that want it, but isn't the default paired with the rule here.
+          - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
+          - [Coal, 95%-CCS, Moderate, 650]
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
@@ -6090,18 +6002,17 @@ settings_management:
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-          # cost_case Conservative, NOT Moderate -- see the "CCS ATB DATA FIX"
-          # note above for why.
-          - [NaturalGas, CCCCSAvgCF, Conservative, 645]
-          # Coal/CCS90AvgCF intentionally OMITTED -- see the "CCS ATB DATA
-          # FIX" note above (round 3): the crash occurs in the GENERIC,
-          # economy-wide capex computation inside nrelatb.py's
-          # atb_new_generators(), before any per-region cost multiplier is
-          # ever applied, so a regional exclusion (this axis's
-          # regional_tag_values, still present below for when this is
-          # re-enabled) cannot prevent it. Disabled pending a real-data
-          # diagnostic distinguishing an ATB-2024-specific data gap from
-          # something else; not silently dropped.
+          # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
+          # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
+          # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
+          # (NREL restructured CCS category names ~ATB2023+); THIS repo's
+          # atb_data_year=2024 only has the technologies below. 95% capture
+          # is used here (exceeds the rule's 90% threshold) as the
+          # compliance-appropriate tier; the 99%/97% tier is available too
+          # via the standalone ccs_capture_rate axis (ccs99) for scenarios
+          # that want it, but isn't the default paired with the rule here.
+          - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
+          - [Coal, 95%-CCS, Moderate, 650]
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
@@ -6175,18 +6086,17 @@ settings_management:
       caa_2024_rule:
         atb_new_gen:
           - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-          # cost_case Conservative, NOT Moderate -- see the "CCS ATB DATA FIX"
-          # note above for why.
-          - [NaturalGas, CCCCSAvgCF, Conservative, 645]
-          # Coal/CCS90AvgCF intentionally OMITTED -- see the "CCS ATB DATA
-          # FIX" note above (round 3): the crash occurs in the GENERIC,
-          # economy-wide capex computation inside nrelatb.py's
-          # atb_new_generators(), before any per-region cost multiplier is
-          # ever applied, so a regional exclusion (this axis's
-          # regional_tag_values, still present below for when this is
-          # re-enabled) cannot prevent it. Disabled pending a real-data
-          # diagnostic distinguishing an ATB-2024-specific data gap from
-          # something else; not silently dropped.
+          # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
+          # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
+          # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
+          # (NREL restructured CCS category names ~ATB2023+); THIS repo's
+          # atb_data_year=2024 only has the technologies below. 95% capture
+          # is used here (exceeds the rule's 90% threshold) as the
+          # compliance-appropriate tier; the 99%/97% tier is available too
+          # via the standalone ccs_capture_rate axis (ccs99) for scenarios
+          # that want it, but isn't the default paired with the rule here.
+          - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
+          - [Coal, 95%-CCS, Moderate, 650]
           - [LandbasedWind, Class3, Moderate, 1]
           - [OffShoreWind, Class12, Moderate, 1]
           - [OffShoreWind, Class3, Moderate, 1]
