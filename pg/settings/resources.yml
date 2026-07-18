@@ -587,8 +587,76 @@ additional_new_gen: ~
 new_gen_not_available: ~
 
 # The keys in cost_multiplier_technology_map are technologies listed in EIA's capital
-# cost assumptions document. The 2020 version is available at
-# https://www.eia.gov/outlooks/archive/aeo20/assumptions/pdf/table_8.2.pdf
+# cost assumptions document.
+#
+# SOURCE (updated from the AEO2020-vintage Table 8.2 -- see "REGIONAL COST
+# MULTIPLIER UPDATE" below for the full investigation): "Assumptions to the
+# Annual Energy Outlook 2026: Electricity Market Module," U.S. Energy
+# Information Administration, April 2026, Table 4 ("Total overnight capital
+# costs of new electricity generating technologies by region," p.7-8).
+# https://www.eia.gov/outlooks/aeo/assumptions/pdf/EMM_Assumptions.pdf
+# Table 4 reports $/kW overnight cost by EIA Electricity Market Module (EMM)
+# region (the same 25 regions as cost_multiplier_region_map below) plus a
+# national "Average" column. cost_multiplier_fn below (AEO_2026_regional_
+# cost_corrections.csv) was built by dividing each region's $/kW by that
+# technology's reported Average column, i.e. multiplier = region_cost /
+# national_average_cost -- the same ratio-to-national-average convention as
+# the original AEO2020 file, using EIA's own reported average as the
+# denominator rather than an invented baseline.
+#
+# *** REGIONAL COST MULTIPLIER UPDATE (this repo's cost_multiplier_fn/map
+# were last refreshed against AEO2020's Table 8.2, now 5+ years stale) ***
+#   - Investigated whether AEO2025's "Capital Cost and Performance
+#     Characteristics for Utility-Scale Power Generating Technologies"
+#     (Sargent & Lundy report SL-018001, Dec 6 2023, published with AEO2025)
+#     had an equivalent regional table: it does describe the SAME underlying
+#     methodology (city-level labor/productivity factors "aggregated to
+#     represent the 25 Electricity Market Module regions"), but the report
+#     itself only publishes city/state-level "Location Adjustment" factors
+#     (e.g. Table 1-2, one row per city) -- NOT the aggregated 25-EMM-region
+#     table. Reconstructing a 25-region table from city-level data would
+#     require guessing EIA's own city->EMM-region aggregation weighting,
+#     which was not attempted (would be inventing methodology).
+#   - AEO2026's EMM Assumptions document (dated April 2026, EIA's current
+#     release) DOES publish the aggregated 25-region table directly (Table
+#     4) -- this is the source used below. It is also more current than
+#     AEO2025.
+#   - CCS category naming in Table 4 independently confirms the CCS work
+#     done earlier in this build: the table already uses "USC with 95% CCS"
+#     and "CC with 95% CCS" (not 90%), matching the real ATB2024 tech_detail
+#     names found via direct DB query (see the "CCS ATB DATA FIX" note in
+#     scenario_management.yml).
+#   - AMBIGUOUS/UNMAPPED CATEGORIES flagged for review, not guessed at:
+#     Table 4 has NO row for plain "Ultra-supercritical coal (USC)"
+#     (no-CCS), "Internal combustion engine", "Dist. Generation base/peak",
+#     "MSW - landfill gas", or "Solar thermal" -- these AEO2020 categories
+#     appear to have been dropped from EIA's current technology set (no new
+#     unabated coal, no small-scale distributed gen, no CSP solar thermal in
+#     the current EMM cost characterization). For these six categories only,
+#     AEO_2026_regional_cost_corrections.csv CARRIES FORWARD the AEO2020
+#     multiplier values UNCHANGED (clearly stale, not re-derived) rather
+#     than inventing new ones or dropping the column outright -- all six are
+#     unused by any technology currently in this repo's atb_new_gen anyway
+#     (no unabated new coal, ICE, distributed gen, landfill gas, or CSP is
+#     built), so this is a low-priority footnote, not a live risk.
+#   - Table 4 also introduces categories with NO current use in this repo
+#     (no ATB technology mapped to them below, so they're inert placeholders
+#     -- same pattern as the pre-existing empty-list entries like "Fuel
+#     cells: []"): "Hydrogen turbine", "Nuclear - small modular reactor",
+#     "Biomass with 95% CCS", "Solar PV with storage". Add a value list if
+#     this repo ever builds one of those technologies.
+#   - The OLD AEO_2020_regional_cost_corrections.csv file is KEPT (not
+#     deleted) for reference/rollback. NOTE if rolling back: the KEYS in
+#     cost_multiplier_technology_map below (e.g. "USC with 95% CCS", "CC
+#     with 95% CCS", "Nuclear - light water reactor", "Solar PV with
+#     tracking") were renamed to match the new file's column headers: the
+#     2020 file's columns use the OLD names ("USC with 90% CCS", "CC with
+#     90% CCS", "Advanced nuclear", "Solar PV - tracking"). Reverting
+#     cost_multiplier_fn to the 2020 file WITHOUT also reverting these key
+#     names will raise a KeyError in PowerGenome's regional_capex_multiplier()
+#     (a visible crash, not a silent bug, but still needs both changed
+#     together).
+#
 # Values in the list are string-matched to technologies (`<tech>_<tech_detail>`) from ATB.
 # Be sure to include any custom technologies you are using from `additional_technologies_fn`
 # or `modified_atb_new_gen`.
@@ -596,7 +664,7 @@ new_gen_not_available: ~
 # will only be applied to the first technology.
 # If you want to modify the regional cost corrections CSV, you can put your own copy in
 # the folder PowerGenome/data/cost_multipliers.
-cost_multiplier_fn: AEO_2020_regional_cost_corrections.csv
+cost_multiplier_fn: AEO_2026_regional_cost_corrections.csv
 cost_multiplier_technology_map:
   Ultra-supercritical coal (USC): [Coal_newAvgCF, Coal_newHighCF]
   # IGCC: [Coal_IGCCAvgCF, Coal_IGCCAvgCF]
@@ -607,12 +675,12 @@ cost_multiplier_technology_map:
   # history). Left as-is/unused since no 30%-capture coal technology is
   # currently in atb_new_gen anywhere in this repo; update if one is added.
   USC with 30% CCS: [Coal_CCS30AvgCF, Coal_CCS30HighCF]
-  # USC with 90% CCS: updated to the real ATB2024 tech_detail names (95% and
-  # 99% capture -- ATB dropped the old "CCS90AvgCF" 90%-capture category
-  # itself; 95%/99% are the actual available tiers). See
+  # Renamed from "USC with 90% CCS" to match the real ATB2024 tech_detail
+  # names (95%/99% capture -- ATB dropped the old 90%-capture category) AND
+  # AEO2026 Table 4's own updated category label. See
   # scenario_management.yml's clean_power_regs/ccs_capture_rate axes for
-  # where these are used.
-  USC with 90% CCS: [Coal_95%-CCS, Coal_99%-CCS]
+  # where Coal_95%-CCS / Coal_99%-CCS are used.
+  USC with 95% CCS: [Coal_95%-CCS, Coal_99%-CCS]
   CT - aeroderivative: []
   CT - industrial frame:
     [
@@ -627,16 +695,16 @@ cost_multiplier_technology_map:
       NaturalGas_CCHighCF,
       NaturalGas_2-on-1 Combined Cycle (H-Frame),
     ]
-  # CC with 90% CCS: updated to the real ATB2024 tech_detail names (95% and
-  # 97% capture -- same reasoning as USC with 90% CCS above; the old
-  # "CCCCSAvgCF" name stopped being populated after atb_year=2022).
-  CC with 90% CCS:
+  # Renamed from "CC with 90% CCS" -- same reasoning as USC above.
+  CC with 95% CCS:
     [
       NaturalGas_1-on-1 Combined Cycle (H-Frame) 95% CCS,
       NaturalGas_1-on-1 Combined Cycle (H-Frame) 97% CCS,
     ]
   Fuel cells: []
-  Advanced nuclear:
+  Hydrogen turbine: [] # new AEO2026 category; no ATB technology mapped yet
+  # Renamed from "Advanced nuclear" to match AEO2026 Table 4's label.
+  Nuclear - light water reactor:
     [
       Nuclear_Nuclear,
       Nuclear_mid,
@@ -644,13 +712,17 @@ cost_multiplier_technology_map:
       Nuclear_high,
       Nuclear_Nuclear - Large,
     ]
+  Nuclear - small modular reactor: [] # new AEO2026 category; no ATB technology mapped yet
   Biomass: [Biopower_CofireOld, Biopower_CofireNew, Biopower_Dedicated]
+  Biomass with 95% CCS: [] # new AEO2026 category; no ATB technology mapped yet
   Waste Heat: [Biopower_CofireOld, Biopower_CofireNew, Biopower_Dedicated]
-  MSW - landfill gas: []
+  MSW - landfill gas: [] # no AEO2026 update; multiplier carried forward from AEO2020
   Wind: [LandbasedWind_Class3]
   Wind offshore: [OffShoreWind_Class3, OffShoreWind_Class12]
-  Solar thermal: [CSP]
-  Solar PV - tracking: [UtilityPV_Class1, CommPV, ResPV, Imports_base] # Imports included just to avoid warnings
+  Solar thermal: [CSP] # no AEO2026 update; multiplier carried forward from AEO2020
+  # Renamed from "Solar PV - tracking" to match AEO2026 Table 4's label.
+  Solar PV with tracking: [UtilityPV_Class1, CommPV, ResPV, Imports_base] # Imports included just to avoid warnings
+  Solar PV with storage: [] # new AEO2026 category; no ATB technology mapped yet
   Battery storage:
     [Utility-Scale Battery Storage_Lithium Ion, Storage_LongDuration]
   Geothermal:
