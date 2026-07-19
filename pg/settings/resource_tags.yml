@@ -182,16 +182,8 @@ model_tag_names:
 - ESR_WI_rps
 - ESR_WI_rps_bundled
 
+- MaxCapTag_SolarGrowth
 - MaxCapTag_WindGrowth
-- MaxCapTag_WindGrowth_CAISO
-- MaxCapTag_WindGrowth_ERCOT
-- MaxCapTag_WindGrowth_ISONE
-- MaxCapTag_WindGrowth_MISO
-- MaxCapTag_WindGrowth_NYISO
-- MaxCapTag_WindGrowth_NorthernGrid
-- MaxCapTag_WindGrowth_PJM
-- MaxCapTag_WindGrowth_SPP
-- MaxCapTag_WindGrowth_WestConnect
 default_model_tag: 0
 
 model_tag_values:
@@ -499,12 +491,16 @@ model_tag_values:
     # could be moved to scenario_settings to turn it off for some cases)
     # make_emission_policies.py defines and documents the specific limit.
     Wind: 1
-  # MaxCapTag_SolarGrowth:
-  #   # solar PV (existing and new) is subject to a national limit on additions
-  #   # (this could be moved to scenario_settings to turn it off for some cases)
-  #   # make_emission_policies.py defines and documents the specific limit.
-  #   Photovoltaic: 1
-  #   UtilityPV: 1
+  MaxCapTag_SolarGrowth:
+    # solar PV (existing and new) is subject to a national limit on additions
+    # (this could be moved to scenario_settings to turn it off for some cases)
+    # make_emission_policies.py defines and documents the specific limit.
+    # "Photovoltaic" matches the existing-fleet EIA-860M technology_description
+    # "Solar Photovoltaic"; "UtilityPV" matches new-build ATB techs like
+    # UtilityPV_Class1_Moderate (substring match, case-insensitive, "_"
+    # stripped -- see add_resource_tags() in PowerGenome's generators.py).
+    Photovoltaic: 1
+    UtilityPV: 1
   MaxCapTag_NuclearGrowth:
     # nuclear (existing and new)
     Nuclear: 1

@@ -894,6 +894,8 @@ settings_management:
         model_tag_values:
           MaxCapTag_WindGrowth:
             LandbasedWind: 0
+          MaxCapTag_SolarGrowth:
+            UtilityPV: 0 # exempt new-build utility PV only, existing fleet stays capped
         atb_modifiers:
           utilitypv_reform:
             technology: UtilityPV
@@ -958,6 +960,9 @@ settings_management:
         model_tag_values:
           MaxCapTag_WindGrowth:
             Wind: 0 # removes both LandbasedWind and OffShoreWind from the cap
+          MaxCapTag_SolarGrowth:
+            Photovoltaic: 0 # removes both existing fleet and new-build UtilityPV
+            UtilityPV: 0 # from the cap
         MaxCapReq:
           MaxCapTag_Ban:
             description: banned technologies
@@ -1318,8 +1323,10 @@ settings_management:
         asymmetry_policy: no
       old:
         asymmetry_policy: no
-        user_transmission_constraints_fn: transmission/reeds_ba_tx_REFS2009_avg.csv
-        user_transmission_costs: transmission/network_costs_ReEDS_patched_for_REFS2009.csv
+        user_transmission_constraints_fn: 
+          transmission/reeds_ba_tx_REFS2009_avg.csv
+        user_transmission_costs: 
+          transmission/network_costs_ReEDS_patched_for_REFS2009.csv
     build_minimum:
       yes:
         build_minimum_policy: yes
@@ -5429,6 +5436,9 @@ settings_management:
         MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
           description: WestConnect Wind Growth Limit
           max_mw: 22839.7
+        MaxCapTag_SolarGrowth:            # managed by <string>
+          description: National Solar Growth Limit
+          max_mw: 121039.59999999998
   2025:
     offshore_wind_policy:
       capped_2025:
@@ -5513,6 +5523,9 @@ settings_management:
         MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
           description: WestConnect Wind Growth Limit
           max_mw: 22839.7
+        MaxCapTag_SolarGrowth:            # managed by <string>
+          description: National Solar Growth Limit
+          max_mw: 157990.36
   2026:
     offshore_wind_policy:
       capped_2025:
@@ -5799,6 +5812,9 @@ settings_management:
         MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
           description: WestConnect Wind Growth Limit
           max_mw: 22839.7
+        MaxCapTag_SolarGrowth:            # managed by <string>
+          description: National Solar Growth Limit
+          max_mw: 319391.27968
   2029:
     offshore_wind_policy:
       capped_2025:
@@ -5896,6 +5912,9 @@ settings_management:
         MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
           description: WestConnect Wind Growth Limit
           max_mw: 21195.8
+        MaxCapTag_SolarGrowth:            # managed by <string>
+          description: National Solar Growth Limit
+          max_mw: 396012.375616
   2030:
     offshore_wind_policy:
       capped_2025:
@@ -6016,6 +6035,9 @@ settings_management:
         MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
           description: WestConnect Wind Growth Limit
           max_mw: 22658.4
+        MaxCapTag_SolarGrowth:            # managed by <string>
+          description: National Solar Growth Limit
+          max_mw: 487957.6907392
   2035:
     offshore_wind_policy:
       capped_2025:
@@ -6077,7 +6099,7 @@ settings_management:
       # Performance Baseline reference sizes for these technologies).
       caa_2024_rule:
         atb_new_gen:
-          - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
           # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
           # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
           # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
@@ -6087,14 +6109,14 @@ settings_management:
           # compliance-appropriate tier; the 99%/97% tier is available too
           # via the standalone ccs_capture_rate axis (ccs99) for scenarios
           # that want it, but isn't the default paired with the rule here.
-          - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
-          - [Coal, 95%-CCS, Moderate, 650]
-          - [LandbasedWind, Class3, Moderate, 1]
-          - [OffShoreWind, Class12, Moderate, 1]
-          - [OffShoreWind, Class3, Moderate, 1]
-          - [UtilityPV, Class1, Moderate, 1]
-          - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
-          - [Nuclear, Nuclear - Large, Moderate, 1000]
+        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
+        - [Coal, 95%-CCS, Moderate, 650]
+        - [LandbasedWind, Class3, Moderate, 1]
+        - [OffShoreWind, Class12, Moderate, 1]
+        - [OffShoreWind, Class3, Moderate, 1]
+        - [UtilityPV, Class1, Moderate, 1]
+        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+        - [Nuclear, Nuclear - Large, Moderate, 1000]
     policies:
       current:
         # CCR Tier 1 and Tier 2 trigger prices for 2035 in $/metric tonne.
@@ -6144,6 +6166,9 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 557777.5333333333
+        MaxCapTag_SolarGrowth:  # managed by <string>
+          description: National Solar Growth Limit
+          max_mw: 1309021.999164166
   2040:
     offshore_wind_policy:
       capped_2025:
@@ -6205,7 +6230,7 @@ settings_management:
       # Performance Baseline reference sizes for these technologies).
       caa_2024_rule:
         atb_new_gen:
-          - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
           # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
           # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
           # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
@@ -6215,14 +6240,14 @@ settings_management:
           # compliance-appropriate tier; the 99%/97% tier is available too
           # via the standalone ccs_capture_rate axis (ccs99) for scenarios
           # that want it, but isn't the default paired with the rule here.
-          - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
-          - [Coal, 95%-CCS, Moderate, 650]
-          - [LandbasedWind, Class3, Moderate, 1]
-          - [OffShoreWind, Class12, Moderate, 1]
-          - [OffShoreWind, Class3, Moderate, 1]
-          - [UtilityPV, Class1, Moderate, 1]
-          - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
-          - [Nuclear, Nuclear - Large, Moderate, 1000]
+        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
+        - [Coal, 95%-CCS, Moderate, 650]
+        - [LandbasedWind, Class3, Moderate, 1]
+        - [OffShoreWind, Class12, Moderate, 1]
+        - [OffShoreWind, Class3, Moderate, 1]
+        - [UtilityPV, Class1, Moderate, 1]
+        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+        - [Nuclear, Nuclear - Large, Moderate, 1000]
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:
@@ -6262,6 +6287,9 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 606110.8666666666
+        MaxCapTag_SolarGrowth:  # managed by <string>
+          description: National Solar Growth Limit
+          max_mw: 3352092.739104177
   2045:
     offshore_wind_policy:
       capped_2025:
@@ -6323,7 +6351,7 @@ settings_management:
       # Performance Baseline reference sizes for these technologies).
       caa_2024_rule:
         atb_new_gen:
-          - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
           # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
           # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
           # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
@@ -6333,14 +6361,14 @@ settings_management:
           # compliance-appropriate tier; the 99%/97% tier is available too
           # via the standalone ccs_capture_rate axis (ccs99) for scenarios
           # that want it, but isn't the default paired with the rule here.
-          - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
-          - [Coal, 95%-CCS, Moderate, 650]
-          - [LandbasedWind, Class3, Moderate, 1]
-          - [OffShoreWind, Class12, Moderate, 1]
-          - [OffShoreWind, Class3, Moderate, 1]
-          - [UtilityPV, Class1, Moderate, 1]
-          - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
-          - [Nuclear, Nuclear - Large, Moderate, 1000]
+        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
+        - [Coal, 95%-CCS, Moderate, 650]
+        - [LandbasedWind, Class3, Moderate, 1]
+        - [OffShoreWind, Class12, Moderate, 1]
+        - [OffShoreWind, Class3, Moderate, 1]
+        - [UtilityPV, Class1, Moderate, 1]
+        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+        - [Nuclear, Nuclear - Large, Moderate, 1000]
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:
@@ -6380,6 +6408,9 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 654444.2
+        MaxCapTag_SolarGrowth:  # managed by <string>
+          description: National Solar Growth Limit
+          max_mw: 8435906.522711702
   2050:
     offshore_wind_policy:
       capped_2025:
@@ -6441,7 +6472,7 @@ settings_management:
       # Performance Baseline reference sizes for these technologies).
       caa_2024_rule:
         atb_new_gen:
-          - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
           # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
           # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
           # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
@@ -6451,14 +6482,14 @@ settings_management:
           # compliance-appropriate tier; the 99%/97% tier is available too
           # via the standalone ccs_capture_rate axis (ccs99) for scenarios
           # that want it, but isn't the default paired with the rule here.
-          - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
-          - [Coal, 95%-CCS, Moderate, 650]
-          - [LandbasedWind, Class3, Moderate, 1]
-          - [OffShoreWind, Class12, Moderate, 1]
-          - [OffShoreWind, Class3, Moderate, 1]
-          - [UtilityPV, Class1, Moderate, 1]
-          - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
-          - [Nuclear, Nuclear - Large, Moderate, 1000]
+        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
+        - [Coal, 95%-CCS, Moderate, 650]
+        - [LandbasedWind, Class3, Moderate, 1]
+        - [OffShoreWind, Class12, Moderate, 1]
+        - [OffShoreWind, Class3, Moderate, 1]
+        - [UtilityPV, Class1, Moderate, 1]
+        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+        - [Nuclear, Nuclear - Large, Moderate, 1000]
     all_cases:
       MinCapReq: # managed by make_emission_policies.py
         MinCapTag_CA_offshorewind:
@@ -6498,3 +6529,6 @@ settings_management:
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 702777.5333333332
+        MaxCapTag_SolarGrowth:  # managed by <string>
+          description: National Solar Growth Limit
+          max_mw: 21086062.03673798

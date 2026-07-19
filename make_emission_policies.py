@@ -66,13 +66,23 @@ max_growth_limits = [
     # solar: start with 2024 additions (30792.3) and allow 20%/year growth from
     # there forward (TODO: require construction in one period to enable growth
     # in the next)
-    # (disabled so we can adjust solar via a push from below on individual scenarios)
-    # (
-    #     "MaxCapTag_SolarGrowth",
-    #     "technology_description == 'Solar Photovoltaic'",
-    #     lambda y: 30792.3 * 1.2 ** (y - 2024),
-    #     "National Solar Growth Limit",
-    # ),
+    # Re-enabled (native MaxCapTag_SolarGrowth mechanism, mirroring
+    # MaxCapTag_WindGrowth's national cap) -- previously hand-patched directly
+    # into built CSVs during debugging; this restores it as a proper
+    # regenerable mechanism. NOTE this uses the EIA 860M growth-formula
+    # approach (baseline + 20%/yr), NOT the LBNL interconnection-queue
+    # methodology used for wind's regional sub-caps below -- no LBNL solar
+    # queue data has been confirmed to exist in
+    # docs/analysis/RGGI/lbnl_queue_by_state.csv (that file is only
+    # checked for "OnshoreWind" rows today); if/when a solar queue source is
+    # confirmed, a regional MaxCapTag_SolarGrowth_<transreg> section can be
+    # added below, mirroring the wind block.
+    (
+        "MaxCapTag_SolarGrowth",
+        "technology_description == 'Solar Photovoltaic'",
+        lambda y: 30792.3 * 1.2 ** (y - 2024),
+        "National Solar Growth Limit",
+    ),
     # Nuclear: no new build possible before 2035; up to 10 GW possible in 2035,
     # rising by 20%/year thereafter (based on general market assessment)
     (
