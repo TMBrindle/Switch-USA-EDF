@@ -780,12 +780,54 @@ settings_management:
     # in PowerGenome's regulatory-approved pipeline." Lease-only (no COP)
     # projects in the CSV are correctly excluded either way, since they
     # would not yet carry a V/TS/U/T status in EIA-860m.
+    #
+    # *** DELIBERATE POLICY MODELING CHOICE (repo-owner decision), NOT A BUG
+    # -- state offshore-wind mandates go unmet under capped_2025 ***
+    # A real solve of s4x1_fedpol_current (capped_2025) came back infeasible.
+    # Root cause, found by the repo owner via Gurobi IIS computation (loaded
+    # the LP file, disabled dual reductions, computed a 10-constraint IIS):
+    # ALL conflicting constraints were `Enforce_Min_Capacity(MinCapTag_
+    # <STATE>_offshorewind_2035)` -- the pre-existing state offshore wind
+    # procurement mandates (CA/CT/MA/MD/ME/NJ/NY/RI/VA; e.g. NY: 9,000 MW,
+    # NJ: 5,936.8 MW, MA: 5,600 MW by 2035), enforced by
+    # switch/study_modules/min_capacity_constraint.py's Enforce_Min_Capacity
+    # (a hard `build_capacity >= min_capacity_requirement` constraint with NO
+    # slack/violation-variable option -- confirmed by reading the module).
+    # capped_2025's national new-build ban (MaxCapTag_Ban, above) directly
+    # conflicts with these state minimums: the mandates require thousands of
+    # MW of NEW offshore wind that the federal cap prohibits building.
+    # Minimum > allowed maximum = infeasible, full stop -- this is also why
+    # Gurobi's barrier method reported infeasibility immediately after
+    # presolve with zero iterations: it's a directly-conflicting bound pair,
+    # not a subtle multi-constraint interaction.
+    # REPO-OWNER DECISION: let the state mandates go unmet under this
+    # scenario -- the more adversarial/realistic reading of a federal
+    # permitting freeze (federal cap wins; state targets simply aren't
+    # satisfied), rather than treating this as a model bug to paper over.
+    # Since Enforce_Min_Capacity has no soft-constraint mechanism and other
+    # scenarios (`biden`, `reform`, and this axis's `open` config) still need
+    # these same mandates to be hard, binding constraints, this is
+    # implemented as a scoped INPUT-DATA override (min_mw: 0 for every
+    # offshorewind MinCapTag, per year -- trivially satisfied, effectively a
+    # no-op constraint) inside `capped_2025` only, in EVERY year block that
+    # defines an offshorewind MinCapTag (2024-2050) -- NOT a change to
+    # min_capacity_constraint.py itself, which stays a hard constraint for
+    # every other config. Verified: this does not collide with anything else
+    # (only capped_2025 touches MinCapReq.MinCapTag_*_offshorewind), and
+    # `open`/every other scenario keeps the real mandate values untouched
+    # (spot-checked against the actual merged settings for biden/reform: NY
+    # min_mw stays 9,000; only capped_2025-derived rows, including its
+    # constraint-removal/high-demand sensitivity variants, show 0).
+    # If this ever needs to be "fixed back" to a real value, that is a policy
+    # decision to revisit with the repo owner, not a defect to silently
+    # patch -- do not reintroduce non-zero min_mw here without discussing it.
     offshore_wind_policy:
       open: ~
       capped_2025:
         model_tag_values:
           MaxCapTag_Ban:
             OffShoreWind: 1
+        # min_mw: 0 overrides per year, added below -- see the note above.
     # ─────────────────────────────────────────────────────────────────────
     # barrier_reduction: a distinct POLICY-REFORM config (streamlined
     # interconnection/permitting), NOT a milder version of the
@@ -5304,6 +5346,28 @@ settings_management:
             p98: 0.57
             p99: 0.56
   2024:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     all_cases:
       # disable new-build and economic retirement for historical case
       atb_new_gen: []
@@ -5366,6 +5430,28 @@ settings_management:
           description: WestConnect Wind Growth Limit
           max_mw: 22839.7
   2025:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     all_cases:
       # disable new-build and economic retirement for historical case
       atb_new_gen: []
@@ -5428,6 +5514,32 @@ settings_management:
           description: WestConnect Wind Growth Limit
           max_mw: 22839.7
   2026:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
       # don't allow new nuclear before 2030 (too soon to finish)
@@ -5494,6 +5606,32 @@ settings_management:
           description: WestConnect Wind Growth Limit
           max_mw: 22839.7
   2027:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
       # don't allow new nuclear before 2030 (too soon to finish)
@@ -5560,6 +5698,32 @@ settings_management:
           description: WestConnect Wind Growth Limit
           max_mw: 22839.7
   2028:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     policies:
       current:
         # CCR Tier 1 and Tier 2 trigger prices for 2028 in $/metric tonne.
@@ -5636,6 +5800,34 @@ settings_management:
           description: WestConnect Wind Growth Limit
           max_mw: 22839.7
   2029:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     all_cases:
       # don't allow floating offshore wind before 2030 (no prices in ATB)
       # don't allow new nuclear before 2030 (too soon to finish)
@@ -5705,6 +5897,34 @@ settings_management:
           description: WestConnect Wind Growth Limit
           max_mw: 21195.8
   2030:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     retirement_policy:
       # re-enable early/economic retirement from 2030 onward (blocked only
       # through 2029 -- see the retirement_policy axis comment above; the
@@ -5797,6 +6017,40 @@ settings_management:
           description: WestConnect Wind Growth Limit
           max_mw: 22658.4
   2035:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CA_offshorewind:
+            min_mw: 0
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_ME_offshorewind:
+            min_mw: 0
+          MinCapTag_NJ_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     retirement_policy:
       blocked_2030_coal:
         model_tag_values:
@@ -5891,6 +6145,40 @@ settings_management:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 557777.5333333333
   2040:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CA_offshorewind:
+            min_mw: 0
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_ME_offshorewind:
+            min_mw: 0
+          MinCapTag_NJ_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     retirement_policy:
       blocked_2030_coal:
         model_tag_values:
@@ -5975,6 +6263,40 @@ settings_management:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 606110.8666666666
   2045:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CA_offshorewind:
+            min_mw: 0
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_ME_offshorewind:
+            min_mw: 0
+          MinCapTag_NJ_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     retirement_policy:
       blocked_2030_coal:
         model_tag_values:
@@ -6059,6 +6381,40 @@ settings_management:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 654444.2
   2050:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CA_offshorewind:
+            min_mw: 0
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_ME_offshorewind:
+            min_mw: 0
+          MinCapTag_NJ_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     retirement_policy:
       blocked_2030_coal:
         model_tag_values:
