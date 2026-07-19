@@ -2722,6 +2722,34 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
             (int(row["period"]), row["nercr"]): float(row["growth_pct"])
             for _, row in nerc_growth_df.iterrows()
         }
+        # nerc_growth_pct.csv only has rows for a handful of periods (e.g.
+        # 2028/2030/2035) -- a plain dict .get(..., 0.0) silently treated any
+        # OTHER model period (e.g. 2029, which falls strictly BETWEEN two
+        # periods that DO have data) as 0% growth for that year, artificially
+        # clamping trans_path_expansion_limit_mw to 0 for that period even
+        # though "nerc_growth" was selected specifically to allow growth.
+        # Fixed to carry forward the growth rate from the nearest PRIOR
+        # period that has data for that NERC region, so a gap year between
+        # two known data points doesn't silently behave like
+        # trans_expansion: zero. Years before the first period with any data
+        # for a region still correctly default to 0.0 (no growth assumed
+        # before the data series starts).
+        nerc_growth_periods_by_region = {}
+        for (period, nercr), pct in nerc_growth_lookup.items():
+            nerc_growth_periods_by_region.setdefault(nercr, []).append((period, pct))
+        for nercr in nerc_growth_periods_by_region:
+            nerc_growth_periods_by_region[nercr].sort()
+
+        def _nerc_growth_for(model_year, nercr):
+            exact = nerc_growth_lookup.get((model_year, nercr))
+            if exact is not None:
+                return exact
+            candidates = [
+                pct for period, pct in nerc_growth_periods_by_region.get(nercr, [])
+                if period <= model_year
+            ]
+            return candidates[-1] if candidates else 0.0
+
         hier = pd.read_csv(hierarchy_path)[["ba", "nercr"]]
         zone_nercr = dict(zip(hier["ba"], hier["nercr"]))
         work = transmission_lines.loc[
@@ -2736,7 +2764,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         for model_year in sorted(scen_settings_dict.keys()):
             all_nercr = set(work["nercr1"]).union(set(work["nercr2"]))
             period_growth = {
-                n: nerc_growth_lookup.get((model_year, n), 0.0) for n in all_nercr
+                n: _nerc_growth_for(model_year, n) for n in all_nercr
             }
             growth1 = work["nercr1"].map(period_growth).fillna(0.0)
             growth2 = work["nercr2"].map(period_growth).fillna(0.0)
