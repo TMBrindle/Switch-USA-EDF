@@ -184,6 +184,15 @@ model_tag_names:
 
 - MaxCapTag_SolarGrowth
 - MaxCapTag_WindGrowth
+- MaxCapTag_WindGrowth_CAISO
+- MaxCapTag_WindGrowth_ERCOT
+- MaxCapTag_WindGrowth_ISONE
+- MaxCapTag_WindGrowth_MISO
+- MaxCapTag_WindGrowth_NYISO
+- MaxCapTag_WindGrowth_NorthernGrid
+- MaxCapTag_WindGrowth_PJM
+- MaxCapTag_WindGrowth_SPP
+- MaxCapTag_WindGrowth_WestConnect
 default_model_tag: 0
 
 model_tag_values:
