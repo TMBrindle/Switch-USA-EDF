@@ -2128,6 +2128,7 @@ def other_tables(
     # min_cap_req.csv and max_cap_req.csv
     cap_req_files("min", scen_settings_dict, out_folder)
     cap_req_files("max", scen_settings_dict, out_folder)
+    check_min_max_cap_conflicts(out_folder)
 
     # Generate blank no-state-policy (_nsp) alias files for all state policy files.
     # Solve commands use --input-alias to select these for no-policy scenario variants.
@@ -2247,6 +2248,7 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
     dfs = [
         pd.DataFrame(columns=[f"{MINMAX}_CAP_PROGRAM", "PERIOD", f"{minmax}_cap_mw"])
     ]
+    max_cap_req_fn_cache = {}
     # gather data across years
     for model_year, scen_settings in scen_settings_dict.items():
         mcr = cap_req(scen_settings)
@@ -2258,6 +2260,28 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
             mcr = mcr.rename(columns={f"{MinMax}_MW": f"{minmax}_cap_mw"})
             # use standard columns in standard order
             mcr = mcr[dfs[0].columns]
+        else:
+            mcr = dfs[0].iloc[0:0].copy()
+
+        if minmax == "max" and scen_settings.get("max_cap_req_fn"):
+            # File-based max cap requirements (e.g. wind/solar growth-cap
+            # schedules) take precedence over inline MaxCapReq values for the
+            # same MAX_CAP_PROGRAM; inline values are kept for any programs
+            # (e.g. MaxCapTag_Ban) not covered by the file.
+            max_cap_req_fn = scen_settings["max_cap_req_fn"]
+            if max_cap_req_fn not in max_cap_req_fn_cache:
+                path = Path(scen_settings["input_folder"]) / max_cap_req_fn
+                max_cap_req_fn_cache[max_cap_req_fn] = pd.read_csv(path)[
+                    ["MAX_CAP_PROGRAM", "PERIOD", "max_cap_mw"]
+                ]
+            file_mcr = max_cap_req_fn_cache[max_cap_req_fn]
+            file_year = file_mcr.loc[file_mcr["PERIOD"] == model_year]
+            if not file_year.empty:
+                covered = set(file_year["MAX_CAP_PROGRAM"])
+                mcr = mcr[~mcr["MAX_CAP_PROGRAM"].isin(covered)]
+                mcr = pd.concat([mcr, file_year], axis=0)
+
+        if not mcr.empty:
             dfs.append(mcr)
     # aggregate across years and write to file
     mcr = pd.concat(dfs, axis=0).reset_index(drop=True)
@@ -2305,6 +2329,67 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
                     mcr.loc[idx, "max_cap_mw"] = floor_mw
 
     mcr.to_csv(out_folder / f"{minmax}_cap_requirements.csv", index=False)
+
+
+def check_min_max_cap_conflicts(out_folder):
+    """
+    Raise an error if any MinCapTag_* minimum requirement exceeds a
+    MaxCapTag_* maximum ceiling covering an overlapping generator pool in the
+    same period -- a genuine min > max conflict on the same sum of BuildGen,
+    which is infeasible at solve time. (Two MaxCapTag_* ceilings can never
+    conflict with each other this way: they're both upper bounds, and
+    building 0 always satisfies any number of upper bounds simultaneously.)
+
+    Uses the actual generator-to-program assignments written by
+    cap_req_files() for "min" and "max" (min_cap_generators.csv /
+    max_cap_generators.csv) as the ground truth for which programs overlap,
+    rather than trying to re-derive eligibility from the model_tag_values
+    prefix-matching rules.
+    """
+    try:
+        min_gens = pd.read_csv(out_folder / "min_cap_generators.csv")
+        min_req = pd.read_csv(out_folder / "min_cap_requirements.csv")
+        max_gens = pd.read_csv(out_folder / "max_cap_generators.csv")
+        max_req = pd.read_csv(out_folder / "max_cap_requirements.csv")
+    except FileNotFoundError:
+        return
+
+    if min_gens.empty or min_req.empty or max_gens.empty or max_req.empty:
+        return
+
+    min_gen_sets = min_gens.groupby("MIN_CAP_PROGRAM")["MIN_CAP_GEN"].apply(set)
+    max_gen_sets = max_gens.groupby("MAX_CAP_PROGRAM")["MAX_CAP_GEN"].apply(set)
+
+    violations = []
+    for min_program, min_gen_set in min_gen_sets.items():
+        overlapping_max_programs = [
+            max_program
+            for max_program, max_gen_set in max_gen_sets.items()
+            if min_gen_set & max_gen_set
+        ]
+        if not overlapping_max_programs:
+            continue
+        for _, min_row in min_req.loc[min_req["MIN_CAP_PROGRAM"] == min_program].iterrows():
+            period = min_row["PERIOD"]
+            min_mw = min_row["min_cap_mw"]
+            for max_program in overlapping_max_programs:
+                max_rows = max_req.loc[
+                    (max_req["MAX_CAP_PROGRAM"] == max_program)
+                    & (max_req["PERIOD"] == period)
+                ]
+                for _, max_row in max_rows.iterrows():
+                    if min_mw > max_row["max_cap_mw"]:
+                        violations.append(
+                            f"{min_program} (min {min_mw:.1f} MW) exceeds "
+                            f"{max_program} (max {max_row['max_cap_mw']:.1f} MW) "
+                            f"in period {period}"
+                        )
+
+    if violations:
+        raise ValueError(
+            "Infeasible min/max capacity requirement conflicts detected:\n"
+            + "\n".join(violations)
+        )
 
 
 def model_adjustment_scripts(scen_settings_dict, settings_file, out_folder):

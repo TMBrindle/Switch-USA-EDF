@@ -828,6 +828,19 @@ settings_management:
           MaxCapTag_Ban:
             OffShoreWind: 1
         # min_mw: 0 overrides per year, added below -- see the note above.
+      capped_2025_released:
+        # Retires the `constraint_removal` axis: identical to capped_2025
+        # (same OffShoreWind ban tag and same state-mandate-zeroing MinCapReq
+        # overrides per year, below) but with the new-build ban released via
+        # MaxCapReq.MaxCapTag_Ban, for the current_constraintremoval and
+        # reinstate_constraintremoval fedpol scenario families.
+        model_tag_values:
+          MaxCapTag_Ban:
+            OffShoreWind: 1
+        MaxCapReq:
+          MaxCapTag_Ban:
+            description: banned technologies
+            max_mw: 999999999 # released -- effectively unlimited
     # ─────────────────────────────────────────────────────────────────────
     # barrier_reduction: a distinct POLICY-REFORM config (streamlined
     # interconnection/permitting), NOT a milder version of the
@@ -914,62 +927,21 @@ settings_management:
             tech_detail: Class12
             capex_mw: [mul, 0.9]
     # ─────────────────────────────────────────────────────────────────────
-    # constraint_removal: cross-cutting SENSITIVITY that strips
-    # gen_zone_ratio, trans_path_expansion_limit, MaxCapTag_WindGrowth, and
-    # the offshore wind cap ENTIRELY. Deliberately a separate axis/mechanism
-    # from barrier_reduction (not "reform but stronger") per the scoping for
-    # this build -- it's meant to be combinable with any of the policy
-    # scenarios to test sensitivity to deployment constraints altogether.
-    # rps_regional.py (state RPS/CES) is architecturally independent of all
-    # of gen_zone_ratio / trans_path_expansion_limit / MaxCapTag_WindGrowth /
-    # retirement flags, and is confirmed to stay active/untouched here --
-    # `full` below does not reference or modify it.
-    #
-    # *** COMPOSABILITY FIX (was crashing) -- see the matching note under
-    # barrier_reduction above for the general problem (PowerGenome's
-    # settings-merge hard-crashes on any key touched by two different
-    # scenario_inputs.csv columns in the same row). Two specific fixes here:
-    #   - trans_expansion_policy: REMOVED (was colliding with the
-    #     pre-existing trans_expansion column on EVERY row, and with
-    #     barrier_reduction: reform). To get full transmission-expansion
-    #     removal, ALSO select `trans_expansion: unlimited` (pre-existing
-    #     axis) in the same scenario row.
-    #   - Un-banning OffShoreWind: previously set
-    #     model_tag_values.MaxCapTag_Ban.OffShoreWind: 0, which collides
-    #     directly with offshore_wind_policy.capped_2025 setting the same
-    #     key to 1 (same leaf key, different values -- still a crash; the
-    #     conflict guard doesn't check value equality). Fixed by instead
-    #     raising MaxCapReq.MaxCapTag_Ban.max_mw (the shared ceiling that
-    #     ALL MaxCapTag_Ban=1 resources are limited to, currently 0 by
-    #     default in resources.yml, and never touched by
-    #     offshore_wind_policy or any other axis here) to a large number.
-    #     This achieves the same practical effect -- the ban becomes
-    #     non-binding -- via a key offshore_wind_policy never sets, so there
-    #     is no collision even though offshore_wind_policy still tags
-    #     OffShoreWind as MaxCapTag_Ban=1. NOTE: MaxCapTag_Ban is shared
-    #     infrastructure also used by resource_limits (low_gas/high_gas/
-    #     increased_ambition, legacy p1_low_gas/p1_high_gas
-    #     research/inspection cases) -- raising its ceiling here also lifts
-    #     any ban resource_limits sets, if that axis is ALSO selected
-    #     non-`none` in the same row. Not expected to matter for the
-    #     Scenario 1-3 / sensitivity rows this build is aimed at (none of
-    #     them use resource_limits), but flagged here for completeness.
-    constraint_removal:
-      none: ~
-      full:
-        model_tag_values:
-          MaxCapTag_WindGrowth:
-            Wind: 0 # removes both LandbasedWind and OffShoreWind from the cap
-          MaxCapTag_SolarGrowth:
-            Photovoltaic: 0 # removes both existing fleet and new-build UtilityPV
-            UtilityPV: 0 # from the cap
-        MaxCapReq:
-          MaxCapTag_Ban:
-            description: banned technologies
-            max_mw: 999999999 # effectively unlimited -- see note above
-        # gen_zone_ratio_agg / gen_zone_ratio_min_spec / gen_zone_ratio_max_spec
-        # intentionally omitted (unset = no constraint, same effect as the
-        # gen_zone_ratio axis's "none" config).
+    # constraint_removal axis retired (2026-07-26): it bundled three
+    # unrelated concerns (national+regional wind/solar growth caps,
+    # MaxCapTag_Ban release, and a dict-merge collision with the `policies`
+    # axis that silently broke the national release -- see
+    # Guides and documentation/deployment_cap_axis_redesign_plan.md for the
+    # full root-cause writeup). Redistributed to:
+    #   - national + regional wind/solar growth caps -> `policies:
+    #     current_uncapped` / `current_release_2035` (file-based
+    #     max_cap_req_fn, see growth_caps/*.csv)
+    #   - MaxCapTag_Ban release -> `offshore_wind_policy:
+    #     capped_2025_released`
+    # The `constraint_removal` column in scenario_inputs.csv is left in
+    # place (all rows set to `none`) since PowerGenome just logs a harmless
+    # warning for a settings_management-unreferenced column; full column
+    # removal can be a follow-up cleanup.
     resource_limits:
       # Used by p1_low_gas and p1_high_gas cases in scenario_inputs.csv.
       # These ban new-build technologies via MaxCapTag_Ban. The p1 time series
@@ -1274,6 +1246,30 @@ settings_management:
           "ETS 1": .       # hard RGGI base cap
           "ETS 2": 33.43   # CA carbon price
           "ETS 3": 33.43   # WA carbon price
+        # National + regional wind/solar growth-cap schedule (see
+        # pg/extra_inputs/growth_caps/current.csv, generated by
+        # make_emission_policies.py). File-based (not an all_cases dict) so it
+        # can't collide with year-specific settings_management merges -- see
+        # Guides and documentation/deployment_cap_axis_redesign_plan.md.
+        max_cap_req_fn: growth_caps/current.csv
+      current_uncapped:
+        # Same carbon settings as `current`, but with national + all 9
+        # regional wind/solar growth caps released for the entire horizon.
+        # Used by the *_constraintremoval fedpol scenario families.
+        carbon_cost_by_program:
+          "ETS 1": .
+          "ETS 2": 33.43
+          "ETS 3": 33.43
+        max_cap_req_fn: growth_caps/uncapped.csv
+      current_release_2035:
+        # Same carbon settings as `current`; growth caps stay native through
+        # 2028/2029, national releases at 2030, regional sub-caps release at
+        # 2035. Used by s4x1_fedpol_cost_optimal.
+        carbon_cost_by_program:
+          "ETS 1": .
+          "ETS 2": 33.43
+          "ETS 3": 33.43
+        max_cap_req_fn: growth_caps/release_2035.csv
       decarb:
         # national carbon tax at 200, to see what would be cheapest way to decarbonize
         emission_policies_fn: rggi_carbon/emission_policies_decarb.csv
@@ -5375,6 +5371,14 @@ settings_management:
             min_mw: 0
           MinCapTag_VA_offshorewind:
             min_mw: 0
+      capped_2025_released:
+        MinCapReq:
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     all_cases:
       # disable new-build and economic retirement for historical case
       atb_new_gen: []
@@ -5400,45 +5404,12 @@ settings_management:
           description: VA_offshorewind
           min_mw: 12
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 151941.5
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 451444.19999999995
-        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
-          description: CAISO Wind Growth Limit
-          max_mw: 8973.3
-        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
-          description: ERCOT Wind Growth Limit
-          max_mw: 57936.5
-        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
-          description: ISONE Wind Growth Limit
-          max_mw: 1555.3
-        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
-          description: MISO Wind Growth Limit
-          max_mw: 45081.7
-        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
-          description: NYISO Wind Growth Limit
-          max_mw: 3322.8
-        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
-          description: NorthernGrid Wind Growth Limit
-          max_mw: 19013.5
-        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
-          description: PJM Wind Growth Limit
-          max_mw: 15477.7
-        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
-          description: SPP Wind Growth Limit
-          max_mw: 41803.2
-        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
-          description: WestConnect Wind Growth Limit
-          max_mw: 22839.7
-        MaxCapTag_SolarGrowth:            # managed by <string>
-          description: National Solar Growth Limit
-          max_mw: 121039.59999999998
   2025:
     offshore_wind_policy:
       capped_2025:
@@ -5455,6 +5426,14 @@ settings_management:
         # config only -- the shared constraint module is untouched, and every
         # other offshore_wind_policy config (`open`) leaves these mandates fully
         # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
+      capped_2025_released:
         MinCapReq:
           MinCapTag_NY_offshorewind:
             min_mw: 0
@@ -5487,45 +5466,12 @@ settings_management:
           description: VA_offshorewind
           min_mw: 12
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 166431.5
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 461110.86666666664
-        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
-          description: CAISO Wind Growth Limit
-          max_mw: 8973.3
-        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
-          description: ERCOT Wind Growth Limit
-          max_mw: 57936.5
-        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
-          description: ISONE Wind Growth Limit
-          max_mw: 1555.3
-        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
-          description: MISO Wind Growth Limit
-          max_mw: 45081.7
-        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
-          description: NYISO Wind Growth Limit
-          max_mw: 3322.8
-        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
-          description: NorthernGrid Wind Growth Limit
-          max_mw: 19013.5
-        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
-          description: PJM Wind Growth Limit
-          max_mw: 15477.7
-        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
-          description: SPP Wind Growth Limit
-          max_mw: 41803.2
-        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
-          description: WestConnect Wind Growth Limit
-          max_mw: 22839.7
-        MaxCapTag_SolarGrowth:            # managed by <string>
-          description: National Solar Growth Limit
-          max_mw: 157990.36
   2026:
     offshore_wind_policy:
       capped_2025:
@@ -5542,6 +5488,18 @@ settings_management:
         # config only -- the shared constraint module is untouched, and every
         # other offshore_wind_policy config (`open`) leaves these mandates fully
         # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
+      capped_2025_released:
         MinCapReq:
           MinCapTag_CT_offshorewind:
             min_mw: 0
@@ -5582,42 +5540,12 @@ settings_management:
           description: VA_offshorewind
           min_mw: 2599
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 180921.5
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 470777.53333333327
-        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
-          description: CAISO Wind Growth Limit
-          max_mw: 8973.3
-        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
-          description: ERCOT Wind Growth Limit
-          max_mw: 57936.5
-        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
-          description: ISONE Wind Growth Limit
-          max_mw: 1555.3
-        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
-          description: MISO Wind Growth Limit
-          max_mw: 45081.7
-        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
-          description: NYISO Wind Growth Limit
-          max_mw: 3322.8
-        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
-          description: NorthernGrid Wind Growth Limit
-          max_mw: 19013.5
-        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
-          description: PJM Wind Growth Limit
-          max_mw: 15477.7
-        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
-          description: SPP Wind Growth Limit
-          max_mw: 41803.2
-        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
-          description: WestConnect Wind Growth Limit
-          max_mw: 22839.7
   2027:
     offshore_wind_policy:
       capped_2025:
@@ -5634,6 +5562,18 @@ settings_management:
         # config only -- the shared constraint module is untouched, and every
         # other offshore_wind_policy config (`open`) leaves these mandates fully
         # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
+      capped_2025_released:
         MinCapReq:
           MinCapTag_CT_offshorewind:
             min_mw: 0
@@ -5674,42 +5614,12 @@ settings_management:
           description: VA_offshorewind
           min_mw: 2599
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 195411.5
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 480444.19999999995
-        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
-          description: CAISO Wind Growth Limit
-          max_mw: 8973.3
-        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
-          description: ERCOT Wind Growth Limit
-          max_mw: 57936.5
-        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
-          description: ISONE Wind Growth Limit
-          max_mw: 1555.3
-        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
-          description: MISO Wind Growth Limit
-          max_mw: 45081.7
-        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
-          description: NYISO Wind Growth Limit
-          max_mw: 3322.8
-        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
-          description: NorthernGrid Wind Growth Limit
-          max_mw: 19013.5
-        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
-          description: PJM Wind Growth Limit
-          max_mw: 15477.7
-        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
-          description: SPP Wind Growth Limit
-          max_mw: 41803.2
-        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
-          description: WestConnect Wind Growth Limit
-          max_mw: 22839.7
   2028:
     offshore_wind_policy:
       capped_2025:
@@ -5726,6 +5636,18 @@ settings_management:
         # config only -- the shared constraint module is untouched, and every
         # other offshore_wind_policy config (`open`) leaves these mandates fully
         # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
+      capped_2025_released:
         MinCapReq:
           MinCapTag_CT_offshorewind:
             min_mw: 0
@@ -5776,45 +5698,12 @@ settings_management:
           description: VA_offshorewind
           min_mw: 2599
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 209901.5
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 490110.86666666664
-        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
-          description: CAISO Wind Growth Limit
-          max_mw: 8973.3
-        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
-          description: ERCOT Wind Growth Limit
-          max_mw: 57936.5
-        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
-          description: ISONE Wind Growth Limit
-          max_mw: 1555.3
-        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
-          description: MISO Wind Growth Limit
-          max_mw: 45081.7
-        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
-          description: NYISO Wind Growth Limit
-          max_mw: 3322.8
-        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
-          description: NorthernGrid Wind Growth Limit
-          max_mw: 19013.5
-        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
-          description: PJM Wind Growth Limit
-          max_mw: 15477.7
-        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
-          description: SPP Wind Growth Limit
-          max_mw: 41803.2
-        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
-          description: WestConnect Wind Growth Limit
-          max_mw: 22839.7
-        MaxCapTag_SolarGrowth:            # managed by <string>
-          description: National Solar Growth Limit
-          max_mw: 319391.27968
   2029:
     offshore_wind_policy:
       capped_2025:
@@ -5831,6 +5720,20 @@ settings_management:
         # config only -- the shared constraint module is untouched, and every
         # other offshore_wind_policy config (`open`) leaves these mandates fully
         # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
+      capped_2025_released:
         MinCapReq:
           MinCapTag_CT_offshorewind:
             min_mw: 0
@@ -5876,45 +5779,12 @@ settings_management:
           description: VA_offshorewind
           min_mw: 2599
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 224391.5
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 499777.53333333327
-        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
-          description: CAISO Wind Growth Limit
-          max_mw: 7966.7
-        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
-          description: ERCOT Wind Growth Limit
-          max_mw: 60125.0
-        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
-          description: ISONE Wind Growth Limit
-          max_mw: 2162.7
-        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
-          description: MISO Wind Growth Limit
-          max_mw: 48446.0
-        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
-          description: NYISO Wind Growth Limit
-          max_mw: 3808.9
-        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
-          description: NorthernGrid Wind Growth Limit
-          max_mw: 10420.2
-        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
-          description: PJM Wind Growth Limit
-          max_mw: 15453.4
-        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
-          description: SPP Wind Growth Limit
-          max_mw: 52487.2
-        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
-          description: WestConnect Wind Growth Limit
-          max_mw: 21195.8
-        MaxCapTag_SolarGrowth:            # managed by <string>
-          description: National Solar Growth Limit
-          max_mw: 396012.375616
   2030:
     offshore_wind_policy:
       capped_2025:
@@ -5931,6 +5801,20 @@ settings_management:
         # config only -- the shared constraint module is untouched, and every
         # other offshore_wind_policy config (`open`) leaves these mandates fully
         # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
+      capped_2025_released:
         MinCapReq:
           MinCapTag_CT_offshorewind:
             min_mw: 0
@@ -5999,45 +5883,12 @@ settings_management:
           description: VA_offshorewind
           min_mw: 2599
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 238881.5
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 509444.19999999995
-        MaxCapTag_WindGrowth_CAISO:  # managed by make_emission_policies.py
-          description: CAISO Wind Growth Limit
-          max_mw: 8211.5
-        MaxCapTag_WindGrowth_ERCOT: # managed by make_emission_policies.py
-          description: ERCOT Wind Growth Limit
-          max_mw: 64427.9
-        MaxCapTag_WindGrowth_ISONE: # managed by make_emission_policies.py
-          description: ISONE Wind Growth Limit
-          max_mw: 2288.8
-        MaxCapTag_WindGrowth_MISO: # managed by make_emission_policies.py
-          description: MISO Wind Growth Limit
-          max_mw: 51574.2
-        MaxCapTag_WindGrowth_NYISO: # managed by make_emission_policies.py
-          description: NYISO Wind Growth Limit
-          max_mw: 3996.8
-        MaxCapTag_WindGrowth_NorthernGrid: # managed by make_emission_policies.py
-          description: NorthernGrid Wind Growth Limit
-          max_mw: 10767.7
-        MaxCapTag_WindGrowth_PJM: # managed by make_emission_policies.py
-          description: PJM Wind Growth Limit
-          max_mw: 16253.0
-        MaxCapTag_WindGrowth_SPP: # managed by make_emission_policies.py
-          description: SPP Wind Growth Limit
-          max_mw: 56377.6
-        MaxCapTag_WindGrowth_WestConnect: # managed by make_emission_policies.py
-          description: WestConnect Wind Growth Limit
-          max_mw: 22658.4
-        MaxCapTag_SolarGrowth:            # managed by <string>
-          description: National Solar Growth Limit
-          max_mw: 487957.6907392
   2035:
     offshore_wind_policy:
       capped_2025:
@@ -6054,6 +5905,26 @@ settings_management:
         # config only -- the shared constraint module is untouched, and every
         # other offshore_wind_policy config (`open`) leaves these mandates fully
         # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CA_offshorewind:
+            min_mw: 0
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_ME_offshorewind:
+            min_mw: 0
+          MinCapTag_NJ_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
+      capped_2025_released:
         MinCapReq:
           MinCapTag_CA_offshorewind:
             min_mw: 0
@@ -6157,18 +6028,12 @@ settings_management:
           description: VA_offshorewind
           min_mw: 5200.0
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 311331.5
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 110016.40000000001
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 557777.5333333333
-        MaxCapTag_SolarGrowth:  # managed by <string>
-          description: National Solar Growth Limit
-          max_mw: 1309021.999164166
   2040:
     offshore_wind_policy:
       capped_2025:
@@ -6204,6 +6069,26 @@ settings_management:
             min_mw: 0
           MinCapTag_VA_offshorewind:
             min_mw: 0
+      capped_2025_released:
+        MinCapReq:
+          MinCapTag_CA_offshorewind:
+            min_mw: 0
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_ME_offshorewind:
+            min_mw: 0
+          MinCapTag_NJ_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
     retirement_policy:
       blocked_2030_coal:
         model_tag_values:
@@ -6278,18 +6163,12 @@ settings_management:
           description: VA_offshorewind
           min_mw: 5200
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 383781.5
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 199315.6
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 606110.8666666666
-        MaxCapTag_SolarGrowth:  # managed by <string>
-          description: National Solar Growth Limit
-          max_mw: 3352092.739104177
   2045:
     offshore_wind_policy:
       capped_2025:
@@ -6325,108 +6204,7 @@ settings_management:
             min_mw: 0
           MinCapTag_VA_offshorewind:
             min_mw: 0
-    retirement_policy:
-      blocked_2030_coal:
-        model_tag_values:
-          Can_Retire:
-            Coal: 1
-      blocked_2030_coal_gas:
-        model_tag_values:
-          Can_Retire:
-            Coal: 1
-            Natural Gas: 1
-    clean_power_regs:
-      # 111(b)/111(d) CCS compliance pathways (see the axis comment under
-      # all_years for the full citation/provisions): starting with the first
-      # modeled period at/after the Jan 1, 2032 compliance date, drop new
-      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen and add
-      # the two ATB-native, cost-data-verified CCS technologies (90% capture)
-      # as real build options: NaturalGas/CCCCSAvgCF (new-gas compliance
-      # pathway) and Coal/CCS90AvgCF (existing-coal compliance alternative to
-      # forced retirement). This replicates resources.yml's base atb_new_gen
-      # list (so nothing else is silently dropped) minus the unabated CC
-      # entry, plus the two CCS entries. Sizes (645/650 MW) match the
-      # reference plant sizes in this repo's own
-      # pg/extra_inputs/co2_pipeline_cost_percentiles.csv (NETL Cost &
-      # Performance Baseline reference sizes for these technologies).
-      caa_2024_rule:
-        atb_new_gen:
-        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
-          # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
-          # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
-          # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
-          # (NREL restructured CCS category names ~ATB2023+); THIS repo's
-          # atb_data_year=2024 only has the technologies below. 95% capture
-          # is used here (exceeds the rule's 90% threshold) as the
-          # compliance-appropriate tier; the 99%/97% tier is available too
-          # via the standalone ccs_capture_rate axis (ccs99) for scenarios
-          # that want it, but isn't the default paired with the rule here.
-        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
-        - [Coal, 95%-CCS, Moderate, 650]
-        - [LandbasedWind, Class3, Moderate, 1]
-        - [OffShoreWind, Class12, Moderate, 1]
-        - [OffShoreWind, Class3, Moderate, 1]
-        - [UtilityPV, Class1, Moderate, 1]
-        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
-        - [Nuclear, Nuclear - Large, Moderate, 1000]
-    all_cases:
-      MinCapReq: # managed by make_emission_policies.py
-        MinCapTag_CA_offshorewind:
-          description: CA_offshorewind
-          min_mw: 7600
-        MinCapTag_CT_offshorewind:
-          description: CT_offshorewind
-          min_mw: 2000
-        MinCapTag_MA_offshorewind:
-          description: MA_offshorewind
-          min_mw: 5600
-        MinCapTag_MD_offshorewind:
-          description: MD_offshorewind
-          min_mw: 8500
-        MinCapTag_ME_offshorewind:
-          description: ME_offshorewind
-          min_mw: 3000
-        MinCapTag_NJ_offshorewind:
-          description: NJ_offshorewind
-          min_mw: 11000
-        MinCapTag_NY_offshorewind:
-          description: NY_offshorewind
-          min_mw: 9000
-        MinCapTag_RI_offshorewind:
-          description: RI_offshorewind
-          min_mw: 1430
-        MinCapTag_VA_offshorewind:
-          description: VA_offshorewind
-          min_mw: 5200
-      MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 456231.5
-        MaxCapTag_NuclearGrowth:
-          description: National Nuclear Growth Limit
-          max_mw: 421520.58534399996
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 654444.2
-        MaxCapTag_SolarGrowth:  # managed by <string>
-          description: National Solar Growth Limit
-          max_mw: 8435906.522711702
-  2050:
-    offshore_wind_policy:
-      capped_2025:
-        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
-        # zeroes out the state offshore-wind procurement mandates below so this
-        # scenario represents "state offshore wind mandates go unmet under a
-        # federal permitting freeze" rather than an infeasible min > max conflict
-        # with the national new-build ban this config also applies (see the
-        # offshore_wind_policy axis comment under all_years for the full
-        # citation/background and root-cause writeup of the infeasibility this
-        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
-        # soft-constraint/violation-variable option, so this is implemented as a
-        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
-        # config only -- the shared constraint module is untouched, and every
-        # other offshore_wind_policy config (`open`) leaves these mandates fully
-        # binding, as does every other scenario axis.
+      capped_2025_released:
         MinCapReq:
           MinCapTag_CA_offshorewind:
             min_mw: 0
@@ -6520,15 +6298,144 @@ settings_management:
           description: VA_offshorewind
           min_mw: 5200
       MaxCapReq: # managed by make_emission_policies.py
-        MaxCapTag_WindGrowth:
-          description: National Wind Growth Limit
-          max_mw: 528681.5
+        MaxCapTag_NuclearGrowth:
+          description: National Nuclear Growth Limit
+          max_mw: 421520.58534399996
+        MaxCapTag_GasTurbineSupply:
+          description: Gas Turbine Supply-Chain Limit
+          max_mw: 654444.2
+  2050:
+    offshore_wind_policy:
+      capped_2025:
+        # Deliberate policy modeling choice (repo-owner decision), NOT a bug:
+        # zeroes out the state offshore-wind procurement mandates below so this
+        # scenario represents "state offshore wind mandates go unmet under a
+        # federal permitting freeze" rather than an infeasible min > max conflict
+        # with the national new-build ban this config also applies (see the
+        # offshore_wind_policy axis comment under all_years for the full
+        # citation/background and root-cause writeup of the infeasibility this
+        # fixes). min_capacity_constraint.py's Enforce_Min_Capacity has no
+        # soft-constraint/violation-variable option, so this is implemented as a
+        # scoped INPUT-DATA override (min_mw: 0, satisfied trivially) for this
+        # config only -- the shared constraint module is untouched, and every
+        # other offshore_wind_policy config (`open`) leaves these mandates fully
+        # binding, as does every other scenario axis.
+        MinCapReq:
+          MinCapTag_CA_offshorewind:
+            min_mw: 0
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_ME_offshorewind:
+            min_mw: 0
+          MinCapTag_NJ_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
+      capped_2025_released:
+        MinCapReq:
+          MinCapTag_CA_offshorewind:
+            min_mw: 0
+          MinCapTag_CT_offshorewind:
+            min_mw: 0
+          MinCapTag_MA_offshorewind:
+            min_mw: 0
+          MinCapTag_MD_offshorewind:
+            min_mw: 0
+          MinCapTag_ME_offshorewind:
+            min_mw: 0
+          MinCapTag_NJ_offshorewind:
+            min_mw: 0
+          MinCapTag_NY_offshorewind:
+            min_mw: 0
+          MinCapTag_RI_offshorewind:
+            min_mw: 0
+          MinCapTag_VA_offshorewind:
+            min_mw: 0
+    retirement_policy:
+      blocked_2030_coal:
+        model_tag_values:
+          Can_Retire:
+            Coal: 1
+      blocked_2030_coal_gas:
+        model_tag_values:
+          Can_Retire:
+            Coal: 1
+            Natural Gas: 1
+    clean_power_regs:
+      # 111(b)/111(d) CCS compliance pathways (see the axis comment under
+      # all_years for the full citation/provisions): starting with the first
+      # modeled period at/after the Jan 1, 2032 compliance date, drop new
+      # unabated "1-on-1 Combined Cycle (H-Frame)" from atb_new_gen and add
+      # the two ATB-native, cost-data-verified CCS technologies (90% capture)
+      # as real build options: NaturalGas/CCCCSAvgCF (new-gas compliance
+      # pathway) and Coal/CCS90AvgCF (existing-coal compliance alternative to
+      # forced retirement). This replicates resources.yml's base atb_new_gen
+      # list (so nothing else is silently dropped) minus the unabated CC
+      # entry, plus the two CCS entries. Sizes (645/650 MW) match the
+      # reference plant sizes in this repo's own
+      # pg/extra_inputs/co2_pipeline_cost_percentiles.csv (NETL Cost &
+      # Performance Baseline reference sizes for these technologies).
+      caa_2024_rule:
+        atb_new_gen:
+        - [NaturalGas, Combustion Turbine (F-Frame), Moderate, 100]
+          # ROUND 4 (real ATB2024 names, confirmed via direct DB query --
+          # see "CCS ATB DATA FIX" above): the old NaturalGas/CCCCSAvgCF and
+          # Coal/CCS90AvgCF names stopped being populated after atb_year=2022
+          # (NREL restructured CCS category names ~ATB2023+); THIS repo's
+          # atb_data_year=2024 only has the technologies below. 95% capture
+          # is used here (exceeds the rule's 90% threshold) as the
+          # compliance-appropriate tier; the 99%/97% tier is available too
+          # via the standalone ccs_capture_rate axis (ccs99) for scenarios
+          # that want it, but isn't the default paired with the rule here.
+        - [NaturalGas, 1-on-1 Combined Cycle (H-Frame) 95% CCS, Moderate, 645]
+        - [Coal, 95%-CCS, Moderate, 650]
+        - [LandbasedWind, Class3, Moderate, 1]
+        - [OffShoreWind, Class12, Moderate, 1]
+        - [OffShoreWind, Class3, Moderate, 1]
+        - [UtilityPV, Class1, Moderate, 1]
+        - [Utility-Scale Battery Storage, Lithium Ion, Advanced, 1]
+        - [Nuclear, Nuclear - Large, Moderate, 1000]
+    all_cases:
+      MinCapReq: # managed by make_emission_policies.py
+        MinCapTag_CA_offshorewind:
+          description: CA_offshorewind
+          min_mw: 7600
+        MinCapTag_CT_offshorewind:
+          description: CT_offshorewind
+          min_mw: 2000
+        MinCapTag_MA_offshorewind:
+          description: MA_offshorewind
+          min_mw: 5600
+        MinCapTag_MD_offshorewind:
+          description: MD_offshorewind
+          min_mw: 8500
+        MinCapTag_ME_offshorewind:
+          description: ME_offshorewind
+          min_mw: 3000
+        MinCapTag_NJ_offshorewind:
+          description: NJ_offshorewind
+          min_mw: 11000
+        MinCapTag_NY_offshorewind:
+          description: NY_offshorewind
+          min_mw: 9000
+        MinCapTag_RI_offshorewind:
+          description: RI_offshorewind
+          min_mw: 1430
+        MinCapTag_VA_offshorewind:
+          description: VA_offshorewind
+          min_mw: 5200
+      MaxCapReq: # managed by make_emission_policies.py
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 974437.6944751819
         MaxCapTag_GasTurbineSupply:
           description: Gas Turbine Supply-Chain Limit
           max_mw: 702777.5333333332
-        MaxCapTag_SolarGrowth:  # managed by <string>
-          description: National Solar Growth Limit
-          max_mw: 21086062.03673798
