@@ -508,7 +508,13 @@ def generator_fuel_and_load_files(
     # turn off age-based retirement.
     # We have to send the fuel prices so it can check which gens use a real fuel
     # and which don't, because PowerGenome gives a heat rate for all of them.
-    gen_info_file(first_year_settings, gens_by_model_year, possible_fuels, out_folder)
+    gen_info_file(
+        first_year_settings,
+        gens_by_model_year,
+        possible_fuels,
+        out_folder,
+        scen_settings_dict=scen_settings_dict,
+    )
 
     # balancing_tables(first_year_settings, pudl_engine, all_gen_units, out_folder)
 
@@ -879,6 +885,7 @@ def gen_info_file(
     gens_by_model_year: pd.DataFrame,
     possible_fuels: List,
     out_folder: Path,
+    scen_settings_dict: dict = None,
 ):
     # consolidate to one row per generator cluster (we assume data is the same
     # for all rows)
@@ -1029,13 +1036,30 @@ def gen_info_file(
     # This is a deliberately separate, opex-style (per-MWh dispatch credit)
     # mechanism from the blanket capex ITC in resources.yml's atb_modifiers
     # -- see the `tax_credits` axis in scenario_management.yml.
-    gen_tax_credits_file(gens_by_model_year, settings, out_folder)
+    # Uses scen_settings_dict (per-period settings), NOT the single
+    # first-year `settings` snapshot used above -- tax_credit_values can
+    # legitimately differ by period within one foresight case (e.g. a
+    # scenario where credits are repealed then reinstated partway through
+    # the study horizon), unlike the retirement-age/gen_info fields above
+    # which are deliberately treated as first-year-representative.
+    gen_tax_credits_file(
+        gens_by_model_year,
+        scen_settings_dict if scen_settings_dict is not None else {None: settings},
+        out_folder,
+    )
 
 
-def gen_tax_credits_file(gens_by_model_year: pd.DataFrame, settings, out_folder: Path):
+def gen_tax_credits_file(
+    gens_by_model_year: pd.DataFrame, scen_settings_dict: dict, out_folder: Path
+):
     """
     Write gen_tax_credits.csv (GENERATION_PROJECT, PERIOD,
-    gen_ptc_value_per_mwh) from the `tax_credit_values` setting, a dict of
+    gen_ptc_value_per_mwh) from each period's own `tax_credit_values`
+    setting (looked up per-PERIOD from `scen_settings_dict`, a
+    {model_year: settings} dict -- NOT a single flat settings snapshot,
+    since tax_credit_values can legitimately differ by period within one
+    foresight case, e.g. a scenario where credits are repealed in early
+    years and reinstated later). `tax_credit_values` itself is a dict of
     {technology substring: $/MWh credit}, e.g.
 
         tax_credit_values:
@@ -1078,19 +1102,36 @@ def gen_tax_credits_file(gens_by_model_year: pd.DataFrame, settings, out_folder:
     build-year granularity beyond that to satisfy the "new capacity only"
     requirement.)
     """
-    tax_credit_values = settings.get("tax_credit_values") or {}
-    if not tax_credit_values:
-        # nothing to write; study_modules.gen_tax_credits treats a missing/
-        # empty file as "no credits" (all defaults to 0)
-        return
-
     # new-build only -- see "VINTAGE GATING" note above
     gens = gens_by_model_year.query("new_build").copy()
     gens["gen_ptc_value_per_mwh"] = 0.0
     tech_lower = gens["technology"].str.lower()
-    for tech_substr, dollar_per_mwh in tax_credit_values.items():
-        mask = tech_lower.str.contains(tech_substr.lower(), regex=False)
-        gens.loc[mask, "gen_ptc_value_per_mwh"] += dollar_per_mwh
+
+    # Apply each period's own tax_credit_values only to rows for that
+    # period (gens["model_year"] == year), instead of one flat dict for
+    # every period -- this is the fix for the per-period bug described
+    # above.
+    any_credits_defined = False
+    for year, year_settings in scen_settings_dict.items():
+        tax_credit_values = (year_settings or {}).get("tax_credit_values") or {}
+        if not tax_credit_values:
+            continue
+        any_credits_defined = True
+        period_mask = (
+            gens["model_year"] == year
+            if year is not None
+            else pd.Series(True, index=gens.index)
+        )
+        for tech_substr, dollar_per_mwh in tax_credit_values.items():
+            mask = period_mask & tech_lower.str.contains(
+                tech_substr.lower(), regex=False
+            )
+            gens.loc[mask, "gen_ptc_value_per_mwh"] += dollar_per_mwh
+
+    if not any_credits_defined:
+        # nothing to write; study_modules.gen_tax_credits treats a missing/
+        # empty file as "no credits" (all defaults to 0)
+        return
 
     gen_tax_credits = gens.loc[
         gens["gen_ptc_value_per_mwh"] > 0,
