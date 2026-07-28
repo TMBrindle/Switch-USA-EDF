@@ -287,7 +287,7 @@ row (the `gen_zone_ratio` column already exists there) and re-run
 `pg_to_switch.py`. You'll also need a `gen_zone_load_ratio_rggi_va.csv`
 reference file — generate it the same way as the other aggregation levels:
 ```
-python make_zone_ratios.py --agg-by rggi_va --output gen_zone_load_ratio_rggi_va.csv
+python make_zone_ratios.py --agg-by rggi_va --output pg/extra_inputs/gen_zone/gen_zone_load_ratio_rggi_va.csv
 ```
 (matching the pattern documented in `scenario_management.yml` for `ba`/`st`/`transreg`).
 

@@ -19,7 +19,7 @@ Data sources:
   - Hierarchy:  hierarchy.csv  (optional; needed for --agg-by)
 
 Output:
-  gen_zone_load_ratio.csv  (written to current directory, or --output path)
+  gen_zone_load_ratio.csv  (written to pg/extra_inputs/gen_zone/, or --output path)
   Columns:
     LOAD_ZONE                    - ReEDS p-zone (or aggregate zone name if --agg-by)
     PERIOD                       - placeholder (blank; fill with model periods before use)
@@ -107,6 +107,7 @@ PG_MISC_DB = PG_DATA / "pg_misc_tables_efs_2025.3.sqlite"
 PUDL_DB = PG_DATA / "pudl.2025_08.sqlite"
 PLANT_REGION_MAP = EXTRA_INPUTS / "reeds_plant_map.csv"
 HIERARCHY_FILE = BASE / "hierarchy.csv"
+GEN_ZONE_DIR = EXTRA_INPUTS / "gen_zone"
 
 HIST_START = 2020
 HIST_END = 2023
@@ -248,8 +249,8 @@ def build_parser():
         metavar="FILE",
         default=None,
         help=(
-            "Path for the output CSV. Defaults to gen_zone_load_ratio.csv in the "
-            "project directory."
+            "Path for the output CSV. Defaults to gen_zone_load_ratio.csv in "
+            "pg/extra_inputs/gen_zone/."
         ),
     )
     p.add_argument(
@@ -446,7 +447,7 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
 
     # Resolve output paths
-    output_file = Path(args.output) if args.output else BASE / "gen_zone_load_ratio.csv"
+    output_file = Path(args.output) if args.output else GEN_ZONE_DIR / "gen_zone_load_ratio.csv"
     groups_output_file = (
         Path(args.groups_output)
         if args.groups_output

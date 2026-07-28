@@ -1,0 +1,30 @@
+map_name,gen_type,gen_tech,energy_source
+default,Storage,Batteries,storage
+default,Biomass,Biomass,biomass
+default,Hydro,Conventional Hydroelectric,water
+default,Naturalgas,Natural Gas Fired Combined Cycle,naturalgas
+default,Naturalgas,Natural Gas Fired Combustion Turbine,naturalgas
+default,Wind,Onshore Wind Turbine,wind
+default,Naturalgas,Other_peaker,naturalgas
+default,Other,Petroleum Liquids,distillate
+default,Hydro,Small Hydroelectric,water
+default,Solar,Solar Photovoltaic,sun
+default,Coal,Conventional Steam Coal,coal
+default,Geothermal,Geothermal,geothermal
+default,Storage,Hydroelectric Pumped Storage,storage
+default,Other,Waste Heat,waste heat
+default,Nuclear,Nuclear,uranium
+default,Wind,Offshore Wind Turbine,wind
+default,Solar,distributed_generation,sun
+default,Naturalgas,NaturalGas_1-on-1 Combined Cycle (H-Frame)_Moderate,naturalgas
+default,Naturalgas,NaturalGas_Combustion Turbine (F-Frame)_Moderate,naturalgas
+default,Storage,Utility-Scale Battery Storage_Lithium Ion_Advanced,storage
+default,Wind,LandbasedWind_Class3_Moderate,wind
+default,Solar,UtilityPV_Class1_Moderate,sun
+default,Wind,OffShoreWind_Class3_Moderate_fixed_1,wind
+default,Wind,OffShoreWind_Class3_Moderate_fixed_0,wind
+default,Other,Imports_base_base,imports
+default,Other,us_exports,demand_response
+default,Other,load_growth,demand_response
+default,Wind,OffShoreWind_Class12_Moderate_floating_0,wind
+default,Nuclear,Nuclear_Nuclear - Large_Moderate,uranium

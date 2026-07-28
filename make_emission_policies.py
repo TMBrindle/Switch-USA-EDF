@@ -66,13 +66,23 @@ max_growth_limits = [
     # solar: start with 2024 additions (30792.3) and allow 20%/year growth from
     # there forward (TODO: require construction in one period to enable growth
     # in the next)
-    # (disabled so we can adjust solar via a push from below on individual scenarios)
-    # (
-    #     "MaxCapTag_SolarGrowth",
-    #     "technology_description == 'Solar Photovoltaic'",
-    #     lambda y: 30792.3 * 1.2 ** (y - 2024),
-    #     "National Solar Growth Limit",
-    # ),
+    # Re-enabled (native MaxCapTag_SolarGrowth mechanism, mirroring
+    # MaxCapTag_WindGrowth's national cap) -- previously hand-patched directly
+    # into built CSVs during debugging; this restores it as a proper
+    # regenerable mechanism. NOTE this uses the EIA 860M growth-formula
+    # approach (baseline + 20%/yr), NOT the LBNL interconnection-queue
+    # methodology used for wind's regional sub-caps below -- no LBNL solar
+    # queue data has been confirmed to exist in
+    # docs/analysis/RGGI/lbnl_queue_by_state.csv (that file is only
+    # checked for "OnshoreWind" rows today); if/when a solar queue source is
+    # confirmed, a regional MaxCapTag_SolarGrowth_<transreg> section can be
+    # added below, mirroring the wind block.
+    (
+        "MaxCapTag_SolarGrowth",
+        "technology_description == 'Solar Photovoltaic'",
+        lambda y: 30792.3 * 1.2 ** (y - 2024),
+        "National Solar Growth Limit",
+    ),
     # Nuclear: no new build possible before 2035; up to 10 GW possible in 2035,
     # rising by 20%/year thereafter (based on general market assessment)
     (
@@ -420,12 +430,12 @@ tax_states = ["CA", "WA"]
 # start with the RGGI caps, then add CA and WA with a zero cap (they'll just pay
 # the slack price)
 # Use local 3rd-Program-Review cap file if present; fall back to ReEDS GitHub.
-# pg/extra_inputs/rggicon_3pr.csv encodes the 3rd PR model rule trajectory:
+# pg/extra_inputs/rggi_carbon/rggicon_3pr.csv encodes the 3rd PR model rule trajectory:
 #   2027: 69,806,919 short tons; declining 8,538,789/yr through 2033;
 #   then ~2,400,000/yr through 2037; flat thereafter pending 4th Program Review.
 # Units: short tons CO2 (same as RGGI allowance accounting).
 _rggicon_local = os.path.join(
-    os.path.dirname(__file__), "pg", "extra_inputs", "rggicon_3pr.csv"
+    os.path.dirname(__file__), "pg", "extra_inputs", "rggi_carbon", "rggicon_3pr.csv"
 )
 _rggicon_url = "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/emission_constraints/rggicon.csv"
 rggi_cap = pd.read_csv(
@@ -569,8 +579,8 @@ update_model_tag_names(osw_region["program"], "MinCapTag_")
 # %% #####################################
 # merge ESRs and CO2 targets and save to input_folder
 for file, cdf in [
-    ("emission_policies_current.csv", co2_wide),
-    ("emission_policies_decarb.csv", decarb_co2_wide),
+    ("rggi_carbon/emission_policies_current.csv", co2_wide),
+    ("rggi_carbon/emission_policies_decarb.csv", decarb_co2_wide),
 ]:
     ep = pd.concat([esr_wide, cdf], axis=1)
 
@@ -605,12 +615,24 @@ for file, cdf in [
 #   2025:
 #     all_cases:
 #       MaxCapReq:
-#         MaxCapTag_WindGrowth:
-#           description: National Wind Growth Limit
-#           max_mw: 13000
 #         MaxCapTag_GasTurbineSupply:
 #           description: Gas Turbine Supply-Chain Limit
 #           max_mw: 9700
+#
+# National + regional wind/solar growth caps (MaxCapTag_WindGrowth,
+# MaxCapTag_SolarGrowth, MaxCapTag_WindGrowth_<transreg>) are NOT written to
+# all_cases here -- they go to growth_caps/current.csv (see the end of this
+# script), selected via the `max_cap_req_fn` settings key under
+# `policies: current`. This is a file, not a deep-merged dict, so it can't
+# collide with year-specific all_cases merges the way the old dict-based
+# approach did; see docs/Guides and documentation/deployment_cap_axis_redesign_plan.md
+# for the full history of the bug this replaces.
+
+# tags whose MaxCapReq values go to growth_caps/current.csv instead of
+# all_cases (see above)
+GROWTH_CAP_TAGS = {"MaxCapTag_WindGrowth", "MaxCapTag_SolarGrowth"}
+# rows accumulated for growth_caps/current.csv: (MAX_CAP_PROGRAM, PERIOD, max_cap_mw, description)
+growth_cap_rows = []
 
 # get relevant settings and clear any existing tags of this type
 ss = read_yaml(yaml_files["scenario_settings"])
@@ -649,7 +671,8 @@ for tag, selector, limit, description in max_growth_limits:
     )
     lims.append((tag, description, lim_func, baseline_capacity))
 
-# write caps to the settings_management yaml entry in format above
+# write caps to the settings_management yaml entry in format above (Nuclear
+# and GasTurbineSupply only -- Wind/SolarGrowth go to growth_cap_rows instead)
 for y in possible_model_years:
     d = {}
     for tag, description, lim_func, baseline_capacity in lims:
@@ -657,10 +680,13 @@ for y in possible_model_years:
         max_capacity = baseline_capacity + sum(
             lim_func(y_ + 1) for y_ in range(last_hist_year, y)
         )
-        d[tag] = {
-            "description": description,
-            "max_mw": max_capacity,
-        }
+        if tag in GROWTH_CAP_TAGS:
+            growth_cap_rows.append((tag, y, max_capacity, description))
+        else:
+            d[tag] = {
+                "description": description,
+                "max_mw": max_capacity,
+            }
         update_model_tag_names([tag], tag)
     add_yaml_key(ss, ["settings_management", y, "all_cases", "MaxCapReq"], d)
 
@@ -739,10 +765,9 @@ lbnl_wind28["pipeline_new_mw"] = (
 hier = pd.read_csv("hierarchy.csv")
 transreg_zones = hier.groupby("transreg")["ba"].apply(list).to_dict()
 
-# ── Write regional MaxCapReq to scenario_management.yml ──────────────────────
-# Re-open (national limits already written above)
-ss = read_yaml(yaml_files["scenario_settings"])
-delete_yaml_keys(ss, ["settings_management", "*", "all_cases", "MaxCapReq", "MaxCapTag_WindGrowth_*"])
+# ── Regional MaxCapReq: accumulate into growth_cap_rows (not scenario_management.yml) ──
+# (matches the national growth caps above -- these go to growth_caps/current.csv,
+# selected via the `max_cap_req_fn` settings key, not all_cases)
 
 regional_tags = []
 for transreg, annual_lim in regional_annual_limit.items():
@@ -770,13 +795,7 @@ for transreg, annual_lim in regional_annual_limit.items():
             # No regional constraint for 2031+
             continue
 
-        add_yaml_key(
-            ss,
-            ["settings_management", y, "all_cases", "MaxCapReq", tag],
-            {"description": desc, "max_mw": round(float(max_cap), 1)},
-        )
-
-write_yaml(ss, yaml_files["scenario_settings"])
+        growth_cap_rows.append((tag, y, round(float(max_cap), 1), desc))
 
 # ── Write zone-level tag assignments to regional_resource_tags.yml ───────────
 rrt = read_yaml(yaml_files["regional_tag_values"])
@@ -800,5 +819,19 @@ print(
     f"Regional wind growth limits written for {len(regional_tags)} transregs: "
     + ", ".join(sorted(regional_tags))
 )
+
+# %% #####################################
+# Write national + regional wind/solar growth caps to growth_caps/current.csv
+# (single source of truth for `policies: current`'s max_cap_req_fn; see the
+# "Apply maximum growth rate" section above for why these no longer go to
+# all_cases)
+growth_caps_dir = Path(settings["input_folder"]) / "growth_caps"
+growth_caps_dir.mkdir(parents=True, exist_ok=True)
+current_growth_caps = pd.DataFrame(
+    growth_cap_rows, columns=["MAX_CAP_PROGRAM", "PERIOD", "max_cap_mw", "description"]
+).sort_values(["MAX_CAP_PROGRAM", "PERIOD"]).reset_index(drop=True)
+current_growth_caps_path = growth_caps_dir / "current.csv"
+current_growth_caps.to_csv(current_growth_caps_path, index=False)
+print(f"Saved {current_growth_caps_path}.")
 
 # %%
