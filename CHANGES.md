@@ -796,3 +796,127 @@ Top-5 utilities by CO2: 195, 6452, 7140, 18642, 19876.
 Added a script to remove RPS, CES, min-cap, and max-cap policies for historical
 (non-planning) periods. Prevents constraint infeasibility in historical
 calibration runs where future policy targets should not apply.
+
+---
+
+## 25. Federal-Policy Scenario Axes (`s4x1_fedpol_*`)
+
+**Date:** 2026-07-17 to 2026-07-19 · **Branch:** `project/Aug26_fed_policy`
+**See also:** `Guides and documentation/pg_to_switch_bugfixes_fedpol.md` for the
+bugs found while building these scenarios (see §26 below).
+
+Six new `scenario_management.yml` axes and the `s4x1_fedpol_*` scenario family
+in `pg/extra_inputs/scenario_inputs.csv`, built to model a range of federal
+policy postures (current law, reinstated IRA credits, Biden-era baseline, plus
+`_constraintremoval` and `_highdemand` sensitivity variants):
+
+- **`tax_credits`** — opex-style ($/MWh dispatch credit) PTC tracking, distinct
+  from the blanket capex ITC in `resources.yml`'s `atb_modifiers`. New Switch
+  module `switch/study_modules/gen_tax_credits.py`; values set via the
+  `tax_credit_values` settings key (technology-substring → $/MWh).
+- **`clean_power_regs`** — implements the EPA GHG rule (`caa_2024_rule`, 89 FR
+  39798) via real CCS technology options (not a retirement-only proxy). New
+  Switch module `switch/study_modules/clean_power_regs.py`.
+- **`retirement_policy`** — `blocked_2030_coal_gas` overrides EIA-860m
+  predetermined-retirement dates for coal/gas.
+- **`offshore_wind_policy`** — `capped_2025` bans new-build `OffShoreWind` via
+  `MaxCapTag_Ban`, sourced from a BOEM project list
+  (`pg/extra_inputs/offshore_wind/boem_projects_jan2025.csv`). Deliberately lets
+  state offshore-wind procurement mandates go unmet under this config (zeroes
+  `MinCapReq.MinCapTag_*_offshorewind` per year) rather than leaving the
+  scenario infeasible — see the `offshore_wind_policy` axis comment in
+  `scenario_management.yml` for the full root-cause/decision writeup.
+- **`barrier_reduction`** — placeholder interconnection/permitting-reform proxy
+  (partial `MaxCapTag_WindGrowth`/`SolarGrowth` exemption + capex reduction on
+  new wind/solar/storage).
+- **`ccs_capture_rate`** — standalone axis for CCS capture-rate sensitivity,
+  split out from `clean_power_regs`.
+
+Also: `load_growth.edf_epri_med`/`epri_high` (new high-demand sensitivity),
+`tariffs`/`hist5_high_gas` wiring (dropped an earlier `aeo2025_high_gas`
+proposal in favor of these), and a settings-merge collision fix (verified via
+a real `build_scenario_settings()` simulation rather than static key
+comparison).
+
+---
+
+## 26. ATB2024 / AEO2026 Data Fixes Found Building Federal-Policy Scenarios
+
+**Date:** 2026-07-17 to 2026-07-19 · **Branch:** `project/Aug26_fed_policy`
+**See also:** `Guides and documentation/pg_to_switch_bugfixes_fedpol.md`
+
+- **NaN capex crash** — `clean_power_regs.caa_2024_rule`'s CCS `atb_new_gen`
+  entries crashed with a NaN capex; root cause was a NaN regional cost
+  multiplier in 4 regions, not bad ATB data (took 4 rounds to isolate: an
+  initial CCS-removal workaround was reverted once the real cause was found).
+- **ATB2024 CCS technology names** — NREL restructured CCS category names
+  around ATB2023; the old names referenced in this repo were simply dead.
+  Updated to the real ATB2024 names, plus a generic `Coal_` THERM tag match to
+  catch them.
+- **AEO2026 regional cost multipliers** — replaced the AEO2020 (Table 8.2,
+  5+ years stale) regional cost multiplier source with AEO2026 EMM
+  Assumptions Table 4; bumped the `PowerGenome` submodule to pick up the
+  correction data.
+- **`nerc_growth` trans_expansion gap-year bug** — silently zeroed out the
+  transmission-expansion limit for a gap year, found while investigating
+  `s4x1_fedpol_reform`'s numerical divergence from other cases.
+- **Per-period tax-credit bug** — `gen_tax_credits_file()` read a single flat
+  `tax_credit_values` dict (from first/final-year settings) and applied it to
+  every period, silently giving `s4x1_fedpol_reinstate` (credits repealed
+  2028, reinstated 2030+) zero credits in the periods where they should have
+  applied. Fixed to iterate settings per period.
+
+---
+
+## 27. Deployment-Cap Release Fix — `constraint_removal` Axis Retired
+
+**Date:** 2026-07-26/27 · **Branch:** `project/Aug26_fed_policy`
+**See also:** `Guides and documentation/deployment_cap_axis_redesign_plan.md`
+for the full root-cause writeup and verification detail.
+
+`s4x1_fedpol_cost_optimal`'s national wind/solar growth-cap release (designed
+to take effect at 2030) silently never worked: `make_emission_policies.py`
+writes `MaxCapTag_WindGrowth`/`SolarGrowth` into a per-year `all_cases` block,
+and `all_cases` merges apply unconditionally and aren't tracked by
+PowerGenome's merge conflict-checker, so they clobbered the `constraint_removal`
+axis's override every time. The regional `MaxCapTag_WindGrowth_<transreg>`
+sub-cap release only "worked" by coincidence (`make_emission_policies.py`
+just doesn't populate those tags past 2030).
+
+**Fix:** moved national + regional growth caps from inline `all_cases` dicts
+to external CSVs (`pg/extra_inputs/growth_caps/{current,uncapped,
+release_2035}.csv`) selected via a new `max_cap_req_fn` settings key, read by
+`cap_req_files()` in `pg_to_switch.py`. A file path is scalar/last-write-wins,
+so it can't collide with a year-specific merge the way a deep-merged dict
+can. `constraint_removal` also bundled an unrelated second concern
+(`MaxCapTag_Ban` release for offshore wind); that moved to a new
+`offshore_wind_policy: capped_2025_released` level. The `constraint_removal`
+axis is deleted from `scenario_management.yml` entirely; the now-inert column
+is left in `scenario_inputs.csv` (all `none`) since PowerGenome just logs a
+harmless warning for an unreferenced column.
+
+Also added `check_min_max_cap_conflicts()` in `pg_to_switch.py` — a build-time
+guard against a `MinCapTag_*` minimum exceeding an overlapping `MaxCapTag_*`
+ceiling in the same period (genuinely infeasible; two `MaxCapTag_*` ceilings
+can never conflict with each other, since building 0 always satisfies any
+number of upper bounds).
+
+---
+
+## 28. Predetermined-Floor Triple-Counting Fix (Foresight Cases)
+
+**Date:** 2026-07-27/28 · **Branch:** `project/Aug26_fed_policy`
+
+The predetermined-capacity floor logic added in §17 merged
+`max_cap_generators.csv` against `mcr[MAX_CAP_PROGRAM]` directly, but `mcr`
+has one row per `(program, period)` — for any foresight (multi-period) case,
+this duplicated every generator once per period its program was active in
+(3x for programs present at all 3 of e.g. 2028/2030/2035, 2x for tags only
+present at 2 of those periods). This corrupted both the generator list
+written to `max_cap_generators.csv` and the predetermined-capacity floor sum
+that uses it — e.g. it inflated `s4x1_fedpol_current`'s national
+`MaxCapTag_WindGrowth` floor at 2028 to 520,916 MW (3x the correct
+173,639 MW predetermined total). **Applies to every `MaxCapTag_*` program in
+any foresight build**, not just the new growth-cap files from §27. Fixed by
+merging against the deduplicated program list
+(`mcr[[...]].drop_duplicates()`) instead of the raw per-period column.
