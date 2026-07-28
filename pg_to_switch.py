@@ -2293,7 +2293,15 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
     except FileNotFoundError:
         limited_cap_gens = None
     else:
-        limited_cap_gens = limited_cap_gens.merge(mcr[f"{MINMAX}_CAP_PROGRAM"])
+        # merge against the unique set of active program names, not the raw
+        # mcr rows -- mcr has one row per (program, period), so merging
+        # against it directly would duplicate each generator once per period
+        # the program is active in (harmless for Switch's Set semantics
+        # downstream, but corrupts the predetermined-floor sum below, which
+        # would count each generator's predetermined MW once per period).
+        limited_cap_gens = limited_cap_gens.merge(
+            mcr[[f"{MINMAX}_CAP_PROGRAM"]].drop_duplicates()
+        )
         limited_cap_gens.to_csv(out_file, index=False)
 
     if minmax == "max" and limited_cap_gens is not None and not limited_cap_gens.empty:
