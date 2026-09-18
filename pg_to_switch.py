@@ -508,7 +508,13 @@ def generator_fuel_and_load_files(
     # turn off age-based retirement.
     # We have to send the fuel prices so it can check which gens use a real fuel
     # and which don't, because PowerGenome gives a heat rate for all of them.
-    gen_info_file(first_year_settings, gens_by_model_year, possible_fuels, out_folder)
+    gen_info_file(
+        first_year_settings,
+        gens_by_model_year,
+        possible_fuels,
+        out_folder,
+        scen_settings_dict=scen_settings_dict,
+    )
 
     # balancing_tables(first_year_settings, pudl_engine, all_gen_units, out_folder)
 
@@ -879,6 +885,7 @@ def gen_info_file(
     gens_by_model_year: pd.DataFrame,
     possible_fuels: List,
     out_folder: Path,
+    scen_settings_dict: dict = None,
 ):
     # consolidate to one row per generator cluster (we assume data is the same
     # for all rows)
@@ -1021,6 +1028,118 @@ def gen_info_file(
     ]
     gen_om_by_period.to_csv(
         out_folder / "gen_om_by_period.csv", index=False, na_rep="."
+    )
+
+    ########
+    # save PTC-style per-MWh federal tax credit values (45Y/48E, 45U, 45Q,
+    # 45V) to gen_tax_credits.csv, read by study_modules.gen_tax_credits.
+    # This is a deliberately separate, opex-style (per-MWh dispatch credit)
+    # mechanism from the blanket capex ITC in resources.yml's atb_modifiers
+    # -- see the `tax_credits` axis in scenario_management.yml.
+    # Uses scen_settings_dict (per-period settings), NOT the single
+    # first-year `settings` snapshot used above -- tax_credit_values can
+    # legitimately differ by period within one foresight case (e.g. a
+    # scenario where credits are repealed then reinstated partway through
+    # the study horizon), unlike the retirement-age/gen_info fields above
+    # which are deliberately treated as first-year-representative.
+    gen_tax_credits_file(
+        gens_by_model_year,
+        scen_settings_dict if scen_settings_dict is not None else {None: settings},
+        out_folder,
+    )
+
+
+def gen_tax_credits_file(
+    gens_by_model_year: pd.DataFrame, scen_settings_dict: dict, out_folder: Path
+):
+    """
+    Write gen_tax_credits.csv (GENERATION_PROJECT, PERIOD,
+    gen_ptc_value_per_mwh) from each period's own `tax_credit_values`
+    setting (looked up per-PERIOD from `scen_settings_dict`, a
+    {model_year: settings} dict -- NOT a single flat settings snapshot,
+    since tax_credit_values can legitimately differ by period within one
+    foresight case, e.g. a scenario where credits are repealed in early
+    years and reinstated later). `tax_credit_values` itself is a dict of
+    {technology substring: $/MWh credit}, e.g.
+
+        tax_credit_values:
+          LandbasedWind: 27.5   # 45Y clean electricity PTC placeholder
+          OffShoreWind: 27.5
+          UtilityPV: 27.5
+          Nuclear: 15           # 45U existing nuclear PTC placeholder
+          NaturalGas CCS100: 20 # 45Q, translated to $/MWh -- placeholder
+
+    Technology names are matched case-insensitively against the `technology`
+    column using substring containment (same convention as
+    cost_multiplier_technology_map elsewhere in this pipeline). If a
+    generator's technology matches more than one key, the credits are
+    additive (a generator could in principle qualify under one PTC only in
+    practice, but scenario authors are responsible for not double-specifying
+    overlapping keys).
+
+    Only PowerGenome year-round, technology-uniform credit magnitudes are
+    supported here -- there is no vintage-based phase-out/expiration logic
+    (e.g. the real 45Y PTC only pays out for a project's first ~10 years).
+    That refinement is a documented gap, not implemented in this scaffold.
+
+    VINTAGE GATING (new-build only, not pre-existing fleet): PTC-style
+    credits (45Y/48E, 45U, 45Q, 45V) only apply to newly-built capacity, not
+    to wind/solar/etc. that was already online before the credit-bearing
+    scenario takes effect. In this pipeline, existing (pre-determined) fleet
+    and new-build technology options are already represented as SEPARATE
+    GENERATION_PROJECT/Resource rows -- see the `new_build` boolean on
+    `gens_by_model_year` (also used above to filter gen_om_by_period.csv,
+    and by gen_info_table()/eia_build_info() to distinguish predetermined
+    existing units from new-build clusters). We therefore restrict this
+    credit to rows where `new_build` is True; existing-fleet rows
+    (`Existing_Cap_MW > 0`, `new_build` False) are excluded entirely, so a
+    pre-2025 wind/solar plant never earns a credit here even though its
+    GENERATION_PROJECT technology matches a `tax_credit_values` key. (Within
+    a new-build resource's own multi-period build schedule, DispatchGen
+    reflects cumulative capacity added across periods, but since none of
+    that capacity predates the resource's creation, this still correctly
+    excludes 100% of the pre-existing fleet -- it does not need per-vintage
+    build-year granularity beyond that to satisfy the "new capacity only"
+    requirement.)
+    """
+    # new-build only -- see "VINTAGE GATING" note above
+    gens = gens_by_model_year.query("new_build").copy()
+    gens["gen_ptc_value_per_mwh"] = 0.0
+    tech_lower = gens["technology"].str.lower()
+
+    # Apply each period's own tax_credit_values only to rows for that
+    # period (gens["model_year"] == year), instead of one flat dict for
+    # every period -- this is the fix for the per-period bug described
+    # above.
+    any_credits_defined = False
+    for year, year_settings in scen_settings_dict.items():
+        tax_credit_values = (year_settings or {}).get("tax_credit_values") or {}
+        if not tax_credit_values:
+            continue
+        any_credits_defined = True
+        period_mask = (
+            gens["model_year"] == year
+            if year is not None
+            else pd.Series(True, index=gens.index)
+        )
+        for tech_substr, dollar_per_mwh in tax_credit_values.items():
+            mask = period_mask & tech_lower.str.contains(
+                tech_substr.lower(), regex=False
+            )
+            gens.loc[mask, "gen_ptc_value_per_mwh"] += dollar_per_mwh
+
+    if not any_credits_defined:
+        # nothing to write; study_modules.gen_tax_credits treats a missing/
+        # empty file as "no credits" (all defaults to 0)
+        return
+
+    gen_tax_credits = gens.loc[
+        gens["gen_ptc_value_per_mwh"] > 0,
+        ["Resource", "model_year", "gen_ptc_value_per_mwh"],
+    ].rename(columns={"Resource": "GENERATION_PROJECT", "model_year": "PERIOD"})
+
+    gen_tax_credits.to_csv(
+        out_folder / "gen_tax_credits.csv", index=False, na_rep="."
     )
 
 
@@ -1238,7 +1357,7 @@ def gen_tables(
 
         # find build_year, capacity_mw and capacity_mwh for existing generating
         # units online in this model_year for each gen cluster
-        eia_unit_info = eia_build_info(gc)
+        eia_unit_info = eia_build_info(gc, year_settings)
         unit_df = gen_df.merge(eia_unit_info, on="Resource", how="left")
         unit_dfs.append(unit_df)
 
@@ -1410,7 +1529,121 @@ def set_retirement_age(df, settings):
     return df
 
 
-def eia_build_info(gc: GeneratorClusters):
+# Settings keys that may each carry a predetermined-retirement-date override
+# (or list of them -- see apply_predetermined_retirement_override()). Kept as
+# separate keys per scenario axis, rather than one shared key, so that two
+# independent axes (e.g. retirement_policy and clean_power_regs) can each
+# contribute their own override(s) in the same scenario without one axis's
+# YAML settings silently clobbering the other's during settings_management
+# merging (dict/list values from different axes are not deep-merged).
+PREDETERMINED_RETIREMENT_OVERRIDE_KEYS = [
+    "predetermined_retirement_override",  # retirement_policy axis (blocked_2030_*)
+    # clean_power_regs.caa_2024_rule used to set this key to force early
+    # retirement of long-lived coal as a proxy for "no CCS-retrofit lever
+    # exists" -- removed once CCS became a real atb_new_gen option (coal can
+    # now compete as new-build CCS capacity instead of being forced to
+    # retire). Left registered here as reusable, available infrastructure in
+    # case a future config wants a similar override.
+    "clean_power_regs_retirement_override",
+]
+
+
+def apply_predetermined_retirement_override(units: pd.DataFrame, settings) -> pd.DataFrame:
+    """
+    Adjust predetermined (EIA-860m-sourced) retirement dates for units
+    matching a configured technology scope, per one or more override rules
+    gathered from PREDETERMINED_RETIREMENT_OVERRIDE_KEYS. Used by:
+      - the `retirement_policy` axis's `blocked_2030_coal` /
+        `blocked_2030_coal_gas` configs, to make "block retirements through
+        2029/30" actually affect the predetermined retirement schedule, not
+        just SWITCH's endogenous economic retirement (Can_Retire) -- see the
+        long comment on the `retirement_policy` axis for why both mechanisms
+        are needed together.
+      - the `clean_power_regs` axis's `caa_2024_rule` config, to represent
+        the existing-coal compliance pathway under EPA's 111(d) emission
+        guidelines (89 FR 39798, May 9, 2024) -- see that axis's comment for
+        the rule citation and the three retirement-date subcategories.
+
+    Deliberately does NOT touch the cached EIA-860m workbook or PowerGenome
+    itself (unlike update_coal_closures.py, which corrects that data against
+    the GEM tracker for a different purpose) -- this only adjusts the
+    `retirement_year` column of the unit-level dataframe pg_to_switch.py
+    already builds from PowerGenome's output, before it's used to infer each
+    unit's SWITCH build_year (see the comment a few lines below this call:
+    "infer the build date from retirement_year and retirement_age ... will
+    cause it to retire at the right time").
+
+    Each settings key may hold a single rule (dict) or a list of rules; all
+    rules found across all keys are applied in order (KEYS order, then list
+    order within a key). Each rule is a dict with:
+        technologies: [coal]   # or [coal, "natural gas"], etc.
+        mode: window | no_retirement_before
+        target_year: <int>
+      and, depending on mode:
+        window mode:
+          window: [start, end]   # inclusive both ends
+          -> units with retirement_year in [start, end] are moved to
+             target_year. Used to PUSH BACK (delay) a retirement that would
+             otherwise happen soon.
+        no_retirement_before mode:
+          threshold_year: <int>
+          -> units with retirement_year > threshold_year (i.e. not already
+             committed to retire by/before that year) are moved to
+             target_year. Used to FORCE AN EARLIER retirement on units that
+             haven't committed to retire soon enough to be exempt from a
+             requirement this pipeline can't otherwise represent (e.g. a
+             CCS retrofit).
+
+    Technology matching is case-insensitive substring containment against
+    the `technology` column (same convention as the Can_Retire model tag in
+    resource_tags.yml, e.g. "Coal" matches "Conventional Steam Coal", "Coal
+    Integrated Gasification Combined Cycle", etc.; "Natural Gas" matches all
+    "Natural Gas Fired ..." / "Natural Gas ... Turbine" technologies).
+
+    `window` boundaries are inclusive on both ends. Units outside a rule's
+    scope (technology or date range) are left untouched by that rule.
+    """
+    settings = settings or {}
+    rules = []
+    for key in PREDETERMINED_RETIREMENT_OVERRIDE_KEYS:
+        val = settings.get(key)
+        if not val:
+            continue
+        rules.extend(val if isinstance(val, list) else [val])
+
+    for rule in rules:
+        technologies = [t.lower() for t in rule["technologies"]]
+        target_year = rule["target_year"]
+        mode = rule.get("mode", "window")
+
+        tech_match = units["technology"].str.lower().apply(
+            lambda tech: any(t in tech for t in technologies)
+        )
+
+        if mode == "window":
+            window_start, window_end = rule["window"]
+            in_scope = units["retirement_year"].between(window_start, window_end)
+            verb, range_desc = "pushing back", f"in [{window_start}, {window_end}]"
+        elif mode == "no_retirement_before":
+            threshold_year = rule["threshold_year"]
+            in_scope = units["retirement_year"] > threshold_year
+            verb, range_desc = "forcing earlier retirement for", f"> {threshold_year}"
+        else:
+            raise ValueError(f"Unrecognized predetermined_retirement_override mode: {mode}")
+
+        to_override = tech_match & in_scope
+        if to_override.any():
+            logger.info(
+                f"predetermined_retirement_override: {verb} {to_override.sum()} "
+                f"unit(s) with retirement_year {range_desc} to {target_year} "
+                f"(technologies matching {rule['technologies']})"
+            )
+            units.loc[to_override, "retirement_year"] = target_year
+
+    return units
+
+
+def eia_build_info(gc: GeneratorClusters, settings=None):
     """
     Return a dataframe showing Resource, plant_gen_id, build_year, capacity_mw
     and capacity_mwh for all EIA generating units that were aggregated for the
@@ -1420,8 +1653,13 @@ def eia_build_info(gc: GeneratorClusters):
     factor if specified in gc.settings (typical for small hydro, geothermal,
     possibly biomass)
 
-    Inputs: - gc: GeneratorClusters object previously used to call
-    gc.create_all_generators
+    Inputs:
+        - gc: GeneratorClusters object previously used to call
+          gc.create_all_generators
+        - settings: year_settings dict, used only to read
+          `predetermined_retirement_override` (see
+          apply_predetermined_retirement_override() above); may be omitted
+          if that override isn't needed.
     """
 
     units = gc.all_units.copy()
@@ -1457,6 +1695,11 @@ def eia_build_info(gc: GeneratorClusters):
             .transform("min")
             .values
         )
+
+    # scenario-driven predetermined-retirement-date override (retirement_policy
+    # axis's blocked_2030_* configs) -- must run BEFORE build_year is inferred
+    # below, since that's what actually makes the later retirement date "stick"
+    units = apply_predetermined_retirement_override(units, settings)
 
     # infer the build date from retirement_year and retirement_age
     # (may not be the right year, but will cause it to retire at the right
@@ -1885,6 +2128,7 @@ def other_tables(
     # min_cap_req.csv and max_cap_req.csv
     cap_req_files("min", scen_settings_dict, out_folder)
     cap_req_files("max", scen_settings_dict, out_folder)
+    check_min_max_cap_conflicts(out_folder)
 
     # Generate blank no-state-policy (_nsp) alias files for all state policy files.
     # Solve commands use --input-alias to select these for no-policy scenario variants.
@@ -2004,6 +2248,7 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
     dfs = [
         pd.DataFrame(columns=[f"{MINMAX}_CAP_PROGRAM", "PERIOD", f"{minmax}_cap_mw"])
     ]
+    max_cap_req_fn_cache = {}
     # gather data across years
     for model_year, scen_settings in scen_settings_dict.items():
         mcr = cap_req(scen_settings)
@@ -2015,6 +2260,28 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
             mcr = mcr.rename(columns={f"{MinMax}_MW": f"{minmax}_cap_mw"})
             # use standard columns in standard order
             mcr = mcr[dfs[0].columns]
+        else:
+            mcr = dfs[0].iloc[0:0].copy()
+
+        if minmax == "max" and scen_settings.get("max_cap_req_fn"):
+            # File-based max cap requirements (e.g. wind/solar growth-cap
+            # schedules) take precedence over inline MaxCapReq values for the
+            # same MAX_CAP_PROGRAM; inline values are kept for any programs
+            # (e.g. MaxCapTag_Ban) not covered by the file.
+            max_cap_req_fn = scen_settings["max_cap_req_fn"]
+            if max_cap_req_fn not in max_cap_req_fn_cache:
+                path = Path(scen_settings["input_folder"]) / max_cap_req_fn
+                max_cap_req_fn_cache[max_cap_req_fn] = pd.read_csv(path)[
+                    ["MAX_CAP_PROGRAM", "PERIOD", "max_cap_mw"]
+                ]
+            file_mcr = max_cap_req_fn_cache[max_cap_req_fn]
+            file_year = file_mcr.loc[file_mcr["PERIOD"] == model_year]
+            if not file_year.empty:
+                covered = set(file_year["MAX_CAP_PROGRAM"])
+                mcr = mcr[~mcr["MAX_CAP_PROGRAM"].isin(covered)]
+                mcr = pd.concat([mcr, file_year], axis=0)
+
+        if not mcr.empty:
             dfs.append(mcr)
     # aggregate across years and write to file
     mcr = pd.concat(dfs, axis=0).reset_index(drop=True)
@@ -2026,7 +2293,15 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
     except FileNotFoundError:
         limited_cap_gens = None
     else:
-        limited_cap_gens = limited_cap_gens.merge(mcr[f"{MINMAX}_CAP_PROGRAM"])
+        # merge against the unique set of active program names, not the raw
+        # mcr rows -- mcr has one row per (program, period), so merging
+        # against it directly would duplicate each generator once per period
+        # the program is active in (harmless for Switch's Set semantics
+        # downstream, but corrupts the predetermined-floor sum below, which
+        # would count each generator's predetermined MW once per period).
+        limited_cap_gens = limited_cap_gens.merge(
+            mcr[[f"{MINMAX}_CAP_PROGRAM"]].drop_duplicates()
+        )
         limited_cap_gens.to_csv(out_file, index=False)
 
     if minmax == "max" and limited_cap_gens is not None and not limited_cap_gens.empty:
@@ -2062,6 +2337,67 @@ def cap_req_files(minmax, scen_settings_dict, out_folder):
                     mcr.loc[idx, "max_cap_mw"] = floor_mw
 
     mcr.to_csv(out_folder / f"{minmax}_cap_requirements.csv", index=False)
+
+
+def check_min_max_cap_conflicts(out_folder):
+    """
+    Raise an error if any MinCapTag_* minimum requirement exceeds a
+    MaxCapTag_* maximum ceiling covering an overlapping generator pool in the
+    same period -- a genuine min > max conflict on the same sum of BuildGen,
+    which is infeasible at solve time. (Two MaxCapTag_* ceilings can never
+    conflict with each other this way: they're both upper bounds, and
+    building 0 always satisfies any number of upper bounds simultaneously.)
+
+    Uses the actual generator-to-program assignments written by
+    cap_req_files() for "min" and "max" (min_cap_generators.csv /
+    max_cap_generators.csv) as the ground truth for which programs overlap,
+    rather than trying to re-derive eligibility from the model_tag_values
+    prefix-matching rules.
+    """
+    try:
+        min_gens = pd.read_csv(out_folder / "min_cap_generators.csv")
+        min_req = pd.read_csv(out_folder / "min_cap_requirements.csv")
+        max_gens = pd.read_csv(out_folder / "max_cap_generators.csv")
+        max_req = pd.read_csv(out_folder / "max_cap_requirements.csv")
+    except FileNotFoundError:
+        return
+
+    if min_gens.empty or min_req.empty or max_gens.empty or max_req.empty:
+        return
+
+    min_gen_sets = min_gens.groupby("MIN_CAP_PROGRAM")["MIN_CAP_GEN"].apply(set)
+    max_gen_sets = max_gens.groupby("MAX_CAP_PROGRAM")["MAX_CAP_GEN"].apply(set)
+
+    violations = []
+    for min_program, min_gen_set in min_gen_sets.items():
+        overlapping_max_programs = [
+            max_program
+            for max_program, max_gen_set in max_gen_sets.items()
+            if min_gen_set & max_gen_set
+        ]
+        if not overlapping_max_programs:
+            continue
+        for _, min_row in min_req.loc[min_req["MIN_CAP_PROGRAM"] == min_program].iterrows():
+            period = min_row["PERIOD"]
+            min_mw = min_row["min_cap_mw"]
+            for max_program in overlapping_max_programs:
+                max_rows = max_req.loc[
+                    (max_req["MAX_CAP_PROGRAM"] == max_program)
+                    & (max_req["PERIOD"] == period)
+                ]
+                for _, max_row in max_rows.iterrows():
+                    if min_mw > max_row["max_cap_mw"]:
+                        violations.append(
+                            f"{min_program} (min {min_mw:.1f} MW) exceeds "
+                            f"{max_program} (max {max_row['max_cap_mw']:.1f} MW) "
+                            f"in period {period}"
+                        )
+
+    if violations:
+        raise ValueError(
+            "Infeasible min/max capacity requirement conflicts detected:\n"
+            + "\n".join(violations)
+        )
 
 
 def model_adjustment_scripts(scen_settings_dict, settings_file, out_folder):
@@ -2290,7 +2626,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
     # Cross-transreg blocking only applies when transmission_policy is "constrained".
     script_dir = Path(__file__).parent
     hierarchy_path = script_dir / "hierarchy.csv"
-    tx_conn_path = script_dir / "transmission_connections.csv"
+    tx_conn_path = script_dir / "pg" / "extra_inputs" / "transmission" / "transmission_connections.csv"
 
     trans_build_minimum_rows = []
     new_build_derate_rows = []
@@ -2417,7 +2753,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
 
         # --- Feature: hurdle costs for cross-hurdlereg lines ---
         if settings.get("hurdle_policy", "yes") == "yes":
-            hurdle_path = script_dir / "cost_hurdle_intra.csv"
+            hurdle_path = script_dir / "pg" / "extra_inputs" / "transmission" / "cost_hurdle_intra.csv"
             if hurdle_path.exists():
                 hurdle_df = pd.read_csv(hurdle_path).set_index("t")
                 available_years = sorted(hurdle_df.index.tolist())
@@ -2441,8 +2777,8 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
 
     # --- Feature: asymmetric directional capacity from NARIS2024 AC and nonAC files ---
     if settings.get("asymmetry_policy", "yes") == "yes":
-        ac_path = script_dir / "transmission_capacity_init_AC_ba_NARIS2024.csv"
-        nonac_path = script_dir / "transmission_capacity_init_nonAC_ba.csv"
+        ac_path = script_dir / "pg" / "extra_inputs" / "transmission" / "transmission_capacity_init_AC_ba_NARIS2024.csv"
+        nonac_path = script_dir / "pg" / "extra_inputs" / "transmission" / "transmission_capacity_init_nonAC_ba.csv"
     else:
         ac_path = nonac_path = None
 
@@ -2504,7 +2840,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         trans_path_expansion_limit = None
 
     elif trans_expansion_policy == "nerc_growth":
-        nerc_growth_path = script_dir / "nerc_growth_pct.csv"
+        nerc_growth_path = script_dir / "pg" / "extra_inputs" / "transmission" / "nerc_growth_pct.csv"
         if not nerc_growth_path.exists():
             raise FileNotFoundError(
                 f"nerc_growth_pct.csv not found at {nerc_growth_path}; "
@@ -2520,6 +2856,34 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
             (int(row["period"]), row["nercr"]): float(row["growth_pct"])
             for _, row in nerc_growth_df.iterrows()
         }
+        # nerc_growth_pct.csv only has rows for a handful of periods (e.g.
+        # 2028/2030/2035) -- a plain dict .get(..., 0.0) silently treated any
+        # OTHER model period (e.g. 2029, which falls strictly BETWEEN two
+        # periods that DO have data) as 0% growth for that year, artificially
+        # clamping trans_path_expansion_limit_mw to 0 for that period even
+        # though "nerc_growth" was selected specifically to allow growth.
+        # Fixed to carry forward the growth rate from the nearest PRIOR
+        # period that has data for that NERC region, so a gap year between
+        # two known data points doesn't silently behave like
+        # trans_expansion: zero. Years before the first period with any data
+        # for a region still correctly default to 0.0 (no growth assumed
+        # before the data series starts).
+        nerc_growth_periods_by_region = {}
+        for (period, nercr), pct in nerc_growth_lookup.items():
+            nerc_growth_periods_by_region.setdefault(nercr, []).append((period, pct))
+        for nercr in nerc_growth_periods_by_region:
+            nerc_growth_periods_by_region[nercr].sort()
+
+        def _nerc_growth_for(model_year, nercr):
+            exact = nerc_growth_lookup.get((model_year, nercr))
+            if exact is not None:
+                return exact
+            candidates = [
+                pct for period, pct in nerc_growth_periods_by_region.get(nercr, [])
+                if period <= model_year
+            ]
+            return candidates[-1] if candidates else 0.0
+
         hier = pd.read_csv(hierarchy_path)[["ba", "nercr"]]
         zone_nercr = dict(zip(hier["ba"], hier["nercr"]))
         work = transmission_lines.loc[
@@ -2534,7 +2898,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         for model_year in sorted(scen_settings_dict.keys()):
             all_nercr = set(work["nercr1"]).union(set(work["nercr2"]))
             period_growth = {
-                n: nerc_growth_lookup.get((model_year, n), 0.0) for n in all_nercr
+                n: _nerc_growth_for(model_year, n) for n in all_nercr
             }
             growth1 = work["nercr1"].map(period_growth).fillna(0.0)
             growth2 = work["nercr2"].map(period_growth).fillna(0.0)
@@ -2797,17 +3161,18 @@ def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
     model_zones = set(settings.get("model_regions", []))
 
     # ── Locate reference file ─────────────────────────────────────────────
-    ref_file = script_dir / f"gen_zone_load_ratio_{agg}.csv"
+    gen_zone_dir = script_dir / "pg" / "extra_inputs" / "gen_zone"
+    ref_file = gen_zone_dir / f"gen_zone_load_ratio_{agg}.csv"
     if not ref_file.exists() and agg == "st":
-        ref_file = script_dir / "gen_zone_load_ratio.csv"  # legacy name
+        ref_file = gen_zone_dir / "gen_zone_load_ratio.csv"  # legacy name
     if not ref_file.exists():
         raise FileNotFoundError(
             f"Reference file not found for gen_zone_ratio_agg={agg!r}. "
             f"Expected: {ref_file}. "
             + (
                 "Run: python make_zone_ratios.py "
-                + (f"--agg-by {agg} --output gen_zone_load_ratio_{agg}.csv" if agg != "ba"
-                   else "--output gen_zone_load_ratio_ba.csv")
+                + (f"--agg-by {agg} --output pg/extra_inputs/gen_zone/gen_zone_load_ratio_{agg}.csv" if agg != "ba"
+                   else "--output pg/extra_inputs/gen_zone/gen_zone_load_ratio_ba.csv")
             )
         )
 

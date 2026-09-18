@@ -295,9 +295,9 @@ for tech in new_build_techs:
 # The resulting file is used as user_transmission_constraints_fn in extra_inputs.yml.
 # Asymmetric directional limits are handled separately via trans_directional_limits.csv.
 script_dir = Path(__file__).parent
-tx_file = settings["input_folder"] / "reeds_ba_tx_NARIS_avg.csv"
-ac_path = script_dir / "transmission_capacity_init_AC_ba_NARIS2024.csv"
-dc_path = script_dir / "transmission_capacity_init_nonAC_ba.csv"
+tx_file = settings["input_folder"] / "transmission" / "reeds_ba_tx_NARIS_avg.csv"
+ac_path = script_dir / "pg" / "extra_inputs" / "transmission" / "transmission_capacity_init_AC_ba_NARIS2024.csv"
+dc_path = script_dir / "pg" / "extra_inputs" / "transmission" / "transmission_capacity_init_nonAC_ba.csv"
 
 print(f"\nCreating {tx_file} from {ac_path} and {dc_path}")
 ac = pd.read_csv(ac_path)
