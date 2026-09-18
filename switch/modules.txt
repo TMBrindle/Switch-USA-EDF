@@ -14,6 +14,7 @@ switch_model.generators.core.commit.fuel_use
 # switch_model.generators.extensions.storage
 study_modules.generators_extensions_storage
 switch_model.generators.extensions.hydro_system
+study_modules.gen_ramp_limits
 # switch_model.energy_sources.fuel_costs_simple
 # patched version
 study_modules.fuel_costs_simple
