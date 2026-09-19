@@ -63,6 +63,9 @@ settings_management:
       s16x10:
         time_domain_periods: 16
         time_domain_days_per_period: 10
+      s4x3:
+        time_domain_periods: 4
+        time_domain_days_per_period: 3
       s4x5:
         time_domain_periods: 4
         time_domain_days_per_period: 5
@@ -1270,6 +1273,19 @@ settings_management:
           "ETS 2": 33.43
           "ETS 3": 33.43
         max_cap_req_fn: growth_caps/release_2035.csv
+      S0:
+        # National wind/solar caps follow the "Quad" (quadratic trend)
+        # cumulative capacity trajectory: 198.2/221.3/283.9 GW wind and
+        # 243.7/321.5/566.6 GW solar at 2028/2030/2035 -- explicit values,
+        # not a flat MW/yr rate (see make_emission_policies.py
+        # RENEWABLE_CAP_PRESETS). Only these 3 periods are populated; don't
+        # apply to a case built with a different year selection without
+        # adding more anchor points first.
+        carbon_cost_by_program:
+          "ETS 1": .
+          "ETS 2": 33.43
+          "ETS 3": 33.43
+        max_cap_req_fn: growth_caps/S0.csv
       decarb:
         # national carbon tax at 200, to see what would be cheapest way to decarbonize
         emission_policies_fn: rggi_carbon/emission_policies_decarb.csv
