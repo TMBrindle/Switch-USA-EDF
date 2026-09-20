@@ -264,6 +264,20 @@ def post_solve(m, outdir):
     # (this will use data from this model for projects/build_years from this
     # model and data from the next model for additional projects/build_years)
     costs = merge_build_data(costs, "gen_build_costs.csv")
+    # Switch's GEN_BLD_YRS validation only accepts (gen, build_year) pairs that
+    # are either in the predetermined set or whose build_year is one of the
+    # next stage's own model periods. merge_build_data() above pulls forward
+    # *all* of the next stage's own gen_build_costs.csv rows (including
+    # zero-capacity placeholder build years from PowerGenome that aren't a
+    # real model period), so drop any row here that doesn't satisfy that same
+    # rule, to avoid an orphaned build_year that fails validation downstream.
+    next_periods = set(read_csv(next_in_path, "periods.csv")["INVESTMENT_PERIOD"])
+    predet_keys = set(map(tuple, predet.iloc[:, :2].values))
+    build_year_col = costs.columns[1]
+    costs = costs[
+        costs[build_year_col].isin(next_periods)
+        | costs.iloc[:, :2].apply(tuple, axis=1).isin(predet_keys)
+    ]
     to_csv(costs, chained(next_in_path, "gen_build_costs.csv"))
 
     # combine starting transmission for this case with transmission expansion
@@ -275,7 +289,10 @@ def post_solve(m, outdir):
         .sum()
         .reset_index()
     )
-    trans = trans.merge(trans_built)
+    # left join: most lines have no entry in BuildTx.csv (e.g. when expansion
+    # is disabled or a line isn't a candidate for expansion), and must still
+    # be carried forward with their existing capacity unchanged, not dropped.
+    trans = trans.merge(trans_built, how="left")
     trans["existing_trans_cap"] += trans["BuildTx"].fillna(0)
     # round very small capacities to zero (generally occur due to solver
     # rounding and may cause numerical warnings in next stage)

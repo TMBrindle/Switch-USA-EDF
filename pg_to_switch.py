@@ -1771,11 +1771,11 @@ def infer_build_years(df):
     built_mwh, rnorm_mwh = scipy.optimize.nnls(in_service_flag, df["Existing_Cap_MWh"])
     if rnorm_mw > 0:
         logger.warning(
-            f"MW construction schedule for {df['Resource'].iloc[0]} cannot match reported capacity"
+            f"MW construction schedule for {df.name} cannot match reported capacity"
         )
     if rnorm_mwh > 0:
         logger.warning(
-            f"MWh construction schedule for {df['Resource'].iloc[0]} cannot match reported capacity"
+            f"MWh construction schedule for {df.name} cannot match reported capacity"
         )
 
     result = pd.DataFrame(
