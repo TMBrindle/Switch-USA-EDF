@@ -1,0 +1,7 @@
+MAX_CAP_PROGRAM,PERIOD,max_cap_mw,description
+MaxCapTag_SolarGrowth,2028,243700.0,"Solar Growth Limit (explicit cap, policies=S2_Transreg)"
+MaxCapTag_SolarGrowth,2030,364400.0,"Solar Growth Limit (explicit cap, policies=S2_Transreg)"
+MaxCapTag_SolarGrowth,2035,727800.0,"Solar Growth Limit (explicit cap, policies=S2_Transreg)"
+MaxCapTag_WindGrowth,2028,198200.0,"Wind Growth Limit (explicit cap, policies=S2_Transreg)"
+MaxCapTag_WindGrowth,2030,235900.0,"Wind Growth Limit (explicit cap, policies=S2_Transreg)"
+MaxCapTag_WindGrowth,2035,351000.0,"Wind Growth Limit (explicit cap, policies=S2_Transreg)"

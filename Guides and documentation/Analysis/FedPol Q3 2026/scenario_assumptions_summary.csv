@@ -1,0 +1,12 @@
+Category,fedpol_biden,fedpol_current,fedpol_reinstate,fedpol_cost_optimal
+Framing,Biden-era policy continuation,Current federal policy (rollback),"Current policy, credits later reinstated",Unconstrained cost-optimal by 2035
+Federal tax credits (tax_credits),"full_ira - full IRA wind/solar credits, all periods","no_wind_solar - credits repealed for wind/solar, all periods","no_wind_solar 2024-2028, then full_ira from 2030",no_wind_solar - no subsidy in any period (pure cost competition)
+EPA power-plant CO2 rule (clean_power_regs),caa_2024_rule - 2024 Clean Air Act rule in effect,none - repealed,none - repealed,none - repealed
+Coal/gas retirement policy (retirement_policy),baseline - normal economic retirement,blocked_2030_coal_gas - coal/gas retirements forced online through 2029,blocked_2030_coal_gas - same forced retention,baseline - normal economic retirement
+Offshore wind policy (offshore_wind_policy),open - no restriction,capped_2025 - state offshore mandates zeroed/capped,capped_2025 - same cap,open - no restriction
+Tariffs (tariffs),none,section232_2025 - Section 232 steel/aluminum tariffs modeled,section232_2025 - same tariffs,none
+Gas price forecast (fuel_price_forecast),hist5 - standard historical-trend gas prices,hist5_high_gas - elevated gas prices (tariff-driven),hist5_high_gas - same elevated prices,hist5 - standard prices
+Deployment caps - wind/solar (constraint_removal),"none, all periods - caps fully binding","none, all periods - caps fully binding","none, all periods - caps fully binding","none @2028, partial (intended national release) @2030, full (intended national+regional release) @2035 - national release currently non-functional, see notes"
+Transmission expansion (trans_expansion),zero - no new interzonal transmission,zero,zero,unlimited
+State buildout pacing (gen_zone_ratio),none,none,st_hist_range - state-level build pacing tied to historical range,none
+Demand growth (load_growth),edf_epri_med,edf_epri_med,edf_epri_med,edf_epri_med

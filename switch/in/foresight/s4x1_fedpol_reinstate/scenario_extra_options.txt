@@ -1,1 +1,0 @@
---include-module study_modules.gen_zone_ratio

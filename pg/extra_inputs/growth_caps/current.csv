@@ -1,6 +1,8 @@
 MAX_CAP_PROGRAM,PERIOD,max_cap_mw,description
 MaxCapTag_SolarGrowth,2024,121039.59999999998,National Solar Growth Limit
 MaxCapTag_SolarGrowth,2025,157990.36,National Solar Growth Limit
+MaxCapTag_SolarGrowth,2026,202331.27199999997,National Solar Growth Limit
+MaxCapTag_SolarGrowth,2027,255540.36639999997,National Solar Growth Limit
 MaxCapTag_SolarGrowth,2028,319391.27968,National Solar Growth Limit
 MaxCapTag_SolarGrowth,2029,396012.375616,National Solar Growth Limit
 MaxCapTag_SolarGrowth,2030,487957.6907392,National Solar Growth Limit

@@ -834,4 +834,145 @@ current_growth_caps_path = growth_caps_dir / "current.csv"
 current_growth_caps.to_csv(current_growth_caps_path, index=False)
 print(f"Saved {current_growth_caps_path}.")
 
+# %% #####################################
+# Additional national wind/solar growth-cap presets for the `policies` axis
+# (OBBBA_wind17_solar30 / IRA_wind42_solar63 in scenario_management.yml),
+# alongside the existing current.csv / uncapped.csv / release_2035.csv. Same
+# `max_cap_req_fn` mechanism as those -- just a different growth-cap CSV, no
+# separate settings key or override layer. `current_uncapped` (existing,
+# growth_caps/uncapped.csv) already covers "no caps on wind or solar" (and
+# more), so no third preset is generated here.
+#
+# Each preset uses flat national MW/yr growth rates (not the historical-
+# growth-rate/20%-per-year methodology `policies:current` uses for solar),
+# applied on top of the same 2024 baseline capacities computed above for
+# MaxCapTag_WindGrowth/SolarGrowth. Regional wind sub-caps
+# (MaxCapTag_WindGrowth_<transreg>) are NOT affected by these presets -- they
+# stay on the LBNL-queue/historical-share methodology regardless, since they
+# represent siting/interconnection-queue realism, not a national policy
+# assumption about manufacturing/supply-chain growth rate.
+RENEWABLE_CAP_PRESETS = {
+    # file stem (growth_caps/<stem>.csv, referenced by max_cap_req_fn) ->
+    # (policies axis value that selects it, {tag: flat annual MW/yr growth rate})
+    "wind17_solar30": (
+        "OBBBA_wind17_solar30",
+        {"MaxCapTag_WindGrowth": 17_000, "MaxCapTag_SolarGrowth": 30_000},
+    ),
+    "wind42_solar63": (
+        "IRA_wind42_solar63",
+        {"MaxCapTag_WindGrowth": 42_000, "MaxCapTag_SolarGrowth": 63_000},
+    ),
+    # S0/S1 use the "Quad" (quadratic trend) cumulative cap trajectory;
+    # S2_State/S2_Transreg/S2_Hurdlereg all use the "Implied" (implied rate)
+    # trajectory instead -- both given directly as explicit cumulative
+    # capacity values (GW) at 2028/2030/2035 (repo owner, 2026-08-19), not as
+    # a flat MW/yr rate. A dict of {year: cap_mw} below means "use this
+    # value directly for exactly these years" -- see _rows_for_tag. Only
+    # 2028/2030/2035 are populated (the only periods s4x1_fedpol_current_S0 /
+    # _reinstate_S1 / _reinstate_S2_* actually model); no other
+    # possible_model_years are generated for these five presets, so don't
+    # apply them to a case built with a different year selection without
+    # adding more anchor points first.
+    #
+    # S0 and S1 share identical values -- kept as separate named presets
+    # (not deduped into one) since they're expected to diverge later (e.g.
+    # different tax credits or other axes), per repo-owner intent. Likewise
+    # S2_State/S2_Transreg/S2_Hurdlereg are now identical to each other too
+    # (previously differed by solar rate; the Implied trajectory replaces
+    # that per-derivation-method distinction with a single shared curve).
+    "S0": (
+        "S0",
+        {
+            "MaxCapTag_WindGrowth": {2028: 198_200, 2030: 221_300, 2035: 283_900},
+            "MaxCapTag_SolarGrowth": {2028: 243_700, 2030: 321_500, 2035: 566_600},
+        },
+    ),
+    "S1": (
+        "S1",
+        {
+            "MaxCapTag_WindGrowth": {2028: 198_200, 2030: 221_300, 2035: 283_900},
+            "MaxCapTag_SolarGrowth": {2028: 243_700, 2030: 321_500, 2035: 566_600},
+        },
+    ),
+    # S2 variants use Quad through 2028 (identical to S0/S1 that year), then
+    # switch to Implied from 2030 on -- repo owner corrected the Implied
+    # values themselves too (2026-08-19), replacing the earlier
+    # 207.5/247.0/367.4 wind, 281.1/420.3/839.5 solar figures.
+    "S2_State": (
+        "S2_State",
+        {
+            "MaxCapTag_WindGrowth": {2028: 198_200, 2030: 235_900, 2035: 351_000},
+            "MaxCapTag_SolarGrowth": {2028: 243_700, 2030: 364_400, 2035: 727_800},
+        },
+    ),
+    "S2_Transreg": (
+        "S2_Transreg",
+        {
+            "MaxCapTag_WindGrowth": {2028: 198_200, 2030: 235_900, 2035: 351_000},
+            "MaxCapTag_SolarGrowth": {2028: 243_700, 2030: 364_400, 2035: 727_800},
+        },
+    ),
+    "S2_Hurdlereg": (
+        "S2_Hurdlereg",
+        {
+            "MaxCapTag_WindGrowth": {2028: 198_200, 2030: 235_900, 2035: 351_000},
+            "MaxCapTag_SolarGrowth": {2028: 243_700, 2030: 364_400, 2035: 727_800},
+        },
+    ),
+}
+
+
+def _rate_for_year(rate_spec, y):
+    """rate_spec is either a flat MW/yr number, or a list of (last_year, rate)
+    tuples applied in order (use last_year=None to match all remaining
+    years)."""
+    if isinstance(rate_spec, (int, float)):
+        return rate_spec
+    for last_year, rate in rate_spec:
+        if last_year is None or y <= last_year:
+            return rate
+    return rate_spec[-1][1]
+
+
+def _rows_for_tag(tag, rate_spec, baseline, policy_name):
+    """Build (MAX_CAP_PROGRAM, PERIOD, max_cap_mw, description) rows for one
+    tag. rate_spec is either a flat MW/yr rate or (last_year, rate) schedule
+    (applied via baseline + rate*(y - last_hist_year) across
+    possible_model_years), or a dict of {year: explicit cumulative cap_mw}
+    -- used directly, only for the years given, no baseline/rate formula."""
+    tech = tag.replace("MaxCapTag_", "").replace("Growth", "")
+    rows = []
+    if isinstance(rate_spec, dict):
+        for y, max_cap in sorted(rate_spec.items()):
+            desc = f"{tech} Growth Limit (explicit cap, policies={policy_name})"
+            rows.append((tag, y, round(float(max_cap), 1), desc))
+        return rows
+    for y in possible_model_years:
+        annual_mw = _rate_for_year(rate_spec, y)
+        max_cap = baseline + annual_mw * (y - last_hist_year)
+        desc = f"{tech} Growth Limit ({annual_mw} MW/yr, policies={policy_name})"
+        rows.append((tag, y, round(float(max_cap), 1), desc))
+    return rows
+
+
+baseline_by_tag = {
+    tag: baseline_capacity
+    for tag, _description, _lim_func, baseline_capacity in lims
+    if tag in GROWTH_CAP_TAGS
+}
+
+for file_stem, (policy_name, rates) in RENEWABLE_CAP_PRESETS.items():
+    preset_rows = []
+    for tag, rate_spec in rates.items():
+        baseline = baseline_by_tag[tag]
+        preset_rows.extend(_rows_for_tag(tag, rate_spec, baseline, policy_name))
+    preset_df = (
+        pd.DataFrame(preset_rows, columns=["MAX_CAP_PROGRAM", "PERIOD", "max_cap_mw", "description"])
+        .sort_values(["MAX_CAP_PROGRAM", "PERIOD"])
+        .reset_index(drop=True)
+    )
+    preset_path = growth_caps_dir / f"{file_stem}.csv"
+    preset_df.to_csv(preset_path, index=False)
+    print(f"Saved {preset_path}.")
+
 # %%
