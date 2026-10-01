@@ -26,20 +26,30 @@ def load_cfg(path: str) -> dict:
     root = Path(path).resolve().parent
     for k, v in cfg["paths"].items():
         cfg["paths"][k] = str(root / v)
-    cfg["saturation"]["transfer_capacity"] = str(root / cfg["saturation"]["transfer_capacity"])
+    for k in ("transfer_capacity", "boundary_capacity"):
+        if k in cfg["saturation"]:
+            cfg["saturation"][k] = str(root / cfg["saturation"][k])
     cfg["_root"] = str(root)
     return cfg
+
+
+def proxy_capacity(cfg: dict, c2z: pd.DataFrame, proxy: str) -> pd.Series | None:
+    """Zone headroom proxy (MW) for a network-capacity proxy; None for "generation" (EIA nameplate)."""
+    sc = cfg["saturation"]
+    if proxy == "transfer":
+        return network.transfer_capacity_by_zone(sc["transfer_capacity"], c2z, sc["boundary_weight"])["transfer_mw"]
+    if proxy == "boundary":
+        return network.boundary_capacity_by_zone(sc["boundary_capacity"], c2z["ba"].unique())
+    if proxy == "generation":
+        return None
+    raise ValueError(f"unknown headroom proxy {proxy!r}")
 
 
 def build_panel(cfg: dict, proxy: str | None = None):
     c2z = geo.load_county2zone(cfg["paths"]["county2zone"])
     gens = eia.load_eia860m(cfg["paths"]["eia860m"])
     proxy = proxy or cfg["saturation"]["headroom_proxy"]
-    override = None
-    if proxy == "transfer":
-        tx = network.transfer_capacity_by_zone(cfg["saturation"]["transfer_capacity"], c2z,
-                                               cfg["saturation"]["boundary_weight"])
-        override = tx["transfer_mw"]
+    override = proxy_capacity(cfg, c2z, proxy)
     panel = eia.zone_panel(gens, c2z, cfg, proxy_override=override)
     panel["proxy"] = proxy
     return panel, gens, c2z
@@ -135,10 +145,7 @@ def cmd_fit_weights(cfg: dict, proxies: list[str] | None = None) -> pd.DataFrame
     reuse_vals = cfg.get("weight_search", {}).get("reuse_share", [cfg["saturation"]["retirement_reuse_share"]])
     rows = []
     for proxy in proxies or ["transfer", "generation"]:
-        override = None
-        if proxy == "transfer":
-            override = network.transfer_capacity_by_zone(cfg["saturation"]["transfer_capacity"], c2z,
-                                                         cfg["saturation"]["boundary_weight"])["transfer_mw"]
+        override = proxy_capacity(cfg, c2z, proxy)
         comp = eia.zone_components(gens, c2z, cfg, proxy_override=override)
         for w in weight_grid(cfg):
             for reuse in reuse_vals:

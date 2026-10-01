@@ -1,4 +1,4 @@
-"""Network-capacity headroom proxy from ReEDS county-to-county AC transfer limits (NARIS 2024)."""
+"""Network-capacity headroom proxies from ReEDS NARIS 2024 AC transfer limits (county and BA level)."""
 from __future__ import annotations
 
 import pandas as pd
@@ -23,3 +23,13 @@ def transfer_capacity_by_zone(path, c2z: pd.DataFrame, boundary_weight: float = 
     out["transfer_mw"] = out["intra_mw"] + boundary_weight * out["boundary_mw"]
     out.index.name = "ba"
     return out
+
+
+def boundary_capacity_by_zone(path, zones) -> pd.Series:
+    """Zone export capacity (MW): over the zone's BA-to-BA interfaces, the sum of the mean of the
+    forward and reverse limits (MW_f0, MW_r0). Each interface counts once per zone, unlike the
+    county-pair sum in transfer_capacity_by_zone, which counts a corridor once per county pair."""
+    t = pd.read_csv(path)
+    t["mw"] = t[["MW_f0", "MW_r0"]].mean(axis=1)
+    s = pd.concat([t.groupby("r")["mw"].sum(), t.groupby("rr")["mw"].sum()]).groupby(level=0).sum()
+    return s.reindex(sorted(zones)).fillna(0.0).rename("boundary_mw").rename_axis("ba")

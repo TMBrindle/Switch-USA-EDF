@@ -919,3 +919,18 @@ and drop out of the sample.
 - `lbnl.service_eris_extra` (default `[]`): service values treated as ERIS, for the ISO-NE
   "NR" sensitivity (`["NR"]`).
 
+
+---
+
+## 28. Interconnection Headroom — Headroom Proxies (in progress)
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
+
+- New proxy `boundary` (`saturation.headroom_proxy: boundary`): each zone's export capacity from
+  `transmission_capacity_init_AC_ba_NARIS2024.csv`, mean of MW_f0 and MW_r0 summed over the zone's
+  BA interfaces (`network.boundary_capacity_by_zone`). The county-pair `transfer` proxy counts a
+  corridor once per county pair: its internal/boundary ratio correlates 0.70 with county count
+  (boundary capacity alone: 0.44). p19 (Garfield and Valley, MT) has no AC interface and takes
+  `min_headroom_mw`.
+- `cli.proxy_capacity()` is shared by `run`/`panel` and `fit-weights`. Default proxy unchanged.
+- Load-based proxies: pending (the Zenodo record is state-level, not by ReEDS zone).

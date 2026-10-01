@@ -20,10 +20,13 @@ paths:
 saturation:
   # Which denominator to use for saturation:
   #   transfer   = ReEDS/NARIS 2024 county-to-county AC transfer capacity inside the zone (+ share of boundary)
+  #                (counts a corridor once per county pair: internal/boundary ratio tracks county count)
+  #   boundary   = ReEDS/NARIS 2024 BA-to-BA export capacity, mean of the two directions, summed over interfaces
   #   generation = non-IBR nameplate online in the zone at baseline_year
   # Run `python -m icsc.cli fit-weights` once LBNL data are in place to pick by fit.
   headroom_proxy: transfer
   transfer_capacity: data/reference/transmission_capacity_init_AC_county_NARIS2024.csv
+  boundary_capacity: data/reference/transmission_capacity_init_AC_ba_NARIS2024.csv   # for headroom_proxy: boundary
   boundary_weight: 0.5
   # IBR additions and retirements are counted from this year onward
   baseline_year: 2010
