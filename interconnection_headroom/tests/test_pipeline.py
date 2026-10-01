@@ -261,6 +261,63 @@ def test_switch_module_on_toy(tmp_path):
     new_gas_c = bg[(bg.GEN_BLD_YRS_1 == "C-NG_CC") & (bg.GEN_BLD_YRS_2 >= 2020)].BuildGen.sum()
     c30 = hr[(hr.load_zone == "Central") & (hr.period == 2030)].iloc[0]
     assert c30.new_capacity_mw_weighted >= new_gas_c - 1e-6
+    assert (hr.headroom_slack_mw == 0).all()          # no ic_slack_cost_per_mw: hard constraint
+
+
+_FORCE_BUILD_MODULE = '''
+from pyomo.environ import Constraint
+def define_components(m):
+    # test only: a new build far larger than North's headroom curve can admit
+    m.Force_IC_Test_Build = Constraint(rule=lambda m: m.BuildGen["N-NG_CC", 2030] >= 200)
+'''
+
+
+def _toy_forced_build(tmp_path, slack_cost):
+    import os
+    base = Path(os.environ.get("SWITCH_SRC", ROOT.parent.parent / "switch-src"))
+    src = base / "examples" / "3zone_toy"
+    if not src.exists():
+        pytest.skip("set SWITCH_SRC to a clone of https://github.com/switch-model/switch to run")
+    run = tmp_path / "toy"
+    shutil.copytree(src, run)
+    (run / "ic_mod").mkdir()
+    shutil.copy(ROOT.parent / "switch/study_modules/interconnection_headroom.py", run / "ic_mod")
+    (run / "ic_mod/__init__.py").touch()
+    (run / "ic_mod/force_build.py").write_text(_FORCE_BUILD_MODULE)
+    with open(run / "inputs/modules.txt", "a") as f:
+        f.write("\nic_mod.interconnection_headroom\nic_mod.force_build\n")
+    for f in ("ic_zones.csv", "ic_tranches.csv", "ic_uprates.csv", "ic_weights.csv"):
+        shutil.copy(ROOT / "tests/switch_toy" / f, run / "inputs")
+    params = pd.read_csv(ROOT / "tests/switch_toy/ic_params.csv")
+    params["ic_retirement_reuse_share"] = 0.0          # no freed headroom to absorb the forced build
+    params["ic_slack_cost_per_mw"] = slack_cost
+    params.to_csv(run / "inputs/ic_params.csv", index=False)
+    r = subprocess.run(["switch", "solve", "--solver", "appsi_highs"], cwd=run, capture_output=True,
+                       text=True, env={**os.environ, "PYTHONPATH": str(run)})
+    return run, r
+
+
+@pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
+def test_headroom_slack_absorbs_forced_build(tmp_path):
+    run, r = _toy_forced_build(tmp_path, 1e7)
+    assert r.returncode == 0, r.stderr[-2000:]
+    hr = pd.read_csv(run / "outputs/ic_headroom.csv").set_index(["load_zone", "period"])
+    n = hr.loc[("North", 2030)]
+    # 200 MW of new gas (weight 1) against a curve of at most sum(widths) x (H0 + uprates) + release
+    assert n.headroom_slack_mw > 0
+    assert np.isclose(n.new_capacity_mw_weighted,
+                      n.initial_headroom_mw + n.freed_headroom_mw + n.headroom_bought_mw + n.headroom_slack_mw,
+                      atol=1e-4)
+    assert "diagnostic slack used" in (r.stdout + r.stderr)
+
+
+@pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
+def test_headroom_without_slack_is_hard(tmp_path):
+    run, r = _toy_forced_build(tmp_path, ".")
+    out = (r.stdout + r.stderr).lower()
+    assert r.returncode != 0                           # same forced build: infeasible without slack
+    assert "constructing component" not in out         # "." loads as "no slack", not a data error
+    assert "infeasible" in out or "feasible solution was not found" in out
 
 
 # ---------------------------------------------------------------------------

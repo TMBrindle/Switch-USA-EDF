@@ -1162,3 +1162,24 @@ Interconnection cost is only in `gen_connect_cost_per_mw` (not in `gen_overnight
   (never overwriting) for use with `--input-alias`.
 - `switch/modules.txt` comment: the module is inert without `ic_zones.csv`.
 - Tests: distributed weight, bundled-cost strip with zone share and national fallback, share file.
+
+---
+
+## 37. Interconnection Headroom — Diagnostic Slack on the Headroom Limit
+
+**Date:** 2026-10-01 · **Branch:** `tom/ic-test-fedpol`
+
+**Why.** The first headroom-on S0 2035 solves failed (B infeasible, D numerical trouble). A slack
+shows where, if anywhere, the headroom limit itself cannot be met.
+
+- `switch/study_modules/interconnection_headroom.py`: optional `ic_slack_cost_per_mw` in
+  `ic_params.csv` ($/MW overnight). Set (>= 0): `ICHeadroomSlack[z, p] >= 0` is added to the
+  right-hand side of `IC_Headroom_Limit` and costed as slack x cost x crf inside `ICAnnualCost`.
+  Absent, `.` or negative: the slack is fixed at 0, i.e. the hard constraint as before (existing
+  runs unchanged). `.` reaches this scalar param as a literal string, so the module parses it
+  explicitly. `ic_headroom.csv` gains `headroom_slack_mw`; a warning is logged and printed when
+  any slack is used.
+- `scripts/patch_case_inputs.py --slack-cost <$/MW> [--params-only]` writes
+  `ic_params.<tag>.csv` next to an existing case (never overwriting) and appends to the patch log.
+- Tests (Switch 3-zone toy with HiGHS): a forced 200 MW gas build larger than North's curve solves
+  with slack > 0 and fails as infeasible with the slack off (`.`).

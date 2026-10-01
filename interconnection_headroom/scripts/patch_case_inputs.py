@@ -7,7 +7,9 @@ Writes, next to the originals (which are never overwritten):
                                      clusters with ReEDS-CPA bundled costs: reinforcement_share.csv)
     ic_weights.<tag>.csv             icsc.switch_case.weights_by_tech (distributed generation 0)
     ic_connect_cost_check.<tag>.csv  diagnostic: share used, before/after, removed
-    patch_log.<tag>.txt              commit, date, what changed
+    ic_params.<tag>.csv              (with --slack-cost) ic_params.csv plus ic_slack_cost_per_mw,
+                                     the headroom limit's diagnostic slack cost ($/MW)
+    patch_log.<tag>.txt              commit, date, what changed (later --slack-cost runs append)
 
 Use them at solve time with
     --input-alias gen_info.csv=gen_info.<tag>.csv --input-alias ic_weights.csv=ic_weights.<tag>.csv
@@ -18,6 +20,7 @@ be an interconnection-headroom "on" case whose gen_info.csv has not had reinforc
 (its gen_connect_cost_per_mw equals the check file's "after" column, and nothing was removed).
 
     python scripts/patch_case_inputs.py <case_input_dir> [<case_input_dir> ...] [--tag ic_v2]
+    python scripts/patch_case_inputs.py <case_input_dir> ... --slack-cost 5e7 --params-only
 """
 from __future__ import annotations
 
@@ -115,11 +118,44 @@ def patch(case: Path, tag: str = "ic_v2") -> dict:
     return {"rows_changed": int(changed.sum()), "weights_changed": wchg}
 
 
+def write_params(case: Path, tag: str, slack_cost: float) -> None:
+    """ic_params.<tag>.csv = ic_params.csv plus ic_slack_cost_per_mw (never overwrites)."""
+    case = Path(case)
+    fn = case / f"ic_params.{tag}.csv"
+    if fn.exists():
+        raise FileExistsError(f"refusing to overwrite: {fn}")
+    params = pd.read_csv(case / "ic_params.csv")
+    if "ic_slack_cost_per_mw" in params:
+        raise ValueError(f"{case / 'ic_params.csv'} already has ic_slack_cost_per_mw")
+    params["ic_slack_cost_per_mw"] = slack_cost
+    params.to_csv(fn, index=False)
+    lines = [
+        f"patch_case_inputs.py tag={tag} --slack-cost {slack_cost:g}",
+        f"date: {dt.datetime.now().isoformat(timespec='seconds')}",
+        f"commit: {git_commit()}",
+        f"ic_params.{tag}.csv: ic_params.csv plus ic_slack_cost_per_mw = {slack_cost:g} $/MW "
+        f"({slack_cost / 1000:,.0f} $/kW); all other values unchanged",
+        f"solve with: --input-alias ic_params.csv=ic_params.{tag}.csv",
+    ]
+    with open(case / f"patch_log.{tag}.txt", "a") as f:
+        f.write("\n" + "\n".join(lines) + "\n")
+    print("\n".join(lines))
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("cases", nargs="+")
     ap.add_argument("--tag", default="ic_v2")
+    ap.add_argument("--slack-cost", type=float, default=None,
+                    help="also write ic_params.<tag>.csv with this ic_slack_cost_per_mw ($/MW)")
+    ap.add_argument("--params-only", action="store_true",
+                    help="only write ic_params.<tag>.csv (case already patched)")
     a = ap.parse_args()
+    if a.params_only and a.slack_cost is None:
+        ap.error("--params-only needs --slack-cost")
     for c in a.cases:
-        patch(Path(c), a.tag)
+        if not a.params_only:
+            patch(Path(c), a.tag)
+        if a.slack_cost is not None:
+            write_params(Path(c), a.tag, a.slack_cost)
         print()
