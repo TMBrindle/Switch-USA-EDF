@@ -148,6 +148,41 @@ def test_synthetic_recovery(cfg, built, tmp_path):
     assert np.allclose(out["width"], c["tranches"]["edge_step_width"])
 
 
+def test_sensitivity_configs_extend_base(cfg):
+    for f, key, val in [("wind_050", ("saturation", "tech_weights", "wind"), 0.5),
+                        ("boundary_p10", ("saturation", "headroom_proxy"), "boundary+p10"),
+                        ("price_active", ("tranches", "reference_status"), "active")]:
+        c = cli.load_cfg(str(ROOT / "sensitivities" / f"{f}.yaml"))
+        v = c
+        for k in key:
+            v = v[k]
+        assert v == val
+        assert c["paths"]["county2zone"] == cfg["paths"]["county2zone"]  # base paths resolve as in config.yaml
+        assert c["paths"]["outputs"] != cfg["paths"]["outputs"]
+        assert c["estimation"] == cfg["estimation"]
+
+
+def test_status_by_regime(cfg, built):
+    """Regimes with >= status_by_regime_min completed projects get their own completed effect."""
+    panel, _, c2z = built
+    s = estimate.attach_saturation(lbnl.estimation_sample(lbnl.load_all(cfg, c2z), cfg), panel)
+    m = estimate.fit(s, cfg)
+    n = s[s["status_n"] == "completed"]["regime"].value_counts()
+    own = set(n[n >= cfg["estimation"]["status_by_regime_min"]].index)
+    assert set(m.status_regimes["completed"]) == own
+    assert {f"status_completed@{r}" for r in own} | {"status_completed@pooled"} <= set(m.columns)
+    small = sorted(set(s["regime"]) - own)[0]
+    assert m.status_effect(small, "completed") == m.result.params["status_completed@pooled"]
+    big = sorted(own)[0]
+    assert m.status_effect(big, "completed") == m.result.params[f"status_completed@{big}"]
+    # the design reproduces the fitted linear predictor
+    d = s.dropna(subset=["saturation", "network_cost_real", "capacity_mw", "queue_year"])
+    lp = m.log_pred(d["saturation"].values, d["tech_n"].values, d["service_n"].values, d["capacity_mw"].values,
+                    d["queue_year"].values, d["regime"].values, d["status_n"].values)
+    sat_ok = d["saturation"].values <= m.sat_support
+    assert np.allclose(lp[sat_ok], np.log(m.result.fittedvalues.values[sat_ok]))
+
+
 def test_zone_regimes_utilities(cfg):
     hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
     lab = tranches.zone_regime_labels(hier, cfg)

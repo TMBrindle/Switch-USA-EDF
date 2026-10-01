@@ -8,7 +8,9 @@ Model (estimation.estimator; cluster-robust SEs by zone):
                   conditional mean, keeps zero-cost projects, needs no retransformation.
   log_ols         log(1 + NU_$/kW) = same index + e, OLS; back-transformed with Duan smearing.
 
-status is a dummy for each sample status other than "active" (completed, and withdrawn if sampled).
+status: dummies for each sample status other than "active". With estimation.status_by_regime_min
+set, a status gets its own dummy in each regime with at least that many projects of that status
+(column status_<st>@<regime>) and one shared dummy for all other regimes (status_<st>@pooled).
 
 f(.) is a linear spline in saturation (knots in config). The regime effect is what the
 "best_regime" policy scenario swaps out; the saturation slope is treated as physics.
@@ -64,6 +66,7 @@ class CostModel:
     techs: list[str]
     sat_support: float = 1.0      # saturation beyond which predictions are extrapolated
     estimator: str = "log_ols"
+    status_regimes: dict = None   # status -> regimes with their own status effect (others pooled)
 
     @property
     def r2(self) -> float:
@@ -89,6 +92,16 @@ class CostModel:
         slope = p.get("sat", 0.0) + sum(p.get(f"sat_gt_{k:g}", 0.0) for k in self.knots if k < self.sat_support)
         return y + max(slope, 0.0) * np.clip(sat - self.sat_support, 0, None)
 
+    def status_effect(self, regime: str, status: str) -> float:
+        """Coefficient of `status` (vs active) for a regime: its own if it has one, else the pooled one."""
+        if status == "active":
+            return 0.0
+        p = self.result.params
+        for c in (f"status_{status}@{regime}", f"status_{status}@pooled", f"status_{status}"):
+            if c in p and (not c.endswith("@pooled") or regime not in (self.status_regimes or {}).get(status, [])):
+                return float(p[c])
+        return 0.0
+
     def regime_effects(self) -> pd.Series:
         eff = {self.base_regime: 0.0}
         for r in self.regimes:
@@ -110,7 +123,12 @@ class CostModel:
             elif c.startswith("regime_"):
                 X[c] = (np.broadcast_to(regime, n) == c[7:]).astype(float)
             elif c.startswith("status_"):
-                X[c] = (np.broadcast_to(status, n) == c[7:]).astype(float)
+                st, _, grp = c[7:].partition("@")
+                hit = np.broadcast_to(status, n) == st
+                if grp:
+                    own = np.isin(np.broadcast_to(regime, n), (self.status_regimes or {}).get(st, []))
+                    hit = hit & ((np.broadcast_to(regime, n) == grp) if grp != "pooled" else ~own)
+                X[c] = hit.astype(float)
         X["const"] = 1.0
         return X.reindex(columns=self.columns, fill_value=0.0)
 
@@ -139,9 +157,22 @@ def fit(sample: pd.DataFrame, cfg: dict) -> CostModel:
             X[f"tech_{t}"] = (d["tech_n"].values == t).astype(float)
     if d["service_n"].nunique() > 1:
         X["service_ERIS"] = (d["service_n"].values == "ERIS").astype(float)
+    status_regimes = {}
     if ec.get("status_term", True):
+        min_n = ec.get("status_by_regime_min")
         for st in sorted(set(d["status_n"].unique()) - {"active"}):
-            X[f"status_{st}"] = (d["status_n"].values == st).astype(float)
+            is_st = d["status_n"].values == st
+            if not min_n:
+                X[f"status_{st}"] = is_st.astype(float)
+                continue
+            n_by = d.loc[is_st, "regime"].value_counts()
+            own = sorted(n_by[n_by >= min_n].index)
+            status_regimes[st] = own
+            for r in own:
+                X[f"status_{st}@{r}"] = (is_st & (d["regime"].values == r)).astype(float)
+            pooled = is_st & ~np.isin(d["regime"].values, own)
+            if pooled.any():
+                X[f"status_{st}@pooled"] = pooled.astype(float)
     counts = d["regime"].value_counts()
     regimes = list(counts.index)
     base_regime = regimes[0]  # most common regime is the reference level
@@ -162,7 +193,8 @@ def fit(sample: pd.DataFrame, cfg: dict) -> CostModel:
         smear = float(np.mean(np.exp(res.resid))) if cfg["tranches"]["duan_smearing"] else 1.0
     knots = [k for k in knots if f"sat_gt_{k:g}" in X.columns]
     support = float(d["saturation"].quantile(ec.get("support_quantile", 0.98)))
-    return CostModel(res, list(X.columns), knots, regimes, base_regime, smear, techs, support, estimator)
+    return CostModel(res, list(X.columns), knots, regimes, base_regime, smear, techs, support, estimator,
+                     status_regimes)
 
 
 def coef_table(m: CostModel) -> pd.DataFrame:

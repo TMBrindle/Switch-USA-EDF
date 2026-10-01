@@ -987,3 +987,21 @@ and drop out of the sample.
 - fit-weights ranks by QAIC (`qaic`, `d_qaic` columns): -2 llf / c + 2 (k + 1), c the Pearson
   dispersion of the best model. PPML's Poisson likelihood on continuous $/kW is a quasi-likelihood,
   so raw AIC differences scale with the cost level (c = 485 on the Oct 2026 sample).
+
+## 31. Interconnection Headroom — Status x Regime, Chosen Defaults, Sensitivities
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
+
+- `estimation.status_by_regime_min: 25`: regimes with at least 25 completed projects in the sample
+  get their own completed-vs-active effect (`status_completed@<regime>`: FRCC, MISO, NYISO, PJM,
+  PacifiCorp, SPP); the rest share `status_completed@pooled` (BPA, DEC, DEP, ISO-NE). Reference curves
+  are priced at completed: each zone's offset is its regime effect plus its regime's completed effect
+  (zones whose regime has no projects: mean regime effect + pooled completed effect). best_regime
+  takes the lowest such total.
+- Defaults (config.yaml): `headroom_proxy: boundary`; tech_weights wind 0.25 (physical floor; the
+  fit's optimum is the grid's lowest value, 0.1, with 0.25 at +2.9 QAIC), storage 0.5, gas 1;
+  `retirement_reuse_share: 0.1`. fit-weights wind grid [0.1, 0.15, 0.25, 0.5, 0.75, 1].
+- Spline knots 0.25 / 0.5 kept: QAIC 13.5 better than no knots (c = 449.7 from the model with knots).
+- `tranches.edge_step_width: 0.05`; `uprate_options.new_line.available_year: 2030` (placeholder).
+- `sensitivities/{wind_050,boundary_p10,price_active}.yaml` extend config.yaml (`extends:`, deep
+  merge; paths resolve against the base) and write to `outputs/sens_*`.

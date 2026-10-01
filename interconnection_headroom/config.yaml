@@ -37,8 +37,9 @@ saturation:
   #   boundary+peak / boundary+median / boundary+p10 = boundary + the zone's coincident peak, median
   #                or 10th-percentile hourly load in that year (zone_load_stats.csv; year-matched)
   #   generation = non-IBR nameplate online in the zone at baseline_year
-  # Run `python -m icsc.cli fit-weights` once LBNL data are in place to pick by fit.
-  headroom_proxy: transfer
+  # Chosen Oct 2026: boundary (best QAIC in fit-weights; boundary+p10 is the proxy sensitivity,
+  # sensitivities/boundary_p10.yaml). transfer is kept for comparison only.
+  headroom_proxy: boundary
   transfer_capacity: data/reference/transmission_capacity_init_AC_county_NARIS2024.csv
   boundary_capacity: data/reference/transmission_capacity_init_AC_ba_NARIS2024.csv   # for headroom_proxy: boundary
   boundary_weight: 0.5
@@ -46,14 +47,15 @@ saturation:
   baseline_year: 2010
   # Share of the network one MW of nameplate occupies under interconnection-study conditions.
   # Every new generator uses headroom; retiring ones free it at the same weight x reuse share.
-  # Solar is the numeraire (1.0). Starting values; `python -m icsc.cli fit-weights` estimates
-  # them from the LBNL costs -- copy the best row back here.
+  # Solar is the numeraire (1.0). Chosen Oct 2026 from fit-weights: storage 0.5 (fixed in the
+  # grid), gas 1, reuse 0.1. Wind 0.25 is a physical floor: the fit's optimum is at the grid's
+  # lowest value (0.1; 0.25 is 2.9 QAIC behind). Sensitivity: wind 0.5 (sensitivities/wind_050.yaml).
   #   wind < 1: deliverability studies usually credit wind's geographic diversity
   #   storage < 1: charging can relieve, not only load, the network
   #   gas = 1: a CCGT/CT injects close to nameplate at peak
-  tech_weights: {solar: 1.0, wind: 0.75, storage: 0.5, gas: 1.0, other: 1.0}
+  tech_weights: {solar: 1.0, wind: 0.25, storage: 0.5, gas: 1.0, other: 1.0}
   # Fraction of retired capacity assumed to free reusable headroom
-  retirement_reuse_share: 0.8
+  retirement_reuse_share: 0.1
   # Lower bound on headroom proxy (MW) so near-empty zones don't explode the ratio
   min_headroom_mw: 500
 
@@ -136,6 +138,9 @@ estimation:
   support_quantile: 0.98         # beyond this saturation the last spline slope is extended (never negative)
   estimator: ppml               # ppml (Poisson PML on $/kW, default) or log_ols (log(1 + $/kW), Duan smearing)
   status_term: true              # dummy for completed (vs active) projects
+  # Regimes with at least this many completed projects in the sample get their own completed effect;
+  # the rest (ISO-NE, DEC, DEP, BPA on the Oct 2026 sample) share one pooled completed effect.
+  status_by_regime_min: 25
   regime_column: region          # planning-regime fixed effect (ISO/RTO or utility)
   cluster_column: ba_cluster     # cluster-robust SEs by ReEDS zone (largest candidate zone for owner_multi rows)
 
@@ -143,7 +148,7 @@ estimation:
 weight_search:
   proxies: [boundary+peak, boundary+median, boundary+p10, boundary, generation, transfer]  # transfer: comparison only
   solar: [1.0]
-  wind: [0.25, 0.5, 0.75, 1.0]
+  wind: [0.1, 0.15, 0.25, 0.5, 0.75, 1.0]
   storage: [0.5]
   gas: [0.0, 0.5, 1.0]
   other: [1.0]
@@ -157,7 +162,7 @@ tranches:
   # (estimation.support_quantile of sample saturation) in equal steps of about step_width.
   # Zones already beyond the edge get one step of edge_step_width priced at the edge.
   step_width: 0.015
-  edge_step_width: 0.01
+  edge_step_width: 0.05
   reference_tech: solar
   reference_capacity_mw: 150
   reference_service: NRIS
@@ -180,7 +185,7 @@ tranches:
 uprate_options:
   gets:        {type: gets,        share_of_capacity: 0.10, cost_per_kw: 20,  available_year: 0}
   reconductor: {type: reconductor, share_of_capacity: 0.30, cost_per_kw: 80,  available_year: 2028}
-  new_line:    {type: new_line,    share_of_capacity: 1.00, cost_per_kw: 250, available_year: 2032}
+  new_line:    {type: new_line,    share_of_capacity: 1.00, cost_per_kw: 250, available_year: 2030}
 
 # Engineering cost of network capacity added by reactive (generator-paid) upgrades, $/kW of
 # network. Used only to REPORT an estimate of capacity added along the empirical curve

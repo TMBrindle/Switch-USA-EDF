@@ -21,9 +21,22 @@ import yaml
 from . import eia, estimate, geo, linkage, lbnl, load, network, switch_writer, synthetic, tranches
 
 
+def _merge(base: dict, over: dict) -> dict:
+    out = dict(base)
+    for k, v in over.items():
+        out[k] = _merge(base[k], v) if isinstance(v, dict) and isinstance(base.get(k), dict) else v
+    return out
+
+
 def load_cfg(path: str) -> dict:
+    """Load a config. A file with `extends: <path>` (relative to itself) is deep-merged over that
+    base, and relative paths resolve against the base's folder (used by sensitivities/*.yaml)."""
     cfg = yaml.safe_load(open(path))
     root = Path(path).resolve().parent
+    if "extends" in cfg:
+        base_path = (root / cfg.pop("extends")).resolve()
+        cfg = _merge(yaml.safe_load(open(base_path)), cfg)
+        root = base_path.parent
     for k, v in cfg["paths"].items():
         cfg["paths"][k] = str(root / v)
     for k, v in (cfg.get("load") or {}).items():

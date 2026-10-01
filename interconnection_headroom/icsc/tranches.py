@@ -31,21 +31,25 @@ def zone_regime_labels(hierarchy: pd.DataFrame, cfg: dict) -> pd.Series:
 
 
 def zone_regimes(hierarchy: pd.DataFrame, model: CostModel, cfg: dict) -> pd.DataFrame:
-    """Assign each zone a planning regime; zones whose regime is not in the sample get the mean effect."""
+    """Assign each zone a planning regime and its effect at the reference status: the regime fixed
+    effect plus that regime's status effect (vs active). Zones whose regime is not in the sample get
+    the mean regime effect plus the pooled status effect."""
     z = hierarchy[["ba", "transreg", "hurdlereg"]].copy()
     z["regime"] = zone_regime_labels(hierarchy, cfg).reindex(z["ba"]).values
     eff = model.regime_effects()
     z["regime_in_sample"] = z["regime"].isin(eff.index)
-    z["regime_effect"] = z["regime"].map(eff).fillna(eff.mean())
+    st = cfg["tranches"].get("reference_status", "completed")
+    z["regime_effect"] = [eff.get(r, eff.mean()) + model.status_effect(r if r in eff.index else "", st)
+                          for r in z["regime"]]
     return z.set_index("ba")
 
 
 def _predict_with_effect(model: CostModel, sat, effect: float, cfg: dict) -> np.ndarray:
-    """Predict at the reference project but with an explicit regime effect (base-regime design + offset)."""
+    """Predict at the reference project with an explicit total effect (base-regime, active design +
+    offset; the offset carries the regime and its status effect, see zone_regimes)."""
     tc = cfg["tranches"]
     yhat = model.log_pred(sat, tc["reference_tech"], tc["reference_service"], tc["reference_capacity_mw"],
-                          tc.get("reference_year", cfg["dollar_year"]), model.base_regime,
-                          tc.get("reference_status", "completed")) + effect
+                          tc.get("reference_year", cfg["dollar_year"]), model.base_regime, "active") + effect
     return model.to_cost(yhat)
 
 
@@ -63,12 +67,12 @@ def build_reference(model: CostModel, panel: pd.DataFrame, regimes: pd.DataFrame
     tc = cfg["tranches"]
     edge = float(model.sat_support)
     cur = panel[panel["year"] == min(start_year, panel["year"].max())].set_index("ba")
-    eff = model.regime_effects()
+    best_effect = float(regimes["regime_effect"][regimes["regime_in_sample"]].min())
     zrows, trows = [], []
     for ba, r in cur.iterrows():
         if ba not in regimes.index:
             continue
-        effect = float(eff.min()) if regime_override == "best" else regimes.at[ba, "regime_effect"]
+        effect = best_effect if regime_override == "best" else regimes.at[ba, "regime_effect"]
         s0 = float(r["saturation"])
         if s0 < edge:
             n = max(1, int(np.ceil((edge - s0) / tc["step_width"])))
@@ -99,7 +103,7 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
     """Apply one scenario from config.yaml. Returns (zones, tranches, uprates).
 
     Levers:
-      regime_override: best     height: every zone gets the lowest regime effect
+      regime_override: best     height: every zone gets the lowest regime effect (at the reference status)
       cost_multiplier: x        height: scale every step's cost (and the release cost)
       slope_multiplier: m       steepness: c_k -> c_1 * (c_k / c_1) ** m within each zone
       uprates: [names]          network capacity options from `uprate_options`, which Switch may build
