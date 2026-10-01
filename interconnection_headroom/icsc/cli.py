@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from . import eia, estimate, geo, linkage, lbnl, network, switch_writer, synthetic, tranches
+from . import eia, estimate, geo, linkage, lbnl, load, network, switch_writer, synthetic, tranches
 
 
 def load_cfg(path: str) -> dict:
@@ -125,6 +125,29 @@ def cmd_run(cfg: dict, start_year: int, scenarios: list[str] | None):
     print(json.dumps(summary, indent=2))
 
 
+def cmd_load_stats(cfg: dict):
+    """Build data/reference/zone_load_stats.csv and print the source cross-checks."""
+    c2z = geo.load_county2zone(cfg["paths"]["county2zone"])
+    stats, chk = load.build(cfg, c2z)
+    stats.to_csv(cfg["load"]["stats"], index=False)
+    print(f"wrote {cfg['load']['stats']}: {len(stats)} rows, {stats['ba'].nunique()} zones, "
+          f"{stats['year'].min()}-{stats['year'].max()}")
+    print(stats.groupby("source")["year"].agg(["min", "max", "count"]).to_string())
+    print(f"\nNREL shift to match Zenodo: {chk['nrel_shift_hours_to_match_zenodo']} h; corr by shift {chk['corr_by_shift']}")
+    print("\nZenodo vs NREL summed to states, 2016-2023 (% of NREL):")
+    print(load.summarize(chk["zenodo_vs_nrel_state"], ["annual_mwh", "peak_mw", "p10_mw"]).to_string())
+    e = chk["split_oos_peak_pct"]
+    print(f"\n2016-18 month-hour shares -> 2019-23 zone peaks: median |err| {e.abs().median():.2f}%, "
+          f"90th pct {e.abs().quantile(0.9):.2f}%, worst {e.loc[e.abs().idxmax()]:.1f}% at {e.abs().idxmax()}")
+    nz, _ = load.nrel_hourly(None, None, Path(cfg["_root"]) / cfg["load"]["nrel_cache"])
+    ec = load.eia930_check(cfg, nz, geo.load_hierarchy(cfg["paths"]["hierarchy"]))
+    out = Path(cfg["paths"]["outputs"]); out.mkdir(parents=True, exist_ok=True)
+    ec.to_csv(out / "load_eia930_check.csv", index=False)
+    print("\nNREL vs EIA-930 where BA footprints line up (% of EIA-930), 2016-2023:")
+    print(load.summarize(ec[ec["lined_up"]], ["energy_pct", "peak_pct", "p10_pct"]).to_string())
+    print(ec[ec["lined_up"]].groupby("eia930_ba")[["energy_pct", "peak_pct"]].median().round(2).to_string())
+
+
 def weight_grid(cfg: dict) -> list[dict]:
     g = cfg.get("weight_search", {})
     keys = ["solar", "wind", "storage", "gas", "other"]
@@ -168,7 +191,7 @@ def cmd_fit_weights(cfg: dict, proxies: list[str] | None = None) -> pd.DataFrame
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="icsc")
-    ap.add_argument("command", choices=["panel", "inspect-lbnl", "link-report", "fit-weights", "run", "synthetic"])
+    ap.add_argument("command", choices=["panel", "load-stats", "inspect-lbnl", "link-report", "fit-weights", "run", "synthetic"])
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--start-year", type=int, default=2026)
     ap.add_argument("--scenarios", nargs="*")
@@ -183,6 +206,8 @@ def main(argv=None):
               .head(15).round(2).to_string(index=False))
     elif a.command == "inspect-lbnl":
         print(lbnl.inspect(cfg))
+    elif a.command == "load-stats":
+        cmd_load_stats(cfg)
     elif a.command == "link-report":
         c2z = geo.load_county2zone(cfg["paths"]["county2zone"])
         projects = lbnl.load_all(cfg, c2z)

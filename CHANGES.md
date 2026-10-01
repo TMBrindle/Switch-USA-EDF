@@ -933,4 +933,19 @@ and drop out of the sample.
   (boundary capacity alone: 0.44). p19 (Garfield and Valley, MT) has no AC interface and takes
   `min_headroom_mw`.
 - `cli.proxy_capacity()` is shared by `run`/`panel` and `fit-weights`. Default proxy unchanged.
-- Load-based proxies: pending (the Zenodo record is state-level, not by ReEDS zone).
+- Zone load statistics (`icsc/load.py`, `python -m icsc.cli load-stats`) ->
+  `data/reference/zone_load_stats.csv` (ba, year, peak_mw coincident, median_mw, p10_mw, annual_mwh,
+  source), 134 zones, 2010-2030, all on CST (UTC-6):
+  - 2016-2023 `nrel`: NREL hourly county load (OEDI 8562; MW; timestamps UTC, leap days kept), counties
+    summed to zones with county2zone.csv (all 3,109 match; DC is in p123/MD). Annual MWh = mean MW x
+    calendar hours (the UTC->CST shift drops 6 hours of 2023).
+  - 2010-2013 `zenodo`: ReEDS state hourly load (Zenodo 18462671; MWh/h hour-ending, CST; 48 states,
+    DC inside MD) x each zone's share of its state by month x hour-of-day, pooled 2016-2018 from NREL.
+    NREL needs no hour shift to match Zenodo (corr 0.9975 at 0 h vs 0.982 at +1 h).
+  - 2014-2015 `interpolated`, 2024 `eia_scaled_2023`, 2025 `held_2023` (no EIA 2025), 2026-2030
+    `held_latest`. Raw files in data/raw/load/ (gitignored).
+  - Checks: Zenodo vs NREL by state 2016-2023 agree to 0.01% (energy, median) / 0.17% (peak): both
+    are calibrated to the same state totals, so this is not an independent check. NREL vs EIA-930
+    where BA footprints line up (PJM, NYIS, ISNE, ERCO, NEVP, DUK): median |diff| energy 3.7%, peak
+    4.2%. 2016-18 shares reproduce 2019-23 zone peaks within 2.1% (median), 9.5% (90th pct); worst
+    in Texas zones (p62 2021, Winter Storm Uri: +59%).

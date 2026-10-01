@@ -15,6 +15,18 @@ paths:
   outputs: outputs
 
 # ---------------------------------------------------------------------------
+# Zone load statistics (icsc/load.py; `python -m icsc.cli load-stats` rebuilds zone_load_stats.csv)
+# Raw files: data/raw/load/ (gitignored). See icsc/load.py for sources, time zones and fills.
+# ---------------------------------------------------------------------------
+load:
+  stats: data/reference/zone_load_stats.csv
+  nrel_county_h5: data/raw/load/historic_load_hourly_2016_2023_county.h5   # data.openei.org/files/8562
+  nrel_cache: data/raw/load/nrel_zone_state_hourly.pkl
+  zenodo_h5: data/raw/load/demand_historic.h5                                # zenodo.org/records/18462671
+  eia_state_mwh: data/reference/EIA_loadbystate.csv
+  eia930_dir: data/raw/load/eia930                                           # EIA930_BALANCE_<year>_<half>.csv
+
+# ---------------------------------------------------------------------------
 # Headroom proxy and saturation
 # ---------------------------------------------------------------------------
 saturation:
