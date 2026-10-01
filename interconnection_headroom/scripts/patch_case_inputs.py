@@ -21,6 +21,9 @@ be an interconnection-headroom "on" case whose gen_info.csv has not had reinforc
 
     python scripts/patch_case_inputs.py <case_input_dir> [<case_input_dir> ...] [--tag ic_v2]
     python scripts/patch_case_inputs.py <case_input_dir> ... --slack-cost 5e7 --params-only
+    python scripts/patch_case_inputs.py <case_input_dir> ... --tag ic_w100 \
+        --ic-from outputs/sens_wind_100 --ic-config sensitivities/wind_100.yaml
+        (writes ic_{zones,tranches,uprates,weights}.<tag>.csv from a pipeline sensitivity run)
 """
 from __future__ import annotations
 
@@ -142,6 +145,52 @@ def write_params(case: Path, tag: str, slack_cost: float) -> None:
     print("\n".join(lines))
 
 
+def pipeline_weights(cfg_path: Path) -> dict:
+    """saturation.tech_weights of a pipeline config (follows one `extends:` level)."""
+    cfg = sc._load_yaml(Path(cfg_path))
+    if "extends" in cfg:
+        base = sc._load_yaml((Path(cfg_path).parent / cfg["extends"]).resolve())
+        return {**base["saturation"]["tech_weights"], **(cfg.get("saturation", {}).get("tech_weights") or {})}
+    return cfg["saturation"]["tech_weights"]
+
+
+def ic_frames(case: Path, ic_dir: Path, scenario: str, cfg_path: Path) -> dict:
+    """ic_zones/ic_tranches/ic_uprates/ic_weights for a case from a pipeline output folder, built
+    with the same functions pg_to_switch uses (switch_case.switch_frames, weights_by_tech)."""
+    case, ic_dir = Path(case), Path(ic_dir)
+    zones, tranches, uprates = sc.read_scenario(ic_dir, scenario)
+    gen_info = pd.read_csv(case / "gen_info.csv", na_values=["."], keep_default_na=False)
+    frames = sc.switch_frames(zones, tranches, uprates, None, set(gen_info["gen_load_zone"]))
+    frames["ic_weights.csv"] = sc.weights_by_tech(gen_info, pipeline_weights(cfg_path))[["ic_key", "ic_weight"]]
+    return frames
+
+
+def write_ic(case: Path, tag: str, ic_dir: Path, scenario: str, cfg_path: Path) -> None:
+    """Write ic_{zones,tranches,uprates,weights}.<tag>.csv (never overwrites)."""
+    case = Path(case)
+    frames = ic_frames(case, ic_dir, scenario, cfg_path)
+    out = {name: case / name.replace(".csv", f".{tag}.csv") for name in frames}
+    existing = [p for p in out.values() if p.exists()]
+    if existing:
+        raise FileExistsError(f"refusing to overwrite: {', '.join(map(str, existing))}")
+    for name, df in frames.items():
+        df.to_csv(out[name], index=False)
+    w = frames["ic_weights.csv"].set_index("ic_key")["ic_weight"]
+    lines = [
+        f"patch_case_inputs.py tag={tag} --ic-from {ic_dir} --ic-scenario {scenario} --ic-config {cfg_path}",
+        f"date: {dt.datetime.now().isoformat(timespec='seconds')}",
+        f"commit: {git_commit()}",
+        f"tech weights: {pipeline_weights(cfg_path)}",
+        f"ic_zones: {len(frames['ic_zones.csv'])}, ic_tranches: {len(frames['ic_tranches.csv'])}, "
+        f"ic_uprates: {len(frames['ic_uprates.csv'])}; weights e.g. "
+        + ", ".join(f"{k}={w[k]:g}" for k in w.index if k.startswith(("LandbasedWind", "UtilityPV", "Utility-Scale", "distributed"))),
+        "solve with: " + " ".join(f"--input-alias {n}={p.name}" for n, p in out.items()),
+    ]
+    with open(case / f"patch_log.{tag}.txt", "a") as f:
+        f.write("\n" + "\n".join(lines) + "\n")
+    print("\n".join(lines))
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("cases", nargs="+")
@@ -150,9 +199,20 @@ if __name__ == "__main__":
                     help="also write ic_params.<tag>.csv with this ic_slack_cost_per_mw ($/MW)")
     ap.add_argument("--params-only", action="store_true",
                     help="only write ic_params.<tag>.csv (case already patched)")
+    ap.add_argument("--ic-from", default=None,
+                    help="pipeline output folder: write only ic_{zones,tranches,uprates,weights}.<tag>.csv")
+    ap.add_argument("--ic-scenario", default="reference")
+    ap.add_argument("--ic-config", default=None, help="pipeline config giving tech_weights (with --ic-from)")
     a = ap.parse_args()
     if a.params_only and a.slack_cost is None:
         ap.error("--params-only needs --slack-cost")
+    if a.ic_from:
+        if not a.ic_config:
+            ap.error("--ic-from needs --ic-config")
+        for c in a.cases:
+            write_ic(Path(c), a.tag, Path(a.ic_from), a.ic_scenario, Path(a.ic_config))
+            print()
+        sys.exit(0)
     for c in a.cases:
         if not a.params_only:
             patch(Path(c), a.tag)

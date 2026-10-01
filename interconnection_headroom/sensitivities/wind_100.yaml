@@ -1,0 +1,6 @@
+# Sensitivity: wind occupies as much headroom per MW as solar (default 0.25).
+# Run: python -m icsc.cli --config sensitivities/wind_100.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_wind_100}
+saturation:
+  tech_weights: {solar: 1.0, wind: 1.0, storage: 0.5, gas: 1.0, other: 1.0}
