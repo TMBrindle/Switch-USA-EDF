@@ -23,7 +23,6 @@ from __future__ import annotations
 import pickle
 from pathlib import Path
 
-import h5py
 import numpy as np
 import pandas as pd
 
@@ -39,6 +38,7 @@ def _to_cst(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
 
 def nrel_hourly(path: Path, c2z: pd.DataFrame, cache: Path | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """(zone, state) hourly MW from the NREL county file, index in CST (unshifted), UTC-labelled source."""
+    import h5py  # only needed to rebuild zone_load_stats.csv from the raw h5 files
     if cache and cache.exists():
         return pickle.load(open(cache, "rb"))
     with h5py.File(path, "r") as f:
@@ -67,6 +67,7 @@ def nrel_hourly(path: Path, c2z: pd.DataFrame, cache: Path | None = None) -> tup
 
 def zenodo_hourly(path: Path) -> pd.DataFrame:
     """State hourly MWh/h, index in CST (naive)."""
+    import h5py  # only needed to rebuild zone_load_stats.csv from the raw h5 files
     with h5py.File(path, "r") as f:
         cols = pd.Series(f["columns"][:]).str.decode("utf-8")
         idx = pd.to_datetime(pd.Series(f["index_0"][:]).str.decode("utf-8"), utc=True)
