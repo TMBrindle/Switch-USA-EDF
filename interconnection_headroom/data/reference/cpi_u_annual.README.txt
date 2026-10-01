@@ -1,0 +1,1 @@
+CPI-U, U.S. city average, all items, annual average (BLS series CUUR0000SA0). Entered from reference values because BLS was not reachable from the build environment; verify against BLS before publication and append later years.

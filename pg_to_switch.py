@@ -65,6 +65,7 @@ from powergenome.GenX import (
     add_cap_res_network,
 )
 
+from interconnection_headroom.icsc import switch_case as ic_case
 from conversion_functions import (
     switch_fuel_cost_table,
     switch_fuels,
@@ -888,6 +889,14 @@ def gen_info_file(
 
     gen_info = gen_info_table(gens, settings)
 
+    # interconnection headroom (interconnection_headroom/, study_modules.interconnection_headroom):
+    # network reinforcement is priced by zonal tranches instead of per-resource tx_capex
+    ic_diag = None
+    if ic_case.ic_settings(settings) and ic_case.ic_settings(settings).get(
+        "exclude_network_reinforcement", True
+    ):
+        ic_diag = ic_case.strip_network_reinforcement(gen_info, gens)
+
     # Drop the heat rate that PowerGenome provides for many non-fuel-using generators
     # TODO: check if this is still true and remove this or move to gen_info_table()
     non_fuel_mask = ~gen_info["gen_energy_source"].isin(possible_fuels)
@@ -980,6 +989,7 @@ def gen_info_file(
     # drop the enviro program columns and save the rest
     gen_info = gen_info.drop(columns=all_prog_cols)
     gen_info.to_csv(out_folder / "gen_info.csv", index=False, na_rep=".")
+    ic_case.write_case_inputs(gen_info, settings, out_folder, ic_diag)
 
     ########
     # save deviations from mean O&M cost in gen_om_by_period.csv to allow variation by study period.
@@ -2979,6 +2989,9 @@ def scenario_files(results_folder, case_settings, myopic):
                     f"gen_build_costs.csv=gen_build_costs.chained.{scen_name}.csv "
                     f"transmission_lines.csv=transmission_lines.chained.{scen_name}.csv "
                 )
+                if ic_case.ic_settings(settings):
+                    # remaining interconnection headroom tranches after earlier stages
+                    line = line.rstrip() + f" ic_tranches.csv=ic_tranches.chained.{scen_name}.csv "
         scenarios[scen_name].append(line.strip())
 
     for case, year_settings in case_settings.items():

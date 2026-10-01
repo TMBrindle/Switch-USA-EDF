@@ -1,0 +1,209 @@
+<title>Interconnection Headroom Curves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,650&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~70ch) with a sticky contents rail on wide screens; tables scroll in place. */
+:root {
+  --bg: #f5f6f4;
+  --surface: #ffffff;
+  --ink: #1d2427;
+  --muted: #5b676b;
+  --rule: #d6dcdb;
+  --accent: #0f6b74;      /* conductor teal */
+  --accent-soft: #e2efef;
+  --warn: #9a5b00;
+  --warn-soft: #f7ecd9;
+  --display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12171a; --surface: #192024; --ink: #e3e8e8; --muted: #9aa7aa; --rule: #2c3639;
+  --accent: #5cc0c6; --accent-soft: #17343a; --warn: #e2a750; --warn-soft: #33281a; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #12171a; --surface: #192024; --ink: #e3e8e8; --muted: #9aa7aa; --rule: #2c3639;
+  --accent: #5cc0c6; --accent-soft: #17343a; --warn: #e2a750; --warn-soft: #33281a; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--body); padding-inline: 20px; padding-block: 0 64px; }
+.wrap { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; }
+nav { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-top: 112px; font-size: 13px; }
+nav ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a:hover, nav a:focus-visible { color: var(--accent); }
+main { min-width: 0; max-width: 72ch; }
+header { padding-block: 56px 28px; border-bottom: 1px solid var(--rule); margin-bottom: 8px; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 650 clamp(30px, 4.4vw, 42px)/1.12 var(--display); margin: 14px 0 12px; text-wrap: balance; }
+.lede { font-size: 18px; color: var(--muted); margin: 0; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 20px; font: 400 13px/1.4 var(--mono); color: var(--muted); }
+h2 { font: 650 24px/1.25 var(--display); margin: 52px 0 12px; text-wrap: balance; scroll-margin-top: 24px; }
+h3 { font: 600 16px/1.35 var(--body); margin: 28px 0 6px; }
+p, li { max-width: 68ch; }
+a { color: var(--accent); }
+code { font: 400 .88em var(--mono); background: var(--accent-soft); padding: .08em .35em; border-radius: 3px; }
+.tablewrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 600 12px/1.3 var(--body); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.pill { display: inline-block; font: 500 11px/1 var(--mono); letter-spacing: .04em; text-transform: uppercase; padding: 4px 7px; border-radius: 99px; white-space: nowrap; }
+.ok { background: var(--accent-soft); color: var(--accent); }
+.todo { background: var(--warn-soft); color: var(--warn); }
+.note { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 18px 0; font-size: 15px; }
+pre { font: 400 13px/1.55 var(--mono); background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; overflow-x: auto; }
+.bars { display: grid; gap: 7px; margin: 18px 0 6px; font-size: 13px; }
+.bar { display: grid; grid-template-columns: 104px minmax(0, 1fr) 52px; gap: 10px; align-items: center; }
+.bar span:first-child { color: var(--muted); }
+.track { height: 12px; background: var(--accent-soft); border-radius: 2px; position: relative; }
+.fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 2px; }
+.bar .v { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.cap { font-size: 13px; color: var(--muted); }
+ol.steps { padding-left: 1.3em; display: grid; gap: 8px; }
+@media (max-width: 820px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; } nav { display: none; } }
+</style>
+
+<div class="wrap">
+<nav aria-label="Contents"><ol>
+  <li><a href="#why">Why this project</a></li>
+  <li><a href="#prior">What exists already</a></li>
+  <li><a href="#method">Method</a></li>
+  <li><a href="#data">Data</a></li>
+  <li><a href="#first">First look at saturation</a></li>
+  <li><a href="#switch">Switch formulation</a></li>
+  <li><a href="#policy">Policy scenarios</a></li>
+  <li><a href="#status">Status</a></li>
+  <li><a href="#risks">Open issues</a></li>
+  <li><a href="#next">Next steps</a></li>
+</ol></nav>
+
+<main>
+<header>
+  <div class="eyebrow">EDF Energy Transitions · Switch-USA-PG-ReEDS</div>
+  <h1>Interconnection headroom curves for ReEDS zones</h1>
+  <p class="lede">A rising cost curve for network-upgrade headroom in each of the 134 ReEDS zones, estimated from LBNL project-level interconnection costs and built into Switch. The aim is to test interconnection policy as changes to that curve.</p>
+  <div class="meta"><span>Owner: Tom Brindle</span><span>Started: 30 Sept 2026</span><span>Repo: Switch-USA-EDF, branch tom/interconnection-headroom</span></div>
+</header>
+
+<h2 id="why">Why this project</h2>
+<p>For new wind and solar, the binding transmission constraint over the next five years is mostly not interregional backbone. It is headroom on the existing 69–345 kV network a few hops from the point of interconnection. Under participant funding, a shortage of that headroom shows up as network-upgrade charges assigned to individual projects. These costs have risen sharply in PJM, MISO and SPP, and they are the main grid-side reason projects withdraw from queues.</p>
+<p>Zonal capacity expansion models mostly miss this. In Switch-USA-PG-ReEDS, the network cost a new solar MW pays does not depend on how much has already been built nearby. So the model can't show a zone filling up, and it can't value reforms that make headroom cheaper or larger.</p>
+
+<h2 id="prior">What exists already</h2>
+<ul>
+  <li><strong>ReEDS and reV</strong> trace a path along existing lines from each site's point of interconnection to the zone centre, priced at 50% of greenfield cost to stand in for reconductoring. ReEDS also applies a flat $100/kW intra-zone adder to <em>net</em> capacity additions, calibrated to historical gas interconnection costs. Both are fixed per site and don't rise with cumulative builds. PowerGenome passes a similar distance-based reinforcement cost into Switch.</li>
+  <li><strong>LBNL</strong> has extracted project-level interconnection costs from study PDFs for MISO, PJM, SPP, NYISO, ISO-NE, CAISO and a set of non-ISO balancing areas. The costs are split into point-of-interconnection and network-upgrade components. Projects with high network-upgrade costs cluster geographically, and capacity (NRIS) service needs more network than energy-only service.</li>
+  <li>ReEDS also limits near-term builds with county-level queue volumes (<code>interconnection_queues.csv</code>). That is a quantity cap, not a cost curve.</li>
+</ul>
+<p>I haven't found a published zone-level network-upgrade curve that rises with saturation and is built into a US capacity expansion model. Ask the LBNL interconnection team before going further.</p>
+
+<h2 id="method">Method</h2>
+<h3>1. Saturation by zone and year</h3>
+<p>For each zone <i>z</i> and year <i>t</i>:</p>
+<pre>saturation(z,t) = [ Σ_tech w_tech × MW added since 2010
+                    − 0.8 × Σ_tech w_tech × MW retired since 2010 ]⁺  ÷  headroom proxy(z)</pre>
+<p>Every new generator uses headroom, including gas. The weight <code>w</code> is the share of the network one MW of nameplate occupies under interconnection-study conditions, with solar as the reference at 1.0. The starting weights are wind 0.75 (deliverability studies usually credit its geographic diversity), storage 0.5 (charging can relieve the network as well as load it), and gas and everything else 1.0. A retiring plant frees headroom at its own weight.</p>
+<p>The default headroom proxy is the zone's AC transfer capacity: the sum of NARIS 2024 county-to-county limits inside the zone plus half of those across its boundary. The alternative proxy is all nameplate capacity online in 2010. <code>fit-weights</code> searches over the proxy, the wind, storage and gas weights, and the retirement-reuse share (0, 0.5 or 0.8), and ranks every combination by fit to the LBNL costs. Weights are identified only where zones differ in technology mix, so combinations within about 2 AIC of the best should be treated as equally supported.</p>
+<h3>Headroom use versus cost per MW</h3>
+<p>The model keeps two effects separate. The weights set how fast each technology fills a zone. The regression's technology dummies set what each technology pays per MW at a given saturation, which mostly reflects siting: gas tends to reuse brownfield sites near load and pipelines, while wind and solar sit where the resource is. Before this change, gas had a weight of zero and so never filled a zone, which tilted Switch towards gas in constrained zones.</p>
+
+<h3>2. Cost regression</h3>
+<pre>log(1 + NU $/kW) = spline(saturation) + tech + ERIS/NRIS + β·log(MW)
+                   + γ·(queue year − 2015) + planning-regime FE + ε</pre>
+<p>Each project gets its zone's saturation in the year it entered the queue. The central sample is active and completed projects. Withdrawn projects overstate costs because they were studied in overloaded clusters, so they are a high-cost sensitivity. Standard errors are clustered by zone. A spline knot is kept only if at least 50 projects sit above it. Beyond the 98th percentile of observed saturation, the last slope is extended and never allowed to turn negative. Tranches priced on that extrapolation are flagged.</p>
+
+<h3>3. Tranches</h3>
+<p>Each zone's curve starts at its 2026 saturation: the last EIA year plus planned additions and announced retirements. It is then split into seven steps, at +5%, +10%, +15%, +25%, +25%, +50% and +100% of the headroom proxy. Each step is priced for a reference project (150 MW solar, NRIS, 2024 queue year) under the zone's regime effect. Prices are forced to be non-decreasing, so the curve is convex and the LP fills it in order. Zones whose regime isn't in the LBNL sample (SERTP, FRCC, NorthernGrid, WestConnect, ERCOT for now) get the mean regime effect.</p>
+
+<h2 id="data">Data</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Input</th><th>Use</th><th>State</th></tr></thead>
+<tbody>
+<tr><td>EIA-860M, Aug 2026</td><td>IBR additions, retirements, planned changes by county</td><td><span class="pill ok">in repo</span></td></tr>
+<tr><td>ReEDS <code>county2zone</code>, <code>hierarchy</code></td><td>County → zone; zone → transmission region</td><td><span class="pill ok">in repo</span></td></tr>
+<tr><td>ReEDS NARIS 2024 county AC limits</td><td>Headroom proxy</td><td><span class="pill ok">in repo</span></td></tr>
+<tr><td>LBNL interconnection cost workbooks</td><td>Dependent variable</td><td><span class="pill todo">download</span></td></tr>
+<tr><td>CPI-U annual</td><td>Deflate to 2024$</td><td><span class="pill todo">verify</span></td></tr>
+<tr><td>HIFLD lines by voltage</td><td>Caps for GETs and reconductoring tranches</td><td><span class="pill todo">later</span></td></tr>
+</tbody></table></div>
+<p class="cap">emp.lbl.gov, BLS and HIFLD were blocked from the build environment. The LBNL files need downloading on energyVm1.</p>
+
+<h2 id="first">First look at saturation</h2>
+<p>These figures use real EIA-860M and NARIS data only, so they don't depend on the LBNL files. They show 2026 saturation under the transfer proxy, aggregated by ReEDS transmission region as used MW over proxy MW.</p>
+<div class="bars" role="img" aria-label="Saturation by transmission region, 2026">
+  <div class="bar"><span>WestConnect</span><div class="track"><div class="fill" style="width:91.0%"></div></div><span class="v">0.273</span></div>
+  <div class="bar"><span>CAISO</span><div class="track"><div class="fill" style="width:69.3%"></div></div><span class="v">0.208</span></div>
+  <div class="bar"><span>ERCOT</span><div class="track"><div class="fill" style="width:67.7%"></div></div><span class="v">0.203</span></div>
+  <div class="bar"><span>SPP</span><div class="track"><div class="fill" style="width:48.7%"></div></div><span class="v">0.146</span></div>
+  <div class="bar"><span>FRCC</span><div class="track"><div class="fill" style="width:41.3%"></div></div><span class="v">0.124</span></div>
+  <div class="bar"><span>NorthernGrid</span><div class="track"><div class="fill" style="width:17.3%"></div></div><span class="v">0.052</span></div>
+  <div class="bar"><span>ISONE</span><div class="track"><div class="fill" style="width:16.7%"></div></div><span class="v">0.050</span></div>
+  <div class="bar"><span>SERTP</span><div class="track"><div class="fill" style="width:13.7%"></div></div><span class="v">0.041</span></div>
+  <div class="bar"><span>MISO</span><div class="track"><div class="fill" style="width:13.3%"></div></div><span class="v">0.040</span></div>
+  <div class="bar"><span>PJM</span><div class="track"><div class="fill" style="width:10.0%"></div></div><span class="v">0.030</span></div>
+  <div class="bar"><span>NYISO</span><div class="track"><div class="fill" style="width:7.0%"></div></div><span class="v">0.021</span></div>
+</div>
+<p class="cap">Scale: full bar = 0.30. Starting weights: solar 1, wind 0.75, storage 0.5, gas 1. The most saturated single zones are p59 (WestConnect, El Paso) at 1.50, p120 (PJM, PA) at 0.91, p47 (SPP, NM) at 0.89, and p34 (WestConnect, CO) and p48 (SPP, TX) at 0.63. Counting gas mainly raises FRCC (0.010 → 0.124) and ERCOT.</p>
+<div class="note"><strong>PJM and NYISO still read low, which is implausible given PJM's upgrade costs.</strong> PJM added about 42 GW of gas and 19 GW of wind and solar since 2010, but it also retired about 60 GW, mostly coal. With a 0.8 reuse share, those retirements offset nearly all the additions. That fits much of PJM's new gas, which went to old plant sites, but it overstates the headroom available to solar that wants to connect elsewhere. It also ignores load growth using up headroom. The reuse variants in <code>fit-weights</code> test this directly. Expect to lower the reuse share, or apply it only to technologies that actually reuse retiring sites.</div>
+
+<h2 id="switch">Switch formulation</h2>
+<p>The module is <code>switch/study_modules/interconnection_headroom.py</code> in Switch-USA-EDF; <code>pg_to_switch.py</code> writes its inputs when <code>pg/settings/interconnection_headroom.yml</code> is enabled. For each active load zone and period:</p>
+<pre>Σ w_g · new capacity of g in z   ≤   initial headroom
+                                   + reuse × Σ w_g × existing capacity retired or suspended
+                                   + Σ_tranches ICCapacity</pre>
+<ul>
+  <li><code>ICBuild[tranche, period]</code> is a continuous variable that accumulates into <code>ICCapacity</code>, capped at each tranche's MW. Its cost is annualised with the model interest rate over 40 years and added to <code>Cost_Components_Per_Period</code>.</li>
+  <li>Every new build uses headroom at its technology weight. The pipeline writes <code>ic_weights.csv</code> (keyed by <code>gen_energy_source</code> or <code>gen_tech</code>) and <code>ic_params.csv</code> from the same weights used for saturation, so the history and the model stay consistent. Unmatched storage gets the storage weight; anything else gets the default weight of 1. After a solve, <code>ic_gen_weights.csv</code> lists the weight applied to each project, so the key mapping can be checked against Switch-USA-PG names.</li>
+  <li>Only <code>NEW_GEN_BLD_YRS</code> count against headroom. Existing and predetermined capacity is already reflected in where each curve starts.</li>
+  <li>Tranches have an availability year, so lead times are explicit. Reconductoring or new lines can be held back a period.</li>
+  <li>Outputs are <code>ic_headroom.csv</code> (use and the headroom dual by zone and period) and <code>ic_tranches_built.csv</code>.</li>
+</ul>
+<p>On the Switch 2.0.9 three-zone toy with gas counted, about 3.3 MW of new gas moved from Central, where wind had already taken the headroom, to South, which had headroom freed by retirements. North still built all 5 MW of wind (3.75 MW weighted) and bought part of the $3M/MW tranche to do it. Total cost rose 1.4% over the unconstrained run.</p>
+<div class="note">Before running it in Switch-USA-PG, remove PowerGenome's reinforcement or interconnection annuity from wind and solar costs, keeping spur lines. Otherwise network costs are counted twice.</div>
+
+<h2 id="policy">Policy scenarios</h2>
+<p>Switch is a social planner, so changing who pays for upgrades has no effect on its own. Each scenario therefore changes real cost, quantity or timing.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Scenario</th><th>Change to the curve</th></tr></thead>
+<tbody>
+<tr><td><code>best_regime</code></td><td>Every zone gets the lowest regime effect, with the saturation slope held fixed. This isolates the institutional part of cost differences without assuming away physical ones.</td></tr>
+<tr><td><code>gets</code></td><td>Adds a tranche of 10% of the proxy at $15/kW ahead of the empirical curve.</td></tr>
+<tr><td><code>reconductoring</code></td><td>Adds GETs plus 40% of the proxy at $60/kW. The two share a combined cap because they act on the same lines.</td></tr>
+<tr><td><code>proactive_planning</code></td><td>Multiplies empirical tranche costs by 0.6 to reflect economies of scale over piecemeal upgrades.</td></tr>
+</tbody></table></div>
+<p class="cap">The GETs, reconductoring and proactive-planning numbers are placeholders. Replace them from Brattle (GETs in SPP), the GridLab/Berkeley reconductoring study and MISO LRTP cost-per-MW before using any results. In the reference case, cap GETs and reconductoring near observed adoption; the policy runs then relax the cap.</p>
+
+<h2 id="status">Status</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Component</th><th>State</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>County → zone mapping</td><td><span class="pill ok">working</span></td><td>99.3% of EIA MW mapped. Handles Miami-Dade, LaSalle and Connecticut planning regions.</td></tr>
+<tr><td>Saturation panel 2000–2030</td><td><span class="pill ok">working</span></td><td>Built on real data.</td></tr>
+<tr><td>LBNL ingestion</td><td><span class="pill todo">untested on real files</span></td><td>Header matching uses candidate lists; <code>inspect-lbnl</code> reports any misses.</td></tr>
+<tr><td>Regression</td><td><span class="pill ok">validated on synthetic</span></td><td>Recovers the saturation slope (1.40 vs 1.20 true, s.e. 0.27), the ERIS effect (−0.64 vs −0.70) and regime differences (within 0.05).</td></tr>
+<tr><td>Tranches and scenarios</td><td><span class="pill ok">working</span></td><td>Monotone by construction; extrapolated tranches flagged.</td></tr>
+<tr><td>Switch module</td><td><span class="pill todo">draft</span></td><td>Solves on the toy with HiGHS. Not yet run in Switch-USA-PG.</td></tr>
+<tr><td>Tests</td><td><span class="pill ok">7 passing</span></td><td>Includes an end-to-end Switch solve, a check that new gas uses headroom, and a run of the weight search.</td></tr>
+</tbody></table></div>
+
+<h2 id="risks">Open issues</h2>
+<ul>
+  <li><strong>Data support.</strong> On synthetic data, 98% of projects had saturation below 0.16, so most tranches are extrapolated. If the real data look the same, the upper curve rests on the extrapolation rule. Options are a finer step grid, the generation proxy, or anchoring the top of the curve to withdrawn-project costs.</li>
+  <li><strong>Endogenous proxy.</strong> NARIS 2024 limits include lines built because of IBR, such as CREZ. That lowers measured saturation exactly where development has been heaviest. A pre-2010 network snapshot would be cleaner if one exists.</li>
+  <li><strong>Retirement reuse and load growth.</strong> See the PJM note above.</li>
+  <li><strong>Regime coverage.</strong> ERCOT and the non-ISO Southeast and West rely on the mean regime effect unless LBNL's non-ISO release covers them. ERCOT uses connect-and-manage, so its cost appears as congestion rather than upgrade charges; the hub version below handles that properly.</li>
+  <li><strong>Withdrawal selection.</strong> The completed sample is survivor-biased and the withdrawn sample is cluster-inflated. Report results under both.</li>
+</ul>
+
+<h2 id="next">Next steps</h2>
+<ol class="steps">
+  <li>Download the LBNL workbooks to <code>data/raw/lbnl/</code> on energyVm1. Run <code>inspect-lbnl</code> and fix any column mappings.</li>
+  <li>Run <code>fit-weights</code> and copy the best proxy, technology weights and reuse share into <code>config.yaml</code>. Revisit the PJM result.</li>
+  <li>Run the pipeline and review the zone curves, especially extrapolated tranches and zones relying on the mean regime effect.</li>
+  <li>Set up the BA → Switch zone map. Strip the PowerGenome reinforcement cost and add the module on a branch of Switch-USA-EDF. Compare reference against <code>best_regime</code> on a 2030–35 run.</li>
+  <li>Replace the placeholder GETs and reconductoring costs and caps, using HIFLD line-km by voltage class.</li>
+  <li>Phase 2: a resource hub per zone with an intra-zonal interface. Dispatch then captures curtailment and connect-and-manage, and PRM credit is capped by firm interface capacity.</li>
+  <li>Contact the LBNL interconnection cost team about overlap and data access.</li>
+</ol>
+</main>
+</div>

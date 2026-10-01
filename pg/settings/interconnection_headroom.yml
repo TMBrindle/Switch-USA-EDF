@@ -1,0 +1,20 @@
+# Interconnection (network-upgrade) headroom.
+# Pipeline: interconnection_headroom/   Switch module: study_modules.interconnection_headroom
+# Guide: "Guides and documentation/interconnection_headroom.md"
+#
+# When enabled, pg_to_switch.py:
+#   - removes PowerGenome's network reinforcement cost (tx_capex) from gen_connect_cost_per_mw
+#     (spur and substation costs stay), and writes ic_connect_cost_check.csv to confirm it
+#   - writes ic_tranches.csv, ic_weights.csv and ic_params.csv into each case folder
+#   - aliases ic_tranches.chained.<case>.csv for later stages of myopic chains
+# Also add study_modules.interconnection_headroom to switch/modules.txt (or switch_module_list).
+interconnection_headroom:
+  enabled: false
+  # tranches_<scenario>.csv from `python -m icsc.cli run`:
+  # reference | best_regime | gets | reconductoring | proactive_planning
+  scenario: reference
+  tranches_dir: interconnection_headroom/outputs
+  exclude_network_reinforcement: true
+  # Optional overrides of interconnection_headroom/config.yaml (keep them equal unless testing):
+  # tech_weights: {solar: 1.0, wind: 0.75, storage: 0.5, gas: 1.0, other: 1.0}
+  # retirement_reuse_share: 0.8

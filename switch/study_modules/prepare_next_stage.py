@@ -283,6 +283,33 @@ def post_solve(m, outdir):
     trans = trans.drop(columns=["BuildTx"])
     to_csv(trans, chained(next_in_path, "transmission_lines.csv"))
 
+    # carry interconnection headroom forward (study_modules.interconnection_headroom)
+    chain_ic_tranches(in_path, out_path, next_in_path, case_name)
+
+
+def chain_ic_tranches(in_path, out_path, next_in_path, case_name):
+    """
+    Write ic_tranches.chained.<case>.csv for the next stage, keeping only the MW
+    of each tranche not yet bought. Builds from this stage become predetermined
+    next stage, so they no longer count against headroom. Does nothing when the
+    interconnection_headroom module wasn't used.
+    """
+    in_path, out_path, next_in_path = Path(in_path), Path(out_path), Path(next_in_path)
+    chained_name = f"ic_tranches.chained.{case_name}.csv"
+    ic_in = in_path / chained_name
+    if not ic_in.exists():
+        ic_in = in_path / "ic_tranches.csv"
+    ic_built_path = out_path / "ic_tranches_built.csv"
+    if not (ic_in.exists() and ic_built_path.exists()):
+        return
+    ic = pd.read_csv(ic_in, na_values=["."])
+    built = pd.read_csv(ic_built_path, na_values=["."])
+    last = built[built["period"] == built["period"].max()]
+    used = last.set_index("ic_tranche")["built_mw"]
+    ic["ic_tranche_max_mw"] = (
+        ic["ic_tranche_max_mw"] - ic["IC_TRANCHE"].map(used).fillna(0)
+    ).clip(lower=0).round(3)
+    ic.to_csv(next_in_path / chained_name, index=False, na_rep=".")
 
 class Test:
     """

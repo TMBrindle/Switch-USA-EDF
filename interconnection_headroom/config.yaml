@@ -1,0 +1,161 @@
+# Interconnection network-upgrade supply curves for ReEDS zones
+# All paths are relative to the project root.
+
+dollar_year: 2024
+
+paths:
+  county2zone: data/reference/county2zone.csv          # ReEDS inputs/county2zone.csv
+  hierarchy: data/reference/hierarchy.csv              # ReEDS inputs/hierarchy.csv
+  reeds_queues: data/reference/reeds_interconnection_queues.csv  # ReEDS inputs/capacity_exogenous/interconnection_queues.csv
+  eia860m: data/raw/august_generator2026.xlsx          # EIA-860M monthly generator inventory
+  lbnl_dir: data/raw/lbnl                              # put LBNL interconnection cost .xlsx files here
+  cpi: data/reference/cpi_u_annual.csv                 # annual CPI-U for deflating; year,cpi
+  outputs: outputs
+
+# ---------------------------------------------------------------------------
+# Headroom proxy and saturation
+# ---------------------------------------------------------------------------
+saturation:
+  # Which denominator to use for saturation:
+  #   transfer   = ReEDS/NARIS 2024 county-to-county AC transfer capacity inside the zone (+ share of boundary)
+  #   generation = non-IBR nameplate online in the zone at baseline_year
+  # Run `python -m icsc.cli fit-weights` once LBNL data are in place to pick by fit.
+  headroom_proxy: transfer
+  transfer_capacity: data/reference/transmission_capacity_init_AC_county_NARIS2024.csv
+  boundary_weight: 0.5
+  # IBR additions and retirements are counted from this year onward
+  baseline_year: 2010
+  # Share of the network one MW of nameplate occupies under interconnection-study conditions.
+  # Every new generator uses headroom; retiring ones free it at the same weight x reuse share.
+  # Solar is the numeraire (1.0). Starting values; `python -m icsc.cli fit-weights` estimates
+  # them from the LBNL costs -- copy the best row back here.
+  #   wind < 1: deliverability studies usually credit wind's geographic diversity
+  #   storage < 1: charging can relieve, not only load, the network
+  #   gas = 1: a CCGT/CT injects close to nameplate at peak
+  tech_weights: {solar: 1.0, wind: 0.75, storage: 0.5, gas: 1.0, other: 1.0}
+  # Fraction of retired capacity assumed to free reusable headroom
+  retirement_reuse_share: 0.8
+  # Lower bound on headroom proxy (MW) so near-empty zones don't explode the ratio
+  min_headroom_mw: 500
+
+# ---------------------------------------------------------------------------
+# LBNL interconnection cost files: map LBNL column names -> pipeline names.
+# Run `python -m icsc.cli inspect-lbnl` after downloading to see the real headers,
+# then edit the right-hand side. Several candidates may be listed; first match wins.
+# ---------------------------------------------------------------------------
+lbnl:
+  sheet_hint: ["data", "project", "cost"]   # sheet name substrings to try
+  header_search_rows: 10                    # header row is detected within the first N rows
+  columns:
+    project_id:   ["Queue ID", "Project ID", "q_id", "Request ID"]
+    region:       ["ISO/RTO", "Region", "Transmission Provider", "BA", "Market"]
+    state:        ["State", "state"]
+    county:       ["County", "county"]
+    fips:         ["FIPS", "County FIPS", "fips"]
+    tech:         ["Fuel", "Technology", "Type", "Resource Type", "Fuel Type"]
+    capacity_mw:  ["Nameplate Capacity (MW)", "Capacity (MW)", "MW", "Size (MW)"]
+    queue_year:   ["Queue Year", "Request Year", "Year of Request", "q_year"]
+    status:       ["Request Status", "Status", "Queue Status"]
+    service:      ["Service Type", "Interconnection Service", "NRIS/ERIS"]
+    cost_year:    ["Cost Year", "Dollar Year", "Study Year"]
+    poi_cost:     ["POI Cost ($/kW)", "POI Cost", "Interconnection Facility Cost ($/kW)", "POI ($/kW)"]
+    network_cost: ["Network Upgrade Cost ($/kW)", "Network Cost ($/kW)", "Network ($/kW)", "Network Upgrades ($/kW)"]
+    total_cost:   ["Total Cost ($/kW)", "Total ($/kW)", "Total Interconnection Cost ($/kW)"]
+  # If costs are given in $ (not $/kW), set to true and the pipeline divides by capacity*1000
+  costs_are_total_dollars: false
+  status_map:   # normalised status values
+    active: ["active"]
+    completed: ["completed", "operational", "in service", "done"]
+    withdrawn: ["withdrawn", "suspended", "cancelled", "canceled"]
+  tech_map:
+    solar: ["solar", "pv"]
+    wind: ["wind"]
+    storage: ["storage", "battery"]
+    hybrid: ["hybrid", "+"]
+    gas: ["gas", "ng", "combustion", "combined cycle"]
+
+# ---------------------------------------------------------------------------
+# Estimation
+# ---------------------------------------------------------------------------
+estimation:
+  sample_statuses: ["active", "completed"]   # central case; add "withdrawn" for a high-cost sensitivity
+  techs: ["solar", "wind", "storage", "hybrid", "gas"]
+  winsorize_pct: 0.99            # cap extreme $/kW values
+  min_capacity_mw: 5
+  # Dependent variable: log(1 + network $/kW). Saturation enters as a linear spline with these knots.
+  saturation_knots: [0.25, 0.5, 1.0]
+  min_obs_above_knot: 50         # drop knots with too few projects above them
+  support_quantile: 0.98         # beyond this saturation the last spline slope is extended (never negative)
+  regime_column: region          # planning-regime fixed effect (ISO/RTO or utility)
+  cluster_column: ba             # cluster-robust SEs by ReEDS zone
+
+# Grid for `fit-weights` (solar is the numeraire; other categories searched over these values)
+weight_search:
+  solar: [1.0]
+  wind: [0.5, 0.75, 1.0]
+  storage: [0.0, 0.25, 0.5, 1.0]
+  gas: [0.0, 0.5, 1.0]
+  other: [1.0]
+  reuse_share: [0.0, 0.5, 0.8]
+
+# ---------------------------------------------------------------------------
+# Tranche generation
+# ---------------------------------------------------------------------------
+tranches:
+  # Additional saturation steps above each zone's current saturation
+  steps: [0.05, 0.10, 0.15, 0.25, 0.25, 0.5, 1.0]
+  reference_tech: solar
+  reference_capacity_mw: 150
+  reference_service: NRIS
+  # Smearing correction when back-transforming from log space (Duan); set false to use median prediction
+  duan_smearing: true
+  # Upper bound on $/kW for the final tranche (anything above is treated as not buildable)
+  max_cost_per_kw: 1500
+  # Year used for the time-trend term when predicting (avoid extrapolating the trend into the future)
+  reference_year: 2024
+
+# ---------------------------------------------------------------------------
+# Policy scenarios (applied to the reference tranches)
+# ---------------------------------------------------------------------------
+scenarios:
+  reference: {}
+  best_regime:
+    description: Every zone gets the planning-regime effect of the lowest-cost regime; saturation slope unchanged.
+    regime_override: best
+  gets:
+    description: Adds a cheap GETs tranche ahead of the empirical curve.
+    extra_tranches:
+      - {name: gets, share_of_headroom: 0.10, cost_per_kw: 15}
+  reconductoring:
+    description: Adds GETs plus an advanced reconductoring tranche on existing ROW.
+    extra_tranches:
+      - {name: gets, share_of_headroom: 0.10, cost_per_kw: 15}
+      - {name: reconductor, share_of_headroom: 0.40, cost_per_kw: 60}
+  proactive_planning:
+    description: Proactive multi-value planning lowers the cost of the empirical curve (economies of scale vs. piecemeal upgrades).
+    cost_multiplier: 0.6
+
+# ---------------------------------------------------------------------------
+# Planning regimes: harmonise LBNL region labels and ReEDS transreg names to one label set
+# ---------------------------------------------------------------------------
+regimes:
+  lbnl_to_regime: {"ISO-NE": ISONE, "ISO New England": ISONE, "NYISO": NYISO, "PJM": PJM, "MISO": MISO,
+                   "SPP": SPP, "CAISO": CAISO, "ERCOT": ERCOT}
+  transreg_to_regime: {}      # e.g. {SERTP: "Southeast utilities"} once non-ISO BAs are in the sample
+
+# ---------------------------------------------------------------------------
+# Switch export
+# ---------------------------------------------------------------------------
+switch:
+  asset_life_years: 40
+  # gen_energy_source / gen_tech values in the Switch inputs -> weight category above.
+  # Written to ic_weights.csv. CHECK these against Switch-USA-PG gen_info.csv before use.
+  weight_keys:
+    Solar: solar
+    Wind: wind
+    Naturalgas: gas
+    NaturalGas: gas
+    naturalgas: gas
+    Gas: gas
+  default_weight_category: other   # any new build whose source/tech isn't listed
+  zone_map: null              # CSV with columns ba,load_zone if Switch zones are aggregations of ReEDS BAs

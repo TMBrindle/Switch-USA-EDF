@@ -796,3 +796,41 @@ Top-5 utilities by CO2: 195, 6452, 7140, 18642, 19876.
 Added a script to remove RPS, CES, min-cap, and max-cap policies for historical
 (non-planning) periods. Prevents constraint infeasibility in historical
 calibration runs where future policy targets should not apply.
+
+---
+
+## 25. Interconnection Headroom (Zonal Network-Upgrade Supply Curves)
+
+**Date:** 2026-10-01 · **Branch:** `tom/interconnection-headroom` · **Status:** draft, not yet run on a full case
+
+**Files (new):**
+- `interconnection_headroom/` — pipeline that estimates a rising network-upgrade cost curve
+  for each of the 134 ReEDS zones from LBNL project-level interconnection costs, EIA-860M
+  and ReEDS/NARIS 2024 transfer limits. Own README, CLAUDE.md, tests and `docs/project_doc.html`.
+- `switch/study_modules/interconnection_headroom.py` — new generation and storage in each zone
+  must fit inside interconnection headroom: initial headroom + reuse of retired capacity +
+  tranches bought at rising $/MW. Each MW counts at a technology weight (solar 1, wind 0.75,
+  storage 0.5, gas 1, distributed 0). Inactive in any zone without tranches, and does nothing
+  when `ic_tranches.csv` is absent.
+- `interconnection_headroom/icsc/switch_case.py` — writes the case inputs for pg_to_switch.
+- `pg/settings/interconnection_headroom.yml` — `enabled: false` by default.
+
+**Files changed:**
+- `pg_to_switch.py` — when enabled: removes PowerGenome `tx_capex` (network reinforcement)
+  from `gen_connect_cost_per_mw`, keeping spur costs; writes `ic_tranches.csv`,
+  `ic_weights.csv` (keyed by each `gen_tech` in the case), `ic_params.csv` and the diagnostic
+  `ic_connect_cost_check.csv`; maps tranches through `_zone_map` for aggregated region scopes;
+  adds `ic_tranches.csv=ic_tranches.chained.<case>.csv` to the input aliases of later myopic stages.
+- `switch/study_modules/prepare_next_stage.py` — new `chain_ic_tranches()` carries each
+  tranche's unbought MW to the next stage.
+- `switch/modules.txt` — commented entry for the new module.
+- `.gitignore` — whitelists `interconnection_headroom/` (its own `.gitignore` excludes raw data
+  and outputs).
+
+**Behaviour with the setting off:** unchanged. No new inputs are written and the module is not
+in `modules.txt`.
+
+**Open before first use:** confirm from `ic_connect_cost_check.csv` that PowerGenome's
+`interconnect_capex_mw` includes `tx_capex` (otherwise the subtraction is wrong) and whether
+`spur_capex` is counted twice in the existing `gen_connect_cost_per_mw` formula. The LBNL
+workbooks are needed before any tranches are real. See the guide.
