@@ -2,8 +2,9 @@
 # Fetch the raw inputs that are not committed to the repo.
 #   EIA-860M monthly generator inventory  -> data/raw/
 #   LBNL interconnection cost workbooks   -> data/raw/lbnl/<REGION>.xlsx
-#     downloaded from eta-publications.lbl.gov; if that fails, copied from project files
-#     (/mnt/project-files) when they have been uploaded there
+#     Normally already committed to the repo: LBNL's site sits behind a Cloudflare browser
+#     check that returns 403 to scripts (seen 2026-10-01). The download below is only tried for
+#     files that are missing, then project files (/mnt/project-files) are used as a fallback.
 # Needs www.eia.gov and eta-publications.lbl.gov on the environment's network allowlist.
 set -u
 cd "$(dirname "$0")/.."
@@ -55,7 +56,9 @@ if [ ${#failed[@]} -gt 0 ]; then
     cp -n "$f" data/raw/lbnl/
     echo "LBNL: copied $(basename "$f") from project files"
   done
-  echo "LBNL: download FAILED for ${failed[*]} (check eta-publications.lbl.gov is allowed, or upload the files)"
+  echo "LBNL: download FAILED for ${failed[*]}. LBNL's site blocks scripted downloads; download them"
+  echo "      in a browser from https://emp.lbl.gov/interconnection_costs and commit them to"
+  echo "      interconnection_headroom/data/raw/lbnl/<REGION>.xlsx"
 fi
 n=$(find data/raw/lbnl -maxdepth 1 -name '*.xls*' ! -name 'SYNTHETIC*' | wc -l)
 echo "LBNL: ${n} real workbook(s) in data/raw/lbnl"

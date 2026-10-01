@@ -2,5 +2,6 @@ __pycache__/
 *.pyc
 outputs/
 data/raw/*.xlsx
-data/raw/lbnl/*.xlsx
+# LBNL workbooks are committed (public, ~12 MB; the site blocks scripted downloads)
+data/raw/lbnl/SYNTHETIC_*
 .pytest_cache/
