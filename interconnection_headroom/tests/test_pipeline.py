@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from icsc import cli, estimate, geo, lbnl, synthetic, tranches
+from icsc import cli, estimate, geo, linkage, lbnl, synthetic, tranches
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -31,6 +31,33 @@ def test_county_matching():
                        "county": ["Miami Dade", "LaSalle", "DeWitt", "New London", "DeSoto Parish"]})
     out = geo.attach_ba(df, c2z, "state", "county")
     assert out["ba"].notna().all(), out
+
+
+def test_linkage_cascade(cfg):
+    """Own county, then (no Queued Up scope here) single-zone state, then transmission owner."""
+    c2z = geo.load_county2zone(ROOT / "data/reference/county2zone.csv")
+    assert linkage.norm_qid("Q007 - 061") == linkage.norm_qid("q007-061") == "Q007061"
+    assert linkage.norm_qid(1125.0) == "1125"
+    f = "TEST.xlsx"
+    df = pd.DataFrame({
+        "source_file": f, "region": "TEST", "project_id": list("abcdefg"), "qu_id": np.nan, "fips": np.nan,
+        "state": ["IL", "IL", "IL", "IL", "IL", "DE", "IL"],
+        "county": ["Cook", "Champaign", "Cook", None, None, None, None],
+        "owner": ["X", "X", "Y", "X", "Y", None, "Z"],
+        "capacity_mw": [100, 300, 50, 10, 10, 10, 10]})
+    out = linkage.link(df, c2z, cfg).set_index("project_id")
+    zc, zl = geo.attach_ba(df.iloc[:2], c2z)["ba"]
+    assert zc != zl  # Cook and Champaign are in different zones, so owner X spans two
+    assert out.loc["a", "ba_source"] == "lbnl_county"
+    assert out.loc["d", "ba_source"] == "owner_multi" and pd.isna(out.loc["d", "ba"])
+    assert out.loc["d", "ba_candidates"] == f"{zl}:0.7500|{zc}:0.2500"
+    assert out.loc["d", "ba_cluster"] == zl
+    assert out.loc["e", "ba_source"] == "owner_single" and out.loc["e", "ba"] == zc
+    assert out.loc["f", "ba_source"] == "state_single_zone"
+    assert pd.isna(out.loc["g", "ba"]) and not out.loc["g", "ba_multi"]  # unknown owner: dropped
+    panel = pd.DataFrame({"ba": [zc, zl], "year": 2020, "saturation": [0.2, 0.6]})
+    s = estimate.attach_saturation(out.reset_index().assign(queue_year=2020), panel).set_index("project_id")
+    assert s.loc["d", "saturation"] == pytest.approx(0.75 * 0.6 + 0.25 * 0.2)
 
 
 def test_categories():

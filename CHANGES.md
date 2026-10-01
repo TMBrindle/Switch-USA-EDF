@@ -870,6 +870,40 @@ BAs Feb 2026) now resolve in `inspect-lbnl` with no required column missing.
     any `$YYYY` header prefix; a mismatch is an error) instead of the study or queue year.
   - `inspect-lbnl` prints each workbook's cost dollar year and flags it if unknown.
 
-**Open:** the MISO, PJM and SPP workbooks have no county column, so their projects map to a ReEDS
-zone only in states served by one zone (PJM 11% of rows; MISO and SPP 0%). They need a
-project-to-county (or POI) source before they can enter the estimation sample.
+**Also:** `tech_map` gains `other: ["biogas"]`, matched before gas (17 non-ISO rows were classed
+as gas). PJM service "Energy" is now ERIS (67 rows). ISO-NE "NR" is unchanged (still NRIS) pending
+review: the ISO-NE codebook defines it only as "Network Resource", in contrast to CNR.
+
+---
+
+## 27. Interconnection Headroom — Locating LBNL Projects (Queued Up Linkage)
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest` (into `tom/interconnection-headroom`)
+
+**What changed.** MISO, PJM and SPP cost workbooks have no county. `icsc/linkage.py` (new)
+places every cost-data project in a ReEDS zone by a cascade, recorded in `ba_source`:
+workbook county → LBNL Queued Up county for the same normalised queue ID in the same
+region/entity and state → committed crosswalk for odd county strings → single-zone state →
+transmission owner (same workbook and state): one zone assigns; several zones leave `ba` empty,
+set `ba_multi` and `ba_candidates` (MW shares of the owner's located projects), and the project
+takes the weighted mean saturation of those zones; none drops the row.
+
+**Files:**
+- new `interconnection_headroom/icsc/linkage.py`; `lbnl.clean()` calls it instead of `geo.attach_ba`
+  (still used for EIA-860M).
+- new `interconnection_headroom/data/reference/lbnl_county_crosswalk.csv`: the odd county strings
+  (25 entries), with fips only where county2zone supports it and the basis for each.
+- `interconnection_headroom/data/LBNL_Ix_Queue_Data_File_thru2025.xlsx` (Queued Up through 2025).
+- `config.yaml`: `paths.queued_up`, `paths.county_crosswalk`, `lbnl.columns.qu_id` and `.owner`,
+  `lbnl.queued_up_sheet`, `lbnl.queued_up_scope`, `lbnl.fips_recode` (46113 → 46102),
+  `lbnl.min_mw_share`; `estimation.cluster_column: ba_cluster` (the zone, or the largest candidate
+  zone for owner_multi rows).
+- `estimate.attach_saturation`: weighted mean saturation for owner_multi rows.
+- `estimation_sample`: keeps owner_multi rows.
+- `cli.py`: `link-report` prints MW shares placed by workbook and status and writes
+  `outputs/lbnl_projects_linked.csv`.
+
+**Result (Oct 2026 workbooks):** MW share placed (one zone / incl. owner_multi): ISO-NE 100/100,
+MISO 97.3/97.5, NYISO 100/100, non-ISO 98.9/99.6, PJM 98.0/100, SPP 97.8/97.8. The 300 Duke Energy
+Progress rows have no nameplate MW in the LBNL workbook, so they carry no weight in MW shares
+and drop out of the sample.

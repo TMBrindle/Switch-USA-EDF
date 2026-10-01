@@ -1,0 +1,29 @@
+# LBNL cost-data county strings that are not a single county name (Oct 2026 workbooks).
+# Used only for rows the workbook county and the Queued Up queue-ID join do not place (icsc/linkage.py).
+# fips is filled only where repo data support it (basis); blank = not placed by this file.
+source_file,state,county_raw,fips,basis
+NYISO.xlsx,NJ,Bayonne,,town name; placed by Queued Up queue ID
+NYISO.xlsx,NY,Cahatauqua,,misspelling; placed by Queued Up queue ID
+NYISO.xlsx,NY,Clay,,town name; placed by Queued Up queue ID
+NYISO.xlsx,NY,Machias,,town name; placed by Queued Up queue ID
+NYISO.xlsx,NY,Ostego,,misspelling; placed by Queued Up queue ID
+NYISO.xlsx,NY,Westfield,,town name; placed by Queued Up queue ID
+NYISO.xlsx,NY,Westmoreland,,town name; placed by Queued Up queue ID
+NonISO.xlsx,OR,Boardman,,town name; placed by Queued Up queue ID
+NonISO.xlsx,OR,Coos/Douglas,,multi-county; placed by Queued Up queue ID
+NonISO.xlsx,OR,"Crook, Deschutes",,multi-county; placed by Queued Up queue ID
+NonISO.xlsx,OR,Lane/Douglas,,multi-county; placed by Queued Up queue ID
+NonISO.xlsx,OR,Lane/Lincoln,,multi-county; placed by Queued Up queue ID
+NonISO.xlsx,OR,"Morrow, Gilliam",41049,multi-county; Morrow (41049) and Gilliam (41021) are both zone p5 in county2zone; first-listed county as in Queued Up
+NonISO.xlsx,NC,Salisbury,,town name; no county evidence in repo data (falls to transmission-owner step)
+NonISO.xlsx,NC,Summerfield,,town name; no county evidence in repo data (falls to transmission-owner step)
+NonISO.xlsx,FL,Hudson,,town name; placed by Queued Up queue ID
+NonISO.xlsx,FL,Newberry,,town name; placed by Queued Up queue ID
+NonISO.xlsx,NC,Carteret/Craven,37031,multi-county; Carteret (37031) and Craven (37049) are both zone p98 in county2zone; first-listed county
+NonISO.xlsx,NC,Clarendon,45027,state error; county2zone has Clarendon only in SC (DEP serves NC and SC)
+NonISO.xlsx,NC,Darlington,45031,state error; county2zone has Darlington only in SC (DEP serves NC and SC)
+NonISO.xlsx,,Darlington,45031,state missing; county2zone has Darlington only in SC (DEP serves NC and SC)
+NonISO.xlsx,NC,Kershaw,45055,state error; county2zone has Kershaw only in SC (DEP serves NC and SC)
+NonISO.xlsx,NC,New Hannover,37129,misspelling of New Hanover (county2zone NC)
+NonISO.xlsx,ID,Salt Lake,,state error; placed by Queued Up queue ID
+NonISO.xlsx,NG+A+AF255,Coos,41011,state garbled; county2zone has Coos in OR and NH; PacifiCorp workbook rows are in OR and not NH

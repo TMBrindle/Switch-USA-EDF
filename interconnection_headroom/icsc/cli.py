@@ -2,6 +2,7 @@
 
     python -m icsc.cli panel            # EIA-860M + NARIS -> zone saturation panel
     python -m icsc.cli inspect-lbnl     # show how LBNL workbook headers were resolved
+    python -m icsc.cli link-report      # how LBNL projects were placed in ReEDS zones (MW shares)
     python -m icsc.cli fit-weights      # search proxy x tech weights x reuse share by fit
     python -m icsc.cli run              # full pipeline -> outputs/<scenario>/ic_tranches.csv
     python -m icsc.cli synthetic        # write SYNTHETIC LBNL-style files for testing
@@ -17,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from . import eia, estimate, geo, lbnl, network, switch_writer, synthetic, tranches
+from . import eia, estimate, geo, linkage, lbnl, network, switch_writer, synthetic, tranches
 
 
 def load_cfg(path: str) -> dict:
@@ -160,7 +161,7 @@ def cmd_fit_weights(cfg: dict, proxies: list[str] | None = None) -> pd.DataFrame
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="icsc")
-    ap.add_argument("command", choices=["panel", "inspect-lbnl", "fit-weights", "run", "synthetic"])
+    ap.add_argument("command", choices=["panel", "inspect-lbnl", "link-report", "fit-weights", "run", "synthetic"])
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--start-year", type=int, default=2026)
     ap.add_argument("--scenarios", nargs="*")
@@ -175,6 +176,13 @@ def main(argv=None):
               .head(15).round(2).to_string(index=False))
     elif a.command == "inspect-lbnl":
         print(lbnl.inspect(cfg))
+    elif a.command == "link-report":
+        c2z = geo.load_county2zone(cfg["paths"]["county2zone"])
+        projects = lbnl.load_all(cfg, c2z)
+        out = Path(cfg["paths"]["outputs"])
+        out.mkdir(parents=True, exist_ok=True)
+        projects.to_csv(out / "lbnl_projects_linked.csv", index=False)
+        print(linkage.report(projects, cfg))
     elif a.command == "fit-weights":
         cmd_fit_weights(cfg)
     elif a.command == "run":

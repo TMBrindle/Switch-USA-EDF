@@ -12,10 +12,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .geo import attach_ba
+from . import linkage
 
-FIELDS = ["project_id", "region", "state", "county", "fips", "tech", "capacity_mw", "queue_year",
-          "status", "service", "cost_year", "poi_cost", "network_cost", "total_cost"]
+FIELDS = ["project_id", "qu_id", "region", "owner", "state", "county", "fips", "tech", "capacity_mw",
+          "queue_year", "status", "service", "cost_year", "poi_cost", "network_cost", "total_cost"]
 REQUIRED = ["state", "tech", "capacity_mw", "queue_year", "status", "network_cost"]
 
 
@@ -61,6 +61,8 @@ def read_workbook(path: Path, cfg: dict) -> tuple[pd.DataFrame, dict]:
     out["source_sheet"] = sheet
     if pd.isna(out["region"]).all():
         out["region"] = path.stem  # fall back to file name (e.g. "MISO")
+    elif "owner" not in resolved:
+        out["owner"] = out["region"]  # non-ISO release: the balancing authority is the transmission owner
     return out, resolved
 
 
@@ -108,8 +110,8 @@ def inspect(cfg: dict) -> str:
 def _map_values(s: pd.Series, mapping: dict, default=None) -> pd.Series:
     low = s.astype(str).str.lower()
     out = pd.Series(default, index=s.index, dtype=object)
-    # hybrid first so "solar + storage" is not classed as solar
-    order = sorted(mapping, key=lambda k: k != "hybrid")
+    # hybrid first so "solar + storage" is not classed as solar; other next so "biogas" is not gas
+    order = sorted(mapping, key=lambda k: (k != "hybrid", k != "other"))
     for k in order:
         hit = out.isna() & low.apply(lambda x: any(tok in x for tok in mapping[k]))
         out[hit] = k
@@ -133,13 +135,14 @@ def clean(frames: list[pd.DataFrame], cfg: dict, c2z: pd.DataFrame) -> pd.DataFr
     df["status_n"] = _map_values(df["status"], lc["status_map"])
     df["tech_n"] = _map_values(df["tech"], lc["tech_map"])
     svc = df["service"].astype(str).str.upper()
-    is_energy = svc.str.contains(r"\bERIS\b|ENERGY[ -]ONLY|ENERGY RESOURCE", regex=True)
+    # PJM's service types are "Capacity" and "Energy" (energy-only)
+    is_energy = svc.str.contains(r"\bERIS\b|ENERGY[ -]ONLY|ENERGY RESOURCE|^\s*ENERGY\s*$", regex=True)
     df["service_n"] = np.where(is_energy, "ERIS", "NRIS")  # NRIS/CRIS/capacity is the default
     cpi = pd.read_csv(cfg["paths"]["cpi"])
     year_basis = df["cost_year"].fillna(df["queue_year"])
     for c in ("poi_cost", "network_cost", "total_cost"):
         df[c + "_real"] = _deflate(df[c], year_basis, cfg["dollar_year"], cpi)
-    df = attach_ba(df, c2z, state_col="state", county_col="county", fips_col="fips")
+    df = linkage.link(df, c2z, cfg)
     df["regime"] = df[ec["regime_column"]].astype(str).str.strip()
     return df
 
@@ -147,7 +150,7 @@ def clean(frames: list[pd.DataFrame], cfg: dict, c2z: pd.DataFrame) -> pd.DataFr
 def estimation_sample(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     ec = cfg["estimation"]
     s = df[df["status_n"].isin(ec["sample_statuses"]) & df["tech_n"].isin(ec["techs"])
-           & df["ba"].notna() & df["network_cost_real"].notna() & df["queue_year"].notna()
+           & (df["ba"].notna() | df["ba_multi"]) & df["network_cost_real"].notna() & df["queue_year"].notna()
            & (df["capacity_mw"] >= ec["min_capacity_mw"])].copy()
     cap = s["network_cost_real"].quantile(ec["winsorize_pct"])
     s["network_cost_real"] = s["network_cost_real"].clip(lower=0, upper=cap)

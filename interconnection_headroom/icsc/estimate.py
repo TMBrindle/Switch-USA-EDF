@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
+from . import linkage
+
 
 def spline_basis(s: np.ndarray, knots: list[float]) -> pd.DataFrame:
     s = np.asarray(s, dtype=float)
@@ -26,12 +28,24 @@ def spline_basis(s: np.ndarray, knots: list[float]) -> pd.DataFrame:
 
 
 def attach_saturation(sample: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame:
-    """Each project gets its zone's saturation in the year it entered the queue."""
+    """Each project gets its zone's saturation in the year it entered the queue.
+
+    Projects placed only by transmission owner (`ba_candidates`, see linkage.py) get the
+    MW-share-weighted mean saturation of their candidate zones.
+    """
     p = panel[["ba", "year", "saturation"]].copy()
     yr = sample["queue_year"].clip(p["year"].min(), p["year"].max()).astype(int)
     out = sample.assign(_yr=yr.values).merge(p, left_on=["ba", "_yr"], right_on=["ba", "year"], how="left",
                                              suffixes=("", "_p"))
-    return out.drop(columns=["_yr", "year"])
+    out = out.drop(columns=["_yr", "year"])
+    if "ba_candidates" in out and out["ba_candidates"].notna().any():
+        cand = linkage.candidates_long(out).assign(year=lambda c: out.loc[c["row"], "queue_year"].clip(
+            p["year"].min(), p["year"].max()).astype(int).values)
+        cand = cand.merge(p, on=["ba", "year"], how="left")
+        sat = (cand["w"] * cand["saturation"]).groupby(cand["row"]).sum(min_count=1)
+        sat = sat.where(cand["saturation"].notna().groupby(cand["row"]).all())  # all candidate zones needed
+        out.loc[sat.index, "saturation"] = sat
+    return out
 
 
 @dataclass
