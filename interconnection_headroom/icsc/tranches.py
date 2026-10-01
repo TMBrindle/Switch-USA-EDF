@@ -18,11 +18,22 @@ import pandas as pd
 from .estimate import CostModel
 
 
+def zone_regime_labels(hierarchy: pd.DataFrame, cfg: dict) -> pd.Series:
+    """Regime label per zone: a utility (regimes.hurdlereg_to_regime, by the zone's hurdlereg) where
+    one is listed, else the zone's transreg (through regimes.transreg_to_regime)."""
+    rc = cfg.get("regimes", {})
+    by_util = rc.get("hurdlereg_to_regime") or {}
+    by_reg = rc.get("transreg_to_regime") or {}
+    h = hierarchy.set_index("ba")
+    lab = h["transreg"].map(lambda t: by_reg.get(t, t))
+    util = h["hurdlereg"].map(by_util)
+    return util.fillna(lab).rename("regime")
+
+
 def zone_regimes(hierarchy: pd.DataFrame, model: CostModel, cfg: dict) -> pd.DataFrame:
     """Assign each zone a planning regime; zones whose regime is not in the sample get the mean effect."""
-    aliases = cfg.get("regimes", {}).get("transreg_to_regime", {})
-    z = hierarchy[["ba", "transreg"]].copy()
-    z["regime"] = z["transreg"].map(lambda t: aliases.get(t, t))
+    z = hierarchy[["ba", "transreg", "hurdlereg"]].copy()
+    z["regime"] = zone_regime_labels(hierarchy, cfg).reindex(z["ba"]).values
     eff = model.regime_effects()
     z["regime_in_sample"] = z["regime"].isin(eff.index)
     z["regime_effect"] = z["regime"].map(eff).fillna(eff.mean())
@@ -33,8 +44,9 @@ def _predict_with_effect(model: CostModel, sat, effect: float, cfg: dict) -> np.
     """Predict at the reference project but with an explicit regime effect (base-regime design + offset)."""
     tc = cfg["tranches"]
     yhat = model.log_pred(sat, tc["reference_tech"], tc["reference_service"], tc["reference_capacity_mw"],
-                          tc.get("reference_year", cfg["dollar_year"]), model.base_regime) + effect
-    return np.clip(np.exp(yhat) * model.smear - 1, 0, None)
+                          tc.get("reference_year", cfg["dollar_year"]), model.base_regime,
+                          tc.get("reference_status", "completed")) + effect
+    return model.to_cost(yhat)
 
 
 def build_reference(model: CostModel, panel: pd.DataFrame, regimes: pd.DataFrame, cfg: dict,

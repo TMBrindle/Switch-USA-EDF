@@ -146,7 +146,9 @@ def clean(frames: list[pd.DataFrame], cfg: dict, c2z: pd.DataFrame) -> pd.DataFr
     for c in ("poi_cost", "network_cost", "total_cost"):
         df[c + "_real"] = _deflate(df[c], year_basis, cfg["dollar_year"], cpi)
     df = linkage.link(df, c2z, cfg)
-    df["regime"] = df[ec["regime_column"]].astype(str).str.strip()
+    # one regime label set for run and fit-weights: LBNL region/BA -> regime (config regimes.lbnl_to_regime)
+    aliases = cfg.get("regimes", {}).get("lbnl_to_regime", {})
+    df["regime"] = df[ec["regime_column"]].astype(str).str.strip().map(lambda r: aliases.get(r, r))
     return df
 
 

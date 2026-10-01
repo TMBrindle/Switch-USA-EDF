@@ -955,3 +955,19 @@ and drop out of the sample.
   `base_capacity_mw`, the chosen proxy in the start year. Sample saturation p98 (default weights):
   transfer 0.129, boundary+peak 0.243, boundary+median 0.313, boundary+p10 0.329, boundary 0.505,
   generation 0.634.
+
+## 29. Interconnection Headroom — Estimation: Utility Regimes, PPML, Status Term
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
+
+- Regimes: `lbnl_to_regime` is applied in `lbnl.clean`, so `run` and `fit-weights` use one label
+  set (before, fit-weights saw raw BPA/PAC/DEC/DEP/DEF codes while run pooled them; tested).
+  Non-ISO utilities get their own effect (BPA, PacifiCorp, DEC, DEP; DEF -> FRCC). Zones take a
+  utility effect through `regimes.hurdlereg_to_regime` (BPA p2 p5 p7; PacifiCorp p6 p8 p21 p22 p25
+  p26; DEC p95 p97; DEP p98), otherwise their transreg's (`tranches.zone_regime_labels`).
+- `estimation.estimator: ppml` (default): statsmodels GLM Poisson, log link, on network-upgrade
+  $/kW, cluster-robust by zone, no smearing; R² reported as deviance pseudo-R². `log_ols` kept.
+- `estimation.status_term: true`: completed (vs active) dummy. Reference curves priced at
+  `tranches.reference_status: completed` ("active" for the sensitivity).
+- fit-weights grid: proxies from `weight_search.proxies`; wind 0.25-1, storage 0.5, gas 0/0.5/1,
+  reuse 0/0.1/0.25/0.5.

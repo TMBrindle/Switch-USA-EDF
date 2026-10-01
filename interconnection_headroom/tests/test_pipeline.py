@@ -96,7 +96,9 @@ def test_synthetic_recovery(cfg, built, tmp_path):
     panel, _, c2z = built
     hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
     d = synthetic.make(panel, c2z, hier, tmp_path, n_per_region=800, seed=1)
-    c = dict(cfg, paths=dict(cfg["paths"], lbnl_dir=str(d)))
+    # the synthetic costs are generated from a log(1 + $/kW) model, so recover them with log-OLS
+    c = dict(cfg, paths=dict(cfg["paths"], lbnl_dir=str(d)),
+             estimation=dict(cfg["estimation"], estimator="log_ols", status_term=False))
     projects = lbnl.load_all(c, c2z)
     sample = estimate.attach_saturation(lbnl.estimation_sample(projects, c), panel)
     m = estimate.fit(sample, c)
@@ -137,6 +139,34 @@ def test_synthetic_recovery(cfg, built, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
+def test_zone_regimes_utilities(cfg):
+    hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
+    lab = tranches.zone_regime_labels(hier, cfg)
+    expect = {"BPA": {"p2", "p5", "p7"}, "PacifiCorp": {"p6", "p8", "p21", "p22", "p25", "p26"},
+              "DEC": {"p95", "p97"}, "DEP": {"p98"}}
+    for reg, zones in expect.items():
+        assert set(lab[lab == reg].index) == zones, reg
+    assert lab["p101"] == "FRCC" and lab["p102"] == "FRCC" and lab["p80"] == "PJM"
+
+
+def test_fit_weights_uses_run_regimes(cfg, built, monkeypatch, tmp_path):
+    """fit-weights must fit on the same sample, with the same regime labels, as run."""
+    _, _, c2z = built
+    run_sample = lbnl.estimation_sample(lbnl.load_all(cfg, c2z), cfg)
+    seen = []
+    real_fit = estimate.fit
+    monkeypatch.setattr(estimate, "fit", lambda s, c: seen.append(s) or real_fit(s, c))
+    one = dict(cfg, weight_search={"proxies": ["boundary"], "solar": [1.0], "wind": [0.5], "storage": [0.5],
+                                   "gas": [1.0], "other": [1.0], "reuse_share": [0.0]},
+               paths=dict(cfg["paths"], outputs=str(tmp_path)))
+    cli.cmd_fit_weights(one)
+    fw = seen[0]
+    assert len(fw) == len(run_sample)
+    assert (fw["regime"].values == run_sample["regime"].values).all()
+    zone_labels = set(tranches.zone_regime_labels(geo.load_hierarchy(cfg["paths"]["hierarchy"]), cfg))
+    assert set(fw["regime"]) <= zone_labels, set(fw["regime"]) - zone_labels
+
+
 def test_switch_module_on_toy(tmp_path):
     import os
     base = Path(os.environ.get("SWITCH_SRC", ROOT.parent.parent / "switch-src"))

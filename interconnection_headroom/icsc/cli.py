@@ -87,8 +87,6 @@ def cmd_run(cfg: dict, start_year: int, scenarios: list[str] | None):
     hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
 
     projects = lbnl.load_all(cfg, c2z)
-    aliases = cfg.get("regimes", {}).get("lbnl_to_regime", {})
-    projects["regime"] = projects["regime"].map(lambda r: aliases.get(r, r))
     projects.to_csv(out / "lbnl_projects_clean.csv", index=False)
     sample = estimate.attach_saturation(lbnl.estimation_sample(projects, cfg), panel)
     sample.to_csv(out / "estimation_sample.csv", index=False)
@@ -112,7 +110,7 @@ def cmd_run(cfg: dict, start_year: int, scenarios: list[str] | None):
 
     summary = {"n_projects_clean": int(len(projects)),
                "ba_match_rate": float(projects["ba"].notna().mean()),
-               "n_estimation": int(model.result.nobs), "r2": float(model.result.rsquared),
+               "n_estimation": int(model.result.nobs), "r2": model.r2, "estimator": model.estimator,
                "regime_effects": model.regime_effects().round(3).to_dict(), "scenarios": {}}
     for name, scen in cfg["scenarios"].items():
         if scenarios and name not in scenarios:
@@ -177,7 +175,7 @@ def cmd_fit_weights(cfg: dict, proxies: list[str] | None = None) -> pd.DataFrame
     base = lbnl.estimation_sample(lbnl.load_all(cfg, c2z), cfg)
     reuse_vals = cfg.get("weight_search", {}).get("reuse_share", [cfg["saturation"]["retirement_reuse_share"]])
     rows = []
-    for proxy in proxies or ["transfer", "generation"]:
+    for proxy in proxies or cfg.get("weight_search", {}).get("proxies", ["transfer", "generation"]):
         override = proxy_capacity(cfg, c2z, proxy)
         comp = eia.zone_components(gens, c2z, cfg, proxy_override=override)
         for w in weight_grid(cfg):
@@ -185,7 +183,7 @@ def cmd_fit_weights(cfg: dict, proxies: list[str] | None = None) -> pd.DataFrame
                 panel = eia.apply_weights(comp, w, reuse)
                 m = estimate.fit(estimate.attach_saturation(base, panel), cfg)
                 rows.append({"proxy": proxy, **{f"w_{k}": v for k, v in w.items()}, "reuse_share": reuse,
-                             "n": int(m.result.nobs), "r2": m.result.rsquared, "aic": m.result.aic,
+                             "n": int(m.result.nobs), "r2": m.r2, "aic": m.result.aic,
                              "sat_coef": m.result.params.get("sat"),
                              "sat_t": m.result.params.get("sat") / m.result.bse.get("sat")})
     res = pd.DataFrame(rows).sort_values("aic").reset_index(drop=True)

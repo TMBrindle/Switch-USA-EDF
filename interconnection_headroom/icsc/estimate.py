@@ -1,9 +1,14 @@
 """Estimate how network-upgrade cost rises with zonal saturation.
 
-Model (OLS, cluster-robust by zone):
+Model (estimation.estimator; cluster-robust SEs by zone):
 
-    log(1 + NU_$/kW) = f(saturation) + tech + service + b*log(MW) + c*(queue_year - 2015)
-                       + regime fixed effect + e
+  ppml (default)  E[NU_$/kW] = exp(f(saturation) + tech + service + status + b*log(MW)
+                                   + c*(queue_year - 2015) + regime fixed effect)
+                  Poisson pseudo-maximum likelihood (GLM, log link): consistent for the
+                  conditional mean, keeps zero-cost projects, needs no retransformation.
+  log_ols         log(1 + NU_$/kW) = same index + e, OLS; back-transformed with Duan smearing.
+
+status is a dummy for each sample status other than "active" (completed, and withdrawn if sampled).
 
 f(.) is a linear spline in saturation (knots in config). The regime effect is what the
 "best_regime" policy scenario swaps out; the saturation slope is treated as physics.
@@ -58,15 +63,28 @@ class CostModel:
     smear: float
     techs: list[str]
     sat_support: float = 1.0      # saturation beyond which predictions are extrapolated
+    estimator: str = "log_ols"
+
+    @property
+    def r2(self) -> float:
+        """R² for log-OLS; for PPML the deviance pseudo-R² (1 - deviance / null deviance)."""
+        r = self.result
+        return float(r.rsquared) if self.estimator == "log_ols" else float(1 - r.deviance / r.null_deviance)
+
+    def to_cost(self, index: np.ndarray, smear: bool = True) -> np.ndarray:
+        """$/kW from the linear index."""
+        if self.estimator == "ppml":
+            return np.exp(index)
+        return np.clip(np.exp(index) * (self.smear if smear else 1.0) - 1, 0, None)
 
     def _linear_pred(self, X: pd.DataFrame) -> np.ndarray:
         return X.values @ self.result.params[self.columns].values
 
-    def log_pred(self, sat, tech, service, cap_mw, queue_year, regime) -> np.ndarray:
-        """Log-scale prediction; beyond the data support the last segment's slope is extended (floored at 0)."""
+    def log_pred(self, sat, tech, service, cap_mw, queue_year, regime, status="active") -> np.ndarray:
+        """Linear index (log scale); beyond the data support the last segment's slope is extended (floored at 0)."""
         sat = np.atleast_1d(np.asarray(sat, dtype=float))
         inside = np.minimum(sat, self.sat_support)
-        y = self._linear_pred(self.design(inside, tech, service, cap_mw, queue_year, regime))
+        y = self._linear_pred(self.design(inside, tech, service, cap_mw, queue_year, regime, status))
         p = self.result.params
         slope = p.get("sat", 0.0) + sum(p.get(f"sat_gt_{k:g}", 0.0) for k in self.knots if k < self.sat_support)
         return y + max(slope, 0.0) * np.clip(sat - self.sat_support, 0, None)
@@ -79,7 +97,7 @@ class CostModel:
                 eff[r] = float(self.result.params[c])
         return pd.Series(eff).sort_values()
 
-    def design(self, sat, tech, service, cap_mw, queue_year, regime) -> pd.DataFrame:
+    def design(self, sat, tech, service, cap_mw, queue_year, regime, status="active") -> pd.DataFrame:
         n = len(np.atleast_1d(sat))
         X = spline_basis(np.atleast_1d(sat), self.knots)
         X["log_mw"] = np.log(np.broadcast_to(cap_mw, n).astype(float))
@@ -91,19 +109,23 @@ class CostModel:
                 X[c] = (np.broadcast_to(service, n) == c[8:]).astype(float)
             elif c.startswith("regime_"):
                 X[c] = (np.broadcast_to(regime, n) == c[7:]).astype(float)
+            elif c.startswith("status_"):
+                X[c] = (np.broadcast_to(status, n) == c[7:]).astype(float)
         X["const"] = 1.0
         return X.reindex(columns=self.columns, fill_value=0.0)
 
-    def predict_cost(self, sat, tech, service, cap_mw, queue_year, regime, smear=True) -> np.ndarray:
-        """Predicted network upgrade cost ($/kW, real) for the given characteristics."""
-        yhat = self.log_pred(sat, tech, service, cap_mw, queue_year, regime)
-        return np.clip(np.exp(yhat) * (self.smear if smear else 1.0) - 1, 0, None)
+    def predict_cost(self, sat, tech, service, cap_mw, queue_year, regime, status="active",
+                     smear=True) -> np.ndarray:
+        """Predicted mean network upgrade cost ($/kW, real) for the given characteristics."""
+        return self.to_cost(self.log_pred(sat, tech, service, cap_mw, queue_year, regime, status), smear)
 
 
 def fit(sample: pd.DataFrame, cfg: dict) -> CostModel:
     ec = cfg["estimation"]
+    estimator = ec.get("estimator", "ppml")
+    if estimator not in ("ppml", "log_ols"):
+        raise ValueError(f"estimation.estimator must be ppml or log_ols, not {estimator!r}")
     d = sample.dropna(subset=["saturation", "network_cost_real", "capacity_mw", "queue_year"]).copy()
-    y = np.log1p(d["network_cost_real"].values)
     # keep only knots with enough projects above them; otherwise the last segment is noise
     min_obs = ec.get("min_obs_above_knot", 50)
     knots = [k for k in ec["saturation_knots"] if (d["saturation"] > k).sum() >= min_obs]
@@ -117,6 +139,9 @@ def fit(sample: pd.DataFrame, cfg: dict) -> CostModel:
             X[f"tech_{t}"] = (d["tech_n"].values == t).astype(float)
     if d["service_n"].nunique() > 1:
         X["service_ERIS"] = (d["service_n"].values == "ERIS").astype(float)
+    if ec.get("status_term", True):
+        for st in sorted(set(d["status_n"].unique()) - {"active"}):
+            X[f"status_{st}"] = (d["status_n"].values == st).astype(float)
     counts = d["regime"].value_counts()
     regimes = list(counts.index)
     base_regime = regimes[0]  # most common regime is the reference level
@@ -127,14 +152,20 @@ def fit(sample: pd.DataFrame, cfg: dict) -> CostModel:
     X = X.loc[:, (X != 0).any(axis=0)]
     X.index = d.index
     groups = pd.factorize(d[ec["cluster_column"]])[0]
-    res = sm.OLS(pd.Series(y, index=d.index), X).fit(cov_type="cluster", cov_kwds={"groups": groups})
-    smear = float(np.mean(np.exp(res.resid))) if cfg["tranches"]["duan_smearing"] else 1.0
+    if estimator == "ppml":
+        y = pd.Series(d["network_cost_real"].values, index=d.index)
+        res = sm.GLM(y, X, family=sm.families.Poisson()).fit(cov_type="cluster", cov_kwds={"groups": groups})
+        smear = 1.0
+    else:
+        y = pd.Series(np.log1p(d["network_cost_real"].values), index=d.index)
+        res = sm.OLS(y, X).fit(cov_type="cluster", cov_kwds={"groups": groups})
+        smear = float(np.mean(np.exp(res.resid))) if cfg["tranches"]["duan_smearing"] else 1.0
     knots = [k for k in knots if f"sat_gt_{k:g}" in X.columns]
     support = float(d["saturation"].quantile(ec.get("support_quantile", 0.98)))
-    return CostModel(res, list(X.columns), knots, regimes, base_regime, smear, techs, support)
+    return CostModel(res, list(X.columns), knots, regimes, base_regime, smear, techs, support, estimator)
 
 
 def coef_table(m: CostModel) -> pd.DataFrame:
     r = m.result
-    return pd.DataFrame({"coef": r.params, "se": r.bse,
-                         "t": r.params / r.bse}).assign(n=int(r.nobs), r2=r.rsquared)
+    return pd.DataFrame({"coef": r.params, "se": r.bse, "t": r.params / r.bse}).assign(
+        n=int(r.nobs), r2=m.r2, estimator=m.estimator)

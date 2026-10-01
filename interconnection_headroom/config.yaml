@@ -134,17 +134,20 @@ estimation:
   saturation_knots: [0.25, 0.5, 1.0]
   min_obs_above_knot: 50         # drop knots with too few projects above them
   support_quantile: 0.98         # beyond this saturation the last spline slope is extended (never negative)
+  estimator: ppml               # ppml (Poisson PML on $/kW, default) or log_ols (log(1 + $/kW), Duan smearing)
+  status_term: true              # dummy for completed (vs active) projects
   regime_column: region          # planning-regime fixed effect (ISO/RTO or utility)
   cluster_column: ba_cluster     # cluster-robust SEs by ReEDS zone (largest candidate zone for owner_multi rows)
 
 # Grid for `fit-weights` (solar is the numeraire; other categories searched over these values)
 weight_search:
+  proxies: [boundary+peak, boundary+median, boundary+p10, boundary, generation, transfer]  # transfer: comparison only
   solar: [1.0]
-  wind: [0.5, 0.75, 1.0]
-  storage: [0.0, 0.25, 0.5, 1.0]
+  wind: [0.25, 0.5, 0.75, 1.0]
+  storage: [0.5]
   gas: [0.0, 0.5, 1.0]
   other: [1.0]
-  reuse_share: [0.0, 0.5, 0.8]
+  reuse_share: [0.0, 0.1, 0.25, 0.5]
 
 # ---------------------------------------------------------------------------
 # Tranche generation
@@ -155,7 +158,8 @@ tranches:
   reference_tech: solar
   reference_capacity_mw: 150
   reference_service: NRIS
-  # Smearing correction when back-transforming from log space (Duan); set false to use median prediction
+  reference_status: completed    # status the reference curves are priced at; "active" for the sensitivity
+  # log_ols only: smearing correction when back-transforming from log space (Duan); false = median
   duan_smearing: true
   # Upper bound on $/kW for the final tranche (anything above is treated as not buildable)
   max_cost_per_kw: 1500
@@ -210,13 +214,19 @@ scenarios:
 # Planning regimes: harmonise LBNL region labels and ReEDS transreg names to one label set
 # ---------------------------------------------------------------------------
 regimes:
+  # LBNL region (file name, or the non-ISO BA column) -> regime. Applied in lbnl.clean, so run and
+  # fit-weights see the same labels. Non-ISO utilities get their own effect; Duke Energy Florida
+  # (DEF) is pooled into FRCC.
   lbnl_to_regime: {"ISO-NE": ISONE, "ISO New England": ISONE, "NYISO": NYISO, "PJM": PJM, "MISO": MISO,
                    "SPP": SPP, "CAISO": CAISO, "ERCOT": ERCOT,
-                   # non-ISO release (column "BA") -> ReEDS transreg of the zones its projects map to:
-                   # BPA 274/274 matched rows NorthernGrid; PAC 1019 NorthernGrid, 82 WestConnect (PacifiCorp
-                   # plans in NorthernGrid); DEC 183/183 and DEP 287/287 SERTP; DEF 197 FRCC, 5 SERTP
-                   "BPA": NorthernGrid, "PAC": NorthernGrid, "DEC": SERTP, "DEP": SERTP, "DEF": FRCC}
-  transreg_to_regime: {}      # e.g. {SERTP: "Southeast utilities"} once non-ISO BAs are in the sample
+                   "BPA": BPA, "PAC": PacifiCorp, "DEC": DEC, "DEP": DEP, "DEF": FRCC}
+  # Zones whose hierarchy.csv hurdlereg is one of these utilities take that utility's effect
+  # (BPA: p2 p5 p7; PacifiCorp: p6 p8 p21 p22 p25 p26; DEC: p95 p97; DEP: p98); other zones take
+  # their transreg's effect (through transreg_to_regime), or the mean if it has no projects.
+  hurdlereg_to_regime: {Bonneville_Power_Administration: BPA, PacifiCorp_West: PacifiCorp,
+                        PacifiCorp_East: PacifiCorp, Duke_Energy_Carolinas_LLC: DEC,
+                        Duke_Energy_Progress_East: DEP}
+  transreg_to_regime: {}
 
 # ---------------------------------------------------------------------------
 # Switch export
