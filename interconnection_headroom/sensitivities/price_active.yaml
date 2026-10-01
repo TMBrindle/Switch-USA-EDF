@@ -1,0 +1,6 @@
+# Sensitivity: price the reference curves at active-project costs instead of completed.
+# Run: python -m icsc.cli --config sensitivities/price_active.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_price_active}
+tranches:
+  reference_status: active

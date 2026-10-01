@@ -842,3 +842,166 @@ the reactive engineering cost used for the capacity estimate, and the proactive-
 multiplier are placeholders; confirm from `ic_connect_cost_check.csv` that `interconnect_capex_mw`
 includes `tx_capex`, and whether `spur_capex` is counted twice in the existing
 `gen_connect_cost_per_mw` formula. See the guide.
+
+---
+
+## 26. Interconnection Headroom — LBNL Cost Data Ingest
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest` (into `tom/interconnection-headroom`)
+
+**What changed.** The six LBNL workbooks (MISO 2021, PJM 2022, SPP 2023, ISO-NE, NYISO, non-ISO
+BAs Feb 2026) now resolve in `inspect-lbnl` with no required column missing.
+
+**Files changed:**
+- `interconnection_headroom/config.yaml`
+  - `lbnl.columns`: added the real LBNL headers (`Nameplate MW`, `Queue Date`, `Project #`,
+    `Queue ID 1`, `$2022 …/$2024 … Cost/kW`, MISO's `Real POI/Network/Total/kW`). Dropped
+    `Study Year` from `cost_year`: LBNL costs are already in constant dollars, so the study year is
+    not their dollar year.
+  - new `lbnl.cost_dollar_year` (by file name): 2022 for MISO, PJM, SPP, ISO-NE and NYISO, 2024 for
+    the non-ISO file (from each workbook's codebook or headers).
+  - `lbnl.status_map`: `completed` now matches `complete`. LBNL writes "Complete", which the old
+    `completed` token missed, dropping every completed project from the central sample.
+  - `regimes.lbnl_to_regime`: non-ISO BAs mapped to the ReEDS `transreg` of the zones their projects
+    fall in (BPA, PAC → NorthernGrid; DEC, DEP → SERTP; DEF → FRCC).
+- `interconnection_headroom/icsc/lbnl.py`
+  - queue year taken from a date column (`Queue Date`) as well as a year column.
+  - costs are deflated from the workbook's dollar year (`cost_dollar_year`, cross-checked against
+    any `$YYYY` header prefix; a mismatch is an error) instead of the study or queue year.
+  - `inspect-lbnl` prints each workbook's cost dollar year and flags it if unknown.
+
+**Also:** `tech_map` gains `other: ["biogas"]`, matched before gas (17 non-ISO rows were classed
+as gas). PJM service "Energy" is now ERIS (67 rows). ISO-NE "NR" is unchanged (still NRIS) pending
+review: the ISO-NE codebook defines it only as "Network Resource", in contrast to CNR.
+
+---
+
+## 27. Interconnection Headroom — Locating LBNL Projects (Queued Up Linkage)
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest` (into `tom/interconnection-headroom`)
+
+**What changed.** MISO, PJM and SPP cost workbooks have no county. `icsc/linkage.py` (new)
+places every cost-data project in a ReEDS zone by a cascade, recorded in `ba_source`:
+workbook county → LBNL Queued Up county for the same normalised queue ID in the same
+region/entity and state → committed crosswalk for odd county strings → single-zone state →
+transmission owner (same workbook and state): one zone assigns; several zones leave `ba` empty,
+set `ba_multi` and `ba_candidates` (MW shares of the owner's located projects), and the project
+takes the weighted mean saturation of those zones; none drops the row.
+
+**Files:**
+- new `interconnection_headroom/icsc/linkage.py`; `lbnl.clean()` calls it instead of `geo.attach_ba`
+  (still used for EIA-860M).
+- new `interconnection_headroom/data/reference/lbnl_county_crosswalk.csv`: the odd county strings
+  (25 entries), with fips only where county2zone supports it and the basis for each.
+- `interconnection_headroom/data/LBNL_Ix_Queue_Data_File_thru2025.xlsx` (Queued Up through 2025).
+- `config.yaml`: `paths.queued_up`, `paths.county_crosswalk`, `lbnl.columns.qu_id` and `.owner`,
+  `lbnl.queued_up_sheet`, `lbnl.queued_up_scope`, `lbnl.fips_recode` (46113 → 46102),
+  `lbnl.min_mw_share`; `estimation.cluster_column: ba_cluster` (the zone, or the largest candidate
+  zone for owner_multi rows).
+- `estimate.attach_saturation`: weighted mean saturation for owner_multi rows.
+- `estimation_sample`: keeps owner_multi rows.
+- `cli.py`: `link-report` prints MW shares placed by workbook and status and writes
+  `outputs/lbnl_projects_linked.csv`.
+
+**Result (Oct 2026 workbooks):** MW share placed (one zone / incl. owner_multi): ISO-NE 100/100,
+MISO 97.3/97.5, NYISO 100/100, non-ISO 98.9/99.6, PJM 98.0/100, SPP 97.8/97.8. The 300 Duke Energy
+Progress rows have no nameplate MW in the LBNL workbook, so they carry no weight in MW shares
+and drop out of the sample.
+
+**Follow-up (same branch):**
+- Missing nameplate MW (all 300 Duke Energy Progress rows) is filled from Queued Up `mw_1` by
+  queue ID (`capacity_source`: lbnl / queued_up). `mw_1` matches the cost files' Nameplate MW on
+  92% of rows that have both (`mw_1+mw_2+mw_3`: 90%; hybrids 91% vs 79%). 178 rows filled, including
+  all 9 completed/operational ones; 122 remain missing (117 status "Unknown", 5 active). No EIA-860
+  step: no completed project is still missing MW, and there is no shared ID with EIA.
+- Offshore wind (tech contains "offshore", 49 rows) is flagged `offshore_wind` and excluded from the
+  estimation sample (`estimation.exclude_offshore_wind: true`); it stays in `lbnl_projects_clean.csv`.
+- `lbnl.service_eris_extra` (default `[]`): service values treated as ERIS, for the ISO-NE
+  "NR" sensitivity (`["NR"]`).
+
+
+---
+
+## 28. Interconnection Headroom — Headroom Proxies (in progress)
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
+
+- New proxy `boundary` (`saturation.headroom_proxy: boundary`): each zone's export capacity from
+  `transmission_capacity_init_AC_ba_NARIS2024.csv`, mean of MW_f0 and MW_r0 summed over the zone's
+  BA interfaces (`network.boundary_capacity_by_zone`). The county-pair `transfer` proxy counts a
+  corridor once per county pair: its internal/boundary ratio correlates 0.70 with county count
+  (boundary capacity alone: 0.44). p19 (Garfield and Valley, MT) has no AC interface and takes
+  `min_headroom_mw`.
+- `cli.proxy_capacity()` is shared by `run`/`panel` and `fit-weights`. Default proxy unchanged.
+- Zone load statistics (`icsc/load.py`, `python -m icsc.cli load-stats`) ->
+  `data/reference/zone_load_stats.csv` (ba, year, peak_mw coincident, median_mw, p10_mw, annual_mwh,
+  source), 134 zones, 2010-2030, all on CST (UTC-6):
+  - 2016-2023 `nrel`: NREL hourly county load (OEDI 8562; MW; timestamps UTC, leap days kept), counties
+    summed to zones with county2zone.csv (all 3,109 match; DC is in p123/MD). Annual MWh = mean MW x
+    calendar hours (the UTC->CST shift drops 6 hours of 2023).
+  - 2010-2013 `zenodo`: ReEDS state hourly load (Zenodo 18462671; MWh/h hour-ending, CST; 48 states,
+    DC inside MD) x each zone's share of its state by month x hour-of-day, pooled 2016-2018 from NREL.
+    NREL needs no hour shift to match Zenodo (corr 0.9975 at 0 h vs 0.982 at +1 h).
+  - 2014-2015 `interpolated`, 2024 `eia_scaled_2023`, 2025 `held_2023` (no EIA 2025), 2026-2030
+    `held_latest`. Raw files in data/raw/load/ (gitignored).
+  - Checks: Zenodo vs NREL by state 2016-2023 agree to 0.01% (energy, median) / 0.17% (peak): both
+    are calibrated to the same state totals, so this is not an independent check. NREL vs EIA-930
+    where BA footprints line up (PJM, NYIS, ISNE, ERCO, NEVP, DUK): median |diff| energy 3.7%, peak
+    4.2%. 2016-18 shares reproduce 2019-23 zone peaks within 2.1% (median), 9.5% (90th pct); worst
+    in Texas zones (p62 2021, Winter Storm Uri: +59%).
+- Year-matched load proxies `boundary+peak`, `boundary+median`, `boundary+p10`: boundary export
+  capacity + that zone-year statistic from zone_load_stats.csv (`eia.zone_components` accepts a
+  (ba, year) proxy; panel years before 2010 take 2010). Uprate caps and "% network added" use
+  `base_capacity_mw`, the chosen proxy in the start year. Sample saturation p98 (default weights):
+  transfer 0.129, boundary+peak 0.243, boundary+median 0.313, boundary+p10 0.329, boundary 0.505,
+  generation 0.634.
+
+## 29. Interconnection Headroom — Estimation: Utility Regimes, PPML, Status Term
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
+
+- Regimes: `lbnl_to_regime` is applied in `lbnl.clean`, so `run` and `fit-weights` use one label
+  set (before, fit-weights saw raw BPA/PAC/DEC/DEP/DEF codes while run pooled them; tested).
+  Non-ISO utilities get their own effect (BPA, PacifiCorp, DEC, DEP; DEF -> FRCC). Zones take a
+  utility effect through `regimes.hurdlereg_to_regime` (BPA p2 p5 p7; PacifiCorp p6 p8 p21 p22 p25
+  p26; DEC p95 p97; DEP p98), otherwise their transreg's (`tranches.zone_regime_labels`).
+- `estimation.estimator: ppml` (default): statsmodels GLM Poisson, log link, on network-upgrade
+  $/kW, cluster-robust by zone, no smearing; R² reported as deviance pseudo-R². `log_ols` kept.
+- `estimation.status_term: true`: completed (vs active) dummy. Reference curves priced at
+  `tranches.reference_status: completed` ("active" for the sensitivity).
+- fit-weights grid: proxies from `weight_search.proxies`; wind 0.25-1, storage 0.5, gas 0/0.5/1,
+  reuse 0/0.1/0.25/0.5.
+
+## 30. Interconnection Headroom — Curve Support and Backstop
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
+
+- Empirical tranches run from each zone's start saturation to the sample's support edge
+  (`estimation.support_quantile`, 0.98, of sample saturation under the chosen proxy) in equal steps
+  of at most `tranches.step_width` (0.015). Zones already at or beyond the edge get one step of
+  `edge_step_width` (0.01) priced at the edge (`beyond_support` column). Replaces the fixed
+  `tranches.steps` list. `extrapolated` is kept (now false by construction).
+- `backstop_uprates: [new_line]`: available in every scenario, including reference. Its cost and
+  year remain the marked placeholders in `uprate_options`.
+- run_summary.json adds `curve_mw_within_support`, `zones_beyond_support`, `support_edge_saturation`.
+- fit-weights ranks by QAIC (`qaic`, `d_qaic` columns): -2 llf / c + 2 (k + 1), c the Pearson
+  dispersion of the best model. PPML's Poisson likelihood on continuous $/kW is a quasi-likelihood,
+  so raw AIC differences scale with the cost level (c = 485 on the Oct 2026 sample).
+
+## 31. Interconnection Headroom — Status x Regime, Chosen Defaults, Sensitivities
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
+
+- `estimation.status_by_regime_min: 25`: regimes with at least 25 completed projects in the sample
+  get their own completed-vs-active effect (`status_completed@<regime>`: FRCC, MISO, NYISO, PJM,
+  PacifiCorp, SPP); the rest share `status_completed@pooled` (BPA, DEC, DEP, ISO-NE). Reference curves
+  are priced at completed: each zone's offset is its regime effect plus its regime's completed effect
+  (zones whose regime has no projects: mean regime effect + pooled completed effect). best_regime
+  takes the lowest such total.
+- Defaults (config.yaml): `headroom_proxy: boundary`; tech_weights wind 0.25 (physical floor; the
+  fit's optimum is the grid's lowest value, 0.1, with 0.25 at +2.9 QAIC), storage 0.5, gas 1;
+  `retirement_reuse_share: 0.1`. fit-weights wind grid [0.1, 0.15, 0.25, 0.5, 0.75, 1].
+- Spline knots 0.25 / 0.5 kept: QAIC 13.5 better than no knots (c = 449.7 from the model with knots).
+- `tranches.edge_step_width: 0.05`; `uprate_options.new_line.available_year: 2030` (placeholder).
+- `sensitivities/{wind_050,boundary_p10,price_active}.yaml` extend config.yaml (`extends:`, deep
+  merge; paths resolve against the base) and write to `outputs/sens_*`.

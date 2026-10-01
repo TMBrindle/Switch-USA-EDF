@@ -67,7 +67,9 @@ def zone_components(gens: pd.DataFrame, c2z: pd.DataFrame, cfg: dict, years=rang
 
     add_<cat>  MW of <cat> online in year t that came online after baseline_year
     ret_<cat>  MW of <cat> retired between baseline_year and t
-    headroom_proxy_mw  transfer capacity (proxy_override) or all nameplate online at baseline_year
+    headroom_proxy_mw  network/load proxy (proxy_override: by zone, or by (ba, year) for
+                       year-matched load proxies; years outside its range take the nearest year),
+                       or all nameplate online at baseline_year
     """
     sc = cfg["saturation"]
     base = sc["baseline_year"]
@@ -78,7 +80,8 @@ def zone_components(gens: pd.DataFrame, c2z: pd.DataFrame, cfg: dict, years=rang
     online_at_base = (g["op_year"] <= base) & (g["ret_year"].isna() | (g["ret_year"] > base))
     proxy = g[online_at_base].groupby("ba")["mw"].sum().reindex(zones, fill_value=0.0)
     if proxy_override is not None:
-        proxy = proxy_override.reindex(zones).fillna(0.0)
+        proxy = proxy_override if isinstance(proxy_override.index, pd.MultiIndex) else \
+            proxy_override.reindex(zones).fillna(0.0)
 
     rows = []
     for y in years:
@@ -94,7 +97,12 @@ def zone_components(gens: pd.DataFrame, c2z: pd.DataFrame, cfg: dict, years=rang
         for p in ("add_", "ret_"):
             if p + c not in comp:
                 comp[p + c] = 0.0
-    comp["headroom_proxy_mw"] = comp["ba"].map(proxy)
+    if isinstance(proxy.index, pd.MultiIndex):     # (ba, year): year-matched proxy
+        yrs = proxy.index.get_level_values("year")
+        yy = comp["year"].clip(yrs.min(), yrs.max())
+        comp["headroom_proxy_mw"] = proxy.reindex(pd.MultiIndex.from_arrays([comp["ba"], yy])).fillna(0.0).values
+    else:
+        comp["headroom_proxy_mw"] = comp["ba"].map(proxy)
     comp["headroom_proxy_floored_mw"] = comp["headroom_proxy_mw"].clip(lower=sc["min_headroom_mw"])
     return comp
 

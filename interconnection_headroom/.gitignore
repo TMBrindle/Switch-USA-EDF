@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 outputs/
 data/raw/*.xlsx
+# hourly load downloads (Zenodo state profiles, NREL county h5)
+data/raw/load/
 # LBNL workbooks are committed (public, ~12 MB; the site blocks scripted downloads)
 data/raw/lbnl/SYNTHETIC_*
 .pytest_cache/

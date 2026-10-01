@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from icsc import cli, estimate, geo, lbnl, synthetic, tranches
+from icsc import cli, estimate, geo, linkage, lbnl, synthetic, tranches
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -31,6 +31,33 @@ def test_county_matching():
                        "county": ["Miami Dade", "LaSalle", "DeWitt", "New London", "DeSoto Parish"]})
     out = geo.attach_ba(df, c2z, "state", "county")
     assert out["ba"].notna().all(), out
+
+
+def test_linkage_cascade(cfg):
+    """Own county, then (no Queued Up scope here) single-zone state, then transmission owner."""
+    c2z = geo.load_county2zone(ROOT / "data/reference/county2zone.csv")
+    assert linkage.norm_qid("Q007 - 061") == linkage.norm_qid("q007-061") == "Q007061"
+    assert linkage.norm_qid(1125.0) == "1125"
+    f = "TEST.xlsx"
+    df = pd.DataFrame({
+        "source_file": f, "region": "TEST", "project_id": list("abcdefg"), "qu_id": np.nan, "fips": np.nan,
+        "state": ["IL", "IL", "IL", "IL", "IL", "DE", "IL"],
+        "county": ["Cook", "Champaign", "Cook", None, None, None, None],
+        "owner": ["X", "X", "Y", "X", "Y", None, "Z"],
+        "capacity_mw": [100, 300, 50, 10, 10, 10, 10]})
+    out = linkage.link(df, c2z, cfg).set_index("project_id")
+    zc, zl = geo.attach_ba(df.iloc[:2], c2z)["ba"]
+    assert zc != zl  # Cook and Champaign are in different zones, so owner X spans two
+    assert out.loc["a", "ba_source"] == "lbnl_county"
+    assert out.loc["d", "ba_source"] == "owner_multi" and pd.isna(out.loc["d", "ba"])
+    assert out.loc["d", "ba_candidates"] == f"{zl}:0.7500|{zc}:0.2500"
+    assert out.loc["d", "ba_cluster"] == zl
+    assert out.loc["e", "ba_source"] == "owner_single" and out.loc["e", "ba"] == zc
+    assert out.loc["f", "ba_source"] == "state_single_zone"
+    assert pd.isna(out.loc["g", "ba"]) and not out.loc["g", "ba_multi"]  # unknown owner: dropped
+    panel = pd.DataFrame({"ba": [zc, zl], "year": 2020, "saturation": [0.2, 0.6]})
+    s = estimate.attach_saturation(out.reset_index().assign(queue_year=2020), panel).set_index("project_id")
+    assert s.loc["d", "saturation"] == pytest.approx(0.75 * 0.6 + 0.25 * 0.2)
 
 
 def test_categories():
@@ -69,7 +96,9 @@ def test_synthetic_recovery(cfg, built, tmp_path):
     panel, _, c2z = built
     hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
     d = synthetic.make(panel, c2z, hier, tmp_path, n_per_region=800, seed=1)
-    c = dict(cfg, paths=dict(cfg["paths"], lbnl_dir=str(d)))
+    # the synthetic costs are generated from a log(1 + $/kW) model, so recover them with log-OLS
+    c = dict(cfg, paths=dict(cfg["paths"], lbnl_dir=str(d)),
+             estimation=dict(cfg["estimation"], estimator="log_ols", status_term=False))
     projects = lbnl.load_all(c, c2z)
     sample = estimate.attach_saturation(lbnl.estimation_sample(projects, c), panel)
     m = estimate.fit(sample, c)
@@ -102,11 +131,84 @@ def test_synthetic_recovery(cfg, built, tmp_path):
     assert np.allclose(flat.groupby("ba")["cost_per_kw"].first(), first)
     assert (flat["cost_per_kw"] <= tr.sort_values(["ba", "sat_from"])["cost_per_kw"].values + 1e-9).all()
     _, _, up = tranches.apply_scenario(zr, tr, c, {"uprates": ["gets", "reconductor"]})
-    assert len(up) == 2 * len(zr)
+    assert len(up) == 3 * len(zr)  # plus the new_line backstop
     g = up[up.uprate == "gets"].merge(zr, on="ba")
     assert np.allclose(g["max_mw"], c["uprate_options"]["gets"]["share_of_capacity"] * g["base_capacity_mw"])
-    _, _, none = tranches.apply_scenario(zr, tr, c, {})
-    assert none.empty
+    _, _, ref = tranches.apply_scenario(zr, tr, c, {})
+    assert set(ref["uprate"]) == set(c["backstop_uprates"]) and len(ref) == len(zr)
+
+    # empirical steps stop at the support edge; zones beyond it get one edge-priced step
+    edge = m.sat_support
+    inside = tr[~tr["beyond_support"]]
+    assert np.allclose(inside.groupby("ba")["sat_to"].max(), edge)
+    assert (inside["width"] <= c["tranches"]["step_width"] + 1e-9).all()
+    assert not tr["extrapolated"].any()
+    out = tr[tr["beyond_support"]]
+    assert (out.groupby("ba").size() == 1).all()
+    assert np.allclose(out["width"], c["tranches"]["edge_step_width"])
+
+
+def test_sensitivity_configs_extend_base(cfg):
+    for f, key, val in [("wind_050", ("saturation", "tech_weights", "wind"), 0.5),
+                        ("boundary_p10", ("saturation", "headroom_proxy"), "boundary+p10"),
+                        ("price_active", ("tranches", "reference_status"), "active")]:
+        c = cli.load_cfg(str(ROOT / "sensitivities" / f"{f}.yaml"))
+        v = c
+        for k in key:
+            v = v[k]
+        assert v == val
+        assert c["paths"]["county2zone"] == cfg["paths"]["county2zone"]  # base paths resolve as in config.yaml
+        assert c["paths"]["outputs"] != cfg["paths"]["outputs"]
+        assert c["estimation"] == cfg["estimation"]
+
+
+def test_status_by_regime(cfg, built):
+    """Regimes with >= status_by_regime_min completed projects get their own completed effect."""
+    panel, _, c2z = built
+    s = estimate.attach_saturation(lbnl.estimation_sample(lbnl.load_all(cfg, c2z), cfg), panel)
+    m = estimate.fit(s, cfg)
+    n = s[s["status_n"] == "completed"]["regime"].value_counts()
+    own = set(n[n >= cfg["estimation"]["status_by_regime_min"]].index)
+    assert set(m.status_regimes["completed"]) == own
+    assert {f"status_completed@{r}" for r in own} | {"status_completed@pooled"} <= set(m.columns)
+    small = sorted(set(s["regime"]) - own)[0]
+    assert m.status_effect(small, "completed") == m.result.params["status_completed@pooled"]
+    big = sorted(own)[0]
+    assert m.status_effect(big, "completed") == m.result.params[f"status_completed@{big}"]
+    # the design reproduces the fitted linear predictor
+    d = s.dropna(subset=["saturation", "network_cost_real", "capacity_mw", "queue_year"])
+    lp = m.log_pred(d["saturation"].values, d["tech_n"].values, d["service_n"].values, d["capacity_mw"].values,
+                    d["queue_year"].values, d["regime"].values, d["status_n"].values)
+    sat_ok = d["saturation"].values <= m.sat_support
+    assert np.allclose(lp[sat_ok], np.log(m.result.fittedvalues.values[sat_ok]))
+
+
+def test_zone_regimes_utilities(cfg):
+    hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
+    lab = tranches.zone_regime_labels(hier, cfg)
+    expect = {"BPA": {"p2", "p5", "p7"}, "PacifiCorp": {"p6", "p8", "p21", "p22", "p25", "p26"},
+              "DEC": {"p95", "p97"}, "DEP": {"p98"}}
+    for reg, zones in expect.items():
+        assert set(lab[lab == reg].index) == zones, reg
+    assert lab["p101"] == "FRCC" and lab["p102"] == "FRCC" and lab["p80"] == "PJM"
+
+
+def test_fit_weights_uses_run_regimes(cfg, built, monkeypatch, tmp_path):
+    """fit-weights must fit on the same sample, with the same regime labels, as run."""
+    _, _, c2z = built
+    run_sample = lbnl.estimation_sample(lbnl.load_all(cfg, c2z), cfg)
+    seen = []
+    real_fit = estimate.fit
+    monkeypatch.setattr(estimate, "fit", lambda s, c: seen.append(s) or real_fit(s, c))
+    one = dict(cfg, weight_search={"proxies": ["boundary"], "solar": [1.0], "wind": [0.5], "storage": [0.5],
+                                   "gas": [1.0], "other": [1.0], "reuse_share": [0.0]},
+               paths=dict(cfg["paths"], outputs=str(tmp_path)))
+    cli.cmd_fit_weights(one)
+    fw = seen[0]
+    assert len(fw) == len(run_sample)
+    assert (fw["regime"].values == run_sample["regime"].values).all()
+    zone_labels = set(tranches.zone_regime_labels(geo.load_hierarchy(cfg["paths"]["hierarchy"]), cfg))
+    assert set(fw["regime"]) <= zone_labels, set(fw["regime"]) - zone_labels
 
 
 @pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
