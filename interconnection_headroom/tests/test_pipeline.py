@@ -290,6 +290,55 @@ def test_switch_case_weights_and_strip():
     diag = sc.strip_network_reinforcement(gi, src)
     assert gi["gen_connect_cost_per_mw"].tolist()[:2] == [80000.0, 150000.0]
     assert (diag["gen_connect_cost_per_mw_before"] - diag["gen_connect_cost_per_mw_after"]).sum() == 330000
+    assert (diag["removal_method"] == "tx_capex").all()
+
+
+def test_switch_case_distributed_weight_zero():
+    from icsc import switch_case as sc
+    gi = _gen_info()
+    gi["gen_is_distributed"] = 0
+    gi.loc[len(gi)] = ["p1_dg", "distributed_generation", "sun", "p1", 0.0, 1]   # flag only
+    w = sc.weights_by_tech(gi, {"solar": 1.0, "wind": 0.25, "storage": 0.5, "gas": 1.0, "other": 1.0})
+    w = w.set_index("ic_key")["ic_weight"]
+    assert w["distributed_generation"] == 0.0     # gen_is_distributed == 1
+    assert w["Distributed_Solar"] == 0.0          # named as distributed, flag 0
+    assert w["UtilityPV_Class1"] == 1.0           # utility solar unchanged
+    # flag set on a tech whose name doesn't say distributed
+    gi2 = _gen_info().assign(gen_is_distributed=[1, 0, 0, 0, 0, 1, 0])
+    w2 = sc.weights_by_tech(gi2, {"solar": 1.0, "wind": 0.25}).set_index("ic_key")["ic_weight"]
+    assert w2["UtilityPV_Class1"] == 0.0 and w2["LandbasedWind_Class3"] == 0.25
+
+
+def test_switch_case_strip_reinforcement_share_for_bundled_costs():
+    """ReEDS-CPA costs: tx_capex all zero, interconnect_capex_mw bundles spur + POI + reinforcement."""
+    from icsc import switch_case as sc
+    gi = _gen_info()
+    gi["gen_connect_cost_per_mw"] = [200000.0, 300000.0, 0.0, 0.0, 0.0, 150000.0, 0.0]
+    gi.loc[len(gi)] = ["p1_osw", "OffShoreWind_Class3_fixed", "wind", "p1", 1000000.0]
+    src = pd.DataFrame({"spur_capex": 0, "tx_capex": 0,
+                        "interconnect_capex_mw": [200000.0, 300000.0, 0, 0, 0, 150000.0, 0, 1000000.0]})
+    shares = pd.DataFrame({"zone": ["p1", "p1", "_national", "_national", "_national"],
+                           "tech": ["upv", "wind-ons", "upv", "wind-ons", "wind-ofs"],
+                           "reinforcement_share": [0.8, 0.9, 0.5, 0.6, 0.2]})
+    diag = sc.strip_network_reinforcement(gi, src, shares)
+    after = gi.set_index("GENERATION_PROJECT")["gen_connect_cost_per_mw"]
+    assert after["p1_pv"] == pytest.approx(200000 * 0.2)      # zone share
+    assert after["p1_wind"] == pytest.approx(300000 * 0.1)
+    assert after["p2_pv"] == pytest.approx(150000 * 0.5)      # no p2 row: national fallback
+    assert after["p1_osw"] == pytest.approx(1000000 * 0.8)    # offshore -> wind-ofs national
+    assert after["p1_ccgt"] == 0 and after["p1_batt"] == 0    # not wind/solar: untouched
+    d = diag.set_index("GENERATION_PROJECT")
+    assert d.loc["p1_pv", "reinforcement_share"] == 0.8 and pd.isna(d.loc["p1_ccgt", "reinforcement_share"])
+    assert d["removed_per_mw"].sum() == pytest.approx(160000 + 270000 + 75000 + 200000)
+    assert (d["removal_method"] == "interconnect_capex_mw x reinforcement_share").all()
+
+
+def test_reinforcement_share_reference_file():
+    from icsc import switch_case as sc
+    s = pd.read_csv(sc.REINFORCEMENT_SHARE)
+    assert {"upv", "wind-ons", "wind-ofs"} <= set(s.loc[s["zone"] == "_national", "tech"])
+    assert s["reinforcement_share"].between(0, 1).all()
+    assert s.duplicated(["zone", "tech"]).sum() == 0
 
 
 def test_switch_case_write_with_zone_map(tmp_path, monkeypatch):

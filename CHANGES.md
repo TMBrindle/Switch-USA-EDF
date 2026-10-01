@@ -1129,3 +1129,36 @@ and drop out of the sample.
 - `tranches.edge_step_width: 0.05`; `uprate_options.new_line.available_year: 2030` (placeholder).
 - `sensitivities/{wind_050,boundary_p10,price_active}.yaml` extend config.yaml (`extends:`, deep
   merge; paths resolve against the base) and write to `outputs/sens_*`.
+
+---
+
+## 36. Interconnection Headroom — Reinforcement Share for ReEDS-CPA Costs, DG Weight, Case Patching
+
+**Date:** 2026-10-01 · **Branch:** `tom/ic-test-fedpol`
+
+**Why.** With ReEDS-CPA site data (`pg_data/resource_groups/ReEDS-cpas-patched`), PowerGenome
+carries one bundled `interconnect_capex_mw` per site and `tx_capex = spur_capex = 0`, so the
+`tx_capex` strip removed nothing ("0 resources") and "on" cases would have counted network
+reinforcement twice (curve + bundled cost). The CPA `Site` ids are not ReEDS `sc_point_gid`s
+(<1% land in the CPA's own zone via `sc_point_gid_old2new`), so the split is applied by zone.
+Interconnection cost is only in `gen_connect_cost_per_mw` (not in `gen_overnight_cost` or
+`gen_fixed_om`: both constant across clusters of a tech in a zone while the bundled cost varies).
+
+- `interconnection_headroom/data/reference/interconnection_{land,offshore}.h5`: ReEDS
+  `inputs/supply_curve` at `REEDS_COMMIT.txt` (LFS objects, sha256 checked); dollar year 2023,
+  index `sc_point_gid`; cost_spur / cost_poi / cost_reinforcement / cost_total_trans usd_per_mw.
+- new `scripts/reinforcement_share.py` -> `data/reference/reinforcement_share.csv`:
+  reinforcement / total interconnection cost, capacity-weighted over ReEDS reference-siting supply
+  curve points, by zone (county2zone) x tech (upv, wind-ons, wind-ofs radial) plus `_national`
+  fallback rows. National: upv 0.850, wind-ons 0.846, wind-ofs 0.197.
+- `icsc/switch_case.strip_network_reinforcement`: tx_capex path unchanged; if tx_capex is zero or
+  absent and `interconnect_capex_mw > 0`, subtracts `interconnect_capex_mw x share` for wind/solar
+  (by `gen_load_zone` x ReEDS tech, national fallback). The check file adds `reinforcement_share`,
+  `removal_method`, `removed_per_mw`.
+- `icsc/switch_case.weights_by_tech`: weight 0 for `gen_is_distributed == 1` or a gen_tech named as
+  distributed (`distributed_generation` was 1.0 via its `sun` energy source).
+- new `scripts/patch_case_inputs.py`: writes `gen_info.<tag>.csv`, `ic_weights.<tag>.csv`,
+  `ic_connect_cost_check.<tag>.csv` and `patch_log.<tag>.txt` next to an existing case's inputs
+  (never overwriting) for use with `--input-alias`.
+- `switch/modules.txt` comment: the module is inert without `ic_zones.csv`.
+- Tests: distributed weight, bundled-cost strip with zone share and national fallback, share file.
