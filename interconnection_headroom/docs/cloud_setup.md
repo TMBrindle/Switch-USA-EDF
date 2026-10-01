@@ -17,7 +17,8 @@ already. Project threads need the App; a `/web-setup` token alone isn't enough.
 
 ## 2. Create a cloud environment
 
-At claude.ai/code, add a cloud environment named `switch-usa-edf`:
+At claude.ai/code, click the cloud icon showing the current environment's name (in the row above the
+message box), choose **Add cloud environment**, and name it `switch-usa-edf`:
 
 **Network access: Custom**, with **Also include default list of common package managers**
 checked, and these **Allowed domains**:
@@ -37,9 +38,11 @@ doesn't need listing.
 
 ```bash
 #!/bin/bash
-set -e
-pip install --quiet pandas numpy statsmodels openpyxl pyyaml pytest highspy "switch_model==2.0.9"
+# Must exit 0 or the session won't start, so nothing here is allowed to fail hard.
+PKGS="pandas numpy statsmodels openpyxl pyyaml pytest highspy switch_model==2.0.9"
+pip install --quiet $PKGS || pip install --quiet --break-system-packages $PKGS || true
 git clone --depth 1 https://github.com/switch-model/switch.git /opt/switch-src || true
+exit 0
 ```
 
 **Environment variables:**
