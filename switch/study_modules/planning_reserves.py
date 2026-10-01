@@ -176,6 +176,24 @@ def define_components(m):
             "each timepoint, or just timepoints with peak load (zone_demand_mw)."
         ),
     )
+    m.prr_max_tx_import_share = Param(
+        m.PLANNING_RESERVE_REQUIREMENTS,
+        within=NonNegativeReals,
+        default=float("inf"),
+        doc=(
+            "Maximum share of a PRR's CapacityRequirements that may be met via "
+            "net transmission imports (AvailableTXReserveCapacity), rather than "
+            "local generation. Defaults to unbounded (inf), preserving prior "
+            "behavior for any PRR that doesn't set this explicitly. Real "
+            "resource-adequacy programs (e.g. CAISO local capacity requirements) "
+            "generally limit how much of a load pocket's requirement can be met "
+            "by imports, precisely so local generation is retained for local "
+            "reliability regardless of its short-run dispatch economics; without "
+            "this cap, a PRR with only one or a few zones can satisfy its entire "
+            "requirement with cheap imported capacity and give local generation "
+            "no capacity-market reason to stay online."
+        ),
+    )
 
     def get_peak_timepoints(m, prr):
         """
@@ -329,6 +347,32 @@ def define_components(m):
     )
     m.REQUIREMENTS_FOR_CAPACITY_RESERVES.append("CapacityRequirements")
 
+    if hasattr(m, "AvailableTXReserveCapacity"):
+        # Only constrain (prr, t) pairs that set a finite import share; this
+        # keeps behavior identical (unbounded) for any PRR that doesn't
+        # configure prr_max_tx_import_share, and avoids inf-coefficient
+        # arithmetic in the constraint itself.
+        m.PRR_TX_IMPORT_LIMITED_TIMEPOINTS = Set(
+            dimen=2,
+            initialize=lambda m: [
+                (prr, t)
+                for (prr, t) in m.PRR_TIMEPOINTS
+                if m.prr_max_tx_import_share[prr] < float("inf")
+            ],
+        )
+        m.Limit_TX_Reserve_Credit = Constraint(
+            m.PRR_TX_IMPORT_LIMITED_TIMEPOINTS,
+            rule=lambda m, prr, t: (
+                m.AvailableTXReserveCapacity[prr, t]
+                <= m.prr_max_tx_import_share[prr] * m.CapacityRequirements[prr, t]
+            ),
+            doc=(
+                "Caps net-transmission-import credit toward a PRR's reserve "
+                "requirement at prr_max_tx_import_share, for any PRR that sets "
+                "a finite value for it."
+            ),
+        )
+
 
 def define_dynamic_components(model):
     """ """
@@ -379,7 +423,7 @@ def load_inputs(model, switch_data, inputs_dir):
         GENERATION_PROJECT, TIMEPOINT, gen_capacity_value
 
     planning_reserve_requirements.csv*
-        PLANNING_RESERVE_REQUIREMENT, prr_cap_reserve_margin*, prr_enforcement_timescale*
+        PLANNING_RESERVE_REQUIREMENT, prr_cap_reserve_margin*, prr_enforcement_timescale*, prr_max_tx_import_share*
 
     gen_info.csv
         ..., gen_can_provide_cap_reserves*
@@ -397,7 +441,11 @@ def load_inputs(model, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, "planning_reserve_requirements.csv"),
         optional=True,
         index=model.PLANNING_RESERVE_REQUIREMENTS,
-        param=(model.prr_cap_reserve_margin, model.prr_enforcement_timescale),
+        param=(
+            model.prr_cap_reserve_margin,
+            model.prr_enforcement_timescale,
+            model.prr_max_tx_import_share,
+        ),
     )
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "gen_info.csv"),

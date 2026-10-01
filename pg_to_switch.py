@@ -2208,11 +2208,49 @@ def other_tables(
     prm["prr_enforcement_timescale"] = first_value(scen_settings_dict).get(
         "prr_enforcement_timescale", "all_timepoints"
     )
+    # Cap how much of a PRR's requirement can be met via net transmission
+    # imports (AvailableTXReserveCapacity in planning_reserves.py), rather
+    # than local generation. Without this, a single-zone PRR (as CAISO's
+    # three zones are here) can satisfy its whole reserve requirement with
+    # cheap out-of-zone capacity, giving local generation -- e.g. CA gas --
+    # no capacity-market reason to stay online, unlike CAISO's real local
+    # capacity requirements, which are deliberately import-limited for that
+    # reason. First-pass, illustrative values, not sourced from CAISO's
+    # actual RA tariff percentages (those are deliverability-MW-based, not a
+    # single clean share) -- 0.0 for CAISO zones (no import credit at all,
+    # the simplest read of "must be local"), 0.5 for every other PRR in the
+    # model (a more conservative default than the prior fully-unbounded
+    # behavior, without assuming CAISO-level strictness applies WECC-wide).
+    # Both are adjustable per PRR by editing this file's output directly.
+    script_dir = Path(__file__).parent
+    hierarchy = pd.read_csv(script_dir / "hierarchy.csv")
+    caiso_zones = set(hierarchy.loc[hierarchy["transgrp"] == "CAISO", "ba"])
+    # Use a vanishingly small non-zero share instead of literal 0.0 for CAISO:
+    # empirically (2026-09-21 test), a literal 0.0 in this column gets
+    # silently excluded from planning_reserves.py's Limit_TX_Reserve_Credit
+    # constraint (PRR_TX_IMPORT_LIMITED_TIMEPOINTS never includes it), even
+    # though that constraint's own `< float("inf")` check is correct on
+    # inspection -- the drop happens somewhere in switch_model/Pyomo's own
+    # data-loading layer, not traced further. 1e-6 is economically
+    # indistinguishable from "no import credit" against any realistic
+    # CapacityRequirements magnitude, but isn't exact zero. See
+    # docs/plans/prr_tx_import_limits.md.
+    NO_IMPORT_CREDIT = 1e-6
+    prm["prr_max_tx_import_share"] = (
+        prm["Network_zones"]
+        .map(prm_region_zone_map)  # "Network_zones" holds internal names like
+        # "z9", not the actual LOAD_ZONE code ("p9") -- must translate through
+        # the same map used for planning_reserve_requirement_zones.csv below
+        # before checking CAISO membership, or every zone silently falls
+        # through to the non-CAISO default.
+        .map(lambda z: NO_IMPORT_CREDIT if z in caiso_zones else 0.5)
+    )
     prm[
         [
             "PLANNING_RESERVE_REQUIREMENT",
             "prr_cap_reserve_margin",
             "prr_enforcement_timescale",
+            "prr_max_tx_import_share",
         ]
     ].to_csv(out_folder / "planning_reserve_requirements.csv", index=False)
     prm_zones = pd.DataFrame(

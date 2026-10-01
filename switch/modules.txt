@@ -33,6 +33,12 @@ study_modules.rps_regional
 study_modules.trans_path_expansion_limit
 study_modules.trans_build_minimum
 study_modules.planning_reserves_extreme_days
+# capacity-adequacy check (derated capacity value + prr_max_tx_import_share
+# import-credit cap) layered alongside the extreme-days load-inflation
+# mechanism above; confirmed no component-name conflicts as long as a solve
+# doesn't pass both --find-current-prr and --find-current-prm together -- see
+# docs/plans/prr_tx_import_limits.md
+study_modules.planning_reserves
 study_modules.scheduled_outages
 study_modules.gen_zone_ratio
 study_modules.gen_om_by_period
