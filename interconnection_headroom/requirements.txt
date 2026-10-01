@@ -1,5 +1,5 @@
 pandas>=2.0
-numpy
+numpy<2  # pyomo used by switch_model 2.0.9 still calls np.float_
 statsmodels
 openpyxl
 pyyaml

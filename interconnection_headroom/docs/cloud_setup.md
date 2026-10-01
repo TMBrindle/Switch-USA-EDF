@@ -39,7 +39,7 @@ doesn't need listing.
 ```bash
 #!/bin/bash
 # Must exit 0 or the session won't start, so nothing here is allowed to fail hard.
-PKGS="pandas numpy statsmodels openpyxl pyyaml pytest highspy switch_model==2.0.9"
+PKGS="pandas numpy<2 statsmodels openpyxl pyyaml pytest highspy switch_model==2.0.9"
 pip install --quiet $PKGS || pip install --quiet --break-system-packages $PKGS || true
 git clone --depth 1 https://github.com/switch-model/switch.git /opt/switch-src || true
 exit 0
