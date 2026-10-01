@@ -90,10 +90,23 @@ def test_synthetic_recovery(cfg, built, tmp_path):
 
     regimes = tranches.zone_regimes(hier, m, c)
     now = cli.start_saturation(panel, built[1], c2z, c, 2026).reset_index()
-    ref = tranches.build_reference(m, now, regimes, c, 2026)
-    best = tranches.build_reference(m, now, regimes, c, 2026, regime_override="best")
-    assert ref.groupby("ba")["cost_per_kw"].apply(lambda x: (np.diff(x.values) >= -1e-9).all()).all()
-    assert (best["cost_per_kw"] <= ref["cost_per_kw"] + 1e-9).all()
+    zr, tr = tranches.build_reference(m, now, regimes, c, 2026)
+    zb, tb = tranches.build_reference(m, now, regimes, c, 2026, regime_override="best")
+    assert tr.groupby("ba")["cost_per_kw"].apply(lambda x: (np.diff(x.values) >= -1e-9).all()).all()
+    assert (tb["cost_per_kw"] <= tr["cost_per_kw"] + 1e-9).all()
+    assert (zr["release_cost_per_kw"] <= tr.groupby("ba")["cost_per_kw"].first().reindex(zr["ba"]).values + 1e-9).all()
+
+    # scenario levers: slope flattens the rise but keeps the first step; uprates scale with H0
+    _, flat, _ = tranches.apply_scenario(zr, tr, c, {"slope_multiplier": 0.5})
+    first = tr.groupby("ba")["cost_per_kw"].first()
+    assert np.allclose(flat.groupby("ba")["cost_per_kw"].first(), first)
+    assert (flat["cost_per_kw"] <= tr.sort_values(["ba", "sat_from"])["cost_per_kw"].values + 1e-9).all()
+    _, _, up = tranches.apply_scenario(zr, tr, c, {"uprates": ["gets", "reconductor"]})
+    assert len(up) == 2 * len(zr)
+    g = up[up.uprate == "gets"].merge(zr, on="ba")
+    assert np.allclose(g["max_mw"], c["uprate_options"]["gets"]["share_of_capacity"] * g["base_capacity_mw"])
+    _, _, none = tranches.apply_scenario(zr, tr, c, {})
+    assert none.empty
 
 
 @pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
@@ -110,13 +123,35 @@ def test_switch_module_on_toy(tmp_path):
     (run / "ic_mod/__init__.py").touch()
     with open(run / "inputs/modules.txt", "a") as f:
         f.write("\nic_mod.interconnection_headroom\n")
-    for f in ("ic_tranches.csv", "ic_params.csv", "ic_weights.csv"):
+    for f in ("ic_zones.csv", "ic_tranches.csv", "ic_uprates.csv", "ic_params.csv", "ic_weights.csv"):
         shutil.copy(ROOT / "tests/switch_toy" / f, run / "inputs")
     r = subprocess.run(["switch", "solve", "--solver", "appsi_highs"], cwd=run, capture_output=True,
                        text=True, env={**__import__("os").environ, "PYTHONPATH": str(run)})
     assert r.returncode == 0, r.stderr[-2000:]
     hr = pd.read_csv(run / "outputs/ic_headroom.csv")
-    assert (hr.new_capacity_mw_weighted <= hr.tranche_mw + hr.freed_headroom_mw + 1e-6).all()
+    assert (hr.new_capacity_mw_weighted <= hr.headroom_bought_mw + hr.freed_headroom_mw + 1e-6).all()
+    net = pd.read_csv(run / "outputs/ic_network.csv").set_index(["ic_zone", "period"])
+    spend = pd.read_csv(run / "outputs/ic_spend.csv")
+    zones = pd.read_csv(ROOT / "tests/switch_toy/ic_zones.csv").set_index("IC_ZONE")
+    steps = pd.read_csv(ROOT / "tests/switch_toy/ic_tranches.csv")
+    # North: wind wants more room than the cheap step gives, so the model buys network capacity
+    n = net.loc[("N", 2030)]
+    assert n.deliberate_mw_added > 0
+    h = zones.loc["N", "ic_base_capacity_mw"] + n.deliberate_mw_added
+    w1 = steps.set_index("IC_TRANCHE").loc["N_nu1", "ic_tranche_width"]
+    # ...which stretches the cheap step beyond its width at base capacity, and releases headroom
+    assert n.headroom_from_curve_mw > w1 * zones.loc["N", "ic_base_capacity_mw"] + 1e-6
+    assert n.headroom_from_curve_mw <= sum(
+        steps[steps.ic_tranche_zone == "N"].ic_tranche_width) * h + 1e-6
+    assert 0 < n.headroom_released_mw <= zones.loc["N", "ic_start_saturation"] * n.deliberate_mw_added + 1e-6
+    # spend report: uprate spend = MW x cost; reactive capacity estimate = spend / engineering cost
+    up = pd.read_csv(ROOT / "tests/switch_toy/ic_uprates.csv").set_index("IC_UPRATE")
+    sp = spend[(spend.ic_zone == "N") & (spend.period == 2030)].set_index("type")
+    upr = sp.drop(index="reactive_upgrades")
+    assert np.isclose(upr.network_mw_added.sum(), n.deliberate_mw_added)
+    assert upr.overnight_cost.sum() <= (up.ic_uprate_max_mw * up.ic_uprate_cost_per_mw).sum() + 1e-6
+    k = pd.read_csv(ROOT / "tests/switch_toy/ic_params.csv").ic_reactive_cost_per_mw_network.iat[0]
+    assert np.isclose(sp.loc["reactive_upgrades", "network_mw_added"], sp.loc["reactive_upgrades", "overnight_cost"] / k)
     w = pd.read_csv(run / "outputs/ic_gen_weights.csv").set_index("GENERATION_PROJECT")["ic_weight"]
     assert w["C-NG_CC"] == 1.0 and w["N-Wind-1"] == 0.75 and w["N-Central_PV-1"] == 1.0
     # new gas uses headroom: Central's weighted new capacity includes its new NG_CC builds
@@ -159,10 +194,16 @@ def test_switch_case_write_with_zone_map(tmp_path, monkeypatch):
     from icsc import switch_case as sc
     tdir = tmp_path / "tr"
     tdir.mkdir()
-    pd.DataFrame({"ba": ["p1", "p1", "p2", "p3"], "tranche": ["nu1", "gets", "nu1", "nu1"],
-                  "tranche_type": ["network_upgrade", "gets", "network_upgrade", "network_upgrade"],
-                  "max_mw": [100, 50, 80, 70], "cost_per_kw": [20, 15, 40, 30],
-                  "available_year": [2026, 2028, 2026, 2026]}).to_csv(tdir / "tranches_reference.csv", index=False)
+    pd.DataFrame({"ba": ["p1", "p2", "p3"], "base_capacity_mw": [1000.0, 800.0, 500.0],
+                  "start_saturation": [0.2, 0.4, 0.1], "release_cost_per_kw": [10, 20, 5],
+                  "regime": ["ERCOT"] * 3}).to_csv(tdir / "zones_reference.csv", index=False)
+    pd.DataFrame({"ba": ["p1", "p1", "p2", "p3"], "tranche": ["nu1", "nu2", "nu1", "nu1"],
+                  "width": [0.05, 0.1, 0.05, 0.05], "cost_per_kw": [20, 40, 30, 10],
+                  "sat_from": [0.2, 0.25, 0.4, 0.1], "sat_to": [0.25, 0.35, 0.45, 0.15],
+                  "extrapolated": [False] * 4, "available_year": [0] * 4}).to_csv(tdir / "tranches_reference.csv", index=False)
+    pd.DataFrame({"ba": ["p1", "p3"], "uprate": ["gets", "gets"], "type": ["gets", "gets"],
+                  "max_mw": [100.0, 50.0], "cost_per_kw": [20, 20],
+                  "available_year": [2028, 2028]}).to_csv(tdir / "uprates_reference.csv", index=False)
     monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
     settings = {"interconnection_headroom": {"enabled": True, "tranches_dir": "tr"},
                 "_zone_map": {"p1": "TX", "p2": "TX", "p3": "OK"}}
@@ -170,12 +211,15 @@ def test_switch_case_write_with_zone_map(tmp_path, monkeypatch):
     out = tmp_path / "case"
     out.mkdir()
     sc.write_case_inputs(gi, settings, out)
+    z = pd.read_csv(out / "ic_zones.csv").set_index("IC_ZONE")
+    assert list(z.index) == ["p1", "p2"] and set(z.ic_zone_load_zone) == {"TX"}  # p3 -> OK, not in case
     t = pd.read_csv(out / "ic_tranches.csv")
-    assert set(t["ic_tranche_zone"]) == {"TX"}          # p3 maps to OK, which isn't in the case
-    assert t.set_index("IC_TRANCHE").loc["p1_nu1", "ic_tranche_available_year"] == 0
-    assert t.set_index("IC_TRANCHE").loc["p1_gets", "ic_tranche_available_year"] == 2028
-    assert t["ic_tranche_cost_per_mw"].tolist() == [20000, 15000, 40000]
-    assert (out / "ic_weights.csv").exists() and (out / "ic_params.csv").exists()
+    assert t["ic_tranche_cost_per_mw"].tolist() == [20000, 40000, 30000]
+    u = pd.read_csv(out / "ic_uprates.csv")
+    assert u["IC_UPRATE"].tolist() == ["p1_gets"] and u["ic_uprate_available_year"].iat[0] == 2028
+    p = pd.read_csv(out / "ic_params.csv")
+    assert p["ic_reactive_cost_per_mw_network"].iat[0] > 0
+    assert (out / "ic_weights.csv").exists()
     # disabled -> writes nothing
     out2 = tmp_path / "case2"
     out2.mkdir()
@@ -183,7 +227,7 @@ def test_switch_case_write_with_zone_map(tmp_path, monkeypatch):
     assert not any(out2.iterdir())
 
 
-def test_prepare_next_stage_chains_tranches(tmp_path):
+def test_prepare_next_stage_chains_headroom(tmp_path):
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "pns", ROOT.parent / "switch/study_modules/prepare_next_stage.py")
@@ -192,23 +236,29 @@ def test_prepare_next_stage_chains_tranches(tmp_path):
     inp, nxt, out = tmp_path / "in/2030/c", tmp_path / "in/2035/c", tmp_path / "out/2030/c"
     for d in (inp, nxt, out):
         d.mkdir(parents=True)
+    pd.DataFrame({"IC_ZONE": ["p1"], "ic_zone_load_zone": ["p1"], "ic_base_capacity_mw": [1000.0],
+                  "ic_start_saturation": [0.2], "ic_release_cost_per_mw": [1e4]}).to_csv(inp / "ic_zones.csv", index=False)
     pd.DataFrame({"IC_TRANCHE": ["p1_nu1", "p1_nu2"], "ic_tranche_zone": ["p1", "p1"],
-                  "ic_tranche_max_mw": [100.0, 200.0], "ic_tranche_cost_per_mw": [1e4, 5e4],
+                  "ic_tranche_width": [0.1, 0.2], "ic_tranche_cost_per_mw": [1e4, 5e4],
                   "ic_tranche_available_year": [0, 0]}).to_csv(inp / "ic_tranches.csv", index=False)
-    pd.DataFrame({"ic_tranche": ["p1_nu1", "p1_nu2"], "load_zone": ["p1", "p1"], "period": [2030, 2030],
-                  "built_mw": [100.0, 30.0], "max_mw": [100.0, 200.0], "cost_per_mw": [1e4, 5e4]}).to_csv(
-        out / "ic_tranches_built.csv", index=False)
-    pns.chain_ic_tranches(inp, out, nxt, "c")
-    ch = pd.read_csv(nxt / "ic_tranches.chained.c.csv").set_index("IC_TRANCHE")["ic_tranche_max_mw"]
-    assert ch["p1_nu1"] == 0 and ch["p1_nu2"] == 170
-    # a second stage reads the chained file, not the original
-    out2, nxt2 = tmp_path / "out/2035/c", tmp_path / "in/2040/c"
-    out2.mkdir(parents=True); nxt2.mkdir(parents=True)
-    pd.DataFrame({"ic_tranche": ["p1_nu2"], "load_zone": ["p1"], "period": [2035],
-                  "built_mw": [70.0], "max_mw": [170.0], "cost_per_mw": [5e4]}).to_csv(
-        out2 / "ic_tranches_built.csv", index=False)
-    pns.chain_ic_tranches(nxt, out2, nxt2, "c")
-    ch2 = pd.read_csv(nxt2 / "ic_tranches.chained.c.csv").set_index("IC_TRANCHE")["ic_tranche_max_mw"]
-    assert ch2["p1_nu2"] == 100
+    pd.DataFrame({"IC_UPRATE": ["p1_gets"], "ic_uprate_zone": ["p1"], "ic_uprate_type": ["gets"],
+                  "ic_uprate_max_mw": [100.0], "ic_uprate_cost_per_mw": [2e4],
+                  "ic_uprate_available_year": [0]}).to_csv(inp / "ic_uprates.csv", index=False)
+    # stage 1: built 100 MW of GETs (H = 1100), used all of step 1 (0.1 x 1100 = 110) and 55 of step 2,
+    # released 20 MW (<= 0.2 x 100)
+    pd.DataFrame({"ic_tranche": ["p1_nu1", "p1_nu2"], "ic_zone": ["p1", "p1"], "period": [2030, 2030],
+                  "used_mw": [110.0, 55.0]}).to_csv(out / "ic_tranches_built.csv", index=False)
+    pd.DataFrame({"ic_uprate": ["p1_gets"], "ic_zone": ["p1"], "period": [2030],
+                  "built_mw": [100.0]}).to_csv(out / "ic_uprates_built.csv", index=False)
+    pd.DataFrame({"ic_zone": ["p1"], "period": [2030], "released_mw": [20.0]}).to_csv(
+        out / "ic_release_built.csv", index=False)
+    pns.chain_ic_inputs(inp, out, nxt, "c")
+    z = pd.read_csv(nxt / "ic_zones.chained.c.csv").iloc[0]
+    assert z.ic_base_capacity_mw == 1100
+    assert np.isclose(z.ic_start_saturation, (0.2 * 1000 + 110 + 55 + 20) / 1100, atol=1e-6)
+    st = pd.read_csv(nxt / "ic_tranches.chained.c.csv").set_index("IC_TRANCHE")["ic_tranche_width"]
+    assert np.isclose(st["p1_nu1"], 0) and np.isclose(st["p1_nu2"], 0.2 - 55 / 1100, atol=1e-6)
+    u = pd.read_csv(nxt / "ic_uprates.chained.c.csv").iloc[0]
+    assert u.ic_uprate_max_mw == 0
     # no headroom outputs -> nothing written
-    pns.chain_ic_tranches(tmp_path / "in/none", out, tmp_path / "in/none2", "c")
+    pns.chain_ic_inputs(tmp_path / "in/none", out, tmp_path / "in/none2", "c")

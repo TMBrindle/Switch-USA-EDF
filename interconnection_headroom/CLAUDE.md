@@ -57,4 +57,4 @@ Switch toy inputs · `data/reference/` committed reference inputs (ReEDS commit 
 
 Switch-USA-PG case inputs, PowerGenome data and commercial solvers (Gurobi, COPT) live on
 energyVm1. Full Switch-USA-PG runs happen there, not in the cloud. Cloud work stops at
-producing `outputs/tranches_<scenario>.csv` and testing the module on the toy model.
+producing `outputs/{zones,tranches,uprates}_<scenario>.csv` and testing the module on the toy model.

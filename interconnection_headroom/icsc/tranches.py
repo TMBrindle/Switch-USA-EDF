@@ -1,4 +1,15 @@
-"""Turn the fitted cost model into stepwise, convex network-upgrade supply curves per ReEDS zone."""
+"""Turn the fitted cost model into per-zone curves in saturation units, plus network uprate options.
+
+Outputs per scenario (see cli.cmd_run):
+  zones_<scenario>.csv     ba, base_capacity_mw (H0), start_saturation (s0), release_cost_per_kw
+  tranches_<scenario>.csv  ba, tranche, width (saturation units), cost_per_kw, sat_from, sat_to,
+                           extrapolated, available_year
+  uprates_<scenario>.csv   ba, uprate, type, max_mw (network MW), cost_per_kw (per kW of network
+                           capacity), available_year
+
+In Switch, step k provides width x H MW of generation headroom, where H = H0 + uprates built, so
+uprates stretch the curve; and up to s0 x (uprate MW) of headroom is released at release_cost.
+"""
 from __future__ import annotations
 
 import numpy as np
@@ -27,8 +38,9 @@ def _predict_with_effect(model: CostModel, sat, effect: float, cfg: dict) -> np.
 
 
 def build_reference(model: CostModel, panel: pd.DataFrame, regimes: pd.DataFrame, cfg: dict,
-                    start_year: int, regime_override: str | None = None) -> pd.DataFrame:
-    """One row per (zone, tranche): MW available and $/kW, starting from the zone's saturation in start_year.
+                    start_year: int, regime_override: str | None = None
+                    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return (zones, tranches) for every zone, starting from its saturation in start_year.
 
     Costs are made non-decreasing (cumulative max) so the curve is convex and the LP fills it in order.
     """
@@ -36,41 +48,59 @@ def build_reference(model: CostModel, panel: pd.DataFrame, regimes: pd.DataFrame
     steps = np.asarray(tc["steps"], dtype=float)
     cur = panel[panel["year"] == min(start_year, panel["year"].max())].set_index("ba")
     eff = model.regime_effects()
-    rows = []
+    zrows, trows = [], []
     for ba, r in cur.iterrows():
         if ba not in regimes.index:
             continue
-        effect = regimes.at[ba, "regime_effect"]
-        if regime_override == "best":
-            effect = float(eff.min())
+        effect = float(eff.min()) if regime_override == "best" else regimes.at[ba, "regime_effect"]
         s0 = float(r["saturation"])
         edges = s0 + np.concatenate([[0], np.cumsum(steps)])
         mids = (edges[:-1] + edges[1:]) / 2
         cost = np.maximum.accumulate(_predict_with_effect(model, mids, effect, cfg))
         cost = np.minimum(cost, tc["max_cost_per_kw"])
+        # released headroom sits just below s0: price it at the marginal cost at s0
+        release = float(min(_predict_with_effect(model, np.array([s0]), effect, cfg)[0], cost[0]))
+        zrows.append({"ba": ba, "base_capacity_mw": float(r["headroom_proxy_floored_mw"]),
+                      "start_saturation": s0, "release_cost_per_kw": release,
+                      "regime": regimes.at[ba, "regime"]})
         for i, (st, c) in enumerate(zip(steps, cost)):
-            rows.append({"ba": ba, "tranche": f"nu{i + 1}", "tranche_type": "network_upgrade",
-                         "sat_from": edges[i], "sat_to": edges[i + 1],
-                         "max_mw": st * r["headroom_proxy_floored_mw"], "cost_per_kw": float(c),
-                         "extrapolated": bool(mids[i] > model.sat_support),
-                         "available_year": start_year})
-    return pd.DataFrame(rows)
+            trows.append({"ba": ba, "tranche": f"nu{i + 1}", "width": float(st),
+                          "cost_per_kw": float(c), "sat_from": edges[i], "sat_to": edges[i + 1],
+                          "extrapolated": bool(mids[i] > model.sat_support), "available_year": 0})
+    return pd.DataFrame(zrows), pd.DataFrame(trows)
 
 
-def apply_scenario(ref: pd.DataFrame, best: pd.DataFrame | None, panel_now: pd.DataFrame,
-                   scen: dict) -> pd.DataFrame:
-    """Apply one scenario definition from config.yaml to the reference tranches."""
-    out = (best if scen.get("regime_override") == "best" and best is not None else ref).copy()
+def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen: dict,
+                   best: tuple[pd.DataFrame, pd.DataFrame] | None = None
+                   ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Apply one scenario from config.yaml. Returns (zones, tranches, uprates).
+
+    Levers:
+      regime_override: best     height: every zone gets the lowest regime effect
+      cost_multiplier: x        height: scale every step's cost (and the release cost)
+      slope_multiplier: m       steepness: c_k -> c_1 * (c_k / c_1) ** m within each zone
+      uprates: [names]          network capacity options from `uprate_options`, which Switch may build
+    """
+    if scen.get("regime_override") == "best" and best is not None:
+        zones, tranches = best
+    z, t = zones.copy(), tranches.copy()
+    if "slope_multiplier" in scen:
+        # scale the rise above the first step in the same log(1 + $/kW) space the curve is estimated in
+        m = float(scen["slope_multiplier"])
+        first = np.log1p(t.groupby("ba")["cost_per_kw"].transform("first"))
+        t["cost_per_kw"] = np.expm1(first + m * (np.log1p(t["cost_per_kw"]) - first))
+        t["cost_per_kw"] = t.groupby("ba")["cost_per_kw"].cummax()
     if "cost_multiplier" in scen:
-        out["cost_per_kw"] *= scen["cost_multiplier"]
-    extra = []
-    for x in scen.get("extra_tranches", []):
-        for ba, r in panel_now.iterrows():
-            extra.append({"ba": ba, "tranche": x["name"], "tranche_type": x["name"],
-                          "sat_from": np.nan, "sat_to": np.nan,
-                          "max_mw": x["share_of_headroom"] * r["headroom_proxy_floored_mw"],
-                          "cost_per_kw": x["cost_per_kw"],
-                          "available_year": x.get("available_year", int(out["available_year"].min()))})
-    if extra:
-        out = pd.concat([pd.DataFrame(extra), out], ignore_index=True)
-    return out.sort_values(["ba", "cost_per_kw", "tranche"]).reset_index(drop=True)
+        t["cost_per_kw"] *= scen["cost_multiplier"]
+        z["release_cost_per_kw"] *= scen["cost_multiplier"]
+    opts = cfg.get("uprate_options", {})
+    rows = []
+    for name in scen.get("uprates", []):
+        o = opts[name]
+        for _, r in z.iterrows():
+            rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name),
+                         "max_mw": o["share_of_capacity"] * r["base_capacity_mw"],
+                         "cost_per_kw": o["cost_per_kw"],
+                         "available_year": int(o.get("available_year", 0))})
+    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "max_mw", "cost_per_kw", "available_year"])
+    return z, t.sort_values(["ba", "sat_from"]).reset_index(drop=True), u

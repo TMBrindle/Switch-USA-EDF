@@ -2991,7 +2991,10 @@ def scenario_files(results_folder, case_settings, myopic):
                 )
                 if ic_case.ic_settings(settings):
                     # remaining interconnection headroom tranches after earlier stages
-                    line = line.rstrip() + f" ic_tranches.csv=ic_tranches.chained.{scen_name}.csv "
+                    line = line.rstrip() + "".join(
+                        f" {f}.csv={f}.chained.{scen_name}.csv"
+                        for f in ("ic_zones", "ic_tranches", "ic_uprates")
+                    ) + " "
         scenarios[scen_name].append(line.strip())
 
     for case, year_settings in case_settings.items():

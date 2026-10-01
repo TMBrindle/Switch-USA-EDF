@@ -7,7 +7,7 @@ Settings (pg/settings/interconnection_headroom.yml):
 
     interconnection_headroom:
       enabled: false
-      scenario: reference                 # tranches_<scenario>.csv from the pipeline
+      scenario: reference                 # zones/tranches/uprates_<scenario>.csv from the pipeline
       tranches_dir: interconnection_headroom/outputs
       exclude_network_reinforcement: true # drop PowerGenome tx_capex from gen_connect_cost_per_mw
 """
@@ -103,9 +103,73 @@ def strip_network_reinforcement(gen_info: pd.DataFrame, source: pd.DataFrame) ->
     return diag
 
 
+def switch_frames(zones: pd.DataFrame, tranches: pd.DataFrame, uprates: pd.DataFrame,
+                  zone_map: dict | None = None, load_zones: set | None = None
+                  ) -> dict[str, pd.DataFrame]:
+    """Convert pipeline zones/tranches/uprates tables into Switch input frames.
+
+    Each ReEDS BA is one IC zone attached to a Switch load zone (itself, or its aggregate under
+    `zone_map`). Zones whose load zone isn't in `load_zones` are dropped.
+    """
+    zone_map = zone_map or {}
+    z = zones.copy()
+    z["load_zone"] = z["ba"].map(lambda b: zone_map.get(b, b))
+    if load_zones is not None:
+        z = z[z["load_zone"].isin(load_zones)]
+    keep = set(z["ba"])
+    t = tranches[tranches["ba"].isin(keep) & (tranches["width"] > 0)]
+    u = uprates[uprates["ba"].isin(keep) & (uprates["max_mw"] > 0)] if len(uprates) else uprates
+    return {
+        "ic_zones.csv": pd.DataFrame({
+            "IC_ZONE": z["ba"],
+            "ic_zone_load_zone": z["load_zone"],
+            "ic_base_capacity_mw": z["base_capacity_mw"].round(3),
+            "ic_start_saturation": z["start_saturation"].round(6),
+            "ic_release_cost_per_mw": (z["release_cost_per_kw"] * 1000).round(0),
+        }),
+        "ic_tranches.csv": pd.DataFrame({
+            "IC_TRANCHE": t["ba"] + "_" + t["tranche"],
+            "ic_tranche_zone": t["ba"],
+            "ic_tranche_width": t["width"].round(6),
+            "ic_tranche_cost_per_mw": (t["cost_per_kw"] * 1000).round(0),
+            "ic_tranche_available_year": t["available_year"].astype(int),
+        }),
+        "ic_uprates.csv": pd.DataFrame({
+            "IC_UPRATE": u["ba"] + "_" + u["uprate"],
+            "ic_uprate_zone": u["ba"],
+            "ic_uprate_type": u["type"],
+            "ic_uprate_max_mw": u["max_mw"].round(3),
+            "ic_uprate_cost_per_mw": (u["cost_per_kw"] * 1000).round(0),
+            "ic_uprate_available_year": u["available_year"].astype(int),
+        }) if len(u) else pd.DataFrame(columns=["IC_UPRATE", "ic_uprate_zone", "ic_uprate_type",
+                                                 "ic_uprate_max_mw", "ic_uprate_cost_per_mw",
+                                                 "ic_uprate_available_year"]),
+    }
+
+
+def params_frame(cfg: dict, weights: dict, reuse_share: float) -> pd.DataFrame:
+    return pd.DataFrame([{
+        "ic_retirement_reuse_share": reuse_share,
+        "ic_storage_weight": weights.get("storage", 0.5),
+        "ic_default_weight": weights.get("other", 1.0),
+        "ic_asset_life_years": cfg.get("switch", {}).get("asset_life_years", 40),
+        "ic_reactive_cost_per_mw_network": cfg.get("reactive_cost_per_kw_network", 0) * 1000,
+    }])
+
+
+def read_scenario(tables_dir: Path, scenario: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    paths = [Path(tables_dir) / f"{kind}_{scenario}.csv" for kind in ("zones", "tranches", "uprates")]
+    missing = [p for p in paths if not p.exists()]
+    if missing:
+        raise FileNotFoundError(
+            f"interconnection_headroom is enabled but {', '.join(map(str, missing))} not found. Run "
+            "`python -m icsc.cli run` in interconnection_headroom/ first, or set enabled: false.")
+    return tuple(pd.read_csv(p) for p in paths)
+
+
 def write_case_inputs(gen_info: pd.DataFrame, settings: dict, out_folder: Path,
                       diag: pd.DataFrame | None = None) -> None:
-    """Write ic_tranches.csv, ic_weights.csv and ic_params.csv for one case/year."""
+    """Write the ic_*.csv inputs for one case/year."""
     ic = ic_settings(settings)
     if ic is None:
         return
@@ -113,39 +177,19 @@ def write_case_inputs(gen_info: pd.DataFrame, settings: dict, out_folder: Path,
     sat = cfg["saturation"]
     weights = {**sat["tech_weights"], **(ic.get("tech_weights") or {})}
     scenario = ic.get("scenario", "reference")
-    tranches_path = REPO_ROOT / ic.get("tranches_dir", "interconnection_headroom/outputs") / \
-        f"tranches_{scenario}.csv"
-    if not tranches_path.exists():
-        raise FileNotFoundError(
-            f"interconnection_headroom is enabled but {tranches_path} does not exist. Run "
-            "`python -m icsc.cli run` in interconnection_headroom/ first, or set enabled: false.")
-    t = pd.read_csv(tranches_path)
-
-    zone_map = settings.get("_zone_map") or {}
-    t["load_zone"] = t["ba"].map(lambda b: zone_map.get(b, b))
-    zones = set(gen_info["gen_load_zone"])
-    t = t[t["load_zone"].isin(zones) & (t["max_mw"] > 0)]
-    sw = pd.DataFrame({
-        "IC_TRANCHE": t["ba"] + "_" + t["tranche"],
-        "ic_tranche_zone": t["load_zone"],
-        "ic_tranche_max_mw": t["max_mw"].round(3),
-        "ic_tranche_cost_per_mw": (t["cost_per_kw"] * 1000).round(0),
-        # empirical network-upgrade tranches are available in every period (including historical
-        # ones, which would otherwise be forced to build nothing); policy tranches keep their year
-        "ic_tranche_available_year": t["available_year"].astype(int).where(
-            t["tranche_type"] != "network_upgrade", 0),
-    })
+    zones, tranches, uprates = read_scenario(
+        REPO_ROOT / ic.get("tranches_dir", "interconnection_headroom/outputs"), scenario)
+    frames = switch_frames(zones, tranches, uprates, settings.get("_zone_map"),
+                           set(gen_info["gen_load_zone"]))
     out_folder = Path(out_folder)
-    sw.to_csv(out_folder / "ic_tranches.csv", index=False)
+    for name, df in frames.items():
+        df.to_csv(out_folder / name, index=False)
     weights_by_tech(gen_info, weights)[["ic_key", "ic_weight"]].to_csv(out_folder / "ic_weights.csv",
                                                                         index=False)
-    pd.DataFrame([{
-        "ic_retirement_reuse_share": ic.get("retirement_reuse_share", sat["retirement_reuse_share"]),
-        "ic_storage_weight": weights.get("storage", 0.5),
-        "ic_default_weight": weights.get("other", 1.0),
-        "ic_asset_life_years": cfg.get("switch", {}).get("asset_life_years", 40),
-    }]).to_csv(out_folder / "ic_params.csv", index=False)
+    params_frame(cfg, weights, ic.get("retirement_reuse_share", sat["retirement_reuse_share"])).to_csv(
+        out_folder / "ic_params.csv", index=False)
     if diag is not None:
         diag.to_csv(out_folder / "ic_connect_cost_check.csv", index=False)
-    logger.info("interconnection_headroom: wrote %d tranches (%s) for %d zones to %s",
-                len(sw), scenario, sw["ic_tranche_zone"].nunique(), out_folder)
+    logger.info("interconnection_headroom: wrote %d IC zones, %d steps and %d uprate options (%s) to %s",
+                len(frames["ic_zones.csv"]), len(frames["ic_tranches.csv"]),
+                len(frames["ic_uprates.csv"]), scenario, out_folder)

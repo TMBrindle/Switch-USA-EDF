@@ -83,7 +83,7 @@ rules: interconnection_headroom/CLAUDE.md.
 - Ask me before changing the estimation method, the tech-weight or reuse-share defaults in
   config.yaml, or the Switch module's constraint structure.
 - Full Switch-USA-PG runs (PowerGenome data, Gurobi) happen on energyVm1, not here. Stop at
-  writing outputs/tranches_<scenario>.csv and testing on the Switch toy model.
+  writing outputs/{zones,tranches,uprates}_<scenario>.csv and testing on the Switch toy model.
 ```
 
 ## 5. First threads

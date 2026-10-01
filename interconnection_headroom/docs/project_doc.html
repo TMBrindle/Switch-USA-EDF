@@ -147,31 +147,42 @@ ol.steps { padding-left: 1.3em; display: grid; gap: 8px; }
 <div class="note"><strong>PJM and NYISO still read low, which is implausible given PJM's upgrade costs.</strong> PJM added about 42 GW of gas and 19 GW of wind and solar since 2010, but it also retired about 60 GW, mostly coal. With a 0.8 reuse share, those retirements offset nearly all the additions. That fits much of PJM's new gas, which went to old plant sites, but it overstates the headroom available to solar that wants to connect elsewhere. It also ignores load growth using up headroom. The reuse variants in <code>fit-weights</code> test this directly. Expect to lower the reuse share, or apply it only to technologies that actually reuse retiring sites.</div>
 
 <h2 id="switch">Switch formulation</h2>
-<p>The module is <code>switch/study_modules/interconnection_headroom.py</code> in Switch-USA-EDF; <code>pg_to_switch.py</code> writes its inputs when <code>pg/settings/interconnection_headroom.yml</code> is enabled. For each active load zone and period:</p>
-<pre>Σ w_g · new capacity of g in z   ≤   initial headroom
-                                   + reuse × Σ w_g × existing capacity retired or suspended
-                                   + Σ_tranches ICCapacity</pre>
+<p>The module is <code>switch/study_modules/interconnection_headroom.py</code> in Switch-USA-EDF; <code>pg_to_switch.py</code> writes its inputs when <code>pg/settings/interconnection_headroom.yml</code> is enabled.</p>
+<p>Each ReEDS BA is an interconnection zone with explicit network capacity <i>H</i>, starting from the NARIS 2024 proxy <i>H0</i>. The cost curve is stored in units of fullness: step <i>k</i> is <i>w<sub>k</sub></i> wide and costs <i>c<sub>k</sub></i> per MW of generation. For each zone and period:</p>
+<pre>H                = H0 + MW of uprates built (GETs, reconductoring, new lines)
+step k           ≤ w_k × H                          (uprates stretch every step)
+released         ≤ s0 × MW of uprates built         (existing use fills less of a bigger network)
+
+Σ w_g · new capacity of g   ≤   initial headroom
+                              + reuse × Σ w_g × existing capacity retired or suspended
+                              + Σ steps + released</pre>
 <ul>
-  <li><code>ICBuild[tranche, period]</code> is a continuous variable that accumulates into <code>ICCapacity</code>, capped at each tranche's MW. Its cost is annualised with the model interest rate over 40 years and added to <code>Cost_Components_Per_Period</code>.</li>
-  <li>Every new build uses headroom at its technology weight. The pipeline writes <code>ic_weights.csv</code> (keyed by <code>gen_energy_source</code> or <code>gen_tech</code>) and <code>ic_params.csv</code> from the same weights used for saturation, so the history and the model stay consistent. Unmatched storage gets the storage weight; anything else gets the default weight of 1. After a solve, <code>ic_gen_weights.csv</code> lists the weight applied to each project, so the key mapping can be checked against Switch-USA-PG names.</li>
-  <li>Only <code>NEW_GEN_BLD_YRS</code> count against headroom. Existing and predetermined capacity is already reflected in where each curve starts.</li>
-  <li>Tranches have an availability year, so lead times are explicit. Reconductoring or new lines can be held back a period.</li>
-  <li>Outputs are <code>ic_headroom.csv</code> (use and the headroom dual by zone and period) and <code>ic_tranches_built.csv</code>.</li>
+  <li>All of this is linear, so the model stays an LP. The released term is exact for small uprates and slightly conservative for large ones; an exact version would need integer variables.</li>
+  <li>Each uprate option has a cap (share of <i>H0</i>), a cost per MW of network capacity and a first available year. Steps, released headroom and uprates are annualised over 40 years at the model interest rate.</li>
+  <li>Every new build uses headroom at its technology weight; distributed generation never does. Only <code>NEW_GEN_BLD_YRS</code> count, because existing capacity is already reflected in where each curve starts.</li>
+  <li>Under state or interconnect aggregation, each aggregate load zone keeps its BAs as separate interconnection zones and pools their headroom.</li>
 </ul>
-<p>On the Switch 2.0.9 three-zone toy with gas counted, about 3.3 MW of new gas moved from Central, where wind had already taken the headroom, to South, which had headroom freed by retirements. North still built all 5 MW of wind (3.75 MW weighted) and bought part of the $3M/MW tranche to do it. Total cost rose 1.4% over the unconstrained run.</p>
-<div class="note">Before running it in Switch-USA-PG, remove PowerGenome's reinforcement or interconnection annuity from wind and solar costs, keeping spur lines. Otherwise network costs are counted twice.</div>
+<h3>What it reports</h3>
+<ul>
+  <li><code>ic_spend.csv</code>: overnight and annual reinforcement spend by zone, period and type (reactive upgrades along the curve, GETs, reconductoring, new lines), with the network MW added and generation MW enabled.</li>
+  <li><code>ic_network.csv</code>: base network capacity and the MW and % added. Uprate MW are model decisions. Reactive MW are an <em>estimate</em>: the curve records what generators paid, so the report divides that spend by an engineering cost of network capacity (a placeholder) and shows the implied network MW per generation MW as a sanity check.</li>
+  <li><code>ic_headroom.csv</code>: headroom used, freed and bought per load zone, with the constraint dual.</li>
+</ul>
+<p>On the Switch three-zone toy, North needed more room for wind than its cheap first step allowed. Instead of buying the $3M/MW second step, the model built 1 MW of GETs and 2.5 MW of reconductoring. That raised North's network capacity 35% and stretched the cheap step from 2.0 to 2.7 MW, and existing use filling less of the network released another 1.05 MW. Total system cost fell 1.2% against the run without uprate options.</p>
+<div class="note">Before running it in Switch-USA-PG, confirm that PowerGenome's reinforcement cost (<code>tx_capex</code>) is removed from wind and solar connection costs, keeping spur lines. <code>pg_to_switch.py</code> does this when the setting is on, and writes <code>ic_connect_cost_check.csv</code> to verify it.</div>
 
 <h2 id="policy">Policy scenarios</h2>
-<p>Switch is a social planner, so changing who pays for upgrades has no effect on its own. Each scenario therefore changes real cost, quantity or timing.</p>
+<p>Switch is a social planner, so changing who pays for upgrades has no effect on its own. Each scenario changes the curve's position, stretch, height or steepness.</p>
 <div class="tablewrap"><table>
-<thead><tr><th>Scenario</th><th>Change to the curve</th></tr></thead>
+<thead><tr><th>Scenario</th><th>Lever</th><th>Change</th></tr></thead>
 <tbody>
-<tr><td><code>best_regime</code></td><td>Every zone gets the lowest regime effect, with the saturation slope held fixed. This isolates the institutional part of cost differences without assuming away physical ones.</td></tr>
-<tr><td><code>gets</code></td><td>Adds a tranche of 10% of the proxy at $15/kW ahead of the empirical curve.</td></tr>
-<tr><td><code>reconductoring</code></td><td>Adds GETs plus 40% of the proxy at $60/kW. The two share a combined cap because they act on the same lines.</td></tr>
-<tr><td><code>proactive_planning</code></td><td>Multiplies empirical tranche costs by 0.6 to reflect economies of scale over piecemeal upgrades.</td></tr>
+<tr><td><code>reference</code></td><td>None</td><td>Empirical curve with each zone's regime effect. No uprate options: today's reinforcement is reactive and already embedded in the curve.</td></tr>
+<tr><td><code>best_regime</code></td><td>Height</td><td>Every zone gets the lowest regime effect, with the slope held fixed.</td></tr>
+<tr><td><code>gets</code></td><td>Network capacity</td><td>Switch may add GETs up to 10% of <i>H0</i> at $20/kW of network.</td></tr>
+<tr><td><code>reconductoring</code></td><td>Network capacity</td><td>GETs plus reconductoring up to 30% of <i>H0</i> at $80/kW from 2028.</td></tr>
+<tr><td><code>proactive_planning</code></td><td>Network capacity and steepness</td><td>All options including new intra-zonal lines (up to 100% of <i>H0</i> at $250/kW from 2032), and the rise of the curve scaled by 0.7.</td></tr>
 </tbody></table></div>
-<p class="cap">The GETs, reconductoring and proactive-planning numbers are placeholders. Replace them from Brattle (GETs in SPP), the GridLab/Berkeley reconductoring study and MISO LRTP cost-per-MW before using any results. In the reference case, cap GETs and reconductoring near observed adoption; the policy runs then relax the cap.</p>
+<p class="cap">All uprate costs, caps and dates, the slope multiplier and the reactive engineering cost are placeholders. Replace them from Brattle (GETs in SPP), the GridLab/Berkeley reconductoring study, the ReEDS cost surface and MISO/SPP cost guides, with caps from HIFLD line-km by voltage. The next estimation step is regime-specific slopes, so steepness can come from data instead of a multiplier.</p>
 
 <h2 id="status">Status</h2>
 <div class="tablewrap"><table>
@@ -183,7 +194,7 @@ ol.steps { padding-left: 1.3em; display: grid; gap: 8px; }
 <tr><td>Regression</td><td><span class="pill ok">validated on synthetic</span></td><td>Recovers the saturation slope (1.40 vs 1.20 true, s.e. 0.27), the ERIS effect (−0.64 vs −0.70) and regime differences (within 0.05).</td></tr>
 <tr><td>Tranches and scenarios</td><td><span class="pill ok">working</span></td><td>Monotone by construction; extrapolated tranches flagged.</td></tr>
 <tr><td>Switch module</td><td><span class="pill todo">draft</span></td><td>Solves on the toy with HiGHS. Not yet run in Switch-USA-PG.</td></tr>
-<tr><td>Tests</td><td><span class="pill ok">7 passing</span></td><td>Includes an end-to-end Switch solve, a check that new gas uses headroom, and a run of the weight search.</td></tr>
+<tr><td>Tests</td><td><span class="pill ok">10 passing</span></td><td>Includes a Switch toy solve where uprates stretch the curve and release headroom, the spend and capacity reports, myopic chaining, and the pg_to_switch case writer.</td></tr>
 </tbody></table></div>
 
 <h2 id="risks">Open issues</h2>

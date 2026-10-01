@@ -55,8 +55,10 @@ pytest -q                                # tests (Switch test needs ../switch-sr
 - `start_saturation.csv`: where each zone's curve starts (last EIA year plus planned changes)
 - `lbnl_projects_clean.csv`, `estimation_sample.csv`
 - `coefficients.csv`, `zone_regimes.csv`, `run_summary.json`
-- `tranches_<scenario>.csv`: one row per zone × tranche (MW, $/kW, flagged if extrapolated)
-- `switch/<scenario>/ic_tranches.csv`, `ic_params.csv`: drop-in Switch inputs
+- `zones_<scenario>.csv`: base network capacity, starting saturation and release cost per zone
+- `tranches_<scenario>.csv`: curve steps per zone (width in saturation units, $/kW, flagged if extrapolated)
+- `uprates_<scenario>.csv`: network capacity options Switch may build (MW cap, $/kW of network, first year)
+- `switch/<scenario>/ic_*.csv`: standalone Switch inputs
 
 ## Using it in Switch-USA-EDF
 

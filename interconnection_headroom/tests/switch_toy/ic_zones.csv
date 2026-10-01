@@ -1,0 +1,4 @@
+IC_ZONE,ic_zone_load_zone,ic_base_capacity_mw,ic_start_saturation,ic_release_cost_per_mw
+N,North,10,0.3,50000
+C,Central,10,0.3,50000
+S,South,10,0.3,100000

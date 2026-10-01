@@ -96,13 +96,19 @@ def cmd_run(cfg: dict, start_year: int, scenarios: list[str] | None):
     for name, scen in cfg["scenarios"].items():
         if scenarios and name not in scenarios:
             continue
-        t = tranches.apply_scenario(ref, best, now, scen or {})
+        z, t, u = tranches.apply_scenario(*ref, cfg, scen or {}, best=best)
+        z.to_csv(out / f"zones_{name}.csv", index=False)
         t.to_csv(out / f"tranches_{name}.csv", index=False)
-        switch_writer.to_switch(t, out / "switch" / name, cfg, zone_map)
+        u.to_csv(out / f"uprates_{name}.csv", index=False)
+        switch_writer.to_switch(z, t, u, out / "switch" / name, cfg, zone_map)
+        mw = t.merge(z[["ba", "base_capacity_mw"]], on="ba")
+        mw["mw"] = mw["width"] * mw["base_capacity_mw"]
         summary["scenarios"][name] = {
-            "total_mw": round(float(t["max_mw"].sum())),
-            "mw_below_100_per_kw": round(float(t.loc[t["cost_per_kw"] < 100, "max_mw"].sum())),
-            "mw_weighted_cost_per_kw": round(float((t["max_mw"] * t["cost_per_kw"]).sum() / t["max_mw"].sum()), 1),
+            "zones": int(len(z)),
+            "curve_mw_at_base_capacity": round(float(mw["mw"].sum())),
+            "first_step_median_cost_per_kw": round(float(t.groupby("ba")["cost_per_kw"].first().median()), 1),
+            "share_of_curve_mw_extrapolated": round(float((mw["mw"] * mw["extrapolated"]).sum() / mw["mw"].sum()), 3),
+            "uprate_mw_available": round(float(u["max_mw"].sum())) if len(u) else 0,
         }
     json.dump(summary, open(out / "run_summary.json", "w"), indent=2)
     print(json.dumps(summary, indent=2))

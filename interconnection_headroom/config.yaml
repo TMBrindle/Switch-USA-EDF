@@ -115,25 +115,48 @@ tranches:
   reference_year: 2024
 
 # ---------------------------------------------------------------------------
-# Policy scenarios (applied to the reference tranches)
+# Network uprate options: MW of intra-zonal network capacity Switch may add in a zone.
+# max MW = share_of_capacity x the zone's base capacity (headroom proxy). Costs are $ per kW of
+# NETWORK capacity, not of generation. ALL VALUES BELOW ARE PLACEHOLDERS: replace with sourced
+# values (GETs: Brattle SPP studies; reconductoring: GridLab/Berkeley 2024; new lines: ReEDS cost
+# surface or MISO/SPP cost guides) and cite them here. Caps should come from HIFLD line-km by kV.
+# GETs and reconductoring act on the same lines: keep their shares summing to a shared ceiling.
+# ---------------------------------------------------------------------------
+uprate_options:
+  gets:        {type: gets,        share_of_capacity: 0.10, cost_per_kw: 20,  available_year: 0}
+  reconductor: {type: reconductor, share_of_capacity: 0.30, cost_per_kw: 80,  available_year: 2028}
+  new_line:    {type: new_line,    share_of_capacity: 1.00, cost_per_kw: 250, available_year: 2032}
+
+# Engineering cost of network capacity added by reactive (generator-paid) upgrades, $/kW of
+# network. Used only to REPORT an estimate of capacity added along the empirical curve
+# (ic_network.csv reactive_mw_added_est). PLACEHOLDER.
+reactive_cost_per_kw_network: 150
+
+# ---------------------------------------------------------------------------
+# Policy scenarios. Levers:
+#   regime_override: best   height: every zone gets the lowest-cost regime effect
+#   cost_multiplier: x      height: scale every step's $/kW
+#   slope_multiplier: m     steepness: scale the rise above the first step (log space)
+#   uprates: [...]          network capacity Switch may build (stretches the curve and moves
+#                           zones back down it); options from uprate_options
+# The reference case has no uprate options: today's reinforcement is reactive and is already
+# embedded in the empirical curve.
 # ---------------------------------------------------------------------------
 scenarios:
   reference: {}
   best_regime:
-    description: Every zone gets the planning-regime effect of the lowest-cost regime; saturation slope unchanged.
+    description: Every zone gets the planning-regime effect of the lowest-cost regime; slope unchanged.
     regime_override: best
   gets:
-    description: Adds a cheap GETs tranche ahead of the empirical curve.
-    extra_tranches:
-      - {name: gets, share_of_headroom: 0.10, cost_per_kw: 15}
+    description: Switch may deploy GETs up to 10% of each zone's network capacity.
+    uprates: [gets]
   reconductoring:
-    description: Adds GETs plus an advanced reconductoring tranche on existing ROW.
-    extra_tranches:
-      - {name: gets, share_of_headroom: 0.10, cost_per_kw: 15}
-      - {name: reconductor, share_of_headroom: 0.40, cost_per_kw: 60}
+    description: GETs plus advanced reconductoring on existing rights of way.
+    uprates: [gets, reconductor]
   proactive_planning:
-    description: Proactive multi-value planning lowers the cost of the empirical curve (economies of scale vs. piecemeal upgrades).
-    cost_multiplier: 0.6
+    description: All uprate options, and a flatter curve from right-sized portfolio upgrades (placeholder multiplier).
+    uprates: [gets, reconductor, new_line]
+    slope_multiplier: 0.7
 
 # ---------------------------------------------------------------------------
 # Planning regimes: harmonise LBNL region labels and ReEDS transreg names to one label set
