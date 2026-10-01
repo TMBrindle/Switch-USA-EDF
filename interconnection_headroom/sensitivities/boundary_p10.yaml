@@ -1,0 +1,7 @@
+# Sensitivity: headroom proxy = boundary export capacity + the zone's 10th-percentile hourly load
+# in each year (zone_load_stats.csv), instead of boundary capacity alone.
+# Run: python -m icsc.cli --config sensitivities/boundary_p10.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_boundary_p10}
+saturation:
+  headroom_proxy: boundary+p10

@@ -14,6 +14,8 @@ switch/out/
 !PowerGenome/**
 !Guides and documentation/
 !Guides and documentation/**
+!interconnection_headroom/
+!interconnection_headroom/**
 
 # include growth_rates/*.csv
 !growth_rates/

@@ -1,0 +1,9 @@
+pandas>=2.0
+numpy<2  # pyomo used by switch_model 2.0.9 still calls np.float_
+statsmodels
+openpyxl
+pyyaml
+pytest
+# for the Switch module test only
+switch_model==2.0.9
+highspy

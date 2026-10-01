@@ -300,6 +300,59 @@ def post_solve(m, outdir):
     trans = trans.drop(columns=["BuildTx"])
     to_csv(trans, chained(next_in_path, "transmission_lines.csv"))
 
+    # carry interconnection headroom forward (study_modules.interconnection_headroom)
+    chain_ic_inputs(in_path, out_path, next_in_path, case_name)
+
+
+def chain_ic_inputs(in_path, out_path, next_in_path, case_name):
+    """
+    Write ic_zones/ic_tranches/ic_uprates.chained.<case>.csv for the next stage:
+    network capacity grows by the uprates built, each step keeps only its unused
+    width at the new capacity, uprate caps shrink by what was built, and the
+    starting saturation includes the headroom bought this stage. Builds from this
+    stage become predetermined next stage, so they no longer count against
+    headroom. Does nothing when the interconnection_headroom module wasn't used.
+    """
+    in_path, out_path, next_in_path = Path(in_path), Path(out_path), Path(next_in_path)
+
+    def src(name):
+        p = in_path / f"{name}.chained.{case_name}.csv"
+        return p if p.exists() else in_path / f"{name}.csv"
+
+    needed = [src("ic_zones"), src("ic_tranches"), out_path / "ic_tranches_built.csv",
+              out_path / "ic_release_built.csv"]
+    if not all(p.exists() for p in needed):
+        return
+    rd = lambda p: pd.read_csv(p, na_values=["."])
+    zones, steps = rd(src("ic_zones")), rd(src("ic_tranches"))
+    used = rd(out_path / "ic_tranches_built.csv").set_index("ic_tranche")["used_mw"]
+    released = rd(out_path / "ic_release_built.csv").set_index("ic_zone")["released_mw"]
+    uprates = rd(src("ic_uprates")) if src("ic_uprates").exists() else None
+    up_built = (rd(out_path / "ic_uprates_built.csv").set_index("ic_uprate")["built_mw"]
+                if (out_path / "ic_uprates_built.csv").exists() else pd.Series(dtype=float))
+
+    added = pd.Series(0.0, index=zones["IC_ZONE"])
+    if uprates is not None and len(uprates):
+        b = uprates["IC_UPRATE"].map(up_built).fillna(0)
+        added = added.add(b.groupby(uprates["ic_uprate_zone"]).sum(), fill_value=0)
+        uprates["ic_uprate_max_mw"] = (uprates["ic_uprate_max_mw"] - b).clip(lower=0).round(3)
+        uprates.to_csv(next_in_path / f"ic_uprates.chained.{case_name}.csv", index=False, na_rep=".")
+
+    h0 = zones.set_index("IC_ZONE")["ic_base_capacity_mw"]
+    h1 = h0 + added.reindex(h0.index).fillna(0)
+    step_used = steps["IC_TRANCHE"].map(used).fillna(0)
+    bought = step_used.groupby(steps["ic_tranche_zone"]).sum().reindex(h0.index).fillna(0) \
+        + released.reindex(h0.index).fillna(0)
+    s0 = zones.set_index("IC_ZONE")["ic_start_saturation"]
+    zones = zones.set_index("IC_ZONE")
+    zones["ic_base_capacity_mw"] = h1.round(3)
+    zones["ic_start_saturation"] = ((s0 * h0 + bought) / h1.where(h1 > 0)).fillna(0).round(6)
+    zones.reset_index().to_csv(next_in_path / f"ic_zones.chained.{case_name}.csv", index=False, na_rep=".")
+
+    hz = steps["ic_tranche_zone"].map(h1)
+    steps["ic_tranche_width"] = (steps["ic_tranche_width"] - step_used / hz.where(hz > 0)).fillna(
+        steps["ic_tranche_width"]).clip(lower=0).round(6)
+    steps.to_csv(next_in_path / f"ic_tranches.chained.{case_name}.csv", index=False, na_rep=".")
 
 class Test:
     """

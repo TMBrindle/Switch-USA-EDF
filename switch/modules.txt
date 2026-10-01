@@ -47,6 +47,9 @@ study_modules.gen_om_by_period
 study_modules.gen_tax_credits
 # apply annual operating limits to data center backup gens
 study_modules.gen_annual_availability_limits
+# zonal interconnection headroom (inactive unless ic_tranches.csv exists; see
+# pg/settings/interconnection_headroom.yml)
+# study_modules.interconnection_headroom
 # allow unserved load (one zone comes out infeasible in 2024)
 # study_modules.unserved_load
 # uncomment the next two to reduce Pyomo memory (experimental):

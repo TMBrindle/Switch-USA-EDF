@@ -1,0 +1,3 @@
+IC_UPRATE,ic_uprate_zone,ic_uprate_type,ic_uprate_max_mw,ic_uprate_cost_per_mw,ic_uprate_available_year
+N_gets,N,gets,1,20000,0
+N_reconductor,N,reconductor,3,80000,0

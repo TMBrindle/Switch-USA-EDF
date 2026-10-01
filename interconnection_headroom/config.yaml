@@ -1,0 +1,256 @@
+# Interconnection network-upgrade supply curves for ReEDS zones
+# All paths are relative to the project root.
+
+dollar_year: 2024
+
+paths:
+  county2zone: data/reference/county2zone.csv          # ReEDS inputs/county2zone.csv
+  hierarchy: data/reference/hierarchy.csv              # ReEDS inputs/hierarchy.csv
+  reeds_queues: data/reference/reeds_interconnection_queues.csv  # ReEDS inputs/capacity_exogenous/interconnection_queues.csv
+  eia860m: data/raw/august_generator2026.xlsx          # EIA-860M monthly generator inventory
+  lbnl_dir: data/raw/lbnl                              # put LBNL interconnection cost .xlsx files here
+  queued_up: data/LBNL_Ix_Queue_Data_File_thru2025.xlsx   # LBNL "Queued Up" (through 2025): county by queue ID
+  county_crosswalk: data/reference/lbnl_county_crosswalk.csv  # LBNL county strings that are not a single county
+  cpi: data/reference/cpi_u_annual.csv                 # annual CPI-U for deflating; year,cpi
+  outputs: outputs
+
+# ---------------------------------------------------------------------------
+# Zone load statistics (icsc/load.py; `python -m icsc.cli load-stats` rebuilds zone_load_stats.csv)
+# Raw files: data/raw/load/ (gitignored). See icsc/load.py for sources, time zones and fills.
+# ---------------------------------------------------------------------------
+load:
+  stats: data/reference/zone_load_stats.csv          # (in cfg["load"], resolved by load_cfg)
+  nrel_county_h5: data/raw/load/historic_load_hourly_2016_2023_county.h5   # data.openei.org/files/8562
+  nrel_cache: data/raw/load/nrel_zone_state_hourly.pkl
+  zenodo_h5: data/raw/load/demand_historic.h5                                # zenodo.org/records/18462671
+  eia_state_mwh: data/reference/EIA_loadbystate.csv
+  eia930_dir: data/raw/load/eia930                                           # EIA930_BALANCE_<year>_<half>.csv
+
+# ---------------------------------------------------------------------------
+# Headroom proxy and saturation
+# ---------------------------------------------------------------------------
+saturation:
+  # Which denominator to use for saturation:
+  #   transfer   = ReEDS/NARIS 2024 county-to-county AC transfer capacity inside the zone (+ share of boundary)
+  #                (counts a corridor once per county pair: internal/boundary ratio tracks county count)
+  #   boundary   = ReEDS/NARIS 2024 BA-to-BA export capacity, mean of the two directions, summed over interfaces
+  #   boundary+peak / boundary+median / boundary+p10 = boundary + the zone's coincident peak, median
+  #                or 10th-percentile hourly load in that year (zone_load_stats.csv; year-matched)
+  #   generation = non-IBR nameplate online in the zone at baseline_year
+  # Chosen Oct 2026: boundary (best QAIC in fit-weights; boundary+p10 is the proxy sensitivity,
+  # sensitivities/boundary_p10.yaml). transfer is kept for comparison only.
+  headroom_proxy: boundary
+  transfer_capacity: data/reference/transmission_capacity_init_AC_county_NARIS2024.csv
+  boundary_capacity: data/reference/transmission_capacity_init_AC_ba_NARIS2024.csv   # for headroom_proxy: boundary
+  boundary_weight: 0.5
+  # IBR additions and retirements are counted from this year onward
+  baseline_year: 2010
+  # Share of the network one MW of nameplate occupies under interconnection-study conditions.
+  # Every new generator uses headroom; retiring ones free it at the same weight x reuse share.
+  # Solar is the numeraire (1.0). Chosen Oct 2026 from fit-weights: storage 0.5 (fixed in the
+  # grid), gas 1, reuse 0.1. Wind 0.25 is a physical floor: the fit's optimum is at the grid's
+  # lowest value (0.1; 0.25 is 2.9 QAIC behind). Sensitivity: wind 0.5 (sensitivities/wind_050.yaml).
+  #   wind < 1: deliverability studies usually credit wind's geographic diversity
+  #   storage < 1: charging can relieve, not only load, the network
+  #   gas = 1: a CCGT/CT injects close to nameplate at peak
+  tech_weights: {solar: 1.0, wind: 0.25, storage: 0.5, gas: 1.0, other: 1.0}
+  # Fraction of retired capacity assumed to free reusable headroom
+  retirement_reuse_share: 0.1
+  # Lower bound on headroom proxy (MW) so near-empty zones don't explode the ratio
+  min_headroom_mw: 500
+
+# ---------------------------------------------------------------------------
+# LBNL interconnection cost files: map LBNL column names -> pipeline names.
+# Run `python -m icsc.cli inspect-lbnl` after downloading to see the real headers,
+# then edit the right-hand side. Several candidates may be listed; first match wins.
+# ---------------------------------------------------------------------------
+lbnl:
+  sheet_hint: ["data", "project", "cost"]   # sheet name substrings to try
+  header_search_rows: 10                    # header row is detected within the first N rows
+  columns:
+    project_id:   ["Queue ID", "Project ID", "q_id", "Request ID", "Project #", "Queue ID 1"]
+    qu_id:        ["Project # in Queued Up"]   # non-ISO release: the project's ID in Queued Up
+    region:       ["ISO/RTO", "Region", "Transmission Provider", "BA", "Market"]
+    # transmission owner; when absent and region comes from a column (non-ISO BA), region is used
+    owner:        ["Transmission Owner", "Interconnecting Transmission Owner"]
+    state:        ["State", "state"]
+    county:       ["County", "county"]
+    fips:         ["FIPS", "County FIPS", "fips"]
+    tech:         ["Fuel", "Technology", "Type", "Resource Type", "Fuel Type"]
+    capacity_mw:  ["Nameplate Capacity (MW)", "Capacity (MW)", "MW", "Size (MW)", "Nameplate MW"]
+    # LBNL releases give a queue date (SPP: year only); the pipeline keeps the year
+    queue_year:   ["Queue Year", "Request Year", "Year of Request", "q_year", "Queue Date"]
+    status:       ["Request Status", "Status", "Queue Status"]
+    service:      ["Service Type", "Interconnection Service", "NRIS/ERIS"]
+    # Dollar year of the cost columns. Not "Study Year": LBNL costs are already in constant dollars.
+    cost_year:    ["Cost Year", "Dollar Year"]
+    poi_cost:     ["POI Cost ($/kW)", "POI Cost", "Interconnection Facility Cost ($/kW)", "POI ($/kW)",
+                   "$2022 POI Cost/kW", "$2024 POI Cost/kW", "Real POI/kW"]
+    network_cost: ["Network Upgrade Cost ($/kW)", "Network Cost ($/kW)", "Network ($/kW)", "Network Upgrades ($/kW)",
+                   "$2022 Network Cost/kW", "$2024 Network Cost/kW", "Real Network/kW"]
+    total_cost:   ["Total Cost ($/kW)", "Total ($/kW)", "Total Interconnection Cost ($/kW)",
+                   "$2022 Total Cost/kW", "$2024 Total Cost/kW", "Real Total/kW"]
+  # Dollar year of each workbook's costs (by file name), used when there is no cost_year column.
+  # Source: each workbook's codebook / headers. MISO, PJM, SPP, ISO-NE, NYISO: "real $2022/kW"
+  # (GDP deflator); non-ISO BAs (Feb 2026 release): "$2024 ... Cost/kW" headers.
+  # A "$YYYY" prefix in a cost header that disagrees with this is an error.
+  cost_dollar_year: {MISO: 2022, PJM: 2022, SPP: 2022, ISONE: 2022, NYISO: 2022, NonISO: 2024}
+  # If costs are given in $ (not $/kW), set to true and the pipeline divides by capacity*1000
+  costs_are_total_dollars: false
+  # Locating projects (icsc/linkage.py). Cost-file region (file name, or the BA column) -> the
+  # Queued Up rows its queue IDs are matched against ({region: ...} or {entity: ...}); the state
+  # must also agree. Queued Up regions/entities are listed on its "01. Balancing Areas" sheet.
+  queued_up_sheet: "03. Complete Queue Data"
+  queued_up_scope: {MISO: {region: MISO}, PJM: {region: PJM}, SPP: {region: SPP}, ISONE: {region: ISO-NE},
+                    NYISO: {region: NYISO}, BPA: {entity: BPA}, PAC: {entity: PacifiCorp},
+                    DEC: {entity: Duke}, DEP: {entity: Duke}, DEF: {entity: Duke}}
+  # Queued Up FIPS codes retired by the Census Bureau -> current code
+  fips_recode: {"46113": "46102"}   # Shannon County SD renamed Oglala Lakota County, 2015 (Census Bureau)
+  # Service values treated as ERIS besides the built-in patterns (exact, case-insensitive).
+  # ISO-NE "NR" (Network Resource, vs CNR Capacity Network Resource) stays NRIS by default;
+  # set ["NR"] for the sensitivity.
+  service_eris_extra: []
+  min_mw_share: 0.85    # link-report flags a workbook with less than this share of MW placed
+  status_map:   # normalised status values
+    active: ["active"]
+    completed: ["complete", "operational", "in service", "done"]   # "complete" also matches "completed"
+    withdrawn: ["withdrawn", "suspended", "cancelled", "canceled"]
+  tech_map:
+    solar: ["solar", "pv"]
+    wind: ["wind"]
+    storage: ["storage", "battery"]
+    hybrid: ["hybrid", "+"]
+    gas: ["gas", "ng", "combustion", "combined cycle"]
+    other: ["biogas"]   # matched before gas; not in estimation.techs, so excluded from the sample
+
+# ---------------------------------------------------------------------------
+# Estimation
+# ---------------------------------------------------------------------------
+estimation:
+  sample_statuses: ["active", "completed"]   # central case; add "withdrawn" for a high-cost sensitivity
+  techs: ["solar", "wind", "storage", "hybrid", "gas"]
+  winsorize_pct: 0.99            # cap extreme $/kW values
+  min_capacity_mw: 5
+  exclude_offshore_wind: true    # offshore projects (no onshore county; export cable costs) stay in lbnl_projects_clean, flagged
+  # Dependent variable: log(1 + network $/kW). Saturation enters as a linear spline with these knots.
+  saturation_knots: [0.25, 0.5, 1.0]
+  min_obs_above_knot: 50         # drop knots with too few projects above them
+  support_quantile: 0.98         # beyond this saturation the last spline slope is extended (never negative)
+  estimator: ppml               # ppml (Poisson PML on $/kW, default) or log_ols (log(1 + $/kW), Duan smearing)
+  status_term: true              # dummy for completed (vs active) projects
+  # Regimes with at least this many completed projects in the sample get their own completed effect;
+  # the rest (ISO-NE, DEC, DEP, BPA on the Oct 2026 sample) share one pooled completed effect.
+  status_by_regime_min: 25
+  regime_column: region          # planning-regime fixed effect (ISO/RTO or utility)
+  cluster_column: ba_cluster     # cluster-robust SEs by ReEDS zone (largest candidate zone for owner_multi rows)
+
+# Grid for `fit-weights` (solar is the numeraire; other categories searched over these values)
+weight_search:
+  proxies: [boundary+peak, boundary+median, boundary+p10, boundary, generation, transfer]  # transfer: comparison only
+  solar: [1.0]
+  wind: [0.1, 0.15, 0.25, 0.5, 0.75, 1.0]
+  storage: [0.5]
+  gas: [0.0, 0.5, 1.0]
+  other: [1.0]
+  reuse_share: [0.0, 0.1, 0.25, 0.5]
+
+# ---------------------------------------------------------------------------
+# Tranche generation
+# ---------------------------------------------------------------------------
+tranches:
+  # Empirical steps run from each zone's start saturation to the sample's support edge
+  # (estimation.support_quantile of sample saturation) in equal steps of about step_width.
+  # Zones already beyond the edge get one step of edge_step_width priced at the edge.
+  step_width: 0.015
+  edge_step_width: 0.05
+  reference_tech: solar
+  reference_capacity_mw: 150
+  reference_service: NRIS
+  reference_status: completed    # status the reference curves are priced at; "active" for the sensitivity
+  # log_ols only: smearing correction when back-transforming from log space (Duan); false = median
+  duan_smearing: true
+  # Upper bound on $/kW for the final tranche (anything above is treated as not buildable)
+  max_cost_per_kw: 1500
+  # Year used for the time-trend term when predicting (avoid extrapolating the trend into the future)
+  reference_year: 2024
+
+# ---------------------------------------------------------------------------
+# Network uprate options: MW of intra-zonal network capacity Switch may add in a zone.
+# max MW = share_of_capacity x the zone's base capacity (headroom proxy). Costs are $ per kW of
+# NETWORK capacity, not of generation. ALL VALUES BELOW ARE PLACEHOLDERS: replace with sourced
+# values (GETs: Brattle SPP studies; reconductoring: GridLab/Berkeley 2024; new lines: ReEDS cost
+# surface or MISO/SPP cost guides) and cite them here. Caps should come from HIFLD line-km by kV.
+# GETs and reconductoring act on the same lines: keep their shares summing to a shared ceiling.
+# ---------------------------------------------------------------------------
+uprate_options:
+  gets:        {type: gets,        share_of_capacity: 0.10, cost_per_kw: 20,  available_year: 0}
+  reconductor: {type: reconductor, share_of_capacity: 0.30, cost_per_kw: 80,  available_year: 2028}
+  new_line:    {type: new_line,    share_of_capacity: 1.00, cost_per_kw: 250, available_year: 2030}
+
+# Engineering cost of network capacity added by reactive (generator-paid) upgrades, $/kW of
+# network. Used only to REPORT an estimate of capacity added along the empirical curve
+# (ic_network.csv reactive_mw_added_est). PLACEHOLDER.
+reactive_cost_per_kw_network: 150
+
+# ---------------------------------------------------------------------------
+# Policy scenarios. Levers:
+#   regime_override: best   height: every zone gets the lowest-cost regime effect
+#   cost_multiplier: x      height: scale every step's $/kW
+#   slope_multiplier: m     steepness: scale the rise above the first step (log space)
+#   uprates: [...]          network capacity Switch may build (stretches the curve and moves
+#                           zones back down it); options from uprate_options
+# backstop_uprates are available in every scenario, including reference: beyond the empirical
+# curve (the data's support edge), headroom comes only from building network capacity.
+# ---------------------------------------------------------------------------
+backstop_uprates: [new_line]   # cost and year are the marked placeholders in uprate_options
+
+scenarios:
+  reference: {}
+  best_regime:
+    description: Every zone gets the planning-regime effect of the lowest-cost regime; slope unchanged.
+    regime_override: best
+  gets:
+    description: Switch may deploy GETs up to 10% of each zone's network capacity.
+    uprates: [gets]
+  reconductoring:
+    description: GETs plus advanced reconductoring on existing rights of way.
+    uprates: [gets, reconductor]
+  proactive_planning:
+    description: All uprate options, and a flatter curve from right-sized portfolio upgrades (placeholder multiplier).
+    uprates: [gets, reconductor, new_line]
+    slope_multiplier: 0.7
+
+# ---------------------------------------------------------------------------
+# Planning regimes: harmonise LBNL region labels and ReEDS transreg names to one label set
+# ---------------------------------------------------------------------------
+regimes:
+  # LBNL region (file name, or the non-ISO BA column) -> regime. Applied in lbnl.clean, so run and
+  # fit-weights see the same labels. Non-ISO utilities get their own effect; Duke Energy Florida
+  # (DEF) is pooled into FRCC.
+  lbnl_to_regime: {"ISO-NE": ISONE, "ISO New England": ISONE, "NYISO": NYISO, "PJM": PJM, "MISO": MISO,
+                   "SPP": SPP, "CAISO": CAISO, "ERCOT": ERCOT,
+                   "BPA": BPA, "PAC": PacifiCorp, "DEC": DEC, "DEP": DEP, "DEF": FRCC}
+  # Zones whose hierarchy.csv hurdlereg is one of these utilities take that utility's effect
+  # (BPA: p2 p5 p7; PacifiCorp: p6 p8 p21 p22 p25 p26; DEC: p95 p97; DEP: p98); other zones take
+  # their transreg's effect (through transreg_to_regime), or the mean if it has no projects.
+  hurdlereg_to_regime: {Bonneville_Power_Administration: BPA, PacifiCorp_West: PacifiCorp,
+                        PacifiCorp_East: PacifiCorp, Duke_Energy_Carolinas_LLC: DEC,
+                        Duke_Energy_Progress_East: DEP}
+  transreg_to_regime: {}
+
+# ---------------------------------------------------------------------------
+# Switch export
+# ---------------------------------------------------------------------------
+switch:
+  asset_life_years: 40
+  # gen_energy_source / gen_tech values in the Switch inputs -> weight category above.
+  # Written to ic_weights.csv. CHECK these against Switch-USA-PG gen_info.csv before use.
+  weight_keys:
+    Solar: solar
+    Wind: wind
+    Naturalgas: gas
+    NaturalGas: gas
+    naturalgas: gas
+    Gas: gas
+  default_weight_category: other   # any new build whose source/tech isn't listed
+  zone_map: null              # CSV with columns ba,load_zone if Switch zones are aggregations of ReEDS BAs
