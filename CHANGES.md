@@ -1183,3 +1183,25 @@ shows where, if anywhere, the headroom limit itself cannot be met.
   `ic_params.<tag>.csv` next to an existing case (never overwriting) and appends to the patch log.
 - Tests (Switch 3-zone toy with HiGHS): a forced 200 MW gas build larger than North's curve solves
   with slack > 0 and fails as infeasible with the slack off (`.`).
+
+---
+
+## 38. `rps_regional.py` — Opt-in RPS Buyout (Alternative Compliance Payment)
+
+**Date:** 2026-10-01 · **Branch:** `tom/ic-test-fedpol` · **Shared fedpol module; opt-in**
+
+**Why.** With interconnection headroom on, NY's local-only RPS (`ESR_NY_rps`, 70%, no bundled or
+unbundled RECs) has almost no feasible margin (pre-check: 65.5 TWh/yr of new NY generation needed
+vs at most 68.0 TWh/yr deliverable within NY's headroom), which made the S0 2035 headroom case
+infeasible. Real programs cap compliance cost with an alternative compliance payment (ACP).
+
+- New optional column `rps_acp_per_mwh` in `rps_requirements.csv` ($/MWh). Set for a
+  (program, period): `RPSShortfall[pr, pe] >= 0` (MWh over the period) is added to the left-hand
+  side of `Enforce_RPS_Share`, and `RPSShortfallCost[p]` = sum of ACP x shortfall / period length
+  joins `Cost_Components_Per_Period`. Every zone row of a program/period must carry the same value.
+- Absent column, blank or `.`: no buyout, the hard requirement as before (existing runs unchanged).
+- Post-solve `rps_shortfall.csv` (only when some program has an ACP): target and shortfall MWh/yr,
+  share of target, cost per year; a line is printed when any buyout is used.
+- Tests `switch/tests/test_rps_acp.py` (Switch 3-zone toy, HiGHS): an unmeetable 95% target is
+  bought out at the ACP; with the column blank it is infeasible; a blank column and no column give
+  the same total cost.
