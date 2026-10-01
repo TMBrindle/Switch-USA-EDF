@@ -141,6 +141,9 @@ estimation:
   # Regimes with at least this many completed projects in the sample get their own completed effect;
   # the rest (ISO-NE, DEC, DEP, BPA on the Oct 2026 sample) share one pooled completed effect.
   status_by_regime_min: 25
+  # Statuses with their own time trend (status x (queue_year - 2015)); [] = common trend (default).
+  # [completed] was tested Oct 2026 (QAIC -22.3; completed costs ~flat over time, active +23%/yr).
+  status_trend: []
   regime_column: region          # planning-regime fixed effect (ISO/RTO or utility)
   cluster_column: ba_cluster     # cluster-robust SEs by ReEDS zone (largest candidate zone for owner_multi rows)
 

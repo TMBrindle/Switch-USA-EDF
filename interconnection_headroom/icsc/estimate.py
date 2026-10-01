@@ -122,6 +122,8 @@ class CostModel:
                 X[c] = (np.broadcast_to(service, n) == c[8:]).astype(float)
             elif c.startswith("regime_"):
                 X[c] = (np.broadcast_to(regime, n) == c[7:]).astype(float)
+            elif c.startswith("trendx_"):   # status x trend: trendx_<status>
+                X[c] = (np.broadcast_to(status, n) == c[7:]) * (np.broadcast_to(queue_year, n).astype(float) - 2015)
             elif c.startswith("status_"):
                 st, _, grp = c[7:].partition("@")
                 hit = np.broadcast_to(status, n) == st
@@ -173,6 +175,8 @@ def fit(sample: pd.DataFrame, cfg: dict) -> CostModel:
             pooled = is_st & ~np.isin(d["regime"].values, own)
             if pooled.any():
                 X[f"status_{st}@pooled"] = pooled.astype(float)
+    for st in ec.get("status_trend") or []:     # e.g. [completed]: status-specific time trend
+        X[f"trendx_{st}"] = (d["status_n"].values == st) * (d["queue_year"].values - 2015.0)
     counts = d["regime"].value_counts()
     regimes = list(counts.index)
     base_regime = regimes[0]  # most common regime is the reference level

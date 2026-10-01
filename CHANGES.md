@@ -1005,3 +1005,13 @@ and drop out of the sample.
 - `tranches.edge_step_width: 0.05`; `uprate_options.new_line.available_year: 2030` (placeholder).
 - `sensitivities/{wind_050,boundary_p10,price_active}.yaml` extend config.yaml (`extends:`, deep
   merge; paths resolve against the base) and write to `outputs/sens_*`.
+
+## 33. Interconnection Headroom — Completed-Pricing Check (option only)
+
+**Date:** 2026-10-01 · **Branch:** `tom/headroom-followups`
+
+- `estimation.status_trend` (default `[]`, model unchanged): statuses with their own time trend
+  (`trendx_<status>` = status x (queue_year - 2015)). Tested with `[completed]`: QAIC 22.3 better;
+  completed costs nearly flat over queue years (+0.026/yr) against +0.232/yr for active. Pricing
+  choice (current, regime-median year, pooled median year, completed x trend) is pending review;
+  defaults are unchanged.
