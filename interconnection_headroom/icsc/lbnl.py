@@ -134,9 +134,12 @@ def clean(frames: list[pd.DataFrame], cfg: dict, c2z: pd.DataFrame) -> pd.DataFr
             df[c] = df[c] / (df["capacity_mw"] * 1000)
     df["status_n"] = _map_values(df["status"], lc["status_map"])
     df["tech_n"] = _map_values(df["tech"], lc["tech_map"])
+    df["offshore_wind"] = df["tech"].astype(str).str.contains("offshore", case=False)
     svc = df["service"].astype(str).str.upper()
     # PJM's service types are "Capacity" and "Energy" (energy-only)
     is_energy = svc.str.contains(r"\bERIS\b|ENERGY[ -]ONLY|ENERGY RESOURCE|^\s*ENERGY\s*$", regex=True)
+    extra = {str(v).strip().upper() for v in lc.get("service_eris_extra") or []}
+    is_energy |= svc.str.strip().isin(extra)
     df["service_n"] = np.where(is_energy, "ERIS", "NRIS")  # NRIS/CRIS/capacity is the default
     cpi = pd.read_csv(cfg["paths"]["cpi"])
     year_basis = df["cost_year"].fillna(df["queue_year"])
@@ -151,7 +154,8 @@ def estimation_sample(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     ec = cfg["estimation"]
     s = df[df["status_n"].isin(ec["sample_statuses"]) & df["tech_n"].isin(ec["techs"])
            & (df["ba"].notna() | df["ba_multi"]) & df["network_cost_real"].notna() & df["queue_year"].notna()
-           & (df["capacity_mw"] >= ec["min_capacity_mw"])].copy()
+           & (df["capacity_mw"] >= ec["min_capacity_mw"])
+           & ~(df["offshore_wind"] & ec.get("exclude_offshore_wind", True))].copy()
     cap = s["network_cost_real"].quantile(ec["winsorize_pct"])
     s["network_cost_real"] = s["network_cost_real"].clip(lower=0, upper=cap)
     return s

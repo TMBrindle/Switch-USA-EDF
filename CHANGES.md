@@ -907,3 +907,15 @@ takes the weighted mean saturation of those zones; none drops the row.
 MISO 97.3/97.5, NYISO 100/100, non-ISO 98.9/99.6, PJM 98.0/100, SPP 97.8/97.8. The 300 Duke Energy
 Progress rows have no nameplate MW in the LBNL workbook, so they carry no weight in MW shares
 and drop out of the sample.
+
+**Follow-up (same branch):**
+- Missing nameplate MW (all 300 Duke Energy Progress rows) is filled from Queued Up `mw_1` by
+  queue ID (`capacity_source`: lbnl / queued_up). `mw_1` matches the cost files' Nameplate MW on
+  92% of rows that have both (`mw_1+mw_2+mw_3`: 90%; hybrids 91% vs 79%). 178 rows filled, including
+  all 9 completed/operational ones; 122 remain missing (117 status "Unknown", 5 active). No EIA-860
+  step: no completed project is still missing MW, and there is no shared ID with EIA.
+- Offshore wind (tech contains "offshore", 49 rows) is flagged `offshore_wind` and excluded from the
+  estimation sample (`estimation.exclude_offshore_wind: true`); it stays in `lbnl_projects_clean.csv`.
+- `lbnl.service_eris_extra` (default `[]`): service values treated as ERIS, for the ISO-NE
+  "NR" sensitivity (`["NR"]`).
+

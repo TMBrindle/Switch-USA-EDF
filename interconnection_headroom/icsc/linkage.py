@@ -47,7 +47,7 @@ def _fips5(x) -> str | None:
 
 @lru_cache(maxsize=2)
 def load_queued_up(path: str, sheet: str) -> pd.DataFrame:
-    """LBNL Queued Up project list: region, entity, queue-ID key, state, FIPS."""
+    """LBNL Queued Up project list: region, entity, queue-ID key, state, FIPS, MW (mw_1)."""
     if not Path(path).exists():
         raise FileNotFoundError(f"LBNL Queued Up workbook not found: {path}")
     raw = pd.read_excel(path, sheet_name=sheet, header=None, nrows=5)
@@ -55,19 +55,23 @@ def load_queued_up(path: str, sheet: str) -> pd.DataFrame:
     q = pd.read_excel(path, sheet_name=sheet, header=hdr, usecols=lambda c: not str(c).startswith("Unnamed"))
     return pd.DataFrame({"region": q["region"].astype(str), "entity": q["entity"].astype(str),
                          "k": q["q_id"].map(norm_qid), "state": q["state"].astype(str).str.upper().str.strip(),
-                         "fips": q["fips_code"].map(_fips5)})
+                         "fips": q["fips_code"].map(_fips5),
+                         # mw_1 matches LBNL cost-data "Nameplate MW" more often than mw_1+mw_2+mw_3
+                         # (92% vs 90% of rows within 1%; 91% vs 79% for hybrids)
+                         "mw": pd.to_numeric(q["mw_1"], errors="coerce")})
 
 
-def _queued_up_fips(df: pd.DataFrame, cfg: dict, root: Path) -> pd.Series:
-    """FIPS from Queued Up for each row, or None (no match, or IDs that map to several counties)."""
+def queued_up_field(df: pd.DataFrame, cfg: dict, root: Path, field: str = "fips") -> pd.Series:
+    """`field` (fips or mw) from Queued Up for each row by queue ID within scope and state; None when
+    there is no match or the ID's Queued Up rows disagree."""
     scope = cfg["lbnl"].get("queued_up_scope") or {}
     out = pd.Series(None, index=df.index, dtype=object)
     todo = df["region"].astype(str).isin(scope)
     if not todo.any():
         return out
     q = load_queued_up(str(root / cfg["paths"]["queued_up"]), cfg["lbnl"]["queued_up_sheet"])
-    q = q.dropna(subset=["k", "fips"])
-    uniq = q.groupby(["region", "entity", "k", "state"])["fips"].agg(lambda s: s.iat[0] if s.nunique() == 1 else None)
+    q = q.dropna(subset=["k", field])
+    uniq = q.groupby(["region", "entity", "k", "state"])[field].agg(lambda s: s.iat[0] if s.nunique() == 1 else None)
     key = df["qu_id"].map(norm_qid).fillna(df["project_id"].map(norm_qid))
     for region, sc in scope.items():
         rows = todo & (df["region"].astype(str) == region)
@@ -85,6 +89,13 @@ def link(df: pd.DataFrame, c2z: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     root = Path(cfg.get("_root", "."))
     out = df.copy()
     out["_state"] = out["state"].fillna("").astype(str).str.upper().str.strip()
+    # nameplate MW missing in the cost file (Duke Energy Progress): take Queued Up mw_1 by queue ID
+    out["capacity_source"] = np.where(out["capacity_mw"].notna(), "lbnl", None)
+    gap = out["capacity_mw"].isna()
+    if gap.any():
+        mw = pd.to_numeric(queued_up_field(out[gap], cfg, root, "mw"), errors="coerce")
+        out.loc[mw.dropna().index, "capacity_mw"] = mw.dropna()
+        out.loc[mw.dropna().index, "capacity_source"] = "queued_up"
     f2b = c2z.set_index("FIPS")["ba"]
     fips = pd.Series(None, index=out.index, dtype=object)
     src = pd.Series(None, index=out.index, dtype=object)
@@ -101,7 +112,7 @@ def link(df: pd.DataFrame, c2z: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     take(pd.Series([key.get((s, norm_county(c))) for s, c in zip(out["_state"], out["county"])],
                    index=out.index, dtype=object), "lbnl_county")
     recode = cfg["lbnl"].get("fips_recode") or {}
-    take(_queued_up_fips(out, cfg, root).map(lambda f: recode.get(f, f)), "queued_up")
+    take(queued_up_field(out, cfg, root, "fips").map(lambda f: recode.get(f, f)), "queued_up")
 
     xw_path = cfg["paths"].get("county_crosswalk")
     if xw_path and (root / xw_path).exists():

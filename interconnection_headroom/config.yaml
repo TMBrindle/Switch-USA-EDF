@@ -87,6 +87,10 @@ lbnl:
                     DEC: {entity: Duke}, DEP: {entity: Duke}, DEF: {entity: Duke}}
   # Queued Up FIPS codes retired by the Census Bureau -> current code
   fips_recode: {"46113": "46102"}   # Shannon County SD renamed Oglala Lakota County, 2015 (Census Bureau)
+  # Service values treated as ERIS besides the built-in patterns (exact, case-insensitive).
+  # ISO-NE "NR" (Network Resource, vs CNR Capacity Network Resource) stays NRIS by default;
+  # set ["NR"] for the sensitivity.
+  service_eris_extra: []
   min_mw_share: 0.85    # link-report flags a workbook with less than this share of MW placed
   status_map:   # normalised status values
     active: ["active"]
@@ -108,6 +112,7 @@ estimation:
   techs: ["solar", "wind", "storage", "hybrid", "gas"]
   winsorize_pct: 0.99            # cap extreme $/kW values
   min_capacity_mw: 5
+  exclude_offshore_wind: true    # offshore projects (no onshore county; export cable costs) stay in lbnl_projects_clean, flagged
   # Dependent variable: log(1 + network $/kW). Saturation enters as a linear spline with these knots.
   saturation_knots: [0.25, 0.5, 1.0]
   min_obs_above_knot: 50         # drop knots with too few projects above them
