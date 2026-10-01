@@ -10,7 +10,7 @@ changing the method.
 ## Commands
 
 ```
-bash scripts/fetch_data.sh            # EIA-860M + any LBNL workbooks uploaded to the project
+bash scripts/fetch_data.sh            # downloads EIA-860M and the six LBNL workbooks
 python -m icsc.cli panel              # zone saturation panel (real data, no LBNL needed)
 python -m icsc.cli inspect-lbnl       # how LBNL headers resolved; fix config.yaml lbnl.columns
 python -m icsc.cli fit-weights        # proxy x tech weights x reuse share, ranked by AIC

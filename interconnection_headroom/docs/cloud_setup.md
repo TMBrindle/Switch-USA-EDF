@@ -56,10 +56,12 @@ No secrets are needed: all inputs are public.
 **New project** → name `Interconnection headroom curves`, repository `Switch-USA-EDF`.
 In **Project settings > Environment**, pick the `switch-usa-edf` environment.
 
-Upload the LBNL interconnection cost workbooks to the **Library** tab (download them from
-https://emp.lbl.gov/interconnection_costs on your own machine first; the site may block scripted
-downloads). Threads see them under `/mnt/project-files`, and `scripts/fetch_data.sh` copies them
-into `data/raw/lbnl/`. Library limits: 480 MB per file, 2 GB per upload.
+`scripts/fetch_data.sh` downloads the six LBNL interconnection cost workbooks (MISO, PJM, SPP,
+ISO-NE, NYISO and the non-ISO release) from eta-publications.lbl.gov, so keep that domain on the
+allowlist. If the download is blocked, download them from https://emp.lbl.gov/interconnection_costs
+on your own machine and upload them to the project's **Library** tab instead; the script copies
+anything under `/mnt/project-files` into `data/raw/lbnl/`. Library limits: 480 MB per file, 2 GB
+per upload.
 
 ## 4. Project instructions
 
