@@ -11,10 +11,12 @@ changing the method.
 
 ```
 bash scripts/fetch_data.sh            # downloads EIA-860M and the six LBNL workbooks
+python -m icsc.cli load-stats         # rebuild data/reference/zone_load_stats.csv (needs data/raw/load/)
 python -m icsc.cli panel              # zone saturation panel (real data, no LBNL needed)
 python -m icsc.cli inspect-lbnl       # how LBNL headers resolved; fix config.yaml lbnl.columns
 python -m icsc.cli link-report        # MW share of LBNL projects placed in zones, by ISO and status
-python -m icsc.cli fit-weights        # proxy x tech weights x reuse share, ranked by AIC
+python -m icsc.cli fit-weights        # proxy x tech weights x reuse share, ranked by QAIC
+python -m icsc.cli --config sensitivities/wind_050.yaml run --start-year 2026   # sensitivities extend config.yaml
 python -m icsc.cli run --start-year 2026
 SWITCH_SRC=/opt/switch-src pytest -q  # all tests, incl. a Switch toy solve with HiGHS
 ```
