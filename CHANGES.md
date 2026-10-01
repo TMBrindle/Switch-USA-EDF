@@ -984,3 +984,6 @@ and drop out of the sample.
 - `backstop_uprates: [new_line]`: available in every scenario, including reference. Its cost and
   year remain the marked placeholders in `uprate_options`.
 - run_summary.json adds `curve_mw_within_support`, `zones_beyond_support`, `support_edge_saturation`.
+- fit-weights ranks by QAIC (`qaic`, `d_qaic` columns): -2 llf / c + 2 (k + 1), c the Pearson
+  dispersion of the best model. PPML's Poisson likelihood on continuous $/kW is a quasi-likelihood,
+  so raw AIC differences scale with the cost level (c = 485 on the Oct 2026 sample).

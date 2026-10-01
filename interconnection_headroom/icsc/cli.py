@@ -187,15 +187,26 @@ def cmd_fit_weights(cfg: dict, proxies: list[str] | None = None) -> pd.DataFrame
                 m = estimate.fit(estimate.attach_saturation(base, panel), cfg)
                 rows.append({"proxy": proxy, **{f"w_{k}": v for k, v in w.items()}, "reuse_share": reuse,
                              "n": int(m.result.nobs), "r2": m.r2, "aic": m.result.aic,
+                             "llf": m.result.llf, "k": len(m.result.params),
+                             "dispersion": (m.result.pearson_chi2 / m.result.df_resid) if m.estimator == "ppml" else 1.0,
                              "sat_coef": m.result.params.get("sat"),
                              "sat_t": m.result.params.get("sat") / m.result.bse.get("sat")})
     res = pd.DataFrame(rows).sort_values("aic").reset_index(drop=True)
     res["d_aic"] = res["aic"] - res["aic"].iloc[0]
+    # PPML's Poisson likelihood on continuous, overdispersed $/kW is a quasi-likelihood: AIC
+    # differences scale with the cost level. Rank by QAIC = -2 llf / c + 2 (k + 1), with c the
+    # Pearson dispersion of the best model (common to all rows); for log-OLS c = 1, QAIC ~ AIC.
+    c_hat = float(res["dispersion"].iloc[0])
+    res["qaic"] = -2 * res["llf"] / c_hat + 2 * (res["k"] + (1 if c_hat != 1.0 else 0))
+    res["d_qaic"] = res["qaic"] - res["qaic"].min()
+    res = res.sort_values("qaic").reset_index(drop=True)
     out = Path(cfg["paths"]["outputs"])
     out.mkdir(parents=True, exist_ok=True)
     res.to_csv(out / "weight_search.csv", index=False)
-    print(res.head(15).round(3).to_string(index=False))
-    print(f"\n{(res['d_aic'] <= 2).sum()} of {len(res)} combinations within 2 AIC of the best. "
+    show = ["proxy", "w_wind", "w_storage", "w_gas", "reuse_share", "n", "r2", "sat_coef", "sat_t", "d_aic", "d_qaic"]
+    print(res[show].head(15).round(3).to_string(index=False))
+    print(f"\nQAIC dispersion c = {c_hat:.1f}. {(res['d_qaic'] <= 2).sum()} of {len(res)} combinations within 2 QAIC "
+          f"of the best ({(res['d_aic'] <= 2).sum()} within 2 raw AIC). "
           f"Full table: {out / 'weight_search.csv'}")
     return res
 
