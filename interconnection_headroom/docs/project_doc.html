@@ -113,7 +113,7 @@ ol.steps { padding-left: 1.3em; display: grid; gap: 8px; }
 <p>Each project gets its zone's saturation in the year it entered the queue. The central sample is active and completed projects. Withdrawn projects overstate costs because they were studied in overloaded clusters, so they are a high-cost sensitivity. Standard errors are clustered by zone. A spline knot is kept only if at least 50 projects sit above it. Beyond the 98th percentile of observed saturation, the last slope is extended and never allowed to turn negative. Tranches priced on that extrapolation are flagged.</p>
 
 <h3>3. Tranches</h3>
-<p>Each zone's curve starts at its 2026 saturation: the last EIA year plus planned additions and announced retirements. It is then split into seven steps, at +5%, +10%, +15%, +25%, +25%, +50% and +100% of the headroom proxy. Each step is priced for a reference project (150 MW solar, NRIS, 2024 queue year) under the zone's regime effect. Prices are forced to be non-decreasing, so the curve is convex and the LP fills it in order. Zones whose regime isn't in the LBNL sample (SERTP, FRCC, NorthernGrid, WestConnect, ERCOT for now) get the mean regime effect.</p>
+<p>Each zone's curve starts at its 2026 saturation: the last EIA year plus planned additions and announced retirements. It is then split into seven steps, at +5%, +10%, +15%, +25%, +25%, +50% and +100% of the headroom proxy. Each step is priced for a reference project (150 MW solar, NRIS, 2024 queue year) under the zone's regime effect. Prices are forced to be non-decreasing, so the curve is convex and the LP fills it in order. Zones whose regime isn't in the LBNL sample (WestConnect, CAISO and ERCOT for now) get the mean regime effect. The non-ISO release supplies NorthernGrid (BPA, PacifiCorp), SERTP (Duke Carolinas and Progress) and FRCC (Duke Florida). LBNL costs are deflated from each workbook's dollar year (2022, or 2024 for the non-ISO file).</p>
 
 <h2 id="data">Data</h2>
 <div class="tablewrap"><table>
@@ -122,7 +122,7 @@ ol.steps { padding-left: 1.3em; display: grid; gap: 8px; }
 <tr><td>EIA-860M, Aug 2026</td><td>IBR additions, retirements, planned changes by county</td><td><span class="pill ok">in repo</span></td></tr>
 <tr><td>ReEDS <code>county2zone</code>, <code>hierarchy</code></td><td>County → zone; zone → transmission region</td><td><span class="pill ok">in repo</span></td></tr>
 <tr><td>ReEDS NARIS 2024 county AC limits</td><td>Headroom proxy</td><td><span class="pill ok">in repo</span></td></tr>
-<tr><td>LBNL interconnection cost workbooks</td><td>Dependent variable</td><td><span class="pill todo">download</span></td></tr>
+<tr><td>LBNL interconnection cost workbooks</td><td>Dependent variable</td><td><span class="pill todo">partial</span> All six read (not committed; LBNL blocks scripted downloads, so add them by hand). MISO, PJM and SPP have no county, so most of their projects can't be placed in a zone yet.</td></tr>
 <tr><td>CPI-U annual</td><td>Deflate to 2024$</td><td><span class="pill todo">verify</span></td></tr>
 <tr><td>HIFLD lines by voltage</td><td>Caps for GETs and reconductoring tranches</td><td><span class="pill todo">later</span></td></tr>
 </tbody></table></div>
@@ -203,6 +203,7 @@ released         ≤ s0 × MW of uprates built         (existing use fills less 
   <li><strong>Endogenous proxy.</strong> NARIS 2024 limits include lines built because of IBR, such as CREZ. That lowers measured saturation exactly where development has been heaviest. A pre-2010 network snapshot would be cleaner if one exists.</li>
   <li><strong>Retirement reuse and load growth.</strong> See the PJM note above.</li>
   <li><strong>Regime coverage.</strong> ERCOT and the non-ISO Southeast and West rely on the mean regime effect unless LBNL's non-ISO release covers them. ERCOT uses connect-and-manage, so its cost appears as congestion rather than upgrade charges; the hub version below handles that properly.</li>
+  <li><strong>No county in MISO, PJM and SPP.</strong> LBNL gives only state and transmission owner for these three ISOs, so their projects can't be placed in a ReEDS zone except in single-zone states. Without a project-to-county source they drop out, and the MISO, PJM and SPP regime effects can't be estimated.</li>
   <li><strong>Withdrawal selection.</strong> The completed sample is survivor-biased and the withdrawn sample is cluster-inflated. Report results under both.</li>
 </ul>
 

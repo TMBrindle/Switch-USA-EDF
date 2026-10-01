@@ -6,6 +6,7 @@ names are resolved through the candidate lists in config.yaml (lbnl.columns).
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -53,11 +54,36 @@ def read_workbook(path: Path, cfg: dict) -> tuple[pd.DataFrame, dict]:
                 resolved[field] = lower[c.lower()]
                 break
     out = pd.DataFrame({f: df[resolved[f]] if f in resolved else np.nan for f in FIELDS})
+    out["queue_year"] = _to_year(out["queue_year"])
+    if "cost_year" not in resolved:
+        out["cost_year"] = _dollar_year(path, resolved, lc)
     out["source_file"] = path.name
     out["source_sheet"] = sheet
     if pd.isna(out["region"]).all():
         out["region"] = path.stem  # fall back to file name (e.g. "MISO")
     return out, resolved
+
+
+def _to_year(s: pd.Series) -> pd.Series:
+    """Year from a year or a date column (LBNL gives queue dates; SPP gives the year only)."""
+    if pd.api.types.is_datetime64_any_dtype(s):
+        return s.dt.year.astype(float)
+    num = pd.to_numeric(s, errors="coerce")
+    if num.dropna().between(1900, 2100).all():
+        return num
+    return pd.to_datetime(s, errors="coerce").dt.year.astype(float)
+
+
+def _dollar_year(path: Path, resolved: dict, lc: dict) -> float:
+    """Dollar year of a workbook's costs: config lbnl.cost_dollar_year, checked against any "$YYYY" header."""
+    in_header = {int(m.group(1)) for f in ("poi_cost", "network_cost", "total_cost") if f in resolved
+                 for m in [re.match(r"\s*\$(\d{4})\b", str(resolved[f]))] if m}
+    configured = (lc.get("cost_dollar_year") or {}).get(path.stem)
+    if len(in_header) > 1 or (configured and in_header and in_header != {configured}):
+        raise ValueError(f"{path.name}: cost headers say ${sorted(in_header)}, config lbnl.cost_dollar_year "
+                         f"says {configured}")
+    year = configured or next(iter(in_header), None)
+    return float(year) if year else np.nan
 
 
 def inspect(cfg: dict) -> str:
@@ -67,8 +93,11 @@ def inspect(cfg: dict) -> str:
         xl = pd.ExcelFile(p)
         df, resolved = read_workbook(p, cfg)
         missing = [f for f in REQUIRED if f not in resolved]
+        if df["cost_year"].isna().all():
+            missing.append("cost_year (no column; add the file to lbnl.cost_dollar_year)")
         lines.append(f"\n== {p.name}\n  sheets: {xl.sheet_names}\n  using sheet: {df['source_sheet'].iat[0]}"
-                     f"\n  resolved: {resolved}\n  MISSING required: {missing or 'none'}")
+                     f"\n  resolved: {resolved}\n  cost dollar year: {sorted(int(y) for y in df['cost_year'].dropna().unique())}"
+                     f"\n  MISSING required: {missing or 'none'}")
         raw = pd.read_excel(xl, sheet_name=df["source_sheet"].iat[0], header=None,
                             nrows=cfg["lbnl"]["header_search_rows"])
         hdr = _find_header(raw, cfg["lbnl"]["columns"], cfg["lbnl"]["header_search_rows"])

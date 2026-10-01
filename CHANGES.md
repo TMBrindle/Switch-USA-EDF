@@ -842,3 +842,34 @@ the reactive engineering cost used for the capacity estimate, and the proactive-
 multiplier are placeholders; confirm from `ic_connect_cost_check.csv` that `interconnect_capex_mw`
 includes `tx_capex`, and whether `spur_capex` is counted twice in the existing
 `gen_connect_cost_per_mw` formula. See the guide.
+
+---
+
+## 26. Interconnection Headroom — LBNL Cost Data Ingest
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest` (into `tom/interconnection-headroom`)
+
+**What changed.** The six LBNL workbooks (MISO 2021, PJM 2022, SPP 2023, ISO-NE, NYISO, non-ISO
+BAs Feb 2026) now resolve in `inspect-lbnl` with no required column missing.
+
+**Files changed:**
+- `interconnection_headroom/config.yaml`
+  - `lbnl.columns`: added the real LBNL headers (`Nameplate MW`, `Queue Date`, `Project #`,
+    `Queue ID 1`, `$2022 …/$2024 … Cost/kW`, MISO's `Real POI/Network/Total/kW`). Dropped
+    `Study Year` from `cost_year`: LBNL costs are already in constant dollars, so the study year is
+    not their dollar year.
+  - new `lbnl.cost_dollar_year` (by file name): 2022 for MISO, PJM, SPP, ISO-NE and NYISO, 2024 for
+    the non-ISO file (from each workbook's codebook or headers).
+  - `lbnl.status_map`: `completed` now matches `complete`. LBNL writes "Complete", which the old
+    `completed` token missed, dropping every completed project from the central sample.
+  - `regimes.lbnl_to_regime`: non-ISO BAs mapped to the ReEDS `transreg` of the zones their projects
+    fall in (BPA, PAC → NorthernGrid; DEC, DEP → SERTP; DEF → FRCC).
+- `interconnection_headroom/icsc/lbnl.py`
+  - queue year taken from a date column (`Queue Date`) as well as a year column.
+  - costs are deflated from the workbook's dollar year (`cost_dollar_year`, cross-checked against
+    any `$YYYY` header prefix; a mismatch is an error) instead of the study or queue year.
+  - `inspect-lbnl` prints each workbook's cost dollar year and flags it if unknown.
+
+**Open:** the MISO, PJM and SPP workbooks have no county column, so their projects map to a ReEDS
+zone only in states served by one zone (PJM 11% of rows; MISO and SPP 0%). They need a
+project-to-county (or POI) source before they can enter the estimation sample.

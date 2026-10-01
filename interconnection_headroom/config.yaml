@@ -47,25 +47,35 @@ lbnl:
   sheet_hint: ["data", "project", "cost"]   # sheet name substrings to try
   header_search_rows: 10                    # header row is detected within the first N rows
   columns:
-    project_id:   ["Queue ID", "Project ID", "q_id", "Request ID"]
+    project_id:   ["Queue ID", "Project ID", "q_id", "Request ID", "Project #", "Queue ID 1"]
     region:       ["ISO/RTO", "Region", "Transmission Provider", "BA", "Market"]
     state:        ["State", "state"]
     county:       ["County", "county"]
     fips:         ["FIPS", "County FIPS", "fips"]
     tech:         ["Fuel", "Technology", "Type", "Resource Type", "Fuel Type"]
-    capacity_mw:  ["Nameplate Capacity (MW)", "Capacity (MW)", "MW", "Size (MW)"]
-    queue_year:   ["Queue Year", "Request Year", "Year of Request", "q_year"]
+    capacity_mw:  ["Nameplate Capacity (MW)", "Capacity (MW)", "MW", "Size (MW)", "Nameplate MW"]
+    # LBNL releases give a queue date (SPP: year only); the pipeline keeps the year
+    queue_year:   ["Queue Year", "Request Year", "Year of Request", "q_year", "Queue Date"]
     status:       ["Request Status", "Status", "Queue Status"]
     service:      ["Service Type", "Interconnection Service", "NRIS/ERIS"]
-    cost_year:    ["Cost Year", "Dollar Year", "Study Year"]
-    poi_cost:     ["POI Cost ($/kW)", "POI Cost", "Interconnection Facility Cost ($/kW)", "POI ($/kW)"]
-    network_cost: ["Network Upgrade Cost ($/kW)", "Network Cost ($/kW)", "Network ($/kW)", "Network Upgrades ($/kW)"]
-    total_cost:   ["Total Cost ($/kW)", "Total ($/kW)", "Total Interconnection Cost ($/kW)"]
+    # Dollar year of the cost columns. Not "Study Year": LBNL costs are already in constant dollars.
+    cost_year:    ["Cost Year", "Dollar Year"]
+    poi_cost:     ["POI Cost ($/kW)", "POI Cost", "Interconnection Facility Cost ($/kW)", "POI ($/kW)",
+                   "$2022 POI Cost/kW", "$2024 POI Cost/kW", "Real POI/kW"]
+    network_cost: ["Network Upgrade Cost ($/kW)", "Network Cost ($/kW)", "Network ($/kW)", "Network Upgrades ($/kW)",
+                   "$2022 Network Cost/kW", "$2024 Network Cost/kW", "Real Network/kW"]
+    total_cost:   ["Total Cost ($/kW)", "Total ($/kW)", "Total Interconnection Cost ($/kW)",
+                   "$2022 Total Cost/kW", "$2024 Total Cost/kW", "Real Total/kW"]
+  # Dollar year of each workbook's costs (by file name), used when there is no cost_year column.
+  # Source: each workbook's codebook / headers. MISO, PJM, SPP, ISO-NE, NYISO: "real $2022/kW"
+  # (GDP deflator); non-ISO BAs (Feb 2026 release): "$2024 ... Cost/kW" headers.
+  # A "$YYYY" prefix in a cost header that disagrees with this is an error.
+  cost_dollar_year: {MISO: 2022, PJM: 2022, SPP: 2022, ISONE: 2022, NYISO: 2022, NonISO: 2024}
   # If costs are given in $ (not $/kW), set to true and the pipeline divides by capacity*1000
   costs_are_total_dollars: false
   status_map:   # normalised status values
     active: ["active"]
-    completed: ["completed", "operational", "in service", "done"]
+    completed: ["complete", "operational", "in service", "done"]   # "complete" also matches "completed"
     withdrawn: ["withdrawn", "suspended", "cancelled", "canceled"]
   tech_map:
     solar: ["solar", "pv"]
@@ -163,7 +173,11 @@ scenarios:
 # ---------------------------------------------------------------------------
 regimes:
   lbnl_to_regime: {"ISO-NE": ISONE, "ISO New England": ISONE, "NYISO": NYISO, "PJM": PJM, "MISO": MISO,
-                   "SPP": SPP, "CAISO": CAISO, "ERCOT": ERCOT}
+                   "SPP": SPP, "CAISO": CAISO, "ERCOT": ERCOT,
+                   # non-ISO release (column "BA") -> ReEDS transreg of the zones its projects map to:
+                   # BPA 274/274 matched rows NorthernGrid; PAC 1019 NorthernGrid, 82 WestConnect (PacifiCorp
+                   # plans in NorthernGrid); DEC 183/183 and DEP 287/287 SERTP; DEF 197 FRCC, 5 SERTP
+                   "BPA": NorthernGrid, "PAC": NorthernGrid, "DEC": SERTP, "DEP": SERTP, "DEF": FRCC}
   transreg_to_regime: {}      # e.g. {SERTP: "Southeast utilities"} once non-ISO BAs are in the sample
 
 # ---------------------------------------------------------------------------
