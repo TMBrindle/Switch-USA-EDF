@@ -949,3 +949,9 @@ and drop out of the sample.
     where BA footprints line up (PJM, NYIS, ISNE, ERCO, NEVP, DUK): median |diff| energy 3.7%, peak
     4.2%. 2016-18 shares reproduce 2019-23 zone peaks within 2.1% (median), 9.5% (90th pct); worst
     in Texas zones (p62 2021, Winter Storm Uri: +59%).
+- Year-matched load proxies `boundary+peak`, `boundary+median`, `boundary+p10`: boundary export
+  capacity + that zone-year statistic from zone_load_stats.csv (`eia.zone_components` accepts a
+  (ba, year) proxy; panel years before 2010 take 2010). Uprate caps and "% network added" use
+  `base_capacity_mw`, the chosen proxy in the start year. Sample saturation p98 (default weights):
+  transfer 0.129, boundary+peak 0.243, boundary+median 0.313, boundary+p10 0.329, boundary 0.505,
+  generation 0.634.

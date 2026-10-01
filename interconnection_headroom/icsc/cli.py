@@ -26,6 +26,9 @@ def load_cfg(path: str) -> dict:
     root = Path(path).resolve().parent
     for k, v in cfg["paths"].items():
         cfg["paths"][k] = str(root / v)
+    for k, v in (cfg.get("load") or {}).items():
+        if isinstance(v, str) and ("/" in v):
+            cfg["load"][k] = str(root / v)
     for k in ("transfer_capacity", "boundary_capacity"):
         if k in cfg["saturation"]:
             cfg["saturation"][k] = str(root / cfg["saturation"][k])
@@ -34,12 +37,19 @@ def load_cfg(path: str) -> dict:
 
 
 def proxy_capacity(cfg: dict, c2z: pd.DataFrame, proxy: str) -> pd.Series | None:
-    """Zone headroom proxy (MW) for a network-capacity proxy; None for "generation" (EIA nameplate)."""
+    """Zone headroom proxy (MW): by zone, or by (ba, year) for the year-matched load proxies
+    (boundary+peak/median/p10: boundary export capacity + that zone-year load statistic from
+    zone_load_stats.csv). None for "generation" (EIA nameplate online at baseline_year)."""
     sc = cfg["saturation"]
     if proxy == "transfer":
         return network.transfer_capacity_by_zone(sc["transfer_capacity"], c2z, sc["boundary_weight"])["transfer_mw"]
-    if proxy == "boundary":
-        return network.boundary_capacity_by_zone(sc["boundary_capacity"], c2z["ba"].unique())
+    if proxy == "boundary" or proxy.startswith("boundary+"):
+        b = network.boundary_capacity_by_zone(sc["boundary_capacity"], c2z["ba"].unique())
+        if proxy == "boundary":
+            return b
+        stat = {"boundary+peak": "peak_mw", "boundary+median": "median_mw", "boundary+p10": "p10_mw"}[proxy]
+        ls = pd.read_csv(cfg["load"]["stats"]).set_index(["ba", "year"])[stat]
+        return (ls + b.reindex(ls.index.get_level_values("ba")).values).rename("proxy_mw")
     if proxy == "generation":
         return None
     raise ValueError(f"unknown headroom proxy {proxy!r}")
