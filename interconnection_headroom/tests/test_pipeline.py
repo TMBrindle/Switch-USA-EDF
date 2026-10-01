@@ -131,14 +131,23 @@ def test_synthetic_recovery(cfg, built, tmp_path):
     assert np.allclose(flat.groupby("ba")["cost_per_kw"].first(), first)
     assert (flat["cost_per_kw"] <= tr.sort_values(["ba", "sat_from"])["cost_per_kw"].values + 1e-9).all()
     _, _, up = tranches.apply_scenario(zr, tr, c, {"uprates": ["gets", "reconductor"]})
-    assert len(up) == 2 * len(zr)
+    assert len(up) == 3 * len(zr)  # plus the new_line backstop
     g = up[up.uprate == "gets"].merge(zr, on="ba")
     assert np.allclose(g["max_mw"], c["uprate_options"]["gets"]["share_of_capacity"] * g["base_capacity_mw"])
-    _, _, none = tranches.apply_scenario(zr, tr, c, {})
-    assert none.empty
+    _, _, ref = tranches.apply_scenario(zr, tr, c, {})
+    assert set(ref["uprate"]) == set(c["backstop_uprates"]) and len(ref) == len(zr)
+
+    # empirical steps stop at the support edge; zones beyond it get one edge-priced step
+    edge = m.sat_support
+    inside = tr[~tr["beyond_support"]]
+    assert np.allclose(inside.groupby("ba")["sat_to"].max(), edge)
+    assert (inside["width"] <= c["tranches"]["step_width"] + 1e-9).all()
+    assert not tr["extrapolated"].any()
+    out = tr[tr["beyond_support"]]
+    assert (out.groupby("ba").size() == 1).all()
+    assert np.allclose(out["width"], c["tranches"]["edge_step_width"])
 
 
-@pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
 def test_zone_regimes_utilities(cfg):
     hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
     lab = tranches.zone_regime_labels(hier, cfg)
@@ -167,6 +176,7 @@ def test_fit_weights_uses_run_regimes(cfg, built, monkeypatch, tmp_path):
     assert set(fw["regime"]) <= zone_labels, set(fw["regime"]) - zone_labels
 
 
+@pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
 def test_switch_module_on_toy(tmp_path):
     import os
     base = Path(os.environ.get("SWITCH_SRC", ROOT.parent.parent / "switch-src"))

@@ -971,3 +971,16 @@ and drop out of the sample.
   `tranches.reference_status: completed` ("active" for the sensitivity).
 - fit-weights grid: proxies from `weight_search.proxies`; wind 0.25-1, storage 0.5, gas 0/0.5/1,
   reuse 0/0.1/0.25/0.5.
+
+## 30. Interconnection Headroom — Curve Support and Backstop
+
+**Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
+
+- Empirical tranches run from each zone's start saturation to the sample's support edge
+  (`estimation.support_quantile`, 0.98, of sample saturation under the chosen proxy) in equal steps
+  of at most `tranches.step_width` (0.015). Zones already at or beyond the edge get one step of
+  `edge_step_width` (0.01) priced at the edge (`beyond_support` column). Replaces the fixed
+  `tranches.steps` list. `extrapolated` is kept (now false by construction).
+- `backstop_uprates: [new_line]`: available in every scenario, including reference. Its cost and
+  year remain the marked placeholders in `uprate_options`.
+- run_summary.json adds `curve_mw_within_support`, `zones_beyond_support`, `support_edge_saturation`.

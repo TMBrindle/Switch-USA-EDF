@@ -54,10 +54,14 @@ def build_reference(model: CostModel, panel: pd.DataFrame, regimes: pd.DataFrame
                     ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (zones, tranches) for every zone, starting from its saturation in start_year.
 
-    Costs are made non-decreasing (cumulative max) so the curve is convex and the LP fills it in order.
+    The empirical curve runs from the zone's start saturation s0 to the sample's support edge
+    (model.sat_support, the support_quantile of sample saturation) in equal steps of about
+    tranches.step_width. A zone already at or beyond the edge gets one step of edge_step_width
+    priced at the edge. Beyond that, headroom comes only from uprates (new_line is the backstop in
+    every scenario). Costs are made non-decreasing (cumulative max) so the LP fills them in order.
     """
     tc = cfg["tranches"]
-    steps = np.asarray(tc["steps"], dtype=float)
+    edge = float(model.sat_support)
     cur = panel[panel["year"] == min(start_year, panel["year"].max())].set_index("ba")
     eff = model.regime_effects()
     zrows, trows = [], []
@@ -66,8 +70,14 @@ def build_reference(model: CostModel, panel: pd.DataFrame, regimes: pd.DataFrame
             continue
         effect = float(eff.min()) if regime_override == "best" else regimes.at[ba, "regime_effect"]
         s0 = float(r["saturation"])
-        edges = s0 + np.concatenate([[0], np.cumsum(steps)])
-        mids = (edges[:-1] + edges[1:]) / 2
+        if s0 < edge:
+            n = max(1, int(np.ceil((edge - s0) / tc["step_width"])))
+            edges = np.linspace(s0, edge, n + 1)
+            mids = (edges[:-1] + edges[1:]) / 2
+        else:   # already past the data: one short step at the edge price
+            edges = np.array([s0, s0 + tc["edge_step_width"]])
+            mids = np.array([edge])
+        steps = np.diff(edges)
         cost = np.maximum.accumulate(_predict_with_effect(model, mids, effect, cfg))
         cost = np.minimum(cost, tc["max_cost_per_kw"])
         # released headroom sits just below s0: price it at the marginal cost at s0
@@ -78,7 +88,8 @@ def build_reference(model: CostModel, panel: pd.DataFrame, regimes: pd.DataFrame
         for i, (st, c) in enumerate(zip(steps, cost)):
             trows.append({"ba": ba, "tranche": f"nu{i + 1}", "width": float(st),
                           "cost_per_kw": float(c), "sat_from": edges[i], "sat_to": edges[i + 1],
-                          "extrapolated": bool(mids[i] > model.sat_support), "available_year": 0})
+                          "extrapolated": bool(mids[i] > model.sat_support + 1e-12),
+                          "beyond_support": bool(s0 >= edge), "available_year": 0})
     return pd.DataFrame(zrows), pd.DataFrame(trows)
 
 
@@ -92,6 +103,7 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
       cost_multiplier: x        height: scale every step's cost (and the release cost)
       slope_multiplier: m       steepness: c_k -> c_1 * (c_k / c_1) ** m within each zone
       uprates: [names]          network capacity options from `uprate_options`, which Switch may build
+                                (plus `backstop_uprates`, available in every scenario)
     """
     if scen.get("regime_override") == "best" and best is not None:
         zones, tranches = best
@@ -107,7 +119,8 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
         z["release_cost_per_kw"] *= scen["cost_multiplier"]
     opts = cfg.get("uprate_options", {})
     rows = []
-    for name in scen.get("uprates", []):
+    names = list(dict.fromkeys(list(scen.get("uprates", [])) + list(cfg.get("backstop_uprates", []))))
+    for name in names:
         o = opts[name]
         for _, r in z.iterrows():
             rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name),

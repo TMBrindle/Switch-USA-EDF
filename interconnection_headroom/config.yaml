@@ -153,8 +153,11 @@ weight_search:
 # Tranche generation
 # ---------------------------------------------------------------------------
 tranches:
-  # Additional saturation steps above each zone's current saturation
-  steps: [0.05, 0.10, 0.15, 0.25, 0.25, 0.5, 1.0]
+  # Empirical steps run from each zone's start saturation to the sample's support edge
+  # (estimation.support_quantile of sample saturation) in equal steps of about step_width.
+  # Zones already beyond the edge get one step of edge_step_width priced at the edge.
+  step_width: 0.015
+  edge_step_width: 0.01
   reference_tech: solar
   reference_capacity_mw: 150
   reference_service: NRIS
@@ -191,9 +194,11 @@ reactive_cost_per_kw_network: 150
 #   slope_multiplier: m     steepness: scale the rise above the first step (log space)
 #   uprates: [...]          network capacity Switch may build (stretches the curve and moves
 #                           zones back down it); options from uprate_options
-# The reference case has no uprate options: today's reinforcement is reactive and is already
-# embedded in the empirical curve.
+# backstop_uprates are available in every scenario, including reference: beyond the empirical
+# curve (the data's support edge), headroom comes only from building network capacity.
 # ---------------------------------------------------------------------------
+backstop_uprates: [new_line]   # cost and year are the marked placeholders in uprate_options
+
 scenarios:
   reference: {}
   best_regime:

@@ -126,6 +126,9 @@ def cmd_run(cfg: dict, start_year: int, scenarios: list[str] | None):
             "zones": int(len(z)),
             "curve_mw_at_base_capacity": round(float(mw["mw"].sum())),
             "first_step_median_cost_per_kw": round(float(t.groupby("ba")["cost_per_kw"].first().median()), 1),
+            "curve_mw_within_support": round(float(mw.loc[~mw["extrapolated"] & ~mw["beyond_support"], "mw"].sum())),
+            "zones_beyond_support": int(z["start_saturation"].ge(model.sat_support).sum()),
+            "support_edge_saturation": round(float(model.sat_support), 4),
             "share_of_curve_mw_extrapolated": round(float((mw["mw"] * mw["extrapolated"]).sum() / mw["mw"].sum()), 3),
             "uprate_mw_available": round(float(u["max_mw"].sum())) if len(u) else 0,
         }
