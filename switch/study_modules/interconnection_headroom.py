@@ -30,7 +30,10 @@ Costs: generation-side reactive upgrades (sum c_k x ICStep + release cost) and d
 uprates (MW added x $/MW), both annualised over ic_asset_life_years.
 
 Reporting (post_solve):
-  ic_spend.csv      overnight and annual $ by zone, period and type
+  ic_spend.csv      overnight and annual $ by zone, period and type: reactive_upgrades and
+                    uprate types per IC zone; spur and poi per load zone (new builds x the
+                    ic_connect_components.csv parts of gen_connect_cost_per_mw, annualised like
+                    the generator's capital cost; accounting only, already in the objective)
   ic_network.csv    network capacity: base, added by deliberate uprates, estimated added by
                     reactive upgrades (reactive spend / ic_reactive_cost_per_mw_network), %
   ic_headroom.csv   headroom used, freed, bought, and the constraint dual, by load zone
@@ -51,6 +54,9 @@ ic_weights.csv          ic_key, ic_weight (gen_tech first, then gen_energy_sourc
 ic_params.csv           ic_retirement_reuse_share, ic_storage_weight, ic_default_weight,
                         ic_asset_life_years, ic_reactive_cost_per_mw_network        [optional]
 ic_zone_params.csv      LOAD_ZONE, ic_initial_headroom_mw                           [optional]
+ic_connect_components.csv  GENERATION_PROJECT, spur_cost_per_mw, poi_cost_per_mw
+                        (+ co2_pipeline_cost_per_mw): the parts of gen_connect_cost_per_mw, for
+                        the spend report only (pg_to_switch, split_connect_costs)    [optional]
 
 Status: draft. Tested on the Switch 2.0.9 3zone_toy example; not yet run on a full case.
 """
@@ -80,6 +86,10 @@ def define_components(m):
     # an estimate of capacity added by the empirical (generator-paid) curve
     m.ic_reactive_cost_per_mw_network = Param(within=NonNegativeReals, default=0.0)
     m.IC_ZONES_WITH_INITIAL = Set(dimen=1, within=m.LOAD_ZONES)
+    # parts of gen_connect_cost_per_mw, reporting only
+    m.IC_CONNECT_GENS = Set(dimen=1, within=m.GENERATION_PROJECTS)
+    m.gen_ic_spur_cost_per_mw = Param(m.IC_CONNECT_GENS, within=NonNegativeReals, default=0.0)
+    m.gen_ic_poi_cost_per_mw = Param(m.IC_CONNECT_GENS, within=NonNegativeReals, default=0.0)
     m.ic_initial_headroom_mw = Param(m.LOAD_ZONES, within=NonNegativeReals, default=0.0)
 
     # ---- interconnection zones -------------------------------------------
@@ -266,8 +276,35 @@ def load_inputs(m, switch_data, inputs_dir):
         param=(m.ic_retirement_reuse_share, m.ic_storage_weight, m.ic_default_weight,
                m.ic_asset_life_years, m.ic_reactive_cost_per_mw_network))
     switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "ic_connect_components.csv"),
+        optional=True, index=m.IC_CONNECT_GENS, select=("GENERATION_PROJECT", "spur_cost_per_mw", "poi_cost_per_mw"),
+        param=(m.gen_ic_spur_cost_per_mw, m.gen_ic_poi_cost_per_mw))
+    switch_data.load_aug(
         filename=os.path.join(inputs_dir, "ic_zone_params.csv"),
         optional=True, index=m.IC_ZONES_WITH_INITIAL, param=(m.ic_initial_headroom_mw,))
+
+
+def connect_spend(m):
+    """spur and poi rows for ic_spend.csv: new builds x the connection-cost parts, by load zone and
+    build period. Annualised over gen_max_age, as gen_capital_cost_annual does."""
+    rows = {}
+    life = m.gen_max_age
+    for g, y in m.NEW_GEN_BLD_YRS:
+        if g not in m.IC_CONNECT_GENS:
+            continue
+        mw = value(m.BuildGen[g, y])
+        if mw <= 1e-9:
+            continue
+        f = value(crf(m.interest_rate, life[g]))
+        for kind, cost in (("spur", m.gen_ic_spur_cost_per_mw[g]), ("poi", m.gen_ic_poi_cost_per_mw[g])):
+            r = rows.setdefault((m.gen_load_zone[g], y, kind), [0.0, 0.0, 0.0])
+            r[0] += mw * value(cost)
+            r[1] += mw * value(cost) * f
+            r[2] += mw
+    return [{"ic_zone": None, "load_zone": z, "period": y, "type": kind, "overnight_cost": c,
+             "annual_cost": a, "network_mw_added": None, "generation_mw_enabled": None,
+             "generation_mw_connected": mw, "network_mw_per_generation_mw": None}
+            for (z, y, kind), (c, a, mw) in sorted(rows.items())]
 
 
 def post_solve(m, outdir):
@@ -321,6 +358,7 @@ def post_solve(m, outdir):
                 "headroom_from_curve_mw": steps,
                 "headroom_released_mw": rel,
             })
+    spend += connect_spend(m)
     pd.DataFrame(spend).to_csv(os.path.join(outdir, "ic_spend.csv"), index=False)
     pd.DataFrame(network).to_csv(os.path.join(outdir, "ic_network.csv"), index=False)
 

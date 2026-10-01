@@ -891,11 +891,8 @@ def gen_info_file(
 
     # interconnection headroom (interconnection_headroom/, study_modules.interconnection_headroom):
     # network reinforcement is priced by zonal tranches instead of per-resource tx_capex
-    ic_diag = None
-    if ic_case.ic_settings(settings) and ic_case.ic_settings(settings).get(
-        "exclude_network_reinforcement", True
-    ):
-        ic_diag = ic_case.strip_network_reinforcement(gen_info, gens)
+    # (with split_connect_costs, connection cost = spur + LBNL POI; see icsc/switch_case.py)
+    ic_diag = ic_case.prepare_connect_costs(gen_info, gens, settings)
 
     # Drop the heat rate that PowerGenome provides for many non-fuel-using generators
     # TODO: check if this is still true and remove this or move to gen_info_table()

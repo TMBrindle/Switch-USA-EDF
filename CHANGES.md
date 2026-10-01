@@ -1005,3 +1005,25 @@ and drop out of the sample.
 - `tranches.edge_step_width: 0.05`; `uprate_options.new_line.available_year: 2030` (placeholder).
 - `sensitivities/{wind_050,boundary_p10,price_active}.yaml` extend config.yaml (`extends:`, deep
   merge; paths resolve against the base) and write to `outputs/sens_*`.
+
+## 32. Interconnection Headroom — POI Costs and Connection-Cost Split
+
+**Date:** 2026-10-01 · **Branch:** `tom/poi-costs` (off `tom/lbnl-ingest`)
+
+- `icsc/poi.py`, written by `run` to `outputs/poi_costs.csv`: median LBNL POI $/kW (2024$) by
+  regime x technology from completed projects in the estimation sample; cells with fewer than
+  `poi.min_n` (10) projects use the national median for the technology (`source` column).
+- `pg_to_switch.py` / `icsc/switch_case.prepare_connect_costs` (interconnection_headroom enabled,
+  `split_connect_costs: true`): gen_connect_cost_per_mw = spur + POI (+ CO2 pipeline cost, unchanged).
+  Spur = the spur cost PowerGenome used + offshore_spur_capex. POI = poi_costs.csv for the zone's
+  regime (zones_<scenario>.csv) and the project's technology; offshore wind and technologies with no
+  LBNL estimate keep PowerGenome's residual (interconnect_capex_mw - spur - offshore spur - tx_capex).
+  tx_capex is dropped as before. Writes `ic_connect_components.csv` (GENERATION_PROJECT,
+  spur_cost_per_mw, poi_cost_per_mw) and an extended `ic_connect_cost_check.csv` (residual replaced,
+  POI source). This also removes any double count of spur (PowerGenome's gen_connect added spur_capex
+  to interconnect_capex_mw).
+- `switch/study_modules/interconnection_headroom.py`: optional `ic_connect_components.csv`;
+  `ic_spend.csv` gains `spur` and `poi` rows per load zone and build period for new builds
+  (overnight, annual over gen_max_age as gen_capital_cost_annual, MW connected). Reporting only.
+- Not yet checked on a real case: what PowerGenome's residual component is (ic_connect_cost_check.csv
+  is written by a case build on energyVm1).

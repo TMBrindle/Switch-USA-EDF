@@ -155,6 +155,14 @@ weight_search:
   reuse_share: [0.0, 0.1, 0.25, 0.5]
 
 # ---------------------------------------------------------------------------
+# POI (point-of-interconnection) costs: median LBNL POI $/kW by regime x tech -> outputs/poi_costs.csv.
+# pg_to_switch prices each new project's POI cost from it when interconnection_headroom is enabled.
+# ---------------------------------------------------------------------------
+poi:
+  statuses: [completed]
+  min_n: 10          # cells with fewer projects use the national median for the technology
+
+# ---------------------------------------------------------------------------
 # Tranche generation
 # ---------------------------------------------------------------------------
 tranches:

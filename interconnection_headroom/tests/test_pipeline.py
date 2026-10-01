@@ -227,6 +227,11 @@ def test_switch_module_on_toy(tmp_path):
         f.write("\nic_mod.interconnection_headroom\n")
     for f in ("ic_zones.csv", "ic_tranches.csv", "ic_uprates.csv", "ic_params.csv", "ic_weights.csv"):
         shutil.copy(ROOT / "tests/switch_toy" / f, run / "inputs")
+    # connection cost split into spur (60%) and POI (40%) for the spend report
+    gi = pd.read_csv(run / "inputs/gen_info.csv", na_values=".")
+    cc = gi["gen_connect_cost_per_mw"].fillna(0)
+    pd.DataFrame({"GENERATION_PROJECT": gi["GENERATION_PROJECT"], "spur_cost_per_mw": 0.6 * cc,
+                  "poi_cost_per_mw": 0.4 * cc}).to_csv(run / "inputs/ic_connect_components.csv", index=False)
     r = subprocess.run(["switch", "solve", "--solver", "appsi_highs"], cwd=run, capture_output=True,
                        text=True, env={**__import__("os").environ, "PYTHONPATH": str(run)})
     assert r.returncode == 0, r.stderr[-2000:]
@@ -256,6 +261,25 @@ def test_switch_module_on_toy(tmp_path):
     assert np.isclose(sp.loc["reactive_upgrades", "network_mw_added"], sp.loc["reactive_upgrades", "overnight_cost"] / k)
     w = pd.read_csv(run / "outputs/ic_gen_weights.csv").set_index("GENERATION_PROJECT")["ic_weight"]
     assert w["C-NG_CC"] == 1.0 and w["N-Wind-1"] == 0.75 and w["N-Central_PV-1"] == 1.0
+    # spur + poi rows = new builds x gen_connect_cost_per_mw, overnight and annualised over gen_max_age
+    rate = pd.read_csv(run / "inputs/financials.csv")["interest_rate"].iat[0]
+    bgall = pd.read_csv(run / "outputs/BuildGen.csv").rename(columns={"GEN_BLD_YRS_1": "g", "GEN_BLD_YRS_2": "y"})
+    new = bgall.merge(gi.rename(columns={"GENERATION_PROJECT": "g"}), on="g")
+    periods = set(pd.read_csv(run / "inputs/periods.csv")["INVESTMENT_PERIOD"])
+    new = new[new["y"].isin(periods) & (new["BuildGen"] > 1e-9)]
+    connect = new["BuildGen"] * new["gen_connect_cost_per_mw"].fillna(0)
+    assert connect.sum() > 0
+    crf = rate / (1 - (1 + rate) ** -new["gen_max_age"])
+    conn = spend[spend["type"].isin(["spur", "poi"])]
+    assert np.isclose(conn["overnight_cost"].sum(), connect.sum())
+    assert np.isclose(conn["annual_cost"].sum(), (connect * crf).sum())
+    assert np.isclose(conn.groupby("type")["generation_mw_connected"].sum().loc["spur"], new["BuildGen"].sum())
+    by_type = conn.groupby("type")["overnight_cost"].sum()
+    assert np.isclose(by_type["spur"], 1.5 * by_type["poi"])
+    # spur + poi + network rows (reactive upgrades and uprates) = all interconnection-related spend
+    network = spend[spend["type"].isin(["reactive_upgrades"] + list(up["ic_uprate_type"].unique()))]
+    assert len(network) + len(conn) == len(spend)
+    assert np.isclose(spend["overnight_cost"].sum(), connect.sum() + network["overnight_cost"].sum())
     # new gas uses headroom: Central's weighted new capacity includes its new NG_CC builds
     bg = pd.read_csv(run / "outputs/BuildGen.csv")
     new_gas_c = bg[(bg.GEN_BLD_YRS_1 == "C-NG_CC") & (bg.GEN_BLD_YRS_2 >= 2020)].BuildGen.sum()
@@ -290,6 +314,32 @@ def test_switch_case_weights_and_strip():
     diag = sc.strip_network_reinforcement(gi, src)
     assert gi["gen_connect_cost_per_mw"].tolist()[:2] == [80000.0, 150000.0]
     assert (diag["gen_connect_cost_per_mw_before"] - diag["gen_connect_cost_per_mw_after"]).sum() == 330000
+
+
+def test_split_connect_costs():
+    from icsc import switch_case as sc
+    gi = _gen_info()
+    # PowerGenome: gen_connect = spur + interconnect_capex_mw, where interconnect = spur + tx + 10k other
+    spur = np.array([50000, 80000, 0, 0, 0, 40000, 0.0])
+    tx = np.array([120000, 150000, 0, 0, 0, 60000, 0.0])
+    other = np.array([10000, 10000, 0, 30000, 0, 10000, 0.0])
+    icx = spur + tx + other
+    gi["gen_connect_cost_per_mw"] = spur + icx
+    src = pd.DataFrame({"region": ["p1"] * 5 + ["p2", "p1"], "spur_capex": spur, "tx_capex": tx,
+                        "interconnect_capex_mw": icx, "offshore_spur_capex": 0.0})
+    poi = pd.DataFrame({"region": ["PJM", "national", "national", "national", "national"],
+                        "tech": ["solar", "solar", "wind", "storage", "gas"],
+                        "poi_cost_per_kw": [5.0, 20.0, 15.0, 0.0, 1.0]})
+    diag = sc.split_connect_costs(gi, src, poi, {"p1": "PJM", "p2": "ERCOT"})
+    d = diag.set_index("GENERATION_PROJECT")
+    assert np.allclose(d["spur_cost_per_mw"], spur)            # spur counted once
+    assert np.allclose(d["pg_residual_replaced_per_mw"], other)
+    assert d.loc["p1_pv", "poi_cost_per_mw"] == 5000 and d.loc["p1_pv", "poi_source"] == "lbnl_regional"
+    assert d.loc["p2_pv", "poi_cost_per_mw"] == 20000 and d.loc["p2_pv", "poi_source"] == "national"
+    assert d.loc["p1_dr", "poi_source"] == "powergenome_residual"   # no LBNL estimate for DR
+    assert np.allclose(gi["gen_connect_cost_per_mw"], d["spur_cost_per_mw"] + d["poi_cost_per_mw"])
+    comp = sc.connect_components(diag)
+    assert list(comp.columns) == ["GENERATION_PROJECT", "spur_cost_per_mw", "poi_cost_per_mw"]
 
 
 def test_switch_case_write_with_zone_map(tmp_path, monkeypatch):

@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from . import eia, estimate, geo, linkage, lbnl, load, network, switch_writer, synthetic, tranches
+from . import eia, estimate, geo, linkage, lbnl, load, network, poi, switch_writer, synthetic, tranches
 
 
 def _merge(base: dict, over: dict) -> dict:
@@ -103,6 +103,7 @@ def cmd_run(cfg: dict, start_year: int, scenarios: list[str] | None):
     projects.to_csv(out / "lbnl_projects_clean.csv", index=False)
     sample = estimate.attach_saturation(lbnl.estimation_sample(projects, cfg), panel)
     sample.to_csv(out / "estimation_sample.csv", index=False)
+    poi.poi_costs(sample, cfg).to_csv(out / "poi_costs.csv", index=False)
 
     model = estimate.fit(sample, cfg)
     estimate.coef_table(model).to_csv(out / "coefficients.csv")

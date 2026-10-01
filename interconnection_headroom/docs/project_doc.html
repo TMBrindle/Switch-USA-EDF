@@ -178,9 +178,11 @@ released         ≤ s0 × MW of uprates built         (existing use fills less 
   <li>Every new build uses headroom at its technology weight; distributed generation never does. Only <code>NEW_GEN_BLD_YRS</code> count, because existing capacity is already reflected in where each curve starts.</li>
   <li>Under state or interconnect aggregation, each aggregate load zone keeps its BAs as separate interconnection zones and pools their headroom.</li>
 </ul>
+<h3>Connection costs</h3>
+<p>With the module on, each new project's connection cost is rebuilt as spur plus point of interconnection (POI). Spur is PowerGenome's spur-line cost (plus offshore spur). POI is the median LBNL POI cost for the zone's regime and technology from completed projects, or the national median where a cell has fewer than 10 projects (<code>poi_costs.csv</code>). Network reinforcement is not in the connection cost: the zonal curve prices it. Offshore wind and technologies LBNL doesn't cover keep PowerGenome's own non-spur component.</p>
 <h3>What it reports</h3>
 <ul>
-  <li><code>ic_spend.csv</code>: overnight and annual reinforcement spend by zone, period and type (reactive upgrades along the curve, GETs, reconductoring, new lines), with the network MW added and generation MW enabled.</li>
+  <li><code>ic_spend.csv</code>: overnight and annual reinforcement spend by zone, period and type (reactive upgrades along the curve, GETs, reconductoring, new lines), with the network MW added and generation MW enabled; plus spur and POI spend for new builds by load zone, so the three parts of interconnection cost add up.</li>
   <li><code>ic_network.csv</code>: base network capacity and the MW and % added. Uprate MW are model decisions. Reactive MW are an <em>estimate</em>: the curve records what generators paid, so the report divides that spend by an engineering cost of network capacity (a placeholder) and shows the implied network MW per generation MW as a sanity check.</li>
   <li><code>ic_headroom.csv</code>: headroom used, freed and bought per load zone, with the constraint dual.</li>
 </ul>
