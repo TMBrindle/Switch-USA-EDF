@@ -1,0 +1,8 @@
+# Sensitivity: reconductoring at a fourth of new-build cost (GridLab/UC Berkeley 2035 Report technical
+# report, p. 31: "less than half—if not a third or even a fourth"), i.e. 0.5 x the zone's ReEDS
+# reinforcement cost (ReEDS prices reinforcement at greenfield x 0.5). Central: a half (1.0 x).
+# Run: python -m icsc.cli --config sensitivities/reconductor_low_cost.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_reconductor_low_cost}
+uprate_options:
+  reconductor: {cost_per_kw: {reeds_reinforcement_x: 0.5}}

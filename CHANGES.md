@@ -1084,3 +1084,51 @@ cost on top), and leaves H, the steps and the release unchanged; cap 10 × H0 as
   step $129.0/kW, 20 zones beyond the edge).
 - Toy (zone past the edge, s0 0.8, $50/kW edge step, $200/kW line): marginal headroom $200/kW in
   host mode vs $250/kW in stretch mode. Tests: 20.
+
+---
+
+## 42. Interconnection Headroom — GETs and Reconductoring from Sources, Adoption Levels
+
+**Date:** 2026-10-02 · **Branch:** `tom/ic-atts` (off `tom/ic-curve-fixes`)
+
+Replaces the GETs (10% of H0 at $20/kW) and reconductoring (30% at $80/kW from 2028) placeholders
+with two layers. Both keep the stretch mechanism (raise H, release s0 × MW, stretch the steps);
+new lines stay in host mode. Sources and page numbers (PDF pages) are in `config.yaml` and the
+project doc ("Uprate options").
+
+**Layer 1, potential and cost.**
+- GETs: uplift 10–30% (GridLab/UC Berkeley 2035 Report technical report, Fig. 5; RMI "GETting
+  Interconnected in PJM", 2024: DLR +17% average summer rating, up to 30%, modelled at 10%); cost
+  $15 per kW of generation enabled (RMI: $0.1 billion for 6.6 GW in five PJM states); lead time 3+
+  months (DLR) to 8–18 months (FACTS).
+- Reconductoring: 2× thermal limit on the ~98% of lines under 50 miles (GridLab, Appendix III);
+  cost under half of new build for similar capacity (GridLab key finding 2) → 1.0 × the zone's
+  ReEDS reinforcement cost per kW of generation, since ReEDS prices reinforcement at greenfield ×
+  0.5 (low-cost sensitivity 0.5 ×, "a fourth": `sensitivities/reconductor_low_cost.yaml`); lead time
+  18–36 months (GridLab technical and policy reports).
+- New cost forms in `uprate_options`: `{per_kw_gen: x}` and `{reeds_reinforcement_x: f}`, converted to
+  $ per kW of H with the curve-end saturation (`reinforcement.per_mw_h`).
+
+**Layer 2, adoption limits** (`uprate_levels`, chosen by `uprate_level`, default `planned`; scenario
+override `uprate_level`; new scenarios `atts_current`, `atts_reform`):
+- `current` (S0): caps 0. Order No. 1920 (89 FR 49280, 11 June 2024) requires consideration of
+  dynamic line ratings, advanced power flow control, advanced conductors and transmission switching
+  (P 1198) but not their selection or deployment (P 1200).
+- `planned`: GETs 10% of H0 from 2028, reconductoring 49% (50% × 98%) from 2029: Order 1920 timeline
+  (effective 12 Aug 2024; compliance within ten months, P 12; first Long-Term Regional Transmission
+  Planning cycle no later than a year after, P 1072) plus lead time.
+- `reform`: GETs 30% from 2027, reconductoring 98% from 2028.
+
+**Missing from the documents provided (not estimated):** Order No. 881 text (ambient-adjusted
+ratings requirement, its 12 July 2025 implementation date and paragraphs) and an AAR uplift figure,
+so no Order 881 floor is modelled at S0; Order No. 1920-A; ISO Order 881 compliance pages; DOE Liftoff
+(Innovative Grid Deployment); Brattle/WATT "Unlocking the Queue"; the share of network suitable for
+GETs; reconductoring share by capacity and structure health; GETs costs outside PJM and their dollar
+year; a reconductoring $/MW figure (charts only in the GridLab report).
+
+**Results** (curves unchanged: median first step $129.0/kW): available uprate MW across 1,356 GW
+of H0: planned GETs 135 GW and reconductoring 665 GW; reform 407 and 1,329 GW; current 0. Median
+cost per kW of H: GETs $10 (was $20), reconductoring $237 (was $80). Reconductoring now costs about
+the same per kW of generation as a new line, so with step costs on stretched steps, host-mode new
+lines will usually be chosen first. `sensitivities/previous_defaults.yaml` restores the placeholders.
+Tests: 21.

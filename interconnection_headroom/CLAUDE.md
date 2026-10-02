@@ -37,8 +37,10 @@ numbered section in `../CHANGES.md`.
   `saturation.tech_weights` in `config.yaml`. Don't hard-code weights in code.
 - Tranche costs must stay non-decreasing within each zone (the LP relies on it). Tests check this.
 - Flag anything priced by extrapolation (the `extrapolated` column). Never present it as estimated.
-- Placeholder parameters (GETs and reconductoring costs and caps, proactive-planning multiplier,
-  CPI table) are marked in `config.yaml` and `data/reference/`. Replace them only with sourced
+- Placeholder parameters (proactive-planning multiplier, new-line start year, reactive engineering
+  cost, CPI table) are marked in `config.yaml` and `data/reference/`. GETs and reconductoring costs
+  and caps are sourced (config.yaml `uprate_options` / `uprate_levels`); figures the sources lack are
+  marked MISSING there, not estimated. Replace them only with sourced
   values, and record the source in a comment.
 - Units: costs in `config.yaml` and `tranches_*.csv` are real $/kW in `dollar_year`;
   Switch inputs are $/MW. Capacity is nameplate MW unless a column says `_weighted`.

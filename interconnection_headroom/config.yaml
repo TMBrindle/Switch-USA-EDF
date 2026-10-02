@@ -195,23 +195,91 @@ tranches:
   trend_freeze: per_regime
 
 # ---------------------------------------------------------------------------
-# Network uprate options: MW of intra-zonal network capacity Switch may add in a zone.
-# max MW = share_of_capacity x the zone's base capacity (headroom proxy). Costs are $ per kW of
-# NETWORK capacity, not of generation. GETs and reconductoring values are PLACEHOLDERS: replace with
-# sourced values (GETs: Brattle SPP studies; reconductoring: GridLab/Berkeley 2024) and cite them here;
-# caps should come from HIFLD line-km by kV. new_line is priced from ReEDS's reinforcement cost, which
-# ReEDS states per MW of generation capacity delivered from the POI to the zone's load centre; it is
-# used here as the cost of one MW of intra-zonal network capacity.
-# GETs and reconductoring act on the same lines: keep their shares summing to a shared ceiling.
-# ---------------------------------------------------------------------------
+# Network uprate options: MW Switch may add in a zone. GETs and reconductoring raise the capacity of
+# the existing network H (stretch mode: raise H, release s0 x MW, stretch the steps); their caps and
+# first years come from the adoption level below (uprate_levels), their costs from the sources here.
+# new_line hosts generation directly (new_line_mode: host) at ReEDS's reinforcement cost.
+#
+# Cost forms (cost_per_kw): a number ($ per kW of network H); {per_kw_gen: x} ($ per kW of generation
+# enabled, converted to $ per kW of H with reinforcement.per_mw_h, curve_end by default);
+# {reeds_reinforcement_x: f} (f x the zone's ReEDS reinforcement cost per kW of generation, converted
+# the same way); reeds_reinforcement (new_line, per kW of generation hosted, host mode).
+#
+# Sources (documents in the project record; see docs/project_doc.html "Uprate options"):
+#  [RMI24]  Siegner, Toth, Teplin, Mulvaney, "GETting Interconnected in PJM", RMI, Feb 2024. PJM queue
+#           study (IL, IN, OH, PA, VA; summer 2026 peak case). Page numbers are PDF pages. GETs combined
+#           enable 6.6 GW (Exhibit ES1, p. 6) at $0.1 billion installation cost (p. 21); individually
+#           DLR 5.2 GW for $15.5 M, PFC 5.1 GW for $115 M, TO 4.5 GW for $3.1 M (Exhibit ES2, p. 6;
+#           Exhibit 8, p. 20). DLR: summer rating 17% above static on average, up to 30%; modelled as a
+#           conservative 10% uprate (p. 13); DLR data available within three months of installation
+#           (Exhibit 5, p. 16); PFC case study 12-15 months (p. 23). PFC and TO need meshed networks; DLR windy, thermally limited lines.
+#  [GL24T]  Chojkiewicz et al., "Reconductoring with advanced conductors can accelerate the rapid
+#           transmission expansion required for a clean grid" (2035 Report technical report), UC
+#           Berkeley / GridLab, 2024. PDF pages. Figure 5 (p. 20): GETs incl. DLR 3+ months, 10-30% typical
+#           capacity increase; FACTS 8-18 months, 30-50%; reconductoring with advanced conductors
+#           18-36 months, 50-110%. Key finding 1 (p. 6, 30) and Appendix III (p. 49-50): ACCC thermal
+#           limit 2x ACSR; ~98% of the ~53,000 US lines >= 100 kV are < 50 miles and can be doubled
+#           (with compensation for 30-50 miles); the other 2% need sectionalisation. Key finding 2
+#           (p. 6, 31): reconductoring "typically cost[s] less than half the price of new lines for
+#           similar capacity increases"; p. 31: "less than half—if not a third or even a fourth".
+#           "Any transmission line with adequate structure health is eligible" (p. 21).
+#  [GL24P]  O'Boyle, Baker, Solomon, "Supporting Advanced Conductor Deployment: Barriers and Policy
+#           Solutions", GridLab, 9 Apr 2024: deployable within 18 to 36 months (PDF p. 8).
+#  [ReEDS]  ReEDS docs at the pinned commit, "Network reinforcement": reinforcement routes are priced
+#           at greenfield CAPEX x 0.5 "to approximate the lower cost for reconductoring".
+#
+# GETs: $15 per kW of generation enabled = [RMI24] $0.1 billion / 6.6 GW (combined case; $0.1 billion
+#   is rounded in the source; single-technology cases $0.7 (TO) - $3.0 (DLR) - $22.5 (PFC) per kW).
+#   Dollar year not stated in [RMI24] (MISSING); used as the pipeline dollar year without conversion.
+#   PJM only: no source gives GETs costs for other regions (MISSING by transreg).
+# Reconductoring: cost per MW of capacity = (reconductor / new-build ratio) x new-build cost. ReEDS's
+#   reinforcement cost is greenfield x 0.5 [ReEDS], so new-build = 2 x the zone's ReEDS cost and
+#   reconductoring = 2 x ratio x ReEDS cost: ratio 0.5 ([GL24T] "less than half") gives f = 1.0;
+#   "a third or even a fourth" gives f = 0.67 / 0.5 (sensitivity). No $/MW figure for reconductoring
+#   is given in the text of [GL24T] (costs per mile appear only in charts): MISSING as a number.
 uprate_options:
-  gets:        {type: gets,        share_of_capacity: 0.10, cost_per_kw: 20,  available_year: 0}
-  reconductor: {type: reconductor, share_of_capacity: 0.30, cost_per_kw: 80,  available_year: 2028}
+  gets:        {type: gets, cost_per_kw: {per_kw_gen: 15.0}}
+  reconductor: {type: reconductor, cost_per_kw: {reeds_reinforcement_x: 1.0}}
   # new_line: cost per kW from ReEDS's zone-level reinforcement cost (reinforcement block below:
   # capacity-weighted median of the zone's reV sites, pipeline dollar year). share_of_capacity is a
   # finite numerical bound for the LP, not a physical limit: as the backstop beyond the data's support
   # edge it should not bind (was 1.0 x base capacity, which could bind in high-build runs).
   new_line:    {type: new_line,    share_of_capacity: 10.0, cost_per_kw: reeds_reinforcement, available_year: 2030}
+
+# Adoption limits by level (share_of_capacity = MW of H the option may add / H0; available_year =
+# first build year). Technical potential = uplift x share of the network suitable:
+#   GETs: uplift 10% (RMI's modelled DLR uprate; low end of [GL24T] 10-30%) to 30% ([GL24T] high end,
+#         [RMI24] "up to 30%"); share of H suitable (thermally limited, windy for DLR, meshed for
+#         PFC/TO): MISSING, so the share is taken as 1.0 and the potential is an upper bound.
+#   reconductoring: uplift 100% (2x) on 98% of lines ([GL24T]); share by capacity (vs line count) and
+#         share with adequate structure health: MISSING (line-count share used).
+# Levels:
+#   current (S0): FERC Order 1920 requires transmission providers to *consider* dynamic line ratings,
+#     advanced power flow control, advanced conductors and transmission switching for each identified
+#     need (Order No. 1920, 89 FR 49280, 11 Jun 2024, P 1198), but "does not require the selection and
+#     deployment of any particular alternative transmission technology" (P 1200). No deliberate
+#     GETs or reconductoring beyond the base network: caps 0. Order No. 881 (ambient-adjusted ratings)
+#     would set a floor for GETs here, but its text and an AAR uplift figure are not in the documents
+#     provided (MISSING): no AAR increment is modelled. Order No. 1920-A: MISSING (not checked).
+#   planned (Order 1920 implemented): selection where more efficient or cost-effective (P 1198-1199),
+#     left to the LP, at the low end of the documented uplift ranges. Timing: Order 1920 effective
+#     12 Aug 2024; compliance filings within ten months (P 12); the first Long-Term Regional
+#     Transmission Planning cycle starts no later than one year after the compliance due date (P 1072),
+#     i.e. by mid-2026; plus lead time: GETs up to 18 months (FACTS, [GL24T]) -> 2028; reconductoring
+#     18-36 months ([GL24T], [GL24P]) -> 2029.
+#   reform: near technical potential (high end of the ranges), available after lead time alone from
+#     2026: GETs 2027 (3+ months DLR, 8-18 months FACTS), reconductoring 2028 (18-36 months).
+uprate_level: planned
+uprate_levels:
+  current:
+    gets:        {share_of_capacity: 0.0,  available_year: 2026}
+    reconductor: {share_of_capacity: 0.0,  available_year: 2026}
+  planned:
+    gets:        {share_of_capacity: 0.10, available_year: 2028}
+    reconductor: {share_of_capacity: 0.49, available_year: 2029}   # 50% uplift (low end of 50-110%) x 0.98
+  reform:
+    gets:        {share_of_capacity: 0.30, available_year: 2027}
+    reconductor: {share_of_capacity: 0.98, available_year: 2028}   # 2x (100% uplift) x 0.98 of lines
 
 # ReEDS reinforcement cost by zone (icsc/reinforcement.py; `python -m icsc.cli reinforcement`
 # rebuilds zone_table from the raw ReEDS files fetched by scripts/fetch_data.sh)
@@ -220,7 +288,8 @@ reinforcement:
   supply_curves: [data/raw/reeds/supplycurve_upv-reference.csv, data/raw/reeds/supplycurve_wind-ons-reference.csv]
   zone_table: data/reference/reeds_reinforcement_by_zone.csv
   quantile: median            # median | p10 | p90: which zone statistic prices new_line
-  # Unit conversion, new_line_mode: stretch only (host prices per MW of generation hosted, x 1).
+  # Unit conversion for stretch-mode options priced per kW of generation (GETs, reconductoring, and
+  # new_line when new_line_mode: stretch; host mode prices per MW of generation hosted, x 1).
   # ReEDS's cost is $ per MW(AC) of generation: it reinforces one MW of route capacity
   # (POI -> zone centre) per MW of new wind/solar (ReEDS docs "Network reinforcement"; output_calc
   # reinforcement GW-mi = new GW x distance). new_line's cost is per MW of network capacity H, and one
@@ -265,11 +334,19 @@ scenarios:
     description: Every zone gets the planning-regime effect of the lowest-cost regime; slope unchanged.
     regime_override: best
   gets:
-    description: Switch may deploy GETs up to 10% of each zone's network capacity.
+    description: Switch may deploy GETs within the adoption level's cap (uprate_level, default planned).
     uprates: [gets]
   reconductoring:
-    description: GETs plus advanced reconductoring on existing rights of way.
+    description: GETs plus advanced reconductoring on existing rights of way (uprate_level caps).
     uprates: [gets, reconductor]
+  atts_current:
+    description: GETs and reconductoring at the current-policy level (Order 1920 consideration only; caps 0).
+    uprates: [gets, reconductor]
+    uprate_level: current
+  atts_reform:
+    description: GETs and reconductoring near technical potential, available after lead time from 2026.
+    uprates: [gets, reconductor]
+    uprate_level: reform
   proactive_planning:
     description: All uprate options, and a flatter curve from right-sized portfolio upgrades (placeholder multiplier).
     uprates: [gets, reconductor, new_line]

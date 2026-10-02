@@ -133,7 +133,8 @@ def test_synthetic_recovery(cfg, built, tmp_path):
     _, _, up = tranches.apply_scenario(zr, tr, c, {"uprates": ["gets", "reconductor"]})
     assert len(up) == 3 * len(zr)  # plus the new_line backstop
     g = up[up.uprate == "gets"].merge(zr, on="ba")
-    assert np.allclose(g["max_mw"], c["uprate_options"]["gets"]["share_of_capacity"] * g["base_capacity_mw"])
+    gets_cap = c["uprate_levels"][c["uprate_level"]]["gets"]["share_of_capacity"]
+    assert np.allclose(g["max_mw"], gets_cap * g["base_capacity_mw"])
     _, _, ref = tranches.apply_scenario(zr, tr, c, {})
     assert set(ref["uprate"]) == set(c["backstop_uprates"]) and len(ref) == len(zr)
 
@@ -292,6 +293,49 @@ def test_reinforcement_table_and_backstop(cfg):
             assert np.allclose(nl["cost_per_kw"] / nl["gen_mw_per_mw_h"], want[nl.index])
     assert np.allclose(nl["max_mw"], cfg["uprate_options"]["new_line"]["share_of_capacity"] * zones.set_index("ba")["base_capacity_mw"])
     assert cfg["reinforcement"]["per_mw_h"] == "curve_end"
+
+
+def test_uprate_levels_and_sourced_costs(cfg):
+    """GETs and reconductoring caps and first years come from the adoption level; costs from the sourced
+    forms (GETs $ per kW of generation enabled; reconductoring = f x ReEDS reinforcement), converted to $
+    per kW of H with the curve-end saturation. new_line keeps host mode and its own cap."""
+    t = pd.read_csv(Path(cfg["_root"]) / cfg["reinforcement"]["zone_table"]).set_index("ba")["reinforcement_median_per_kw"]
+    zones = pd.DataFrame({"ba": ["p1", "p80"], "base_capacity_mw": [1000.0, 2000.0], "start_saturation": [0.1, 0.9]})
+    tr = pd.DataFrame({"ba": ["p1", "p1", "p80"], "sat_from": [0.1, 0.4, 0.9], "sat_to": [0.4, 0.67, 0.95],
+                       "cost_per_kw": [50.0, 60.0, 90.0]})
+    end = {"p1": 0.67, "p80": 0.95}
+    levels = cfg["uprate_levels"]
+    assert cfg["uprate_level"] == "planned" and set(levels) == {"current", "planned", "reform"}
+    for lv in ("current", "planned", "reform"):
+        assert levels["current"]["gets"]["share_of_capacity"] <= levels[lv]["gets"]["share_of_capacity"] \
+            <= levels["reform"]["gets"]["share_of_capacity"]
+        assert levels[lv]["reconductor"]["share_of_capacity"] <= 0.98 + 1e-12        # 2x on 98% of lines at most
+        _, _, up = tranches.apply_scenario(zones, tr, cfg, {"uprates": ["gets", "reconductor"], "uprate_level": lv})
+        u = up.set_index(["uprate", "ba"])
+        for name in ("gets", "reconductor"):
+            for ba, h0 in (("p1", 1000.0), ("p80", 2000.0)):
+                row = u.loc[(name, ba)]
+                assert row["max_mw"] == pytest.approx(levels[lv][name]["share_of_capacity"] * h0)
+                assert row["available_year"] == levels[lv][name]["available_year"]
+                assert row["mode"] == "stretch" and row["level"] == lv
+                gen_cost = 15.0 if name == "gets" else 1.0 * t[ba]
+                assert row["cost_per_kw_gen"] == pytest.approx(gen_cost)
+                assert row["cost_per_kw"] == pytest.approx(gen_cost * end[ba])
+        nl = u.loc["new_line"]
+        assert (nl["mode"] == "host").all() and np.allclose(nl["cost_per_kw"], t[nl.index])
+    assert levels["current"]["gets"]["share_of_capacity"] == 0 and levels["current"]["reconductor"]["share_of_capacity"] == 0
+    # scenario-level override; unknown level is an error
+    assert cfg["scenarios"]["atts_reform"]["uprate_level"] == "reform"
+    with pytest.raises(ValueError, match="uprate_level"):
+        tranches.apply_scenario(zones, tr, cfg, {"uprates": ["gets"], "uprate_level": "nope"})
+    # the previous placeholders still load (previous_defaults.yaml: uprate_level null)
+    old = cli.load_cfg(str(ROOT / "sensitivities" / "previous_defaults.yaml"))
+    _, _, up = tranches.apply_scenario(zones, tr, old, {"uprates": ["gets", "reconductor"]})
+    u = up.set_index(["uprate", "ba"])
+    assert u.loc[("gets", "p1"), "cost_per_kw"] == 20 and u.loc[("reconductor", "p1"), "max_mw"] == 300
+    low = cli.load_cfg(str(ROOT / "sensitivities" / "reconductor_low_cost.yaml"))
+    _, _, up = tranches.apply_scenario(zones, tr, low, {"uprates": ["reconductor"]})
+    assert up.set_index(["uprate", "ba"]).loc[("reconductor", "p1"), "cost_per_kw_gen"] == pytest.approx(0.5 * t["p1"])
 
 
 def test_zone_regimes_utilities(cfg):
