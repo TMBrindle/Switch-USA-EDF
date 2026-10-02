@@ -378,3 +378,42 @@ Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, 
 
 construction completion rate (0.9), overdue-pipeline rule (spread evenly 2026–30), growth rates
 after 2030 (low/central/high), ramp floors, regional multipliers and floors, and amortisation lives.
+
+## Future development: dynamic regional limits (not implemented)
+
+**Today the regional limits are static.** Each region's floor is computed once from its end-2025
+fleet and its peak annual build in 2010–25, and its share term scales with the exogenous national R.
+Neither responds to what the model builds. The national ramp bound depends on the previous period's
+build, but R = min(R_data, ramp), so it can only lower R, never raise it. A region that builds at
+its limit through 2030 therefore gets the same 2031–35 limit as one that built nothing.
+
+**Proposal (Tom Brindle, 2 Oct 2026).** Let a region that is deploying earn a higher limit
+("capability grows with deployment"), using an opt-in switch `regional_dynamic` (default false):
+
+- stock term on end-2025 stock **plus** the model's own new build in the region to date;
+- peak term on max(historical peak 2010–25, the region's achieved annual rate in the previous
+  period);
+- a regional ramp term, (1 + g_reg_G)^W × the achieved rate, with g_reg a placeholder (wind ~0.20/yr;
+  e.g. a region at 0.5 GW/yr through 2030 could reach ~1.2 GW/yr in 2031–35). With today's k_stock
+  and k_peak the stock and peak terms alone barely move (+~125 MW/yr for 2.5 GW of extra stock), so
+  the ramp term carries the effect.
+
+The national ceiling stays exogenous, so dynamic regional limits only reallocate build between
+regions within the national total. They cannot reintroduce the self-referencing national overbuild
+that the data anchor is meant to prevent.
+
+**Implementation notes:**
+
+- *Myopic runs* (the usual fedpol setup): exact and simple. `chain_build_rate_inputs` recomputes
+  each region's limits for the next stage from the solved stage's actual builds, using any formula
+  including max().
+- *Perfect foresight*: an upper bound equal to the max of terms that depend on variables is
+  non-convex, so use an additive linear form instead (static limit_p + g × the region's NewBuild in
+  p−1) and document it as an approximation of the myopic rule.
+- *Single-period runs* (e.g. 2035-only tests) have one window and nothing to recompute, so they stay
+  more conservative than multi-period runs. The test asserting identical limits for one and three
+  periods would then hold only with `regional_dynamic: false`.
+- *Tests to add*: a 2030+2035 myopic toy chain where a region at its 2030 limit gets a higher 2035
+  limit; the additive form under perfect foresight; unchanged limits with the switch off.
+
+Most relevant once fedpol runs go multi-period with myopic chaining.

@@ -858,3 +858,8 @@ Ported aecee82 (patch-case reads PowerGenome's `BUILD_YEAR`). Toy tests read `$S
 
 **R0 rules (update):** low = min(mean 2023–25, mean 2021–25), central = max(the same), high = best
 year 2021–25; the pipeline stops unless low ≤ central ≤ high.
+
+**Future development recorded (not implemented):** dynamic regional limits, where a region's floor
+and ramp respond to its own deployment in earlier periods (exact in myopic chaining, additive linear
+approximation under perfect foresight; national ceiling stays exogenous). See "Future development"
+in `Guides and documentation/build_rate.md`.
