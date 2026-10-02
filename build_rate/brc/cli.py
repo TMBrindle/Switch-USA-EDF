@@ -40,6 +40,7 @@ def cmd_run(cfg: dict) -> dict:
     base = rates.base_rates(add, h["first_year"], h["last_year"])
     base.to_csv(out / "base_rates.csv", index=False)
     r0s = pd.DataFrame({rule: rates.r0(base, spec) for rule, spec in cfg["r0_rule"].items()})
+    rates.check_r0_order(r0s)
     r0s.rename_axis("group").to_csv(out / "r0.csv")
     shares = rates.regional_shares(base, h["share_years"])
     shares.to_csv(out / "regional_shares.csv", index=False)
@@ -51,7 +52,11 @@ def cmd_run(cfg: dict) -> dict:
     rates.overdue_summary(comp, delay, cfg).rename("overdue_mw").to_csv(out / "overdue_pipeline.csv")
     near = rates.near_term(comp, comp_rates, delay, cfg)
     near.to_csv(out / "near_term.csv", index=False)
-    pd.concat([rates.tiers(cfg, g).assign(group=g) for g in cfg["groups"]]).to_csv(out / "tiers.csv", index=False)
+    def tier_table(ts):
+        return pd.concat([rates.tiers(cfg, g, ts).assign(group=g) for g in cfg["groups"]])
+    tier_table(None).to_csv(out / "tiers.csv", index=False)       # default tier_set
+    for lv in LEVELS:
+        tier_table(rates.level_tier_set(cfg, lv)).to_csv(out / f"tiers_{lv}.csv", index=False)
     written, skipped = [], {}
     for lv in LEVELS:
         try:

@@ -104,7 +104,8 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
         raise FileNotFoundError(f"build_rate is enabled but {rates_path} is missing. Run `python -m brc.cli run` "
                                 "in build_rate/ (level high_ipm also needs ipm.run_year_span), or set enabled: false.")
     rates = pd.read_csv(rates_path)
-    tiers = pd.read_csv(tdir / "tiers.csv")
+    tiers_path = tdir / f"tiers_{level}.csv"
+    tiers = pd.read_csv(tiers_path if tiers_path.exists() else tdir / "tiers.csv")
     check_gas_cap(groups, _read(out_folder, "max_cap_requirements.csv"))
 
     periods = _read(out_folder, "periods.csv")
@@ -144,8 +145,12 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
                 at_p = c[c["build_year"] == p]["gen_overnight_cost"]
                 capex = float((at_p if len(at_p) else c["gen_overnight_cost"]).median())
             for _, t in tg.iterrows():
+                # adders that stop after a calendar year (IPM: none after 2035) apply to the share
+                # of the period's build window up to that year
+                last = t.get("adders_last_year", np.nan)
+                frac = 1.0 if pd.isna(last) else min(max(int(last) - s + 1, 0), w) / w
                 rows_t.append({"BR_GROUP": g, "PERIOD": p, "BR_TIER": t["tier"], "br_tier_width": t["width"],
-                               "br_tier_adder_per_mw": round(float(t["adder"]) * (0 if np.isnan(capex) else capex), 2)})
+                               "br_tier_adder_per_mw": round(float(t["adder"]) * frac * (0 if np.isnan(capex) else capex), 2)})
     slack_kw = br.get("ceiling_slack_cost")
     grp_rows = [{"BR_GROUP": g, "br_growth": float(nat[nat["group"] == g]["growth"].iat[0]),
                  "br_ramp_floor_mw": cfg["ramp_floor_mw"][g], "br_life_years": cfg["life_years"][g],

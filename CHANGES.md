@@ -833,8 +833,15 @@ meant to replace `MaxCapTag_WindGrowth` / `SolarGrowth` growth caps.
 **Behaviour with the setting off:** unchanged. Gas with `MaxCapTag_GasTurbineSupply` still active, or
 a MinCap target above the ceiling, stops the case build with a message.
 
-**IPM reference (update):** IPM inputs now come from the EPA 2025 Reference Case (incremental
-documentation: Table 4-13 adders and bounds, 2022$; Tables 4-12 / 4-15 capex) with the method and
-run-year mapping from the EPA 2023 Reference Case (Section 4.4.3; Table 2-1). `high_ipm` sets R =
-Table 4-13 Step 1 per calendar year. Platform v6 Post-IRA 2022 values are kept as a historical
-column in `build_rate/config.yaml`. The central adders are unchanged pending review.
+**IPM reference (update):** IPM inputs come from the EPA 2025 Reference Case (incremental
+documentation: Table 4-13 adders and bounds, 2022$; Tables 4-12 / 4-15 capex; Table 4-12's caption
+says "2023" but its values are new) with the method from the EPA 2023 Reference Case (Section
+4.4.3). Step 1 bounds convert to per-year rates over the build windows the bounds imply (2028 = 4
+years from 2026, 2030 = 2, 2035 = 5; every row's 2035/2030 ratio is 2.50 or 2.05), not Table 2-1's
+dispatch mapping. `high_ipm` uses IPM's shape: R = Step 1 per year, free to 1.0R, +46% to 1.74R,
++147% above with no ceiling (gas +44% / +140%; storage free), no adders after 2036, charged
+marginally. Central stays at +15% / +50% with the ceiling at 2.0R. Platform v6 values are kept as a
+historical column.
+
+**R0 rules (update):** low = min(mean 2023–25, mean 2021–25), central = max(the same), high = best
+year 2021–25; the pipeline stops unless low ≤ central ≤ high.

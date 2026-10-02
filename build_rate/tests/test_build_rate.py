@@ -39,6 +39,20 @@ def test_base_rates_and_r0_rules():
     low, cen, high = (rates.r0(b, CFG["r0_rule"][k]) for k in ("low", "central", "high"))
     assert low["wind_onshore"] == pytest.approx(4) and cen["wind_onshore"] == pytest.approx(6)
     assert high["wind_onshore"] == 10 and high["solar"] == 29
+    # central = max of the two means; low = min; solar's recent mean (26.33) beats its 5-year mean (24.2)
+    assert cen["solar"] == pytest.approx((24 + 26 + 29) / 3) and low["solar"] == pytest.approx(24.2)
+
+
+def test_r0_order_low_central_high():
+    b = rates.base_rates(_additions(), 2021, 2025)
+    r0s = pd.DataFrame({k: rates.r0(b, CFG["r0_rule"][k]) for k in ("low", "central", "high")})
+    assert ((r0s["low"] <= r0s["central"]) & (r0s["central"] <= r0s["high"])).all()
+    rates.check_r0_order(r0s)
+    with pytest.raises(ValueError, match="out of order"):
+        rates.check_r0_order(r0s.assign(low=r0s["high"] + 1))
+    real = ROOT / "outputs" / "r0.csv"          # the real-data run, when present
+    if real.exists():
+        rates.check_r0_order(pd.read_csv(real, index_col=0))
     sh = rates.regional_shares(b, [2021, 2025]).set_index(["group", "region"])["share"]
     assert sh[("wind_onshore", "SPP")] == pytest.approx(0.75)
 
@@ -102,16 +116,22 @@ def test_tiers_and_switch():
     assert rates.tiers(CFG, "gas")["adder"].tolist() == [0.0, 0.44, 1.40]
 
 
-def test_high_ipm_epa2025_table_2_1_mapping():
+def test_high_ipm_implied_build_windows_and_ipm_shape():
+    assert rates.ipm_windows(CFG) == {2028: (2026, 2029), 2030: (2030, 2031), 2035: (2032, 2036)}
     r = rates.ipm_r0(CFG, "wind_onshore")
-    assert r == {2028: 68555 / 2, 2030: 33089 / 2, 2035: 82724 / 6}
+    assert r == {2028: 68555 / 4, 2030: 33089 / 2, 2035: 82724 / 5}
     assert rates.ipm_r0(CFG, "storage") is None
-    assert rates.ipm_rate_for_year(CFG, r, 2026, 0.1) == 68555 / 2      # before the IPM horizon
+    assert rates.ipm_rate_for_year(CFG, r, 2026, 0.1) == 68555 / 4
     assert rates.ipm_rate_for_year(CFG, r, 2031, 0.1) == 33089 / 2
-    assert rates.ipm_rate_for_year(CFG, r, 2037, 0.1) == 82724 / 6
-    assert rates.ipm_rate_for_year(CFG, r, 2039, 0.1) == pytest.approx(82724 / 6 * 1.1 ** 2)
-    with pytest.raises(ValueError, match="run_years"):
-        rates.ipm_r0(dict(CFG, ipm=dict(CFG["ipm"], run_years={2028: [2028, 2029]})), "solar")
+    assert rates.ipm_rate_for_year(CFG, r, 2036, 0.1) == 82724 / 5
+    assert rates.ipm_rate_for_year(CFG, r, 2038, 0.1) == pytest.approx(82724 / 5 * 1.1 ** 2)
+    t = rates.tiers(CFG, "solar", rates.level_tier_set(CFG, "high_ipm"))
+    assert t["upto"].tolist() == [1.0, 1.74, 1000] and t["adder"].tolist() == [0.0, 0.46, 1.47]
+    assert (t["adders_last_year"] == 2036).all()
+    assert rates.tiers(CFG, "gas", "ipm2025")["adder"].tolist() == [0.0, 0.44, 1.40]
+    st = rates.tiers(CFG, "storage", "ipm2025")
+    assert st["upto"].tolist() == [1000] and st["adder"].tolist() == [0.0]       # IPM: no storage adder
+    assert rates.tiers(CFG, "wind_onshore", rates.level_tier_set(CFG, "central"))["upto"].max() == 2.0
 
 
 def test_placeholders_marked():
@@ -193,6 +213,25 @@ def test_case_writer_and_gas_cap_error(tmp_path, monkeypatch):
         switch_case.write_case_inputs(d2, s2)
     # disabled -> nothing
     assert switch_case.write_case_inputs(d, {"build_rate": {"enabled": False}}) == []
+
+
+def test_case_writer_ipm2025_adders_stop_after_2036(tmp_path, monkeypatch):
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir = _tables(tmp_path)
+    shutil.copy(tdir / "rates_central.csv", tdir / "rates_high_ipm.csv")
+    pd.concat([rates.tiers(CFG, g, "ipm2025").assign(group=g) for g in ("wind_onshore", "solar", "gas")]) \
+        .to_csv(tdir / "tiers_high_ipm.csv", index=False)
+    d = _case(tmp_path)
+    pd.DataFrame({"INVESTMENT_PERIOD": [2030, 2040, 2045], "period_start": [2026, 2036, 2041],
+                  "period_end": [2035, 2040, 2045]}).to_csv(d / "periods.csv", index=False)
+    s = {"build_rate": {"enabled": True, "level": "high_ipm", "tables_dir": str(tdir), "groups": ["wind_onshore"],
+                        "regional": False}}
+    switch_case.write_case_inputs(d, s)
+    t = pd.read_csv(d / "build_rate_tiers.csv").set_index(["PERIOD", "BR_TIER"])
+    assert t.loc[(2030, "t3"), "br_tier_width"] == pytest.approx(1000 - 1.74)       # no hard ceiling
+    assert t.loc[(2030, "t2"), "br_tier_adder_per_mw"] == pytest.approx(0.46 * 1.5e6)
+    assert t.loc[(2040, "t2"), "br_tier_adder_per_mw"] == pytest.approx(0.46 * 1.5e6 / 5)   # only 2036 of 2036-40
+    assert t.loc[(2045, "t3"), "br_tier_adder_per_mw"] == 0
 
 
 def test_min_cap_guard(tmp_path, monkeypatch):

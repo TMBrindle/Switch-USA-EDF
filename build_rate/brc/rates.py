@@ -27,7 +27,10 @@ def base_rates(add: pd.DataFrame, first: int, last: int) -> pd.DataFrame:
 
 
 def r0(base: pd.DataFrame, rule: dict) -> pd.Series:
-    """National R0 (MW/yr) by group for one rule {years: [a, b], stat: mean|max}."""
+    """National R0 (MW/yr) by group for one rule: {years: [a, b], stat: mean|max}, or
+    {combine: min|max, of: [rule, ...]}."""
+    if "combine" in rule:
+        return pd.concat([r0(base, r) for r in rule["of"]], axis=1).agg(rule["combine"], axis=1)
     lo, hi = rule["years"]
     b = base[(base["region"] == NATIONAL) & base["year"].between(lo, hi)]
     return b.groupby("group")["mw"].agg(rule["stat"])
@@ -111,29 +114,46 @@ def overdue_summary(comp: pd.DataFrame, delay: pd.Series, cfg: dict) -> pd.Serie
     return a.loc[late].groupby("group")["mw"].sum()
 
 
+def check_r0_order(r0s: pd.DataFrame):
+    """low <= central <= high for every group (columns low, central, high)."""
+    bad = r0s[(r0s["low"] > r0s["central"] + 1e-9) | (r0s["central"] > r0s["high"] + 1e-9)]
+    if len(bad):
+        raise ValueError(f"R0 rules out of order (need low <= central <= high): {bad.round(1).to_dict('index')}")
+
+
+def ipm_windows(cfg: dict) -> dict:
+    """Build window (first, last calendar year) of each IPM run year: consecutive spans from
+    ipm.build_window_first_year (the windows the Table 4-13 bounds imply, not Table 2-1)."""
+    ip = cfg["ipm"]
+    start, out = int(ip["build_window_first_year"]), {}
+    for ry, n in sorted((int(k), v) for k, v in ip["run_year_span"].items()):
+        if not n:
+            raise ValueError(f"level high_ipm needs ipm.run_year_span for run year {ry}.")
+        out[ry] = (start, start + int(n) - 1)
+        start += int(n)
+    return out
+
+
 def ipm_r0(cfg: dict, group: str) -> dict | None:
-    """IPM Table 4-13 Step 1 bound per calendar year (MW/yr), keyed by run year, using the Table 2-1
-    run-year mapping (None if IPM has no row for the group)."""
+    """IPM Table 4-13 Step 1 bound per build year (MW/yr), keyed by run year (None if IPM has no
+    row for the group)."""
     ip = cfg["ipm"]
     if group not in ip["step1_mw"]:
         return None
-    ry = ip.get("run_years") or {}
-    missing = [y for y in ip["step1_mw"][group] if not ry.get(y)]
-    if missing:
-        raise ValueError(f"level high_ipm needs ipm.run_years (IPM Table 2-1 mapping) for run years {missing}.")
+    win = ipm_windows(cfg)
     out = {}
     for y, mw in ip["step1_mw"][group].items():
         sc = ip["scalars_45x"][y] if (ip.get("apply_45x_scalars") and group != "gas") else 1.0
-        first, last = ry[y]
+        first, last = win[int(y)]
         out[int(y)] = mw * sc / (last - first + 1)
     return out
 
 
 def ipm_rate_for_year(cfg: dict, ipm: dict, y: int, growth: float) -> float:
-    """IPM rate for calendar year y: the run year whose Table 2-1 range holds y; years before the
-    first run year take the first; years after the last range grow from the last (IPM has no adder
-    after 2035)."""
-    ry = {int(k): v for k, v in cfg["ipm"]["run_years"].items() if int(k) in ipm}
+    """IPM rate for calendar year y: the run year whose build window holds y; earlier years take
+    the first; later years grow from the last (IPM has no adders after 2035, so the ipm2025 bands
+    are free there anyway)."""
+    ry = {k: v for k, v in ipm_windows(cfg).items() if k in ipm}
     for r, (first, last) in sorted(ry.items()):
         if first <= y <= last:
             return ipm[r]
@@ -170,9 +190,9 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
                 r[y] = max(float(q.get(y, 0.0)), base_r0)
             else:
                 r[y] = r[nt["last_year"]] * (1 + growth) ** (y - nt["last_year"])
-            if ipm:   # IPM-calibrated: R = Step 1 per calendar year (Table 2-1 mapping)
+            if ipm:   # IPM's shape: R = Step 1 per build year (implied build windows)
                 r[y] = ipm_rate_for_year(cfg, ipm, y, growth)
-        top = tiers(cfg, g)["upto"].max()
+        top = tiers(cfg, g, level_tier_set(cfg, level))["upto"].max()
         mult = level_params(cfg, level, g, "regional_mult")
         floor = level_params(cfg, level, g, "regional_floor_mw")
         sh = shares[shares["group"] == g].set_index("region")["share"]
@@ -188,12 +208,21 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
     return pd.DataFrame(rows)
 
 
-def tiers(cfg: dict, group: str) -> pd.DataFrame:
-    """Bands for a group: tier, lower/upper edge (x R), width (x R), adder (fraction of capex)."""
-    t = pd.DataFrame(cfg["gas_tiers"] if group == "gas" else cfg["tier_sets"][cfg["tier_set"]])
+def level_tier_set(cfg: dict, level: str | None) -> str:
+    return (cfg["levels"].get(level) or {}).get("tier_set", cfg["tier_set"]) if level else cfg["tier_set"]
+
+
+def tiers(cfg: dict, group: str, tier_set: str | None = None) -> pd.DataFrame:
+    """Bands for a group: tier, lower/upper edge (x R), width (x R), adder (fraction of capex),
+    adders_last_year (last calendar build year the adders apply to; NaN = always)."""
+    ts = tier_set or cfg["tier_set"]
+    gt = cfg["gas_tiers"]
+    override = ((cfg.get("group_tier_overrides") or {}).get(ts) or {}).get(group)
+    t = pd.DataFrame(override or (gt.get(ts, gt["default"]) if group == "gas" else cfg["tier_sets"][ts]))
     t["lower"] = t["upto"].shift(fill_value=0.0)
     t["width"] = t["upto"] - t["lower"]
     t["tier"] = [f"t{i + 1}" for i in range(len(t))]
+    t["adders_last_year"] = (cfg.get("tier_adders_last_year") or {}).get(ts, np.nan)
     if (t["width"] <= 0).any() or not t["adder"].is_monotonic_increasing:
         raise ValueError(f"tiers for {group} must have increasing edges and non-decreasing adders")
-    return t[["tier", "lower", "upto", "width", "adder"]]
+    return t[["tier", "lower", "upto", "width", "adder", "adders_last_year"]]

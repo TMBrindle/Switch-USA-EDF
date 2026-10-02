@@ -57,11 +57,14 @@ each band, the data rate, the ramp and regional limits, converted to overnight-e
 | Step | Source | Method |
 |---|---|---|
 | Base rates 2015–25 | EIA-860M (Aug 2026), Operating + Retired sheets | nameplate MW by operating year, group, transreg (county → ReEDS BA → transreg; 99.0% of MW mapped) |
-| R0 | base rates | low = mean 2023–25, central = mean 2021–25, high = max 2021–25 |
+| R0 ("sustained demonstrated rate") | base rates | low = min(mean 2023–25, mean 2021–25); central = max(mean 2023–25, mean 2021–25); high = best single year 2021–25. The pipeline stops unless low ≤ central ≤ high for every group |
 | Near-term to 2030 | LBNL Queued Up (through 2025; read with `git show` from `origin/tom/interconnection-headroom`) | active MW with an executed IA or under construction × completion rate × phased by COD |
 | Completion rates | same file | IA-executed requests queued ≤ 2018 and resolved: share of MW that reached operation (wind 0.46, solar 0.65, storage 0.87, gas 0.66). Construction: **PLACEHOLDER 0.9** (the file reclassifies completed projects as IA Executed, so it has no resolved Construction history) |
 | COD phasing | same file | COD = max(proposed year, IA year + median IA-to-COD years of operational requests queued ≥ 2015: wind 1, gas 1, solar 2, storage 2). Proposed CODs in the file are revised as projects progress, so slip can't be measured from them. Overdue requests (COD already passed: 18 GW wind, 57 GW solar, 11 GW storage, 16 GW gas) are spread evenly over 2026–30 (**PLACEHOLDER rule**) |
 | R_data | above | years ≤ 2030: max(queue-based, R0); later: R_data(2030) × (1+growth)^(y−2030) |
+
+**Queue thinning.** The IA-based near-term rate falls after 2028 (national wind 5.8 → 2.9 GW, solar 33.4 → 12.9 GW, storage 20.8 → 8.6 GW, 2028 → 2030) because projects that will be built in 2029–30 have mostly not yet reached an executed IA or construction. It reflects the stage the queue file can see, not a forecast of falling build, so near-term R is max(queue-based, R0) and R0 sets the rate once the visible pipeline thins.
+
 | Growth after 2030 | **PLACEHOLDER** low/central/high per group | candidate sources: NREL ATB / Standard Scenarios, ReEDS absolute limits, WoodMac/SEIA/ACP outlooks, LBNL completion trends |
 | Regional shares | EIA 2016–25 | share of national additions by transreg |
 | Regional floors | **PLACEHOLDER** | 500 MW/yr wind, 1,000 solar, 500 storage, 500 gas per transreg (reform: 1,500 wind) |
@@ -74,13 +77,27 @@ each band, the data rate, the ramp and regional limits, converted to overnight-e
 | 1.3 – 1.75 | +15% of capex | +10% | +44% |
 | 1.75 – 2.0 (ceiling) | +50% | +50% | +140% |
 
+`high_ipm` uses IPM's own shape (`tier_set: ipm2025`, set on the level):
+
+| Band (× R, R = IPM Step 1 per build year) | Wind, solar | Gas | Storage |
+|---|---|---|---|
+| 0 – 1.0 | 0 | 0 | 0, unbounded (IPM has no storage row) |
+| 1.0 – 1.74 (IPM Step 2 bound) | +46% | +44% | — |
+| above 1.74, no hard ceiling | +147% | +140% | — |
+
+No adders on build years after 2036 (end of the 2035 run year's build window; a period straddling
+2036 pays the adder pro rata to its window years up to 2036). Charged marginally, which keeps the
+model an LP; IPM's text (2023 Section 4.4.3) charges the Step 2 or Step 3 adder on **all** capacity
+built in the run year once Step 1 is exceeded. With no top band edge, `high_ipm`'s regional ceilings
+(share × m × top × R) do not bind; IPM has no regional build-rate limit either.
+
 * Bands: ReEDS growth bins 1.3 / 1.75 / 2.0 (`inputs/growth_constraints/growth_bin_size_mult.csv`,
   ReEDS-2.0 commit 2f583ff5; penalties 0 / 0.1 / 0.5 / 1000 × capex in `growth_penalty.csv`).
   ReEDS's growth penalties are off by default (`GSw_GrowthPenalties = 0`) and are relative to the
   model's own previous build, per state.
-* +15%: between ReEDS's +10% and EPA Platform v6 Post-IRA 2022 Step 2 (+16–25% of capex for wind
-  and solar, 2028–2035). +50%: ReEDS, and the low end of v6 Step 3 (+52–78%). **Under review:** the
-  current EPA 2025 Reference Case adders are about three times larger (table below).
+* Central +15%: between ReEDS's +10% and EPA Platform v6 Post-IRA 2022 Step 2 (+16–25% of capex
+  for wind and solar, 2028–2035). +50%: ReEDS, and the low end of v6 Step 3 (+52–78%). The current
+  EPA 2025 Reference Case adders are about three times larger; they are used only by `high_ipm`.
 * Gas: EPA 2025 Table 4-13 CC + CT Step 2 = +40–44%, Step 3 = +127–141% of Table 4-12 capex
   (multi-shaft CC / industrial-frame CT), unchanged from the 2023 case relative to CT.
 * $/MW per case: adder fraction × the median new-build overnight cost of the group's projects in that
@@ -88,52 +105,79 @@ each band, the data rate, the ramp and regional limits, converted to overnight-e
 
 ### Comparison with IPM (EPA 2025 Reference Case)
 
-Sources: EPA 2025 Reference Case incremental documentation, Table 4-13 (short-term capital cost
-adders, **2022$**), Table 4-15 (renewable capex) and Table 4-12 (conventional capex); EPA 2023
-Reference Case documentation, Section 4.4.3 (method) and Table 2-1 (run years, p. 2-6). Method: Step 1
-is the new capacity that can be built in a run year with no adder; above it, the Step 2 or Step 3
-adder applies to **all** capacity built in that run year; adders stop after 2035. Run years 2028 /
-2030 / 2035 represent 2028–29 / 2030–31 / 2032–37.
+**Sources.** EPA 2025 Reference Case incremental documentation: Table 4-13 (short-term capital cost
+adders and bounds, **2022$**), Table 4-15 (renewable capex), Table 4-12 (conventional capex). EPA
+2023 Reference Case documentation: Section 4.4.3 (method) and Table 2-1 (run years, p. 2-6). Method:
+Step 1 is the new capacity a run year can add with no adder; above it the Step 2 or Step 3 adder
+applies to all capacity built in that run year; no adders after 2035.
+
+**Source caveat (Table 4-12).** The 2025 document captions Table 4-12 "EPA 2023 Reference Case",
+but its values differ from the 2023 document's Table 4-12 (e.g. CC multi-shaft 2028 $732 vs
+$989/kW, CT industrial frame $694 vs $717/kW). It is treated as the 2025 table. Only the gas adder
+percentages depend on it.
+
+**Build windows.** Table 2-1 maps calendar years to run years for dispatch and cost accounting
+(2028 = 2028–29, 2030 = 2030–31, 2035 = 2032–37), but the Step 1 bounds scale with a different
+set of build years. Across every 2025 row:
+
+| Row | Step 1 2028/2030 | Step 1 2035/2030 |
+|---|---|---|
+| Coal steam, fuel cell | 2.000 | 2.500 |
+| Biomass / CC+CT / onshore wind / landfill gas | 2.02 / 2.07 / 2.07 / 2.14 | 2.500 |
+| Solar PV / solar thermal / nuclear / hydro / geothermal | 2.14 / 1.93 / 1.93 / 2.08 / 2.37 | 2.05 |
+
+So the 2028 bound covers 4 build years (2026–29: the first run year absorbs new builds from the
+start of the horizon), 2030 covers 2 (2030–31) and 2035 covers 5 (2032–36), not Table 2-1's 6.
+`ipm.run_year_span: {2028: 4, 2030: 2, 2035: 5}` from 2026. The rows at 2.05 have a ~18% lower
+per-year rate in 2035 over the same window. Per build year that gives near-flat rates:
+
+| GW/yr | 2026–29 | 2030–31 | 2032–36 |
+|---|---|---|---|
+| Wind Step 1 | 17.1 | 16.5 | 16.5 |
+| Solar PV Step 1 | 46.2 | 43.2 | 35.4 |
+| CC+CT Step 1 | 22.9 | 22.1 | 22.1 |
+
+**Adders (% of 2025 base capex).**
 
 | | 2028 | 2030 | 2035 |
 |---|---|---|---|
-| Wind Step 1, GW per calendar year (2025) | 34.3 | 16.5 | 13.8 |
-| Solar Step 1, GW per calendar year (2025) | 92.4 | 43.2 | 29.5 |
-| CC+CT Step 1, GW per calendar year (2025) | 45.8 | 22.1 | 18.4 |
-| Wind Step 2 / Step 3 adder, % of capex (2025) | 48 / 153 | 47 / 148 | 46 / 145 |
-| Solar Step 2 / Step 3 adder, % of capex (2025) | 48 / 151 | 46 / 147 | 45 / 143 |
-| CC+CT Step 2 / Step 3, % of CT capex (2025) | 44 / 141 | 44 / 139 | 44 / 139 |
-| Wind Step 2 / Step 3, % of capex (v6, historical) | 22 / 70 | 19 / 61 | 16 / 52 |
-| Solar Step 2 / Step 3, % of capex (v6, historical) | 25 / 78 | 20 / 64 | 18 / 59 |
+| Wind Step 2 / Step 3 (2025) | 48 / 153 | 47 / 148 | 46 / 145 |
+| Solar Step 2 / Step 3 (2025) | 48 / 151 | 46 / 147 | 45 / 143 |
+| CC+CT Step 2 / Step 3 vs CT frame (vs CC multi-shaft) | 44 / 141 (42 / 134) | 44 / 139 (41 / 131) | 44 / 139 (40 / 127) |
+| Wind Step 2 / Step 3 (v6, historical) | 22 / 70 | 19 / 61 | 16 / 52 |
+| Solar Step 2 / Step 3 (v6, historical) | 25 / 78 | 20 / 64 | 18 / 59 |
 
-Step 2's upper bound is 1.74 × Step 1 in every 2030/2035 row, close to our 1.75R band edge.
+Step 2's bound is 1.74 × Step 1 in every 2030 and 2035 row (the `ipm2025` band edge).
 
-Against central (national, GW/yr; cumulative 2028–35 in brackets):
+**45X.** Section 4.4.3 (2023) widens renewable steps by 21% / 29% / 50% in 2028 / 2030 / 2035; the
+2023 table already embeds it (wind and solar 2035/2030 = 2.907 = 2.5 × 1.50/1.29). The 2025 wind
+row is at 2.500 and the document does not restate the scalars, so the published bounds are used.
 
-* **Wind:** central's free band (1.3R) is 10.7–13.7 against IPM Step 1's 34.3 / 16.5 / 13.8 (94 vs
-  157 GW cumulative). Central's ceiling (145 GW cumulative) is below IPM's Step 1 alone, so central
-  is tighter on volume through 2035.
-* **Gas:** central is far tighter (free band 68 vs 210 GW cumulative).
-* **Solar:** central is tighter through 2031. From 2032 central's free band (30.3 → 35.1 GW/yr)
-  exceeds IPM's Step 1 (29.5), and by 2035 cumulative central's ceiling (397 GW) roughly equals
-  IPM's Step 1 (389 GW).
-* **Adders:** central's +15% / +50% are about a third of IPM 2025's +45–48% / +143–153%. They are
-  marginal, while IPM's apply to the whole run year's build. IPM has no ceiling (Step 3 has no
-  limit) and no adders after 2035; central keeps its bands and ceiling in every period.
+**Central against IPM** (national, cumulative 2026–35, GW):
 
-So central is deliberately tighter than IPM on volume for wind and gas (anchored to observed
-EIA rates and the queue pipeline, because the S0 tests over-built wind against history), but
-looser on price inside its bands, and not tighter for solar after 2031.
+| | Central free (1.3R) | Central 1.75R | Central ceiling (2.0R) | IPM Step 1 | IPM Step 2 bound |
+|---|---|---|---|---|---|
+| Wind | 116 | 156 | 178 | 168 | 292 |
+| Solar | 417 | 562 | 642 | 413 | 718 |
+| Gas | 84 | 113 | 130 | 224 | 390 |
 
-The 45X step-width scalars (Section 4.4.3 of 2023: +21% / +29% / +50%) are already embedded in the 2023
-Table 4-13: wind and solar 2035/2030 Step 1 ratio 2.907 = 2.5 × 1.50/1.29, against 2.5 for CC+CT.
-In 2025 wind's ratio is 2.500, and the 2025 document does not restate the scalars, so `high_ipm`
-uses the published 2025 bounds without extra scaling (`ipm.apply_45x_scalars: false`).
+* **Wind:** central is tighter than IPM. Central's free band (10.7–13.7 GW/yr) is below IPM's Step
+  1 (16.5–17.1) in every year, and central's hard ceiling (178 GW) is about IPM's no-adder band.
+* **Gas:** central is much tighter (free band 84 vs 224 GW).
+* **Solar:** central is **not** tighter. Its free band about equals IPM's Step 1 cumulatively (417
+  vs 413 GW): above IPM in 2026–27 and from 2031 (e.g. 44.6 vs 35.4 GW/yr in 2035), below it in
+  2028–30. Central's ceiling (642 GW) is below IPM's Step 2 bound, and IPM has no ceiling.
+* **Price:** central's +15% / +50% are about a third of IPM 2025's adders, but central keeps its
+  bands and ceiling in every period, while IPM has no adders after 2035.
 
-`high_ipm` sets R = Table 4-13 Step 1 per calendar year (Table 2-1 mapping; 2026–27, before IPM's
-horizon, take the 2028 run year; after 2037 R grows at the `high` rate). Storage has no Table 4-13
-row and follows `high`. With R = Step 1, our free band is 1.3 × IPM's and our 1.75R edge matches
-IPM's Step 2 bound.
+Central is deliberately tighter than IPM on volume for wind and gas: it is anchored to observed
+EIA-860M rates and the queue pipeline, because the S0 tests over-built wind against history. For
+solar, the recent record (26.9 GW/yr mean 2023–25) already reaches IPM's no-adder band, so the two
+agree on volume.
+
+`high_ipm` sets R = Step 1 per build year (2026–27 take the 2028 window's rate; after 2036 R grows
+at the `high` rate, and the bands are free). Storage has no Table 4-13 row, so it keeps `high`'s R
+with one free unbounded band.
 
 ### Spur and access adders (IPM Tables 4-38 / 4-42): not adopted
 
@@ -149,15 +193,15 @@ median. The `reform` level therefore relaxes wind's regional multiplier (1.5 →
 | Level | R0 | Growth | Other |
 |---|---|---|---|
 | off | — | — | module inert |
-| low | mean 2023–25 | low | |
-| central | mean 2021–25 | central | |
-| high | max 2021–25 | high | |
-| reform | mean 2021–25 | central | wind regional multiplier 3.0, floor 1,500 MW/yr |
-| high_ipm | EPA 2025 Table 4-13 Step 1 per calendar year (Table 2-1 mapping) | high (after 2037; storage) | |
+| low | min(mean 2023–25, mean 2021–25) | low | |
+| central | max(mean 2023–25, mean 2021–25) | central | |
+| high | best year 2021–25 | high | |
+| reform | as central | central | wind regional multiplier 3.0, floor 1,500 MW/yr |
+| high_ipm | EPA 2025 Table 4-13 Step 1 per build year (implied windows) | high (after 2036; storage) | `ipm2025` tiers, no ceiling |
 
-Note: with the decision-(b) rules, `low` R0 is above `central` for solar and storage, whose largest
-years are the most recent (solar 26.9 vs 21.1 GW/yr, storage 11.6 vs 8.5). Near-term years use the
-queue-based rate whenever it is higher.
+R0, GW/yr (low / central / high): wind 5.98 / 8.25 / 13.84, solar 21.14 / 26.87 / 31.16, storage
+8.48 / 11.56 / 16.36, gas 5.38 / 6.02 / 9.65. Near-term years use the queue-based rate whenever it
+is higher.
 
 ## Interactions
 
@@ -198,19 +242,54 @@ Commands (from `build_rate/`): `bash scripts/fetch_data.sh`, `python -m brc.cli 
 
 ## Results (1 Oct 2026 inputs: EIA-860M Aug 2026, Queued Up through 2025)
 
-National R and bands, GW/yr (ceiling = 2.0 × R), and cumulative 2026–y new build, GW:
+National R (GW/yr), the free-band edge (1.3R; IPM shape 1.0R) and ceiling (2.0R; none for `high_ipm`), and cumulative 2026–y new build (GW):
 
-| Level | Group | R 2028 / 2030 / 2035 | Ceiling 2035 | Cum. free band (1.3R) to 2028 / 2030 / 2035 | Cum. ceiling to 2035 | S0 new build since 2025 (2028 / 2030 / 2035) |
-|---|---|---|---|---|---|---|
-| central | wind_onshore | 8.2 / 8.2 / 10.5 | 21.1 | 32 / 54 / 116 | 178 | 38.5 / 61.6 / 124.2 |
-| central | solar | 33.4 / 21.1 / 27.0 | 54.0 | 145 / 200 / 359 | 552 | 90.8 / 168.6 / 413.7 |
-| central | storage | 20.8 / 8.6 / 12.7 | 25.4 | 93 / 117 / 188 | 289 | — |
-| low | wind_onshore | 6.0 / 6.0 / 6.6 | 13.2 | 26 / 42 / 83 | 128 | |
-| high | wind_onshore | 13.8 / 13.8 / 22.3 | 44.6 | 54 / 90 / 211 | 324 | |
+| Level | Group | R 2028 / 2030 / 2035 | Free-band edge 2035 | Ceiling 2035 | Cum. R to 2028 / 2030 / 2035 | Cum. free band to 2028 / 2030 / 2035 | Cum. ceiling to 2035 | S0 new build (2028 / 2030 / 2035) |
+|---|---|---|---|---|---|---|---|---|
+| central | wind | 8.2 / 8.2 / 10.5 | 13.7 | 21.1 | 25 / 41 / 89 | 32 / 54 / 116 | 178 | 38.5 / 61.6 / 124.2 |
+| central | solar | 33.4 / 26.9 / 34.3 | 44.6 | 68.6 | 111 / 165 / 321 | 145 / 215 / 417 | 642 | 90.8 / 168.6 / 413.7 |
+| central | storage | 20.8 / 11.6 / 17.0 | 22.1 | 34.0 | 71 / 94 / 168 | 93 / 123 / 218 | 335 | — |
+| central | gas | 8.4 / 6.0 / 6.7 | 8.6 | 13.3 | 21 / 33 / 65 | 27 / 43 / 84 | 130 | — |
+| low | wind | 6.0 / 6.0 / 6.6 | 8.6 | 13.2 | 20 / 32 / 64 | 26 / 42 / 83 | 128 | 38.5 / 61.6 / 124.2 |
+| low | solar | 33.4 / 21.1 / 23.3 | 30.3 | 46.7 | 111 / 154 / 266 | 145 / 200 / 345 | 531 | 90.8 / 168.6 / 413.7 |
+| low | storage | 20.8 / 8.6 / 10.5 | 13.7 | 21.0 | 71 / 90 / 138 | 93 / 117 / 180 | 277 | — |
+| low | gas | 8.4 / 5.4 / 5.4 | 7.0 | 10.8 | 20 / 31 / 58 | 26 / 40 / 75 | 116 | — |
+| high | wind | 13.8 / 13.8 / 22.3 | 29.0 | 44.6 | 42 / 69 / 162 | 54 / 90 / 211 | 324 | 38.5 / 61.6 / 124.2 |
+| high | solar | 33.4 / 31.2 / 50.2 | 65.2 | 100.4 | 111 / 174 / 383 | 145 / 226 / 498 | 766 | 90.8 / 168.6 / 413.7 |
+| high | storage | 20.8 / 16.4 / 32.9 | 42.8 | 65.8 | 71 / 104 / 231 | 93 / 135 / 300 | 461 | — |
+| high | gas | 9.7 / 9.7 / 12.3 | 16.0 | 24.6 | 29 / 48 / 104 | 38 / 63 / 136 | 208 | — |
+| high_ipm | wind | 17.1 / 16.5 / 16.5 | 16.5 | none | 51 / 85 / 168 | 51 / 85 / 168 | none | 38.5 / 61.6 / 124.2 |
+| high_ipm | solar | 46.2 / 43.2 / 35.4 | 35.4 | none | 139 / 228 / 413 | 139 / 228 / 413 | none | 90.8 / 168.6 / 413.7 |
+| high_ipm | storage | 20.8 / 16.4 / 32.9 | unbounded (no adder) | none | 71 / 104 / 231 | unbounded | none | — |
+| high_ipm | gas | 22.9 / 22.1 / 22.1 | 22.1 | none | 69 / 114 / 224 | 69 / 114 / 224 | none | — |
 
 S0's caps are cumulative stock (wind 198.2 / 221.3 / 283.9 GW, solar 243.7 / 321.5 / 566.6 GW);
 the new-build column subtracts the end-2025 EIA-860M operating stock (wind 159.7 GW incl. offshore,
 which the WindGrowth tag also covers; solar PV 152.9 GW), ignoring retirements before 2035.
+
+Regional check, onshore wind, GW (cumulative ceilings sum the annual regional ceilings
+max(share × m × 2.0 × R, floor) over 2026–35; the national ceiling, 178 GW central, binds on the sum
+first; uncapped S0 builds are from the VM diagnostics):
+
+| Transreg | Share 2016–25 | Observed 2021–25 | Central cum. ceiling 2026–35 | Reform cum. ceiling 2026–35 | Uncapped S0 build (VM) | Central binds? |
+|---|---|---|---|---|---|---|
+| SPP | 0.35 | 12.7 | 92.4 | 184.7 | | |
+| ERCOT | 0.25 | 12.1 | 67.1 | 134.1 | | |
+| MISO | 0.21 | 7.2 | 56.6 | 113.2 | 88 | yes (−31); reform does not (+25) |
+| WestConnect | 0.10 | 5.1 | 26.8 | 53.5 | | |
+| NorthernGrid | 0.03 | 1.6 | 8.6 | 17.1 | | |
+| PJM | 0.02 | 0.6 | 5.9 | 15.0 (floor) | 25 | yes (−19); reform too (−10) |
+| SERTP | 0.00 | 0.2 | 5.0 (floor) | 15.0 (floor) | 31 | yes (−26); reform too (−16) |
+| ISONE | 0.01 | 0.2 | 5.0 (floor) | 15.0 (floor) | 10 | yes (−5); reform does not (+5) |
+| NYISO / CAISO / FRCC | ≤ 0.01 | 0.8 / 0.7 / 0.0 | 5.0 (floor) each | 15.0 (floor) each | | |
+
+Central binds where the S0 diagnostics put wind outside the historical build regions (SERTP, PJM,
+ISO-NE: floors or ~0.02 shares) and in MISO (56.6 vs 88 GW). SPP, ERCOT and WestConnect have
+regional ceilings 5–7× their 2021–25 build (92 / 67 / 27 GW); the diagnostics give no uncapped S0
+figures there, but they would bind only above those levels. The regional ceilings sum to 287 GW
+against the 178 GW national ceiling, so the national limit binds first in aggregate. Reform
+relieves MISO and ISO-NE but not PJM or SERTP, where the 1,500 MW/yr floor is still below the S0
+build. Multipliers and floors are placeholders and unchanged.
 
 ## VM test handoff
 
@@ -242,8 +321,10 @@ Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, 
    `S0_uncapped` is the `policies` preset on `tom/ic-test-fedpol` (S0 carbon settings with
    `max_cap_req_fn: growth_caps/uncapped.csv`), so this is "S0_buildrate": S0 with the wind/solar
    growth caps released and build_rate central. GasTurbineSupply and NuclearGrowth stay as they are.
-4. Runs (2035, s4x1), each with the corrected wind profiles via the **windloss profile alias**
-   (`<windloss alias: not on any branch; fill in from the VM>`):
+4. Runs (2035, s4x1), each with the corrected wind profiles: `variable_capacity_factors.windloss.csv`
+   (onshore wind profiles × 0.881, made on the VM in each case's inputs folder), passed as
+   `variable_capacity_factors.csv=variable_capacity_factors.windloss.csv` (append it to the scenario's
+   existing `--input-aliases` list in `scenarios.txt` if it has one):
    * `s4x1_S0br_2035_icoff`: uncapped S0 + build_rate central, headroom off;
    * `s4x1_S0br_2035_icon`: the same with interconnection headroom on;
    * reference: `s4x1_S0_2035_icoff` (S0 caps) and `s4x1_S0unc_2035_icoff` (uncapped).
@@ -254,5 +335,4 @@ Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, 
 ## Placeholders (all marked in build_rate/config.yaml)
 
 construction completion rate (0.9), overdue-pipeline rule (spread evenly 2026–30), growth rates
-after 2030 (low/central/high), ramp floors, regional multipliers and floors, and amortisation lives. The central adders (+15% / +50%) are
-under review against the EPA 2025 Reference Case adders.
+after 2030 (low/central/high), ramp floors, regional multipliers and floors, and amortisation lives.
