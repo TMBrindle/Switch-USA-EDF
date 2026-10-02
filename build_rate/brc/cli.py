@@ -78,7 +78,8 @@ def cmd_run(cfg: dict) -> dict:
 
 
 def cmd_patch_case(cfg: dict, inputs_dir: str, level: str, groups: list[str], regional: bool,
-                   zone_map_csv: str | None, slack_cost: float | None, tables_dir: str | None) -> list[str]:
+                   zone_map_csv: str | None, slack_cost: float | None, tables_dir: str | None,
+                   regional_groups: list[str] | None = None) -> list[str]:
     """Write build_rate_*.csv (incl. the generator -> group mapping, build_rate_gens.csv) into an
     existing case's inputs folder from its own gen_info.csv, periods.csv, gen_build_costs.csv,
     gen_build_predetermined.csv and min/max cap files, without rebuilding the case."""
@@ -86,6 +87,7 @@ def cmd_patch_case(cfg: dict, inputs_dir: str, level: str, groups: list[str], re
     from . import switch_case
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
     settings = {"build_rate": {"enabled": True, "level": level, "groups": groups, "regional": regional,
+                               "regional_groups": regional_groups or list(switch_case.DEFAULT_REGIONAL_GROUPS),
                                "tables_dir": tables_dir or str(Path(cfg["paths"]["outputs"])),
                                "ceiling_slack_cost": slack_cost}}
     if zone_map_csv:   # aggregated zones: columns ba, zone
@@ -111,6 +113,8 @@ def main(argv=None):
     ap.add_argument("--level", default="central")
     ap.add_argument("--groups", nargs="+", default=["wind_onshore", "solar", "storage"])
     ap.add_argument("--no-regional", action="store_true")
+    ap.add_argument("--regional-groups", nargs="+",
+                    help="groups with transreg ceilings (default: wind_onshore solar; others national-only)")
     ap.add_argument("--zone-map", help="CSV with columns ba, zone (only for aggregated zones)")
     ap.add_argument("--ceiling-slack-cost", type=float, help="$/kW; diagnostic slack above the ceiling")
     ap.add_argument("--tables-dir", help="pipeline outputs (default: this config's outputs)")
@@ -123,7 +127,7 @@ def main(argv=None):
         if not a.inputs_dir:
             ap.error("patch-case needs the case's inputs folder")
         cmd_patch_case(cfg, a.inputs_dir, a.level, a.groups, not a.no_regional, a.zone_map,
-                       a.ceiling_slack_cost, a.tables_dir)
+                       a.ceiling_slack_cost, a.tables_dir, a.regional_groups)
 
 
 if __name__ == "__main__":

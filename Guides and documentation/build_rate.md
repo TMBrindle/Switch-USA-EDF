@@ -8,7 +8,8 @@ be built. It replaces the trend-based `MaxCapTag_WindGrowth` / `MaxCapTag_SolarG
   additions and the LBNL interconnection-queue pipeline;
 * cost bands above R (marginal adders: only the MW inside a band pay it) and a hard ceiling;
 * a ramp bound tying each period's rate to the previous period's build;
-* regional (transreg) ceilings from recent regional shares, with a minimum per region.
+* regional (transreg) ceilings from recent regional shares, with a minimum per region, for the
+  siting-limited groups only (wind and solar by default; storage and gas are national-only).
 
 Why: in the 2035 S0 tests, removing the growth caps let the model build 270–360 GW of new onshore
 wind against ~5–9 GW/yr of real build, and the wind share of new wind + solar came out ~0.50 against
@@ -50,6 +51,11 @@ cost = Σ_k Tier · adder_k  (overnight $), annualised with crf(r, life_G), char
   `build_rate_prev_build.chained.<case>.csv` with the best rate achieved so far, and the next stage's
   first period uses it, so the bound never falls below it.
 * Regional ceilings use R_data (a parameter), not the variable R, to stay linear.
+* Regional ceilings apply only to `regional_groups` (default `[wind_onshore, solar]`). Storage and gas
+  are national-only: they are limited by supply chain, not local siting. On the VM, regional storage
+  ceilings with 500 MW/yr floors held central to 36 GW of storage against an EIA pace of about 83 GW,
+  because 2021–25 storage build was concentrated in CAISO, ERCOT and WestConnect, so share-based
+  ceilings left little room elsewhere. Add a group to `regional_groups` to restore its ceilings.
 * Committed (predetermined) builds count toward the rate. If they exceed a ceiling, the case writer
   raises that ceiling to the committed amount and warns.
 * Optional `ceiling_slack_cost` ($/kW, off by default) allows builds above the ceiling at that cost,
@@ -249,6 +255,7 @@ build_rate:
   tables_dir: build_rate/outputs
   groups: [wind_onshore, solar, storage]   # add gas only with MaxCapTag_GasTurbineSupply released
   regional: true
+  regional_groups: [wind_onshore, solar]   # transreg ceilings; storage and gas national-only
   ceiling_slack_cost: null  # $/kW
 ```
 
@@ -342,6 +349,7 @@ Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, 
    cd build_rate
    python -m brc.cli patch-case <case>/inputs --level central            # default groups: wind, solar, storage
    #   --groups wind_onshore solar storage gas   (gas only with MaxCapTag_GasTurbineSupply released)
+   #   --regional-groups wind_onshore solar     (default; storage and gas national-only)
    #   --no-regional | --zone-map zone_map.csv (columns ba, zone; only for aggregated zones)
    #   --ceiling-slack-cost 5000                 (diagnostic, $/kW)
    ```
@@ -378,3 +386,42 @@ Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, 
 
 construction completion rate (0.9), overdue-pipeline rule (spread evenly 2026–30), growth rates
 after 2030 (low/central/high), ramp floors, regional multipliers and floors, and amortisation lives.
+
+## Future development: dynamic regional limits (not implemented)
+
+**Today the regional limits are static.** Each region's floor is computed once from its end-2025
+fleet and its peak annual build in 2010–25, and its share term scales with the exogenous national R.
+Neither responds to what the model builds. The national ramp bound depends on the previous period's
+build, but R = min(R_data, ramp), so it can only lower R, never raise it. A region that builds at
+its limit through 2030 therefore gets the same 2031–35 limit as one that built nothing.
+
+**Proposal (Tom Brindle, 2 Oct 2026).** Let a region that is deploying earn a higher limit
+("capability grows with deployment"), using an opt-in switch `regional_dynamic` (default false):
+
+- stock term on end-2025 stock **plus** the model's own new build in the region to date;
+- peak term on max(historical peak 2010–25, the region's achieved annual rate in the previous
+  period);
+- a regional ramp term, (1 + g_reg_G)^W × the achieved rate, with g_reg a placeholder (wind ~0.20/yr;
+  e.g. a region at 0.5 GW/yr through 2030 could reach ~1.2 GW/yr in 2031–35). With today's k_stock
+  and k_peak the stock and peak terms alone barely move (+~125 MW/yr for 2.5 GW of extra stock), so
+  the ramp term carries the effect.
+
+The national ceiling stays exogenous, so dynamic regional limits only reallocate build between
+regions within the national total. They cannot reintroduce the self-referencing national overbuild
+that the data anchor is meant to prevent.
+
+**Implementation notes:**
+
+- *Myopic runs* (the usual fedpol setup): exact and simple. `chain_build_rate_inputs` recomputes
+  each region's limits for the next stage from the solved stage's actual builds, using any formula
+  including max().
+- *Perfect foresight*: an upper bound equal to the max of terms that depend on variables is
+  non-convex, so use an additive linear form instead (static limit_p + g × the region's NewBuild in
+  p−1) and document it as an approximation of the myopic rule.
+- *Single-period runs* (e.g. 2035-only tests) have one window and nothing to recompute, so they stay
+  more conservative than multi-period runs. The test asserting identical limits for one and three
+  periods would then hold only with `regional_dynamic: false`.
+- *Tests to add*: a 2030+2035 myopic toy chain where a region at its 2030 limit gets a higher 2035
+  limit; the additive form under perfect foresight; unchanged limits with the switch off.
+
+Most relevant once fedpol runs go multi-period with myopic chaining.

@@ -12,6 +12,7 @@ Settings (pg/settings/build_rate.yml):
       tables_dir: build_rate/outputs
       groups: [wind_onshore, solar, storage]   # add gas only with MaxCapTag_GasTurbineSupply released
       regional: true
+      regional_groups: [wind_onshore, solar]   # groups with transreg ceilings; others national-only
       ceiling_slack_cost: null       # $/kW; diagnostic slack above the ceiling (off when null)
 """
 from __future__ import annotations
@@ -29,6 +30,10 @@ logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PIPELINE_CONFIG = REPO_ROOT / "build_rate" / "config.yaml"
 GAS_CAP_TAG = "MaxCapTag_GasTurbineSupply"
+# Regional (transreg) ceilings by default only for groups limited by local siting. Storage and gas are
+# limited by supply chain and stay national-only: 2021-25 storage build was concentrated in CAISO,
+# ERCOT and WestConnect, so share-based regional ceilings held storage far below its national pace.
+DEFAULT_REGIONAL_GROUPS = ("wind_onshore", "solar")
 
 
 def br_settings(settings: dict) -> dict | None:
@@ -221,12 +226,13 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
 
     files = {"build_rate_groups.csv": pd.DataFrame(grp_rows), "build_rate_gens.csv": gens_out,
              "build_rate_periods.csv": pd.DataFrame(rows_p), "build_rate_tiers.csv": pd.DataFrame(rows_t)}
-    if br.get("regional", True):
-        zones, regions = regional_frames(gens, periods, rates, groups, settings, predet)
+    reg_groups = [g for g in groups if g in (br.get("regional_groups") or DEFAULT_REGIONAL_GROUPS)]
+    if br.get("regional", True) and reg_groups:
+        zones, regions = regional_frames(gens, periods, rates, reg_groups, settings, predet)
         if len(zones):
             files["build_rate_zones.csv"] = zones
             files["build_rate_regions.csv"] = regions
-            check_rps(out_folder, zones, rates[rates["region"] != "national"], groups, periods, cfg)
+            check_rps(out_folder, zones, rates[rates["region"] != "national"], reg_groups, periods, cfg)
     for name, df in files.items():
         df.to_csv(out_folder / name, index=False)
     logger.info("build_rate: level %s, groups %s -> %s", level, groups, ", ".join(files))
