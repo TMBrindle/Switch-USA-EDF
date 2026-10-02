@@ -112,21 +112,36 @@ def overdue_summary(comp: pd.DataFrame, delay: pd.Series, cfg: dict) -> pd.Serie
 
 
 def ipm_r0(cfg: dict, group: str) -> dict | None:
-    """IPM Table 4-13 Step 1 bound per calendar year, by run year (None if IPM has no row)."""
+    """IPM Table 4-13 Step 1 bound per calendar year (MW/yr), keyed by run year, using the Table 2-1
+    run-year mapping (None if IPM has no row for the group)."""
     ip = cfg["ipm"]
     if group not in ip["step1_mw"]:
         return None
-    span = ip["run_year_span"]
-    missing = [y for y, v in span.items() if not v]
+    ry = ip.get("run_years") or {}
+    missing = [y for y in ip["step1_mw"][group] if not ry.get(y)]
     if missing:
-        raise ValueError(
-            f"level high_ipm needs ipm.run_year_span for run years {missing} (IPM Platform v6 Chapter 2 "
-            "run-year mapping), which is not in the inputs. Fill it in config.yaml before using high_ipm.")
+        raise ValueError(f"level high_ipm needs ipm.run_years (IPM Table 2-1 mapping) for run years {missing}.")
     out = {}
     for y, mw in ip["step1_mw"][group].items():
         sc = ip["scalars_45x"][y] if (ip.get("apply_45x_scalars") and group != "gas") else 1.0
-        out[int(y)] = mw * sc / span[y]
+        first, last = ry[y]
+        out[int(y)] = mw * sc / (last - first + 1)
     return out
+
+
+def ipm_rate_for_year(cfg: dict, ipm: dict, y: int, growth: float) -> float:
+    """IPM rate for calendar year y: the run year whose Table 2-1 range holds y; years before the
+    first run year take the first; years after the last range grow from the last (IPM has no adder
+    after 2035)."""
+    ry = {int(k): v for k, v in cfg["ipm"]["run_years"].items() if int(k) in ipm}
+    for r, (first, last) in sorted(ry.items()):
+        if first <= y <= last:
+            return ipm[r]
+    first_ry = min(ry)
+    if y < ry[first_ry][0]:
+        return ipm[first_ry]
+    last_ry = max(ry)
+    return ipm[last_ry] * (1 + growth) ** (y - ry[last_ry][1])
 
 
 def level_params(cfg: dict, level: str, group: str, key: str):
@@ -144,7 +159,8 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
         growth = cfg["growth"][lv["growth"]][g]
         if lv["r0"] == "ipm":
             ipm = ipm_r0(cfg, g)
-            base_r0 = float(r0(base, cfg["r0_rule"]["high"]).get(g, 0.0))
+            base_r0 = (ipm_rate_for_year(cfg, ipm, nt["first_year"], growth) if ipm
+                       else float(r0(base, cfg["r0_rule"]["high"]).get(g, 0.0)))
         else:
             ipm, base_r0 = None, float(r0(base, cfg["r0_rule"][lv["r0"]]).get(g, 0.0))
         q = near[(near["group"] == g) & (near["region"] == NATIONAL)].set_index("year")["mw"]
@@ -154,10 +170,8 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
                 r[y] = max(float(q.get(y, 0.0)), base_r0)
             else:
                 r[y] = r[nt["last_year"]] * (1 + growth) ** (y - nt["last_year"])
-            if ipm:   # IPM-equivalent: rate of the first run year at or after y; growth after the last
-                later = [ry for ry in sorted(ipm) if ry >= y]
-                ipm_y = ipm[later[0]] if later else ipm[max(ipm)] * (1 + growth) ** (y - max(ipm))
-                r[y] = max(r[y], ipm_y)
+            if ipm:   # IPM-calibrated: R = Step 1 per calendar year (Table 2-1 mapping)
+                r[y] = ipm_rate_for_year(cfg, ipm, y, growth)
         top = tiers(cfg, g)["upto"].max()
         mult = level_params(cfg, level, g, "regional_mult")
         floor = level_params(cfg, level, g, "regional_floor_mw")

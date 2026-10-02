@@ -102,12 +102,16 @@ def test_tiers_and_switch():
     assert rates.tiers(CFG, "gas")["adder"].tolist() == [0.0, 0.44, 1.40]
 
 
-def test_high_ipm_needs_run_year_mapping():
-    with pytest.raises(ValueError, match="run_year_span"):
-        rates.ipm_r0(CFG, "wind_onshore")
-    cfg = dict(CFG, ipm=dict(CFG["ipm"], run_year_span={2028: 3, 2030: 2, 2035: 5}))
-    r = rates.ipm_r0(cfg, "wind_onshore")
-    assert r[2030] == pytest.approx(50181 * 1.29 / 2)
+def test_high_ipm_epa2025_table_2_1_mapping():
+    r = rates.ipm_r0(CFG, "wind_onshore")
+    assert r == {2028: 68555 / 2, 2030: 33089 / 2, 2035: 82724 / 6}
+    assert rates.ipm_r0(CFG, "storage") is None
+    assert rates.ipm_rate_for_year(CFG, r, 2026, 0.1) == 68555 / 2      # before the IPM horizon
+    assert rates.ipm_rate_for_year(CFG, r, 2031, 0.1) == 33089 / 2
+    assert rates.ipm_rate_for_year(CFG, r, 2037, 0.1) == 82724 / 6
+    assert rates.ipm_rate_for_year(CFG, r, 2039, 0.1) == pytest.approx(82724 / 6 * 1.1 ** 2)
+    with pytest.raises(ValueError, match="run_years"):
+        rates.ipm_r0(dict(CFG, ipm=dict(CFG["ipm"], run_years={2028: [2028, 2029]})), "solar")
 
 
 def test_placeholders_marked():

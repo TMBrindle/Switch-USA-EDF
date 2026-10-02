@@ -75,7 +75,8 @@ levels:
   # are ~9x solar's at the median, so siting binds wind first). PLACEHOLDER values.
   reform:  {r0: central, growth: central,
             regional_mult: {wind_onshore: 3.0}, regional_floor_mw: {wind_onshore: 1500}}
-  # IPM-equivalent: R0 = IPM Table 4-13 Step 1 bound per calendar year (needs ipm.run_year_span)
+  # IPM-equivalent (EPA 2025 Reference Case): R = Table 4-13 Step 1 bound per calendar year, via the
+  # Table 2-1 run-year mapping, for groups with a Table 4-13 row; storage (no row) follows `high`.
   high_ipm: {r0: ipm, growth: high}
 
 # Tier bands (upper edge as a multiple of R) and adders (fraction of the group's new-build
@@ -83,9 +84,10 @@ levels:
 # hard ceiling. One-line switch: tier_set.
 tier_set: central
 tier_sets:
-  # central: 0 / +15% / +50% at 1.3 / 1.75 / 2.0 x R. +15% sits between ReEDS's +10% and IPM's
-  # Step 2 (+16-25% of capex for wind/solar, Table 4-13 vs Table 4-15, 2028-2035); +50% = ReEDS
-  # and the low end of IPM Step 3 (+52-78%). Bands = ReEDS growth bins (1.3/1.75/2.0).
+  # central: 0 / +15% / +50% at 1.3 / 1.75 / 2.0 x R. Set against EPA Platform v6 Post-IRA 2022:
+  # +15% between ReEDS's +10% and v6 Step 2 (+16-25% of capex for wind/solar); +50% = ReEDS and
+  # the low end of v6 Step 3 (+52-78%). UNDER REVIEW: the EPA 2025 Reference Case adders are
+  # +45-48% / +143-153% of 2025 base capex (see ipm.table_4_13 below). Bands = ReEDS growth bins.
   central: [{upto: 1.3, adder: 0.0}, {upto: 1.75, adder: 0.15}, {upto: 2.0, adder: 0.50}]
   # ReEDS-exact: inputs/growth_constraints/growth_penalty.csv and growth_bin_size_mult.csv at
   # ReEDS commit 2f583ff5 (bins 1.3/1.75/2.0/1000, penalties 0/0.1/0.5/1000 x capex).
@@ -94,19 +96,61 @@ tier_sets:
 # of Table 4-12 capex (2028-2035).
 gas_tiers: [{upto: 1.3, adder: 0.0}, {upto: 1.75, adder: 0.44}, {upto: 2.0, adder: 1.40}]
 
-# IPM Platform v6 Post-IRA 2022 Reference Case, Chapter 4, Table 4-13 Step 1 upper bounds (MW per
-# run year, 2019$ table). high_ipm converts them to MW per calendar year with run_year_span (years
-# each run year represents). The run-year mapping is in Platform v6 Chapter 2, not available here:
-# fill run_year_span from it before using high_ipm (the pipeline stops with an error otherwise).
+# EPA 2025 Reference Case (incremental to the 2023 Reference Case), IPM.
+#  * Table 4-13 "Short-Term Capital Cost Adders for New Power Plants in the EPA 2025 Reference Case
+#    (2022$)": Step 1 / Step 2 upper bounds (MW of new capacity in a run year) and Step 2 / Step 3
+#    adders ($/kW, 2022$). Step 3 has no limit.
+#  * Base capex (2022$/kW): Table 4-15 (2025) for onshore wind and solar PV; Table 4-12 (as printed
+#    in the 2025 document, captioned "EPA 2023 Reference Case") for CC multi-shaft / CT frame.
+#  * Method (2023 Reference Case documentation, Section 4.4.3): Step 1 is the capacity that can be
+#    built in a run year without an adder; above it the Step 2 or Step 3 adder applies to the
+#    entire capacity deployed in that run year; adders apply to run years through 2035 only.
+#  * Run years (2023 Reference Case, Table 2-1, p. 2-6; the 2025 document keeps the same seven run
+#    years): 2028 = 2028-29, 2030 = 2030-31, 2035 = 2032-37, 2040 = 2038-41, 2045 = 2042-47,
+#    2050 = 2048-52, 2055 = 2053-59.
+#  * 45X: Section 4.4.3 (2023) widens renewable steps by 21% / 29% / 50% in 2028 / 2030 / 2035. The
+#    2023 Table 4-13 already embeds this (wind and solar 2035/2030 Step 1 ratio 2.907 = 2.5 x
+#    1.50/1.29, against 2.5 for CC+CT). In the 2025 table wind's ratio is 2.500, like CC+CT, and the
+#    2025 document does not restate the scalar, so the published 2025 bounds are used as is.
+#  * v6_post_ira_2022: EPA Platform v6 Post-IRA 2022 Reference Case Table 4-13 (2019$), kept as a
+#    historical column only; its run-year mapping was never available, so it is not converted.
 ipm:
+  edition: EPA 2025 Reference Case
+  dollar_year: 2022
   step1_mw:
-    wind_onshore: {2028: 192613, 2030: 50181, 2035: 145875}
-    solar: {2028: 148217, 2030: 37485, 2035: 108968}
-    gas: {2028: 463134, 2030: 132009, 2035: 330022}     # Combined Cycle + Combustion Turbine
-  run_year_span: {2028: null, 2030: null, 2035: null}   # from Chapter 2 (missing)
-  # §4.4.3: renewable step widths are increased 21% / 29% / 50% in 2028 / 2030 / 2035 for 45X.
-  # Whether Table 4-13 already includes this is not stated; set apply_45x_scalars accordingly.
-  scalars_45x: {2028: 1.21, 2030: 1.29, 2035: 1.50}
-  apply_45x_scalars: true
+    wind_onshore: {2028: 68555, 2030: 33089, 2035: 82724}
+    solar: {2028: 184882, 2030: 86378, 2035: 177003}
+    gas: {2028: 91596, 2030: 44253, 2035: 110632}     # Combined Cycle + Combustion Turbine row
+  run_years:                                          # Table 2-1: calendar years each run year represents
+    2028: [2028, 2029]
+    2030: [2030, 2031]
+    2035: [2032, 2037]
+  apply_45x_scalars: false
+  scalars_45x: {2028: 1.21, 2030: 1.29, 2035: 1.50}   # 2023 Section 4.4.3; not applied (see above)
+  table_4_13:                                         # record only (not read by the model)
+    wind_onshore:
+      step2_mw: {2028: 118448, 2030: 57547, 2035: 143867}
+      adder_step2_per_kw: {2028: 582, 2030: 540, 2035: 505}
+      adder_step3_per_kw: {2028: 1848, 2030: 1714, 2035: 1603}
+      base_capex_per_kw: {2028: 1206, 2030: 1159, 2035: 1102}
+    solar:
+      step2_mw: {2028: 308122, 2030: 150222, 2035: 307832}
+      adder_step2_per_kw: {2028: 507, 2030: 465, 2035: 385}
+      adder_step3_per_kw: {2028: 1611, 2030: 1477, 2035: 1224}
+      base_capex_per_kw: {2028: 1065, 2030: 1005, 2035: 856}
+    gas:
+      step2_mw: {2028: 157013, 2030: 76962, 2035: 192404}
+      adder_step2_per_kw: {2028: 308, 2030: 294, 2035: 273}
+      adder_step3_per_kw: {2028: 979, 2030: 933, 2035: 867}
+      base_capex_per_kw: {cc_multi_shaft: {2028: 732, 2030: 714, 2035: 681},
+                          ct_industrial_frame: {2028: 694, 2030: 670, 2035: 622}}
+  v6_post_ira_2022:                                   # historical (2019$)
+    step1_mw:
+      wind_onshore: {2028: 192613, 2030: 50181, 2035: 145875}
+      solar: {2028: 148217, 2030: 37485, 2035: 108968}
+      gas: {2028: 463134, 2030: 132009, 2035: 330022}
+    adder_step2_per_kw: {wind_onshore: {2028: 220, 2030: 176, 2035: 142}, solar: {2028: 217, 2030: 154, 2035: 134}}
+    adder_step3_per_kw: {wind_onshore: {2028: 700, 2030: 559, 2035: 451}, solar: {2028: 688, 2030: 489, 2035: 426}}
+    base_capex_per_kw: {wind_onshore: {2028: 995, 2030: 910, 2035: 865}, solar: {2028: 877, 2030: 759, 2035: 726}}
 
 horizon_last_year: 2050

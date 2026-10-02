@@ -832,3 +832,9 @@ meant to replace `MaxCapTag_WindGrowth` / `SolarGrowth` growth caps.
 
 **Behaviour with the setting off:** unchanged. Gas with `MaxCapTag_GasTurbineSupply` still active, or
 a MinCap target above the ceiling, stops the case build with a message.
+
+**IPM reference (update):** IPM inputs now come from the EPA 2025 Reference Case (incremental
+documentation: Table 4-13 adders and bounds, 2022$; Tables 4-12 / 4-15 capex) with the method and
+run-year mapping from the EPA 2023 Reference Case (Section 4.4.3; Table 2-1). `high_ipm` sets R =
+Table 4-13 Step 1 per calendar year. Platform v6 Post-IRA 2022 values are kept as a historical
+column in `build_rate/config.yaml`. The central adders are unchanged pending review.

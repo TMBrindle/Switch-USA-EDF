@@ -78,31 +78,69 @@ each band, the data rate, the ramp and regional limits, converted to overnight-e
   ReEDS-2.0 commit 2f583ff5; penalties 0 / 0.1 / 0.5 / 1000 × capex in `growth_penalty.csv`).
   ReEDS's growth penalties are off by default (`GSw_GrowthPenalties = 0`) and are relative to the
   model's own previous build, per state.
-* +15%: between ReEDS's +10% and IPM's Step 2 (+16–25% of capex for wind and solar, 2028–2035;
-  EPA Platform v6 Post-IRA 2022 Reference Case, Chapter 4, Table 4-13 against Table 4-15).
-* +50%: ReEDS, and the low end of IPM's Step 3 (+52–78%).
-* Gas: IPM Table 4-13 combined cycle / combustion turbine Step 2 = +44–45%, Step 3 = +139–143% of
-  Table 4-12 capex.
+* +15%: between ReEDS's +10% and EPA Platform v6 Post-IRA 2022 Step 2 (+16–25% of capex for wind
+  and solar, 2028–2035). +50%: ReEDS, and the low end of v6 Step 3 (+52–78%). **Under review:** the
+  current EPA 2025 Reference Case adders are about three times larger (table below).
+* Gas: EPA 2025 Table 4-13 CC + CT Step 2 = +40–44%, Step 3 = +127–141% of Table 4-12 capex
+  (multi-shaft CC / industrial-frame CT), unchanged from the 2023 case relative to CT.
 * $/MW per case: adder fraction × the median new-build overnight cost of the group's projects in that
   case and period (`gen_build_costs.csv`).
 
-### Why central is tighter than IPM
+### Comparison with IPM (EPA 2025 Reference Case)
 
-IPM's no-adder band (Table 4-13 Step 1) for onshore wind is 192.6 / 50.2 / 145.9 GW in the 2028 /
-2030 / 2035 run years. The 2030 bound alone exceeds all US onshore wind additions in 2021–25
-(41 GW, EIA-860M), so IPM's free band appears to be several times observed build. Our central case
-is anchored to observed EIA rates plus the queue pipeline instead, because the S0 tests over-built
-wind against history. The `high_ipm` level reproduces IPM's Step 1 bounds (with its 45X step-width
-scalars 1.21 / 1.29 / 1.50); it needs IPM's run-year → calendar-year mapping (Platform v6 Chapter 2),
-entered as `ipm.run_year_span` in `build_rate/config.yaml`. Until then the pipeline skips that level
-and a case build with `level: high_ipm` stops with a message.
+Sources: EPA 2025 Reference Case incremental documentation, Table 4-13 (short-term capital cost
+adders, **2022$**), Table 4-15 (renewable capex) and Table 4-12 (conventional capex); EPA 2023
+Reference Case documentation, Section 4.4.3 (method) and Table 2-1 (run years, p. 2-6). Method: Step 1
+is the new capacity that can be built in a run year with no adder; above it, the Step 2 or Step 3
+adder applies to **all** capacity built in that run year; adders stop after 2035. Run years 2028 /
+2030 / 2035 represent 2028–29 / 2030–31 / 2032–37.
+
+| | 2028 | 2030 | 2035 |
+|---|---|---|---|
+| Wind Step 1, GW per calendar year (2025) | 34.3 | 16.5 | 13.8 |
+| Solar Step 1, GW per calendar year (2025) | 92.4 | 43.2 | 29.5 |
+| CC+CT Step 1, GW per calendar year (2025) | 45.8 | 22.1 | 18.4 |
+| Wind Step 2 / Step 3 adder, % of capex (2025) | 48 / 153 | 47 / 148 | 46 / 145 |
+| Solar Step 2 / Step 3 adder, % of capex (2025) | 48 / 151 | 46 / 147 | 45 / 143 |
+| CC+CT Step 2 / Step 3, % of CT capex (2025) | 44 / 141 | 44 / 139 | 44 / 139 |
+| Wind Step 2 / Step 3, % of capex (v6, historical) | 22 / 70 | 19 / 61 | 16 / 52 |
+| Solar Step 2 / Step 3, % of capex (v6, historical) | 25 / 78 | 20 / 64 | 18 / 59 |
+
+Step 2's upper bound is 1.74 × Step 1 in every 2030/2035 row, close to our 1.75R band edge.
+
+Against central (national, GW/yr; cumulative 2028–35 in brackets):
+
+* **Wind:** central's free band (1.3R) is 10.7–13.7 against IPM Step 1's 34.3 / 16.5 / 13.8 (94 vs
+  157 GW cumulative). Central's ceiling (145 GW cumulative) is below IPM's Step 1 alone, so central
+  is tighter on volume through 2035.
+* **Gas:** central is far tighter (free band 68 vs 210 GW cumulative).
+* **Solar:** central is tighter through 2031. From 2032 central's free band (30.3 → 35.1 GW/yr)
+  exceeds IPM's Step 1 (29.5), and by 2035 cumulative central's ceiling (397 GW) roughly equals
+  IPM's Step 1 (389 GW).
+* **Adders:** central's +15% / +50% are about a third of IPM 2025's +45–48% / +143–153%. They are
+  marginal, while IPM's apply to the whole run year's build. IPM has no ceiling (Step 3 has no
+  limit) and no adders after 2035; central keeps its bands and ceiling in every period.
+
+So central is deliberately tighter than IPM on volume for wind and gas (anchored to observed
+EIA rates and the queue pipeline, because the S0 tests over-built wind against history), but
+looser on price inside its bands, and not tighter for solar after 2031.
+
+The 45X step-width scalars (Section 4.4.3 of 2023: +21% / +29% / +50%) are already embedded in the 2023
+Table 4-13: wind and solar 2035/2030 Step 1 ratio 2.907 = 2.5 × 1.50/1.29, against 2.5 for CC+CT.
+In 2025 wind's ratio is 2.500, and the 2025 document does not restate the scalars, so `high_ipm`
+uses the published 2025 bounds without extra scaling (`ipm.apply_45x_scalars: false`).
+
+`high_ipm` sets R = Table 4-13 Step 1 per calendar year (Table 2-1 mapping; 2026–27, before IPM's
+horizon, take the 2028 run year; after 2037 R grows at the `high` rate). Storage has no Table 4-13
+row and follows `high`. With R = Step 1, our free band is 1.3 × IPM's and our 1.75R edge matches
+IPM's Step 2 bound.
 
 ### Spur and access adders (IPM Tables 4-38 / 4-42): not adopted
 
 They are spur-line / resource-access capital-cost adders by resource and cost class, and PowerGenome
 already includes spur costs (`spur_capex`), so adding them would double count. They are evidence for
-applying the siting lever to wind first: the median wind access adder is $103/kW (10% of 2028 base
-capex; 90th percentile $915) against $11/kW for solar (1.3%; 90th percentile $344), about 9× at the
+applying the siting lever to wind first: the median wind access adder is $103/kW (10% of the Platform v6
+2028 base capex, from the Table 4-38 / 4-42 files supplied earlier; 90th percentile $915) against $11/kW for solar (1.3%; 90th percentile $344), about 9× at the
 median. The `reform` level therefore relaxes wind's regional multiplier (1.5 → 3.0) and floor
 (500 → 1,500 MW/yr).
 
@@ -115,7 +153,7 @@ median. The `reform` level therefore relaxes wind's regional multiplier (1.5 →
 | central | mean 2021–25 | central | |
 | high | max 2021–25 | high | |
 | reform | mean 2021–25 | central | wind regional multiplier 3.0, floor 1,500 MW/yr |
-| high_ipm | IPM Step 1 per calendar year | high | needs `ipm.run_year_span` |
+| high_ipm | EPA 2025 Table 4-13 Step 1 per calendar year (Table 2-1 mapping) | high (after 2037; storage) | |
 
 Note: with the decision-(b) rules, `low` R0 is above `central` for solar and storage, whose largest
 years are the most recent (solar 26.9 vs 21.1 GW/yr, storage 11.6 vs 8.5). Near-term years use the
@@ -216,5 +254,5 @@ Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, 
 ## Placeholders (all marked in build_rate/config.yaml)
 
 construction completion rate (0.9), overdue-pipeline rule (spread evenly 2026–30), growth rates
-after 2030 (low/central/high), ramp floors, regional multipliers and floors, amortisation lives, and
-IPM's run-year mapping (`ipm.run_year_span`, needed for high_ipm).
+after 2030 (low/central/high), ramp floors, regional multipliers and floors, and amortisation lives. The central adders (+15% / +50%) are
+under review against the EPA 2025 Reference Case adders.
