@@ -1005,3 +1005,50 @@ and drop out of the sample.
 - `tranches.edge_step_width: 0.05`; `uprate_options.new_line.available_year: 2030` (placeholder).
 - `sensitivities/{wind_050,boundary_p10,price_active}.yaml` extend config.yaml (`extends:`, deep
   merge; paths resolve against the base) and write to `outputs/sens_*`.
+
+---
+
+## 41. Interconnection Headroom — Curve Fixes: Trend Freeze, ReEDS New-Line Cost, Status Cap
+
+**Date:** 2026-10-02 · **Branch:** `tom/ic-curve-fixes` (off `tom/interconnection-headroom`)
+**Why:** the VM decomposition of the S0 2035 test runs (`tom/ic-test-fedpol` @ 709d7e7, §40) found the
+queue-year trend alone moves completed-project costs ×2.9, the new-line backstop priced at a $250/kW
+placeholder, and regime-level completed effects spanning ×15.
+
+**1. Trend frozen per regime (default).** `tranches.trend_freeze: per_regime` evaluates the trend
+(+0.115 log points per queue year) in each zone at min(`reference_year` 2024, the last queue year of
+its regime's estimation sample), computed in the pipeline (`trend_year` in `zone_regimes.csv`). MISO,
+PJM, SPP and NYISO freeze at 2020, ISO-NE at 2021, the non-ISO regimes at 2023; zones with no
+regime in the sample use the sample's last year (2023). Reason: the ISO workbooks end in queue year
+2020 (ISO-NE 2021); only 8 completed projects were queued after 2021 (all Duke Energy Florida) and 3
+in 2021; the unfrozen trend moves costs ×2.9 from the sample's mean queue year (2013) to 2024.
+`trend_freeze: none` restores the previous behaviour.
+
+**2. new_line priced from ReEDS.** The backstop's $/kW is now the zone's capacity-weighted median
+ReEDS reinforcement cost (`cost_reinforcement_usd_per_mw` in `inputs/supply_curve/interconnection_land.h5`
+at the pinned commit 2f583ff5, 2023$, CPI-U to 2024$; weights = UPV + onshore-wind site capacity
+from `supplycurve_{upv,wind-ons}-reference.csv`). New `icsc/reinforcement.py`, CLI command
+`reinforcement`, committed table `data/reference/reeds_reinforcement_by_zone.csv` (all 134 zones have
+sites; p10 / median / p90 per zone); `scripts/fetch_data.sh` downloads the raw files and checks the
+h5 against its LFS sha256. Zone medians: $177 / $319 / $650/kW at the 10th / 50th / 90th percentile of
+zones (was $250 everywhere). The cap `share_of_capacity` is widened from 1.0 to 10 × base capacity:
+a finite bound for the LP, not a physical limit, so the backstop does not bind.
+
+**3. Completed effect capped (default).** `tranches.status_pricing: capped` bounds each regime's
+completed effect to within `status_cap_ratio` [0.5, 2] × the pooled effect (multiplicatively).
+Moves NYISO (×3.61 → ×1.72), PJM (×0.42 → ×0.46) and PacifiCorp (×0.24 → ×0.46); MISO, SPP and FRCC
+are inside the band. `own` and `pooled` are sensitivities (`sensitivities/status_own.yaml`,
+`status_pooled.yaml`).
+
+**Results** (reference scenario, start 2026; n = 2,787, pseudo-R² 0.341 unchanged):
+
+| | Previous defaults | Freeze, own | Freeze, capped (new default) | Freeze, pooled |
+|---|---|---|---|---|
+| Median first step ($/kW) | 177.2 | 118.7 | 129.0 | 158.6 |
+| NYISO / PJM / MISO zone-median first step | 537 / 149 / 181 | 340 / 94 / 114 | 175 / 103 / 114 | 87 / 206 / 122 |
+| Zones beyond the support edge | 20 / 134 | 20 / 134 | 20 / 134 | 20 / 134 |
+
+The support edge (0.67) and the zones beyond it depend on saturation only, so the fixes do not
+change them. `sensitivities/previous_defaults.yaml` reproduces the old outputs ($177.2/kW).
+Tests: 18 (trend freeze and status pricing on the real sample, reinforcement quantiles and
+fallbacks, the committed table and the new_line uprate cost).

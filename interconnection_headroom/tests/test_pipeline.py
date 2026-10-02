@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from icsc import cli, estimate, geo, linkage, lbnl, synthetic, tranches
+from icsc import cli, estimate, geo, linkage, lbnl, reinforcement, synthetic, tranches
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -151,7 +151,10 @@ def test_synthetic_recovery(cfg, built, tmp_path):
 def test_sensitivity_configs_extend_base(cfg):
     for f, key, val in [("wind_050", ("saturation", "tech_weights", "wind"), 0.5),
                         ("boundary_p10", ("saturation", "headroom_proxy"), "boundary+p10"),
-                        ("price_active", ("tranches", "reference_status"), "active")]:
+                        ("price_active", ("tranches", "reference_status"), "active"),
+                        ("status_pooled", ("tranches", "status_pricing"), "pooled"),
+                        ("status_own", ("tranches", "status_pricing"), "own"),
+                        ("previous_defaults", ("tranches", "trend_freeze"), "none")]:
         c = cli.load_cfg(str(ROOT / "sensitivities" / f"{f}.yaml"))
         v = c
         for k in key:
@@ -181,6 +184,91 @@ def test_status_by_regime(cfg, built):
                     d["queue_year"].values, d["regime"].values, d["status_n"].values)
     sat_ok = d["saturation"].values <= m.sat_support
     assert np.allclose(lp[sat_ok], np.log(m.result.fittedvalues.values[sat_ok]))
+
+
+def test_trend_freeze_and_status_pricing(cfg, built):
+    """Per-regime trend freeze (last sample queue year, never past reference_year) and the three
+    status pricing rules (own / capped within status_cap_ratio x pooled / pooled)."""
+    panel, _, c2z = built
+    s = estimate.attach_saturation(lbnl.estimation_sample(lbnl.load_all(cfg, c2z), cfg), panel)
+    m = estimate.fit(s, cfg)
+    last = s.dropna(subset=["saturation", "network_cost_real", "capacity_mw", "queue_year"]).groupby("regime")["queue_year"].max()
+    hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
+    ref = cfg["tranches"]["reference_year"]
+    z = tranches.zone_regimes(hier, m, cfg)
+    for reg, yr in last.items():
+        assert (z.loc[z["regime"] == reg, "trend_year"] == min(ref, int(yr))).all(), reg
+    assert (z.loc[~z["regime_in_sample"], "trend_year"] == min(ref, int(last.max()))).all()
+    assert (z["trend_year"] <= ref).all()
+    unfrozen = tranches.zone_regimes(hier, m, dict(cfg, tranches=dict(cfg["tranches"], trend_freeze="none")))
+    assert (unfrozen["trend_year"] == ref).all()
+
+    pooled = m.pooled_status_effect("completed")
+    lo, hi = cfg["tranches"]["status_cap_ratio"]
+    for how in ("own", "capped", "pooled"):
+        c = dict(cfg, tranches=dict(cfg["tranches"], status_pricing=how))
+        zz = tranches.zone_regimes(hier, m, c)
+        est = zz["status_effect_estimated"]
+        if how == "own":
+            assert np.allclose(zz["status_effect"], est)
+        elif how == "pooled":
+            assert np.allclose(zz["status_effect"], pooled)
+        else:
+            assert (zz["status_effect"] >= pooled + np.log(lo) - 1e-12).all()
+            assert (zz["status_effect"] <= pooled + np.log(hi) + 1e-12).all()
+            inside = est.between(pooled + np.log(lo), pooled + np.log(hi))
+            assert np.allclose(zz.loc[inside, "status_effect"], est[inside])       # only out-of-band effects move
+    # the frozen first step equals the model's prediction at the zone's trend year
+    now = cli.start_saturation(panel, built[1], c2z, cfg, 2026).reset_index()
+    zr, tr = tranches.build_reference(m, now, z, cfg, 2026)
+    tc = cfg["tranches"]
+    for ba in ["p80", "p37"]:
+        row = tr[tr["ba"] == ba].iloc[0]
+        mid = (row["sat_from"] + row["sat_to"]) / 2 if not row["beyond_support"] else m.sat_support
+        want = m.to_cost(m.log_pred(mid, tc["reference_tech"], tc["reference_service"], tc["reference_capacity_mw"],
+                                    z.at[ba, "trend_year"], m.base_regime, "active") + z.at[ba, "regime_effect"])
+        assert row["cost_per_kw"] == pytest.approx(float(min(want[0], tc["max_cost_per_kw"])))
+
+
+def test_reinforcement_zone_costs_and_new_line():
+    """Capacity-weighted quantiles by zone, transreg / national fallback, and new_line pricing.
+    Small hand-built frames: test fixtures, not results."""
+    assert reinforcement.weighted_quantile(np.array([1, 2, 3]), np.array([1, 1, 1]), 0.5) == 2
+    assert reinforcement.weighted_quantile(np.array([1, 100]), np.array([9, 1]), 0.5) == 1   # weight, not count
+    sites = pd.DataFrame({"sc_point_gid": [1, 2, 3, 4], "FIPS": ["00001", "00001", "00002", "00009"],
+                          "cost_reinforcement_usd_per_mw": [100e3, 300e3, 200e3, 50e3]})
+    cap = pd.DataFrame({"sc_point_gid": [1, 2, 2, 3, 4], "capacity": [10, 5, 25, 10, 0]})   # 2: UPV + wind
+    c2z = pd.DataFrame({"FIPS": ["00001", "00002", "00009"], "ba": ["pA", "pB", "pC"]})
+    hier = pd.DataFrame({"ba": ["pA", "pB", "pC", "pD"], "transreg": ["T1", "T2", "T2", "T3"]})
+    z = reinforcement.zone_costs(sites, cap, c2z, hier, cpi_factor=1.1).set_index("ba")
+    assert z.at["pA", "capacity_mw"] == 40 and z.at["pA", "source"] == "zone"
+    assert z.at["pA", "reinforcement_median_per_kw"] == pytest.approx(300 * 1.1)   # 30 of 40 MW at $300/kW
+    assert z.at["pC", "source"] == "transreg" and z.at["pC", "reinforcement_median_per_kw"] == pytest.approx(220)
+    assert z.at["pD", "source"] == "national"
+    assert (z["reinforcement_p10_per_kw"] <= z["reinforcement_median_per_kw"]).all()
+    assert (z["reinforcement_median_per_kw"] <= z["reinforcement_p90_per_kw"]).all()
+    zc = z["reinforcement_median_per_kw"]
+    assert tranches.uprate_cost({"cost_per_kw": "reeds_reinforcement"}, "pB", zc) == pytest.approx(220)
+    assert tranches.uprate_cost({"cost_per_kw": 80}, "pB", None) == 80
+    with pytest.raises(KeyError):
+        tranches.uprate_cost({"cost_per_kw": "reeds_reinforcement"}, "pZ", zc)
+
+
+def test_reinforcement_table_and_backstop(cfg):
+    """The committed zone table covers every zone in the pipeline dollar year; new_line uses it."""
+    t = pd.read_csv(Path(cfg["_root"]) / cfg["reinforcement"]["zone_table"])
+    hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
+    assert set(t["ba"]) == set(hier["ba"]) and (t["dollar_year"] == cfg["dollar_year"]).all()
+    assert (t["reinforcement_median_per_kw"] > 0).all()
+    if (Path(cfg["_root"]) / cfg["reinforcement"]["h5"]).exists():   # rebuild from the raw ReEDS files
+        r = reinforcement.build(cfg).set_index("ba").reindex(t["ba"])
+        assert np.allclose(r["reinforcement_median_per_kw"], t["reinforcement_median_per_kw"], atol=0.01)
+    zones = pd.DataFrame({"ba": ["p1", "p80"], "base_capacity_mw": [1000.0, 2000.0]})
+    _, _, up = tranches.apply_scenario(zones, pd.DataFrame(columns=["ba", "sat_from", "cost_per_kw"]), cfg, {})
+    nl = up[up["uprate"] == "new_line"].set_index("ba")
+    want = t.set_index("ba")["reinforcement_median_per_kw"]
+    assert np.allclose(nl["cost_per_kw"], want[nl.index])
+    assert np.allclose(nl["max_mw"], cfg["uprate_options"]["new_line"]["share_of_capacity"] * zones.set_index("ba")["base_capacity_mw"])
 
 
 def test_zone_regimes_utilities(cfg):
