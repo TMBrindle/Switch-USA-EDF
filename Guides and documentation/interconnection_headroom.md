@@ -18,7 +18,8 @@ The curve has four handles:
 | Lever | What changes | How it's represented |
 |---|---|---|
 | Retirements | Position (s falls) | Retired capacity frees headroom (reuse share) |
-| GETs, reconductoring, new intra-zonal lines | H: stretches the curve and moves the zone back down it | Uprate options Switch can build |
+| GETs, reconductoring | H: stretches the curve and moves the zone back down it | Uprate options Switch can build |
+| New intra-zonal lines | Headroom added directly (host mode, default) | Uprate option at ReEDS reinforcement cost per MW of generation |
 | Cost allocation, regime, queue process | Height | `regime_override: best`, `cost_multiplier` |
 | Proactive or portfolio planning | Steepness | `slope_multiplier` (later: regime-specific slopes) |
 
@@ -29,13 +30,18 @@ Method, data and first results: `interconnection_headroom/docs/project_doc.html`
 Per IC zone and period:
 
 - Step k of the curve provides up to `width_k x H` MW of generation headroom at `cost_k` $/MW.
-- `H = H0 + MW of uprates built`. Each uprate option has a cap (share of H0), $/MW of network
-  capacity and a first year.
-- When H grows, existing use fills less of it, releasing up to `s0 x MW of uprates` of headroom
-  priced at the zone's starting marginal cost.
+- `H = H0 + MW of stretch uprates built` (GETs, reconductoring). Each uprate option has a cap
+  (share of H0), a $/MW and a first year.
+- When H grows, existing use fills less of it, releasing up to `s0 x MW of stretch uprates` of
+  headroom priced at the zone's starting marginal cost.
+- New lines (`ic_uprate_mode: host`, pipeline `new_line_mode: host`, the default) add weighted MW of
+  headroom directly at the zone's ReEDS reinforcement cost per MW of generation (median $319/kW),
+  with no step or release cost on top, and leave H unchanged. ReEDS's cost already covers delivering
+  the MW to the zone centre, so charging the LBNL step costs too would count upgrades twice.
+  `new_line_mode: stretch` restores the old behaviour (a new line adds to H).
 
 Per load zone (summing its IC zones): tech-weighted new capacity <= initial headroom + reuse x
-retired capacity + steps + released headroom. Everything is linear. The release term is exact for
+retired capacity + steps + released headroom + hosted headroom. Everything is linear. The release term is exact for
 small uprates and slightly conservative for large ones.
 
 ## Outputs
@@ -43,7 +49,7 @@ small uprates and slightly conservative for large ones.
 | File | Contents |
 |---|---|
 | `ic_spend.csv` | Overnight and annual $ by IC zone, period and type (`reactive_upgrades`, `gets`, `reconductor`, `new_line`), network MW added, generation MW enabled, and network MW per generation MW for reactive upgrades |
-| `ic_network.csv` | Base capacity; MW and % added by uprates; estimated MW and % added by reactive upgrades; headroom from the curve and released |
+| `ic_network.csv` | Base capacity; MW and % added by GETs/reconductoring (`deliberate_mw_added`); estimated MW and % added by reactive upgrades; headroom from the curve and released; `hosted_mw` (new lines) and `new_line_network_mw_implied` = hosted MW / `curve_end_saturation` (s0 + step widths: weighted generation per MW of network at the end of the curve) |
 | `ic_headroom.csv` | Per load zone: new weighted capacity, freed, bought, initial headroom, dual |
 | `ic_gen_weights.csv` | Weight applied to each project |
 
@@ -97,8 +103,9 @@ MW are exact model decisions.
 - **Weights.** `ic_gen_weights.csv` should show 0 for demand response, imports and distributed
   generation.
 - **Myopic chains.** Stage 2 should read the `.chained.<case>.csv` versions of `ic_zones`,
-  `ic_tranches` and `ic_uprates`: higher base capacity where stage 1 built uprates, narrower steps
-  where it bought headroom.
+  `ic_tranches` and `ic_uprates`: higher base capacity where stage 1 built GETs or reconductoring,
+  narrower steps where it bought headroom, and `ic_hosted_headroom_mw` with new-line headroom stage 1
+  built but did not use (from `ic_hosted_built.csv`).
 - **Region scope.** With `st` or `interconnect` aggregation, each aggregate load zone keeps its
   BAs as separate IC zones and pools their headroom.
 

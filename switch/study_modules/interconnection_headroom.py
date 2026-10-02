@@ -12,27 +12,41 @@ proxy H0). How full the zone is, s = used / H, sets the marginal cost of connect
 generation. The empirical cost curve (from LBNL network-upgrade costs) is a set of steps in
 units of s: step k is w_k wide and costs c_k per MW of generation connected.
 
-Deliberate reinforcement (GETs, reconductoring, new intra-zonal lines) adds MW to H. That
+Deliberate reinforcement comes in two modes (ic_uprate_mode):
+
+  stretch (GETs, reconductoring; new lines when new_line_mode is stretch) adds MW to H. That
   * stretches every step: the MW available in step k is w_k x H, and
   * moves the zone back down the curve: existing use U0 now fills less of H, releasing up
     to s0 x (MW added) of headroom priced at the zone's starting marginal cost.
-Both effects are linear in the MW added, so the model stays an LP. The approximation is exact
-for small uprates and slightly conservative for large ones.
+  Both effects are linear in the MW added, so the model stays an LP. The approximation is exact
+  for small uprates and slightly conservative for large ones.
+
+  host (new intra-zonal lines, the default) adds weighted MW of headroom directly, at its own cost
+  per MW of generation hosted (ReEDS's reinforcement cost, the full cost of delivering a MW of new
+  generation to the zone centre). It does not change H, stretch the steps or release headroom, and
+  generation it hosts pays no empirical step or release cost on top.
 
 Constraint per load zone and period (sums over the IC zones in the load zone):
 
   new capacity (tech-weighted)  <=  initial headroom
                                    + reuse share x weighted existing capacity retired
                                    + sum_k ICStep[k]            (ICStep[k] <= w_k x H)
-                                   + ICRelease                  (ICRelease <= s0 x uprate MW)
+                                   + ICRelease                  (ICRelease <= s0 x stretch-uprate MW)
+                                   + hosted MW                  (host uprates + ic_hosted_headroom_mw)
 
 Costs: generation-side reactive upgrades (sum c_k x ICStep + release cost) and deliberate
 uprates (MW added x $/MW), both annualised over ic_asset_life_years.
 
 Reporting (post_solve):
   ic_spend.csv      overnight and annual $ by zone, period and type
-  ic_network.csv    network capacity: base, added by deliberate uprates, estimated added by
-                    reactive upgrades (reactive spend / ic_reactive_cost_per_mw_network), %
+  ic_network.csv    network capacity: base; added by stretch uprates (GETs, reconductoring;
+                    deliberate_mw_added); estimated added by reactive upgrades (reactive spend /
+                    ic_reactive_cost_per_mw_network); headroom hosted by new lines (hosted_mw) and the
+                    network capacity those lines imply, new_line_network_mw_implied = hosted MW /
+                    the zone's curve-end saturation (s0 + sum of step widths: weighted generation per
+                    MW of network at the end of the empirical curve); %
+  ic_spend.csv rows are by type (reactive_upgrades and each uprate type, so new_line spend is its own
+                    row; for host uprates generation_mw_enabled = hosted MW)
   ic_headroom.csv   headroom used, freed, bought, and the constraint dual, by load zone
   ic_gen_weights.csv  weight applied to each project
 
@@ -42,11 +56,13 @@ no IC zone are unconstrained, and with no ic_zones.csv the module does nothing.
 Inputs (inputs_dir)
 -------------------
 ic_zones.csv            IC_ZONE, ic_zone_load_zone, ic_base_capacity_mw, ic_start_saturation,
-                        ic_release_cost_per_mw
+                        ic_release_cost_per_mw, ic_hosted_headroom_mw (optional: headroom on new
+                        lines built in earlier myopic stages and not yet used; free)
 ic_tranches.csv         IC_TRANCHE, ic_tranche_zone, ic_tranche_width, ic_tranche_cost_per_mw,
                         ic_tranche_available_year (optional)
 ic_uprates.csv          IC_UPRATE, ic_uprate_zone, ic_uprate_type, ic_uprate_max_mw,
-                        ic_uprate_cost_per_mw, ic_uprate_available_year (optional)   [optional]
+                        ic_uprate_cost_per_mw, ic_uprate_available_year (optional),
+                        ic_uprate_mode (optional: stretch (default) | host)          [optional]
 ic_weights.csv          ic_key, ic_weight (gen_tech first, then gen_energy_source) [optional]
 ic_params.csv           ic_retirement_reuse_share, ic_storage_weight, ic_default_weight,
                         ic_asset_life_years, ic_reactive_cost_per_mw_network        [optional]
@@ -88,6 +104,7 @@ def define_components(m):
     m.ic_base_capacity_mw = Param(m.IC_ZONES, within=NonNegativeReals)
     m.ic_start_saturation = Param(m.IC_ZONES, within=NonNegativeReals)
     m.ic_release_cost_per_mw = Param(m.IC_ZONES, within=NonNegativeReals)
+    m.ic_hosted_headroom_mw = Param(m.IC_ZONES, within=NonNegativeReals, default=0.0)
 
     m.IC_TRANCHES = Set(dimen=1)
     m.ic_tranche_zone = Param(m.IC_TRANCHES, within=m.IC_ZONES)
@@ -101,6 +118,8 @@ def define_components(m):
     m.ic_uprate_max_mw = Param(m.IC_UPRATES, within=NonNegativeReals)
     m.ic_uprate_cost_per_mw = Param(m.IC_UPRATES, within=NonNegativeReals)
     m.ic_uprate_available_year = Param(m.IC_UPRATES, within=NonNegativeReals, default=0)
+    m.ic_uprate_mode = Param(m.IC_UPRATES, within=Any, default="stretch",
+                             validate=lambda m, v, u: v in ("stretch", "host"))
 
     # ---- technology weights ----------------------------------------------
     m.IC_KEYS = Set(dimen=1)
@@ -132,6 +151,12 @@ def define_components(m):
     m.IC_UPRATES_IN_ZONE = Set(
         m.IC_ZONES, dimen=1,
         initialize=lambda m, i: [u for u in m.IC_UPRATES if m.ic_uprate_zone[u] == i])
+    m.IC_STRETCH_UPRATES_IN_ZONE = Set(
+        m.IC_ZONES, dimen=1,
+        initialize=lambda m, i: [u for u in m.IC_UPRATES_IN_ZONE[i] if m.ic_uprate_mode[u] == "stretch"])
+    m.IC_HOST_UPRATES_IN_ZONE = Set(
+        m.IC_ZONES, dimen=1,
+        initialize=lambda m, i: [u for u in m.IC_UPRATES_IN_ZONE[i] if m.ic_uprate_mode[u] == "host"])
     m.IC_ACTIVE_LOAD_ZONES = Set(
         dimen=1,
         initialize=lambda m: [z for z in m.LOAD_ZONES
@@ -164,7 +189,12 @@ def define_components(m):
 
     m.ICNetworkAdded = Expression(
         m.IC_ZONES, m.PERIODS,
-        rule=lambda m, i, p: sum(m.ICUprateCapacity[u, p] for u in m.IC_UPRATES_IN_ZONE[i]))
+        rule=lambda m, i, p: sum(m.ICUprateCapacity[u, p] for u in m.IC_STRETCH_UPRATES_IN_ZONE[i]))
+    # headroom (weighted MW) hosted directly by host-mode uprates (new lines), plus any carried over
+    m.ICHostedHeadroom = Expression(
+        m.IC_ZONES, m.PERIODS,
+        rule=lambda m, i, p: m.ic_hosted_headroom_mw[i]
+        + sum(m.ICUprateCapacity[u, p] for u in m.IC_HOST_UPRATES_IN_ZONE[i]))
     m.ICNetworkCapacity = Expression(
         m.IC_ZONES, m.PERIODS,
         rule=lambda m, i, p: m.ic_base_capacity_mw[i] + m.ICNetworkAdded[i, p])
@@ -213,6 +243,7 @@ def define_components(m):
         m.LOAD_ZONES, m.PERIODS,
         rule=lambda m, z, p: sum(
             sum(m.ICStep[t, p] for t in m.IC_TRANCHES_IN_ZONE[i]) + m.ICRelease[i, p]
+            + m.ICHostedHeadroom[i, p]
             for i in m.IC_ZONES_IN_LOAD_ZONE[z]))
 
     m.IC_Headroom_Limit = Constraint(
@@ -243,8 +274,9 @@ def load_inputs(m, switch_data, inputs_dir):
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "ic_zones.csv"),
         optional=True, index=m.IC_ZONES,
+        optional_params=["ic_hosted_headroom_mw"],
         param=(m.ic_zone_load_zone, m.ic_base_capacity_mw, m.ic_start_saturation,
-               m.ic_release_cost_per_mw))
+               m.ic_release_cost_per_mw, m.ic_hosted_headroom_mw))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "ic_tranches.csv"),
         optional=True, optional_params=["ic_tranche_available_year"], index=m.IC_TRANCHES,
@@ -252,9 +284,9 @@ def load_inputs(m, switch_data, inputs_dir):
                m.ic_tranche_available_year))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "ic_uprates.csv"),
-        optional=True, optional_params=["ic_uprate_available_year"], index=m.IC_UPRATES,
+        optional=True, optional_params=["ic_uprate_available_year", "ic_uprate_mode"], index=m.IC_UPRATES,
         param=(m.ic_uprate_zone, m.ic_uprate_type, m.ic_uprate_max_mw, m.ic_uprate_cost_per_mw,
-               m.ic_uprate_available_year))
+               m.ic_uprate_available_year, m.ic_uprate_mode))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "ic_weights.csv"),
         optional=True, index=m.IC_KEYS, param=(m.ic_weight,))
@@ -282,6 +314,8 @@ def post_solve(m, outdir):
     for i in m.IC_ZONES:
         z = m.ic_zone_load_zone[i]
         h0 = value(m.ic_base_capacity_mw[i])
+        # weighted generation per MW of network at the end of the empirical curve
+        s_end = value(m.ic_start_saturation[i]) + sum(value(m.ic_tranche_width[t]) for t in m.IC_TRANCHES_IN_ZONE[i])
         for p in m.PERIODS:
             react = value(m.ICReactiveOvernight[i, p])
             steps = sum(value(m.ICStep[t, p]) for t in m.IC_TRANCHES_IN_ZONE[i])
@@ -301,15 +335,19 @@ def post_solve(m, outdir):
                 ty = m.ic_uprate_type[u]
                 mw = value(m.ICUprateCapacity[u, p])
                 c = mw * value(m.ic_uprate_cost_per_mw[u])
-                d = by_type.setdefault(ty, [0.0, 0.0])
+                d = by_type.setdefault((ty, m.ic_uprate_mode[u]), [0.0, 0.0])
                 d[0] += c
                 d[1] += mw
-            for ty, (c, mw) in by_type.items():
+            for (ty, mode), (c, mw) in by_type.items():
+                host = mode == "host"
+                net_mw = (mw / s_end if s_end > 1e-9 else None) if host else mw
                 spend.append({"ic_zone": i, "load_zone": z, "period": p, "type": ty,
                               "overnight_cost": c, "annual_cost": c * ann,
-                              "network_mw_added": mw, "generation_mw_enabled": None,
-                              "network_mw_per_generation_mw": None})
+                              "network_mw_added": net_mw, "generation_mw_enabled": mw if host else None,
+                              "network_mw_per_generation_mw": (1 / s_end if s_end > 1e-9 else None) if host else None})
             added = value(m.ICNetworkAdded[i, p])
+            hosted = value(m.ICHostedHeadroom[i, p])
+            implied = hosted / s_end if s_end > 1e-9 else None
             network.append({
                 "ic_zone": i, "load_zone": z, "period": p,
                 "base_capacity_mw": h0,
@@ -320,6 +358,9 @@ def post_solve(m, outdir):
                 "pct_increase_total_est": 100 * (added + (react_mw or 0.0)) / h0 if h0 else None,
                 "headroom_from_curve_mw": steps,
                 "headroom_released_mw": rel,
+                "hosted_mw": hosted,
+                "curve_end_saturation": s_end,
+                "new_line_network_mw_implied": implied,
             })
     pd.DataFrame(spend).to_csv(os.path.join(outdir, "ic_spend.csv"), index=False)
     pd.DataFrame(network).to_csv(os.path.join(outdir, "ic_network.csv"), index=False)
@@ -348,6 +389,19 @@ def post_solve(m, outdir):
         os.path.join(outdir, "ic_uprates_built.csv"), index=False)
     pd.DataFrame([{"ic_zone": i, "period": last, "released_mw": value(m.ICRelease[i, last])}
                   for i in m.IC_ZONES]).to_csv(os.path.join(outdir, "ic_release_built.csv"), index=False)
+    # hosted headroom (new lines) not used by this stage's builds: the headroom constraint's slack in
+    # the load zone, up to the hosted MW, shared across its IC zones in proportion to hosted MW
+    hosted_rows = []
+    for z in m.IC_ACTIVE_LOAD_ZONES:
+        con = m.IC_Headroom_Limit[z, last]
+        slack = max(0.0, value(con.upper) - value(con.body)) if con.has_ub() else 0.0
+        hz = {i: value(m.ICHostedHeadroom[i, last]) for i in m.IC_ZONES_IN_LOAD_ZONE[z]}
+        tot = sum(hz.values())
+        for i, h in hz.items():
+            hosted_rows.append({"ic_zone": i, "period": last, "hosted_mw": h,
+                                "unused_mw": min(slack, tot) * h / tot if tot > 1e-9 else 0.0})
+    pd.DataFrame(hosted_rows, columns=["ic_zone", "period", "hosted_mw", "unused_mw"]).to_csv(
+        os.path.join(outdir, "ic_hosted_built.csv"), index=False)
 
     pd.DataFrame([{"GENERATION_PROJECT": g, "gen_tech": m.gen_tech[g],
                    "gen_energy_source": m.gen_energy_source[g], "ic_weight": value(m.gen_ic_weight[g])}

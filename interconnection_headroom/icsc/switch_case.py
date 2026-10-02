@@ -141,9 +141,10 @@ def switch_frames(zones: pd.DataFrame, tranches: pd.DataFrame, uprates: pd.DataF
             "ic_uprate_max_mw": u["max_mw"].round(3),
             "ic_uprate_cost_per_mw": (u["cost_per_kw"] * 1000).round(0),
             "ic_uprate_available_year": u["available_year"].astype(int),
+            "ic_uprate_mode": u["mode"] if "mode" in u else "stretch",
         }) if len(u) else pd.DataFrame(columns=["IC_UPRATE", "ic_uprate_zone", "ic_uprate_type",
                                                  "ic_uprate_max_mw", "ic_uprate_cost_per_mw",
-                                                 "ic_uprate_available_year"]),
+                                                 "ic_uprate_available_year", "ic_uprate_mode"]),
     }
 
 

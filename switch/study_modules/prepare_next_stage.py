@@ -290,11 +290,14 @@ def post_solve(m, outdir):
 def chain_ic_inputs(in_path, out_path, next_in_path, case_name):
     """
     Write ic_zones/ic_tranches/ic_uprates.chained.<case>.csv for the next stage:
-    network capacity grows by the uprates built, each step keeps only its unused
-    width at the new capacity, uprate caps shrink by what was built, and the
-    starting saturation includes the headroom bought this stage. Builds from this
-    stage become predetermined next stage, so they no longer count against
-    headroom. Does nothing when the interconnection_headroom module wasn't used.
+    network capacity grows by the stretch-mode uprates built (GETs, reconductoring),
+    each step keeps only its unused width at the new capacity, uprate caps shrink by
+    what was built, and the starting saturation includes the headroom bought this
+    stage on the existing network. Host-mode uprates (new lines) don't change H: the
+    headroom they host and this stage left unused carries forward as
+    ic_hosted_headroom_mw (free next stage). Builds from this stage become
+    predetermined next stage, so they no longer count against headroom. Does nothing
+    when the interconnection_headroom module wasn't used.
     """
     in_path, out_path, next_in_path = Path(in_path), Path(out_path), Path(next_in_path)
 
@@ -317,7 +320,9 @@ def chain_ic_inputs(in_path, out_path, next_in_path, case_name):
     added = pd.Series(0.0, index=zones["IC_ZONE"])
     if uprates is not None and len(uprates):
         b = uprates["IC_UPRATE"].map(up_built).fillna(0)
-        added = added.add(b.groupby(uprates["ic_uprate_zone"]).sum(), fill_value=0)
+        mode = uprates["ic_uprate_mode"].fillna("stretch") if "ic_uprate_mode" in uprates else "stretch"
+        stretch = b.where(pd.Series(mode, index=uprates.index) == "stretch", 0.0)
+        added = added.add(stretch.groupby(uprates["ic_uprate_zone"]).sum(), fill_value=0)
         uprates["ic_uprate_max_mw"] = (uprates["ic_uprate_max_mw"] - b).clip(lower=0).round(3)
         uprates.to_csv(next_in_path / f"ic_uprates.chained.{case_name}.csv", index=False, na_rep=".")
 
@@ -330,6 +335,10 @@ def chain_ic_inputs(in_path, out_path, next_in_path, case_name):
     zones = zones.set_index("IC_ZONE")
     zones["ic_base_capacity_mw"] = h1.round(3)
     zones["ic_start_saturation"] = ((s0 * h0 + bought) / h1.where(h1 > 0)).fillna(0).round(6)
+    hosted_file = out_path / "ic_hosted_built.csv"
+    if hosted_file.exists():
+        unused = rd(hosted_file).set_index("ic_zone")["unused_mw"]
+        zones["ic_hosted_headroom_mw"] = unused.reindex(zones.index).fillna(0).clip(lower=0).round(3)
     zones.reset_index().to_csv(next_in_path / f"ic_zones.chained.{case_name}.csv", index=False, na_rep=".")
 
     hz = steps["ic_tranche_zone"].map(h1)
