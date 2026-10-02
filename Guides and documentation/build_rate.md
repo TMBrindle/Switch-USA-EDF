@@ -8,7 +8,8 @@ be built. It replaces the trend-based `MaxCapTag_WindGrowth` / `MaxCapTag_SolarG
   additions and the LBNL interconnection-queue pipeline;
 * cost bands above R (marginal adders: only the MW inside a band pay it) and a hard ceiling;
 * a ramp bound tying each period's rate to the previous period's build;
-* regional (transreg) ceilings from recent regional shares, with a minimum per region.
+* regional (transreg) ceilings from recent regional shares, with a minimum per region, for the
+  siting-limited groups only (wind and solar by default; storage and gas are national-only).
 
 Why: in the 2035 S0 tests, removing the growth caps let the model build 270–360 GW of new onshore
 wind against ~5–9 GW/yr of real build, and the wind share of new wind + solar came out ~0.50 against
@@ -50,6 +51,11 @@ cost = Σ_k Tier · adder_k  (overnight $), annualised with crf(r, life_G), char
   `build_rate_prev_build.chained.<case>.csv` with the best rate achieved so far, and the next stage's
   first period uses it, so the bound never falls below it.
 * Regional ceilings use R_data (a parameter), not the variable R, to stay linear.
+* Regional ceilings apply only to `regional_groups` (default `[wind_onshore, solar]`). Storage and gas
+  are national-only: they are limited by supply chain, not local siting. On the VM, regional storage
+  ceilings with 500 MW/yr floors held central to 36 GW of storage against an EIA pace of about 83 GW,
+  because 2021–25 storage build was concentrated in CAISO, ERCOT and WestConnect, so share-based
+  ceilings left little room elsewhere. Add a group to `regional_groups` to restore its ceilings.
 * Committed (predetermined) builds count toward the rate. If they exceed a ceiling, the case writer
   raises that ceiling to the committed amount and warns.
 * Optional `ceiling_slack_cost` ($/kW, off by default) allows builds above the ceiling at that cost,
@@ -249,6 +255,7 @@ build_rate:
   tables_dir: build_rate/outputs
   groups: [wind_onshore, solar, storage]   # add gas only with MaxCapTag_GasTurbineSupply released
   regional: true
+  regional_groups: [wind_onshore, solar]   # transreg ceilings; storage and gas national-only
   ceiling_slack_cost: null  # $/kW
 ```
 
@@ -342,6 +349,7 @@ Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, 
    cd build_rate
    python -m brc.cli patch-case <case>/inputs --level central            # default groups: wind, solar, storage
    #   --groups wind_onshore solar storage gas   (gas only with MaxCapTag_GasTurbineSupply released)
+   #   --regional-groups wind_onshore solar     (default; storage and gas national-only)
    #   --no-regional | --zone-map zone_map.csv (columns ba, zone; only for aggregated zones)
    #   --ceiling-slack-cost 5000                 (diagnostic, $/kW)
    ```

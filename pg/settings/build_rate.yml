@@ -14,4 +14,6 @@ build_rate:
   # gas is opt-in: adding it requires MaxCapTag_GasTurbineSupply to be released (case build errors otherwise)
   groups: [wind_onshore, solar, storage]
   regional: true
+  # transreg ceilings only for siting-limited groups; storage and gas stay national-only
+  regional_groups: [wind_onshore, solar]
   ceiling_slack_cost: null   # $/kW; diagnostic slack above the ceiling (off when null)

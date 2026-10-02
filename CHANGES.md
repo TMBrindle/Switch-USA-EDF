@@ -859,6 +859,12 @@ Ported aecee82 (patch-case reads PowerGenome's `BUILD_YEAR`). Toy tests read `$S
 **R0 rules (update):** low = min(mean 2023–25, mean 2021–25), central = max(the same), high = best
 year 2021–25; the pipeline stops unless low ≤ central ≤ high.
 
+**Per-group regional limits (update):** regional (transreg) ceilings only for `regional_groups`
+(default `[wind_onshore, solar]`); storage and gas keep the national limit only. On the VM, storage
+regional ceilings (500 MW/yr floors) held central to 36 GW against an EIA pace of ~83 GW, because
+2021–25 storage build was concentrated in CAISO / ERCOT / WestConnect; storage is supply-chain
+limited, not siting limited. Setting in `pg/settings/build_rate.yml`; `patch-case --regional-groups`.
+
 **Future development recorded (not implemented):** dynamic regional limits, where a region's floor
 and ramp respond to its own deployment in earlier periods (exact in myopic chaining, additive linear
 approximation under perfect foresight; national ceiling stays exogenous). See "Future development"

@@ -409,11 +409,11 @@ def test_chain_build_rate_inputs(tmp_path):
 # ---------------------------------------------------------------------------- window sums (toy case)
 
 def _annual_tables(tmp_path):
-    """Rising annual R (fixture): wind 0.02 x (y - 2016) MW/yr, solar 10x that; one regional row."""
+    """Rising annual R (fixture): wind 0.02 x (y - 2016) MW/yr, solar and storage 10x that; one regional row."""
     t = tmp_path / "annual"
     t.mkdir()
     rows = []
-    for g, k in (("wind_onshore", 0.02), ("solar", 0.2)):
+    for g, k in (("wind_onshore", 0.02), ("solar", 0.2), ("storage", 0.2)):
         for y in range(2015, 2051):
             r = k * (y - 2016)
             rows.append({"group": g, "region": "national", "year": y, "r_data_mw_per_yr": r, "ceiling_mw_per_yr": 2 * r,
@@ -423,7 +423,8 @@ def _annual_tables(tmp_path):
                          "ceiling_mw_per_yr": max(r, 0.5), "r0_mw_per_yr": r / 2, "growth": 0.05, "floor_applied": r < 0.5})
     rates_df = pd.DataFrame(rows)
     rates_df.to_csv(t / "rates_central.csv", index=False)
-    pd.concat([rates.tiers(CFG, g).assign(group=g) for g in ("wind_onshore", "solar")]).to_csv(t / "tiers.csv", index=False)
+    pd.concat([rates.tiers(CFG, g).assign(group=g) for g in ("wind_onshore", "solar", "storage")]) \
+        .to_csv(t / "tiers.csv", index=False)
     return t, rates_df
 
 
@@ -537,3 +538,40 @@ def test_rps_check_warns_without_acp(tmp_path, monkeypatch, caplog):
     with caplog.at_level("WARNING"):
         switch_case.write_case_inputs(d, s)
     assert not [r for r in caplog.records if "RPS" in r.getMessage()]
+
+
+def test_regional_groups_storage_national_only(tmp_path, monkeypatch):
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir, _ = _annual_tables(tmp_path)
+    d = _toy_case(tmp_path, [(2035, 2026, 2035)])
+    gi = pd.read_csv(d / "gen_info.csv", na_values=".")
+    batt = gi[gi["GENERATION_PROJECT"].str.contains("Wind")].assign(            # toy has no battery: add one in North
+        GENERATION_PROJECT="N-Battery", gen_tech="Battery_Storage", gen_energy_source="Electricity").head(1)
+    pd.concat([gi, batt]).to_csv(d / "gen_info.csv", index=False, na_rep=".")
+    base = {"enabled": True, "level": "central", "tables_dir": str(tdir), "groups": ["wind_onshore", "solar", "storage"]}
+    zm = {"p35": "North"}
+    switch_case.write_case_inputs(d, {"build_rate": base, "_zone_map": zm})        # default regional_groups
+    gens = pd.read_csv(d / "build_rate_gens.csv")
+    assert "storage" in set(gens["br_gen_group"])                                  # national limit still applies
+    assert "storage" in set(pd.read_csv(d / "build_rate_periods.csv")["BR_GROUP"])
+    reg = pd.read_csv(d / "build_rate_regions.csv")
+    assert set(reg["BR_GROUP"]) == {"wind_onshore", "solar"}                       # storage national-only
+    switch_case.write_case_inputs(d, {"build_rate": dict(base, regional_groups=["wind_onshore", "solar", "storage"]),
+                                      "_zone_map": zm})
+    assert "storage" in set(pd.read_csv(d / "build_rate_regions.csv")["BR_GROUP"])  # opt-in
+    switch_case.write_case_inputs(d, {"build_rate": dict(base, regional_groups=["wind_onshore"]), "_zone_map": zm})
+    assert set(pd.read_csv(d / "build_rate_regions.csv")["BR_GROUP"]) == {"wind_onshore"}
+
+
+def test_patch_case_regional_groups_option(tmp_path, monkeypatch):
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir, _ = _annual_tables(tmp_path)
+    d = _toy_case(tmp_path, [(2035, 2026, 2035)])
+    zm = tmp_path / "zm.csv"
+    pd.DataFrame({"ba": ["p35"], "zone": ["North"]}).to_csv(zm, index=False)
+    args = ["patch-case", str(d), "--config", str(ROOT / "config.yaml"), "--tables-dir", str(tdir),
+            "--groups", "wind_onshore", "solar", "--zone-map", str(zm)]
+    cli.main(args + ["--regional-groups", "wind_onshore"])
+    assert set(pd.read_csv(d / "build_rate_regions.csv")["BR_GROUP"]) == {"wind_onshore"}
+    cli.main(args)                                                                 # default: wind and solar
+    assert set(pd.read_csv(d / "build_rate_regions.csv")["BR_GROUP"]) == {"wind_onshore", "solar"}
