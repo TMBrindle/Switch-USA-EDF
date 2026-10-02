@@ -257,10 +257,16 @@ uprate_options:
 #   current (S0): FERC Order 1920 requires transmission providers to *consider* dynamic line ratings,
 #     advanced power flow control, advanced conductors and transmission switching for each identified
 #     need (Order No. 1920, 89 FR 49280, 11 Jun 2024, P 1198), but "does not require the selection and
-#     deployment of any particular alternative transmission technology" (P 1200). No deliberate
-#     GETs or reconductoring beyond the base network: caps 0. Order No. 881 (ambient-adjusted ratings)
-#     would set a floor for GETs here, but its text and an AAR uplift figure are not in the documents
-#     provided (MISSING): no AAR increment is modelled. Order No. 1920-A: MISSING (not checked).
+#     deployment of any particular alternative transmission technology" (P 1200). Order No. 881
+#     (Managing Transmission Line Ratings, 87 FR 2244, 13 Jan 2022, effective 14 Mar 2022) requires
+#     ambient-adjusted ratings only for near-term transmission service, ending within 10 days (P 4),
+#     and seasonal ratings for longer-term service (P 5, P 201); it declines to require seasonal
+#     ratings in transmission planning ("beyond the scope of this rulemaking", P 203; planning and
+#     development outside its scope, P 347) and declines to mandate dynamic line ratings (P 8).
+#     Compliance filings within 120 days of the effective date and full implementation no later than
+#     three years from the compliance filing due date (P 12, P 360-361): 12 July 2025. So Order 881
+#     does not change the ratings used in the planning and interconnection studies the headroom curve
+#     represents: no Order 881 floor for GETs. Caps 0. Order No. 1920-A: MISSING (not checked).
 #   planned (Order 1920 implemented): selection where more efficient or cost-effective (P 1198-1199),
 #     left to the LP, at the low end of the documented uplift ranges. Timing: Order 1920 effective
 #     12 Aug 2024; compliance filings within ten months (P 12); the first Long-Term Regional

@@ -1119,9 +1119,14 @@ override `uprate_level`; new scenarios `atts_current`, `atts_reform`):
   Planning cycle no later than a year after, P 1072) plus lead time.
 - `reform`: GETs 30% from 2027, reconductoring 98% from 2028.
 
-**Missing from the documents provided (not estimated):** Order No. 881 text (ambient-adjusted
-ratings requirement, its 12 July 2025 implementation date and paragraphs) and an AAR uplift figure,
-so no Order 881 floor is modelled at S0; Order No. 1920-A; ISO Order 881 compliance pages; DOE Liftoff
+**Order No. 881** (87 FR 2244, 13 Jan 2022, effective 14 Mar 2022): ambient-adjusted ratings only
+for near-term transmission service ending within 10 days (P 4); seasonal ratings for longer-term
+service (P 5, P 201); seasonal ratings not required in transmission planning (P 203; planning
+outside scope, P 347); dynamic line ratings not mandated (P 8); full implementation no later than
+three years from the 120-day compliance filing due date (P 12, P 360–361) = 12 July 2025. It does
+not change the ratings behind planning and interconnection studies, so S0 has no Order 881 floor.
+
+**Missing from the documents provided (not estimated):** Order No. 1920-A; ISO Order 881 compliance pages; DOE Liftoff
 (Innovative Grid Deployment); Brattle/WATT "Unlocking the Queue"; the share of network suitable for
 GETs; reconductoring share by capacity and structure health; GETs costs outside PJM and their dollar
 year; a reconductoring $/MW figure (charts only in the GridLab report).
