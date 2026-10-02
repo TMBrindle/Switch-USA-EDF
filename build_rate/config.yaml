@@ -62,7 +62,21 @@ ramp_floor_mw: {wind_onshore: 1000, solar: 1000, storage: 1000, gas: 1000}   # P
 
 # Regional ceiling per transreg: max(share_r x regional_mult x top band x R, regional_floor).
 regional_mult: {wind_onshore: 1.5, solar: 1.5, storage: 1.5, gas: 1.5}             # PLACEHOLDER
-regional_floor_mw: {wind_onshore: 500, solar: 1000, storage: 500, gas: 500}        # PLACEHOLDER
+# Regional floor per transreg (MW/yr): max(floor_min_mw, k_stock x existing capacity at the end of
+# floor_basis.stock_year, k_peak x peak annual build over floor_basis.peak_years). All PLACEHOLDER.
+# Gas (opt-in) keeps a flat floor: its stock is large and not a measure of new-build capacity.
+regional_floor:                                                                  # PLACEHOLDER
+  wind_onshore: {floor_min_mw: 500, k_stock: 0.05, k_peak: 0.75}                 # PLACEHOLDER
+  solar:        {floor_min_mw: 1000, k_stock: 0.05, k_peak: 0.75}                # PLACEHOLDER
+  storage:      {floor_min_mw: 500, k_stock: 0.10, k_peak: 0.75}                 # PLACEHOLDER
+  gas:          {floor_min_mw: 500, k_stock: 0.0, k_peak: 0.0}                   # PLACEHOLDER
+floor_basis: {stock_year: 2025, peak_years: [2010, 2025]}
+
+# Case-build RPS check (warning only; RPS is in energy, ceilings in MW). A program without an ACP
+# whose share reaches warn_share, in transregs where a wind or solar regional ceiling is set by the
+# floor (little recent build), may be infeasible with build_rate on. Rough capacity factors turn
+# the window's cumulative ceilings into energy for the message only.
+rps_check: {warn_share: 0.30, cf: {wind_onshore: 0.35, solar: 0.25}}             # PLACEHOLDER
 
 # Amortisation life for annualising tier adders (years). PLACEHOLDER: match gen_max_age.
 life_years: {wind_onshore: 30, solar: 30, storage: 15, gas: 30}                     # PLACEHOLDER
@@ -75,7 +89,9 @@ levels:
   # siting reform: relax wind's regional limits (IPM's wind spur/access adders, Tables 4-38/4-42,
   # are ~9x solar's at the median, so siting binds wind first). PLACEHOLDER values.
   reform:  {r0: central, growth: central,
-            regional_mult: {wind_onshore: 3.0}, regional_floor_mw: {wind_onshore: 1500}}
+            regional_mult: {wind_onshore: 3.0},
+            # reform scales all three floor terms up for wind (PLACEHOLDER)
+            regional_floor: {wind_onshore: {floor_min_mw: 1500, k_stock: 0.10, k_peak: 1.5}}}
   # IPM's own shape (EPA 2025 Reference Case): R = Table 4-13 Step 1 per build year (implied build
   # windows, ipm.run_year_span), ipm2025 tiers; storage (no Table 4-13 row) follows `high`'s R.
   high_ipm: {r0: ipm, growth: high, tier_set: ipm2025}

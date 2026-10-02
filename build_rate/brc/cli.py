@@ -50,6 +50,10 @@ def cmd_run(cfg: dict) -> dict:
     delay = rates.cod_delay(comp, cfg)
     delay.to_csv(out / "cod_delay.csv")
     rates.overdue_summary(comp, delay, cfg).rename("overdue_mw").to_csv(out / "overdue_pipeline.csv")
+    fb = cfg["floor_basis"]
+    stock = data.eia_stock(cfg["paths"]["eia860m"], c2t, fb["stock_year"])
+    basis = rates.floor_basis(add, stock, fb["peak_years"])
+    basis.to_csv(out / "floor_basis.csv", index=False)
     near = rates.near_term(comp, comp_rates, delay, cfg)
     near.to_csv(out / "near_term.csv", index=False)
     def tier_table(ts):
@@ -60,7 +64,7 @@ def cmd_run(cfg: dict) -> dict:
     written, skipped = [], {}
     for lv in LEVELS:
         try:
-            rates.rate_table(cfg, lv, base, near, shares).to_csv(out / f"rates_{lv}.csv", index=False)
+            rates.rate_table(cfg, lv, base, near, shares, basis).to_csv(out / f"rates_{lv}.csv", index=False)
             written.append(lv)
         except ValueError as e:
             skipped[lv] = str(e)
@@ -78,7 +82,9 @@ def cmd_patch_case(cfg: dict, inputs_dir: str, level: str, groups: list[str], re
     """Write build_rate_*.csv (incl. the generator -> group mapping, build_rate_gens.csv) into an
     existing case's inputs folder from its own gen_info.csv, periods.csv, gen_build_costs.csv,
     gen_build_predetermined.csv and min/max cap files, without rebuilding the case."""
+    import logging
     from . import switch_case
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
     settings = {"build_rate": {"enabled": True, "level": level, "groups": groups, "regional": regional,
                                "tables_dir": tables_dir or str(Path(cfg["paths"]["outputs"])),
                                "ceiling_slack_cost": slack_cost}}

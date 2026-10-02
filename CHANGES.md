@@ -1258,5 +1258,12 @@ floors) are the sum of the annual values over each build window (`_window_sum` i
 cover the writer and a Switch solve. `python -m brc.cli patch-case <inputs_dir>` adds build_rate to
 an existing case without rebuilding it.
 
+**Regional floors (update):** floor_r,G = max(floor_min_G, k_stock_G × capacity in service at
+end-2025, k_peak_G × peak annual build 2010–25), all PLACEHOLDER (wind 500 MW/yr / 0.05 / 0.75;
+solar 1,000 / 0.05 / 0.75; storage 500 / 0.10 / 0.75; gas flat 500); reform scales all three for
+wind (1,500 / 0.10 / 1.5) and keeps the 3.0 multiplier. New `floor_basis.csv` output. Case-build
+RPS warning (`check_rps`) for high-share programs without an ACP in floor-limited transregs.
+Ported aecee82 (patch-case reads PowerGenome's `BUILD_YEAR`). Toy tests read `$SWITCH_SRC`.
+
 **R0 rules (update):** low = min(mean 2023–25, mean 2021–25), central = max(the same), high = best
 year 2021–25; the pipeline stops unless low ≤ central ≤ high.

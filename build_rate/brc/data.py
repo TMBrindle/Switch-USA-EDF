@@ -55,6 +55,27 @@ def eia_additions(path: Path, c2t: pd.DataFrame) -> pd.DataFrame:
     return g
 
 
+def eia_stock(path: Path, c2t: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Capacity in service at the end of `year`: Operating units online by `year`, plus Retired units
+    online by `year` that retired after it. Columns group, transreg, mw."""
+    key = c2t.drop_duplicates(["state", "county_key"]).set_index(["state", "county_key"])["transreg"]
+    frames = []
+    for sheet in ("Operating", "Retired"):
+        d = _read_sheet(path, sheet)
+        on = pd.to_numeric(d["Operating Year"], errors="coerce")
+        keep = on <= year
+        if sheet == "Retired":
+            keep &= pd.to_numeric(d["Retirement Year"], errors="coerce") > year
+        d = d[keep]
+        frames.append(pd.DataFrame({
+            "group": d["Technology"].map(eia_group), "state": d["Plant State"].astype(str).str.upper(),
+            "county": d["County"], "mw": pd.to_numeric(d["Nameplate Capacity (MW)"], errors="coerce")}))
+    g = pd.concat(frames, ignore_index=True)
+    g = g[g["group"].notna() & g["mw"].notna()]
+    g["transreg"] = [key.get((s, norm_county(c))) for s, c in zip(g["state"], g["county"])]
+    return g[["group", "transreg", "mw"]]
+
+
 def load_queued_up(path: Path) -> pd.DataFrame:
     sheet = "03. Complete Queue Data"
     raw = pd.read_excel(path, sheet_name=sheet, header=None, nrows=5)

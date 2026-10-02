@@ -32,7 +32,8 @@ R[G,p]       ≤ R_data[G,p] = (1/W_p) · Σ_{y∈W_p} R_data[G,y]   window sum 
 R[G,p]       ≤ (1+growth_G)^W_p · NewBuild[G,p−1]/W_{p−1} + floor_G (+ committed/(top·W_p))
 Σ_k Tier[G,p,k] = NewBuild[G,p]
 Tier[G,p,k]  ≤ width_k · R[G,p] · W_p   (= width_k · Σ_{y∈W_p} R_data[G,y] at R = R_data)
-Σ BuildGen in region r ≤ Σ_{y∈W_p} max(share_r · m_G · 2.0 · R_data[G,y], regional floor_G)
+Σ BuildGen in region r ≤ Σ_{y∈W_p} max(share_r · m_G · 2.0 · R_data[G,y], floor_G,r)
+floor_G,r = max(floor_min_G, k_stock_G · existing MW_r end-2025, k_peak_G · peak annual build_r 2010–25)
 cost = Σ_k Tier · adder_k  (overnight $), annualised with crf(r, life_G), charged while the vintage lives
 ```
 
@@ -73,7 +74,7 @@ each band, the data rate, the ramp and regional limits, converted to overnight-e
 
 | Growth after 2030 | **PLACEHOLDER** low/central/high per group | candidate sources: NREL ATB / Standard Scenarios, ReEDS absolute limits, WoodMac/SEIA/ACP outlooks, LBNL completion trends |
 | Regional shares | EIA 2016–25 | share of national additions by transreg |
-| Regional floors | **PLACEHOLDER** | 500 MW/yr wind, 1,000 solar, 500 storage, 500 gas per transreg (reform: 1,500 wind) |
+| Regional floors | EIA-860M stock and additions; coefficients **PLACEHOLDER** | floor_r,G = max(floor_min, k_stock × capacity in service at end-2025 (Operating sheet plus units retired after 2025), k_peak × largest annual addition 2010–25), per transreg (`floor_basis.csv`). Wind 500 MW/yr / 0.05 / 0.75; solar 1,000 / 0.05 / 0.75; storage 500 / 0.10 / 0.75; gas flat 500. Reform, wind: 1,500 / 0.10 / 1.5 |
 
 ## Tiers and their sources
 
@@ -191,8 +192,8 @@ They are spur-line / resource-access capital-cost adders by resource and cost cl
 already includes spur costs (`spur_capex`), so adding them would double count. They are evidence for
 applying the siting lever to wind first: the median wind access adder is $103/kW (10% of the Platform v6
 2028 base capex, from the Table 4-38 / 4-42 files supplied earlier; 90th percentile $915) against $11/kW for solar (1.3%; 90th percentile $344), about 9× at the
-median. The `reform` level therefore relaxes wind's regional multiplier (1.5 → 3.0) and floor
-(500 → 1,500 MW/yr).
+median. The `reform` level therefore relaxes wind's regional multiplier (1.5 → 3.0) and scales up
+all three floor terms (floor_min 500 → 1,500 MW/yr, k_stock 0.05 → 0.10, k_peak 0.75 → 1.5).
 
 ## Levels (scenario axis `build_rate`)
 
@@ -202,7 +203,7 @@ median. The `reform` level therefore relaxes wind's regional multiplier (1.5 →
 | low | min(mean 2023–25, mean 2021–25) | low | |
 | central | max(mean 2023–25, mean 2021–25) | central | |
 | high | best year 2021–25 | high | |
-| reform | as central | central | wind regional multiplier 3.0, floor 1,500 MW/yr |
+| reform | as central | central | wind regional multiplier 3.0; wind floor terms 1,500 MW/yr / 0.10 / 1.5 |
 | high_ipm | EPA 2025 Table 4-13 Step 1 per build year (implied windows) | high (after 2036; storage) | `ipm2025` tiers, no ceiling |
 
 R0, GW/yr (low / central / high): wind 5.98 / 8.25 / 13.84, solar 21.14 / 26.87 / 31.16, storage
@@ -218,7 +219,18 @@ is higher.
   (`MaxCapTag_NuclearGrowth`) and offshore wind (`MaxCapTag_Ban`, `offshore_wind_policy`) are unchanged.
 * **MinCap.** The case build checks that each MinCap program whose generators are all in one group
   needs no more new build than the cumulative national ceilings allow; it stops with a message unless
-  `ceiling_slack_cost` is set. The RPS ACP (on `tom/ic-test-fedpol`) is unaffected.
+  `ceiling_slack_cost` is set.
+* **Local RPS / MinCap and regional ceilings.** Regional ceilings can make a requirement that must be
+  met inside a few zones infeasible (a state RPS, or a MinCap program on one region's generators),
+  because they limit new wind and solar there even when the national ceiling has room. With
+  build_rate on, use the RPS ACP option (`rps_acp_per_mwh` in `rps_requirements.csv`, on
+  `tom/ic-test-fedpol`), which turns an unmeetable target into a priced buyout. RPS targets are in
+  energy, so the case build cannot test them exactly; it warns (`check_rps` in
+  `build_rate/brc/switch_case.py`) when a program has no ACP, its share reaches `rps_check.warn_share`
+  (30%, PLACEHOLDER), and a wind or solar ceiling in its transregs is set by the regional floor
+  (little recent build). The message gives the window's allowed new wind + solar energy at rough
+  capacity factors against the target (existing eligible generation is not counted). MinCap targets
+  are checked against the national ceilings and stop the build.
 * **Interconnection headroom** (`tom/interconnection-headroom`). Both modules limit the same new
   builds: headroom prices network capacity by zone, build rate prices national development
   throughput. Neither cost term contains the other. Possible overlap: LBNL network-upgrade costs
@@ -245,6 +257,8 @@ flattened key with `policies` (carbon settings, `max_cap_req_fn`) in the same sc
 a `build_rate` column in `scenario_inputs.csv` (not added on this branch; see the handoff below).
 
 Commands (from `build_rate/`): `bash scripts/fetch_data.sh`, `python -m brc.cli run`, `pytest -q`.
+The toy tests find Switch's `examples/3zone_toy` under `$SWITCH_SRC` (else `/opt/switch-src`, else
+the installed `switch_model`'s source tree); on the VM run `SWITCH_SRC=<switch checkout> pytest -q`.
 
 ## Results (1 Oct 2026 inputs: EIA-860M Aug 2026, Queued Up through 2025)
 
@@ -273,29 +287,31 @@ S0's caps are cumulative stock (wind 198.2 / 221.3 / 283.9 GW, solar 243.7 / 321
 the new-build column subtracts the end-2025 EIA-860M operating stock (wind 159.7 GW incl. offshore,
 which the WindGrowth tag also covers; solar PV 152.9 GW), ignoring retirements before 2035.
 
-Regional check, onshore wind, GW (cumulative ceilings sum the annual regional ceilings
-max(share × m × 2.0 × R, floor) over 2026–35; the national ceiling, 178 GW central, binds on the sum
-first; uncapped S0 builds are from the VM diagnostics):
+Regional check, onshore wind (GW; floors in GW/yr; cumulative ceilings sum the annual
+max(share × m × 2.0 × R, floor) over 2026–35; the national ceiling, 178 GW central, binds on the
+sum first; uncapped S0 builds are from the VM diagnostics):
 
-| Transreg | Share 2016–25 | Observed 2021–25 | Central cum. ceiling 2026–35 | Reform cum. ceiling 2026–35 | Uncapped S0 build (VM) | Central binds? |
-|---|---|---|---|---|---|---|
-| SPP | 0.35 | 12.7 | 92.4 | 184.7 | | |
-| ERCOT | 0.25 | 12.1 | 67.1 | 134.1 | | |
-| MISO | 0.21 | 7.2 | 56.6 | 113.2 | 88 | yes (−31); reform does not (+25) |
-| WestConnect | 0.10 | 5.1 | 26.8 | 53.5 | | |
-| NorthernGrid | 0.03 | 1.6 | 8.6 | 17.1 | | |
-| PJM | 0.02 | 0.6 | 5.9 | 15.0 (floor) | 25 | yes (−19); reform too (−10) |
-| SERTP | 0.00 | 0.2 | 5.0 (floor) | 15.0 (floor) | 31 | yes (−26); reform too (−16) |
-| ISONE | 0.01 | 0.2 | 5.0 (floor) | 15.0 (floor) | 10 | yes (−5); reform does not (+5) |
-| NYISO / CAISO / FRCC | ≤ 0.01 | 0.8 / 0.7 / 0.0 | 5.0 (floor) each | 15.0 (floor) each | | |
+| Transreg | Existing end-2025 | Peak annual build 2010–25 | Old floor (central / reform) | New floor central | New floor reform | Cum. ceiling central | Cum. ceiling reform | Observed 2021–25 | Uncapped S0 (VM) |
+|---|---|---|---|---|---|---|---|---|---|
+| SPP | 46.1 | 4.76 | 0.5 / 1.5 | 3.57 | 7.14 | 92.4 | 184.7 | 12.7 | |
+| ERCOT | 35.8 | 3.85 | 0.5 / 1.5 | 2.89 | 5.78 | 67.1 | 134.1 | 12.1 | |
+| MISO | 35.2 | 4.16 | 0.5 / 1.5 | 3.12 | 6.23 | 56.6 | 113.2 | 7.2 | 88 |
+| WestConnect | 13.4 | 2.49 | 0.5 / 1.5 | 1.87 | 3.73 | 26.8 | 53.5 | 5.1 | |
+| NorthernGrid | 11.4 | 2.06 | 0.5 / 1.5 | 1.55 (floor) | 3.09 (floor) | 15.5 | 30.9 | 1.6 | |
+| CAISO | 6.5 | 1.97 | 0.5 / 1.5 | 1.48 (floor) | 2.95 (floor) | 14.8 | 29.5 | 0.7 | |
+| PJM | 6.1 | 0.67 | 0.5 / 1.5 | 0.50 | 1.50 (floor) | 5.9 | 15.0 | 0.6 | 25 |
+| NYISO | 2.7 | 0.56 | 0.5 / 1.5 | 0.50 (floor) | 1.50 (floor) | 5.0 | 15.0 | 0.8 | |
+| ISONE | 1.7 | 0.36 | 0.5 / 1.5 | 0.50 (floor) | 1.50 (floor) | 5.0 | 15.0 | 0.2 | 10 |
+| SERTP | 0.4 | 0.21 | 0.5 / 1.5 | 0.50 (floor) | 1.50 (floor) | 5.0 | 15.0 | 0.2 | 31 |
+| FRCC | 0 | 0 | 0.5 / 1.5 | 0.50 (floor) | 1.50 (floor) | 5.0 | 15.0 | 0.0 | |
 
-Central binds where the S0 diagnostics put wind outside the historical build regions (SERTP, PJM,
-ISO-NE: floors or ~0.02 shares) and in MISO (56.6 vs 88 GW). SPP, ERCOT and WestConnect have
-regional ceilings 5–7× their 2021–25 build (92 / 67 / 27 GW); the diagnostics give no uncapped S0
-figures there, but they would bind only above those levels. The regional ceilings sum to 287 GW
-against the 178 GW national ceiling, so the national limit binds first in aggregate. Reform
-relieves MISO and ISO-NE but not PJM or SERTP, where the 1,500 MW/yr floor is still below the S0
-build. Multipliers and floors are placeholders and unchanged.
+"(floor)" marks transregs where the floor sets the ceiling in every year of 2026–35. The new floor
+binds only where history is thin relative to the stock: it raises NorthernGrid (8.6 → 15.5 GW) and
+CAISO (5.0 → 14.8 GW). In the large wind regions the share term is far above the floor, and in
+PJM, NYISO, ISO-NE, SERTP and FRCC stock and peak build are small, so floor_min still sets it. Against
+the uncapped S0 builds, central still binds in MISO (56.6 vs 88), PJM (5.9 vs 25), SERTP (5.0 vs
+31) and ISO-NE (5.0 vs 10); reform relieves MISO (113) and ISO-NE (15) but not PJM (15) or SERTP
+(15). Regional ceilings sum to 294 GW central against the 178 GW national ceiling.
 
 ## VM test handoff
 
