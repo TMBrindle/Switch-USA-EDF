@@ -99,7 +99,7 @@ def build_reference(model: CostModel, panel: pd.DataFrame, regimes: pd.DataFrame
     The empirical curve runs from the zone's start saturation s0 to the sample's support edge
     (model.sat_support, the support_quantile of sample saturation) in equal steps of about
     tranches.step_width. A zone already at or beyond the edge gets one step of edge_step_width
-    priced at the edge. Beyond that, headroom comes only from uprates (new_line is the backstop in
+    priced at the edge. Beyond that, headroom comes only from uprates (conventional reinforcement is the backstop in
     every scenario). Costs are made non-decreasing (cumulative max) so the LP fills them in order.
     """
     tc = cfg["tranches"]
@@ -148,7 +148,8 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
       uprates: [names]          network capacity options from `uprate_options`, which Switch may build
                                 (plus `baseline_uprates` and `backstop_uprates`, in every scenario)
       uprate_level: name        adoption level (`uprate_levels`; default `uprate_level`) setting the
-                                caps and first years of the options it lists (GETs, reconductoring)
+                                caps and first years of the options it lists (GETs, advanced-conductor
+                                reconductoring)
     """
     if scen.get("regime_override") == "best" and best is not None:
         zones, tranches = best
@@ -175,7 +176,8 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
         o = uprate_option(cfg, name, level)
         mode = uprate_mode(o, cfg)
         for _, r in z.iterrows():
-            rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name), "level": o.get("level"),
+            rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name), "label": o.get("label", name),
+                         "level": o.get("level"),
                          "max_mw": o["share_of_capacity"] * r["base_capacity_mw"],
                          "cost_per_kw": uprate_cost(o, r["ba"], zone_cost, gen_per_h if mode == "stretch" else None,
                                                     transreg.get(r["ba"])),
@@ -188,7 +190,7 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
                          "gen_mw_per_mw_h": (float(gen_per_h[r["ba"]])
                                              if mode == "stretch" and not _is_number(o["cost_per_kw"])
                                              else np.nan)})
-    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "level", "max_mw", "cost_per_kw", "available_year", "mode",
+    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "label", "level", "max_mw", "cost_per_kw", "available_year", "mode",
                                     "cost_per_kw_gen", "reeds_cost_per_kw_gen", "gen_mw_per_mw_h"])
     return z, t.sort_values(["ba", "sat_from"]).reset_index(drop=True), u
 
@@ -202,7 +204,7 @@ def zone_transregs(cfg: dict) -> dict:
 
 
 def reinforcement_costs(cfg: dict) -> pd.Series:
-    """Zone -> new_line $/kW from the ReEDS reinforcement table (reinforcement.zone_table, statistic
+    """Zone -> ReEDS reinforcement $/kW of generation from the ReEDS reinforcement table (reinforcement.zone_table, statistic
     reinforcement.quantile), in the pipeline dollar year."""
     rc = cfg["reinforcement"]
     t = pd.read_csv(Path(cfg["_root"]) / rc["zone_table"])
@@ -214,7 +216,7 @@ def reinforcement_costs(cfg: dict) -> pd.Series:
 
 def uprate_option(cfg: dict, name: str, level: str | None) -> dict:
     """An uprate option with its cap and first year from the adoption level (uprate_levels[level][name])
-    when the level lists it; options a level does not list (new_line) keep their own."""
+    when the level lists it; options a level does not list (conv_reinforcement) keep their own."""
     o = dict(cfg["uprate_options"][name])
     lv = (cfg.get("uprate_levels") or {})
     if level is not None and lv and level not in lv:
@@ -252,12 +254,17 @@ def cost_per_kw_gen(option: dict, ba: str, zone_cost: pd.Series | None, transreg
     return np.nan
 
 
+# uprate types that host generation directly in host mode (reinforcement_mode)
+HOST_TYPES = ("conv_reinforcement",)
+
+
 def uprate_mode(option: dict, cfg: dict) -> str:
-    """host or stretch: new lines follow new_line_mode (default host); every other option stretches."""
-    if option.get("type") == "new_line":
-        mode = cfg.get("new_line_mode", "host")
+    """host or stretch: conventional reinforcement follows reinforcement_mode (default host); every other
+    option (GETs, advanced-conductor reconductoring) stretches."""
+    if option.get("type") in HOST_TYPES:
+        mode = cfg.get("reinforcement_mode", "host")
         if mode not in ("host", "stretch"):
-            raise ValueError(f"new_line_mode must be host or stretch, not {mode!r}")
+            raise ValueError(f"reinforcement_mode must be host or stretch, not {mode!r}")
         return mode
     return "stretch"
 

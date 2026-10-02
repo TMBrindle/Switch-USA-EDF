@@ -1,7 +1,8 @@
 # Comparison: the defaults before CHANGES.md "Interconnection Headroom: Curve Fixes" (Oct 2026):
 # trend evaluated at reference_year 2024 in every zone, each regime's own completed effect, and the
 # GETs / reconductoring placeholders (10% at $20/kW, 30% at $80/kW from 2028), and the
-# new_line backstop stretching the curve at the $250/kW placeholder, capped at 1.0 x base capacity.
+# new-line backstop (now conv_reinforcement) stretching the curve at the $250/kW placeholder, capped at
+# 1.0 x base capacity.
 # Run: python -m icsc.cli --config sensitivities/previous_defaults.yaml run --start-year 2026
 extends: ../config.yaml
 paths: {outputs: outputs/sens_previous_defaults}
@@ -11,7 +12,7 @@ tranches:
 uprate_options:
   gets:        {type: gets,        share_of_capacity: 0.10, cost_per_kw: 20,  available_year: 0}
   reconductor: {type: reconductor, share_of_capacity: 0.30, cost_per_kw: 80,  available_year: 2028}
-  new_line: {type: new_line, share_of_capacity: 1.0, cost_per_kw: 250, available_year: 2030}
-new_line_mode: stretch
+  conv_reinforcement: {type: conv_reinforcement, share_of_capacity: 1.0, cost_per_kw: 250, available_year: 2030}
+reinforcement_mode: stretch
 uprate_level: null      # placeholder caps above, not uprate_levels
 baseline_uprates: []    # reference was backstop-only before the GETs/reconductoring layers

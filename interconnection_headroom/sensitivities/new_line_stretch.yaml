@@ -1,7 +1,7 @@
-# Sensitivity: new lines stretch the curve like GETs and reconductoring (new_line_mode: stretch, the
-# behaviour before CHANGES §41's host mode), priced per MW of network H with reinforcement.per_mw_h:
-# curve_end. Generation using the stretched steps also pays their empirical costs.
+# Sensitivity: conventional reinforcement stretches the curve like GETs and reconductoring
+# (reinforcement_mode: stretch, the behaviour before CHANGES §41's host mode), priced per MW of network H
+# with reinforcement.per_mw_h: curve_end. Generation using the stretched steps also pays their empirical costs.
 # Run: python -m icsc.cli --config sensitivities/new_line_stretch.yaml run --start-year 2026
 extends: ../config.yaml
 paths: {outputs: outputs/sens_new_line_stretch}
-new_line_mode: stretch
+reinforcement_mode: stretch

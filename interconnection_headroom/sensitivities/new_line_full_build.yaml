@@ -1,0 +1,10 @@
+# Sensitivity: the backstop priced as a full new line (greenfield) rather than conventional reinforcement:
+# 2.0 x the zone's ReEDS reinforcement cost, i.e. ReEDS cost_reinforcement / 0.5 (ReEDS
+# docs/source/model_documentation.md line 1809, pinned commit 2f583ff5: reinforcement CAPEX "multiplied by
+# 50% to approximate the lower cost for reconductoring compared to greenfield transmission construction").
+# Still host mode. Central (config.yaml): conventional reinforcement at 1.0 x.
+# Run: python -m icsc.cli --config sensitivities/new_line_full_build.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_new_line_full_build}
+uprate_options:
+  conv_reinforcement: {label: new line, full build (ReEDS / 0.5), cost_per_kw: {reeds_reinforcement_x: 2.0}}
