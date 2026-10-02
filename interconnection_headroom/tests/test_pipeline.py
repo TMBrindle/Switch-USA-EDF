@@ -154,7 +154,9 @@ def test_sensitivity_configs_extend_base(cfg):
                         ("price_active", ("tranches", "reference_status"), "active"),
                         ("status_pooled", ("tranches", "status_pricing"), "pooled"),
                         ("status_own", ("tranches", "status_pricing"), "own"),
-                        ("previous_defaults", ("tranches", "trend_freeze"), "none")]:
+                        ("previous_defaults", ("tranches", "trend_freeze"), "none"),
+                        ("new_line_gen", ("reinforcement", "per_mw_h"), "gen"),
+                        ("new_line_s0", ("reinforcement", "per_mw_h"), "s0")]:
         c = cli.load_cfg(str(ROOT / "sensitivities" / f"{f}.yaml"))
         v = c
         for k in key:
@@ -263,12 +265,24 @@ def test_reinforcement_table_and_backstop(cfg):
     if (Path(cfg["_root"]) / cfg["reinforcement"]["h5"]).exists():   # rebuild from the raw ReEDS files
         r = reinforcement.build(cfg).set_index("ba").reindex(t["ba"])
         assert np.allclose(r["reinforcement_median_per_kw"], t["reinforcement_median_per_kw"], atol=0.01)
-    zones = pd.DataFrame({"ba": ["p1", "p80"], "base_capacity_mw": [1000.0, 2000.0]})
-    _, _, up = tranches.apply_scenario(zones, pd.DataFrame(columns=["ba", "sat_from", "cost_per_kw"]), cfg, {})
-    nl = up[up["uprate"] == "new_line"].set_index("ba")
+    zones = pd.DataFrame({"ba": ["p1", "p80"], "base_capacity_mw": [1000.0, 2000.0], "start_saturation": [0.1, 0.9]})
+    tr = pd.DataFrame({"ba": ["p1", "p1", "p80"], "sat_from": [0.1, 0.4, 0.9], "sat_to": [0.4, 0.67, 0.95],
+                       "cost_per_kw": [50.0, 60.0, 90.0]})
     want = t.set_index("ba")["reinforcement_median_per_kw"]
-    assert np.allclose(nl["cost_per_kw"], want[nl.index])
+    factors = {"curve_end": {"p1": 0.67, "p80": 0.95}, "s0": {"p1": 0.1, "p80": 0.9}, "gen": {"p1": 1.0, "p80": 1.0}}
+    for how, f in factors.items():
+        c = dict(cfg, reinforcement=dict(cfg["reinforcement"], per_mw_h=how))
+        _, _, up = tranches.apply_scenario(zones, tr, c, {})
+        nl = up[up["uprate"] == "new_line"].set_index("ba")
+        for ba in ("p1", "p80"):
+            assert nl.at[ba, "cost_per_kw"] == pytest.approx(want[ba] * f[ba]), (how, ba)
+            assert nl.at[ba, "reeds_cost_per_kw_gen"] == pytest.approx(want[ba])
+            assert nl.at[ba, "gen_mw_per_mw_h"] == pytest.approx(f[ba])
+        # cost per MW of generation hosted over the whole curve equals ReEDS's cost under curve_end
+        if how == "curve_end":
+            assert np.allclose(nl["cost_per_kw"] / nl["gen_mw_per_mw_h"], want[nl.index])
     assert np.allclose(nl["max_mw"], cfg["uprate_options"]["new_line"]["share_of_capacity"] * zones.set_index("ba")["base_capacity_mw"])
+    assert cfg["reinforcement"]["per_mw_h"] == "curve_end"
 
 
 def test_zone_regimes_utilities(cfg):

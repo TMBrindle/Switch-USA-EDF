@@ -1034,6 +1034,17 @@ h5 against its LFS sha256. Zone medians: $177 / $319 / $650/kW at the 10th / 50t
 zones (was $250 everywhere). The cap `share_of_capacity` is widened from 1.0 to 10 × base capacity:
 a finite bound for the LP, not a physical limit, so the backstop does not bind.
 
+*Units (follow-up).* ReEDS's cost is per MW(AC) of generation: it reinforces one MW of route
+capacity (POI → zone centre) per MW of new wind/solar (ReEDS docs "Network reinforcement";
+`reeds/output_calc.py` counts reinforcement as new GW × distance). The uprate is per MW of network
+capacity H, which hosts s MW of weighted generation. `reinforcement.per_mw_h: curve_end` (default)
+prices $/MW-H = ReEDS $/MW-gen × the zone's curve-end saturation (release s0 plus the stretched steps:
+the support edge 0.67, or s0 + 0.05 past it), so a MW hosted through new_line costs ReEDS's $/MW.
+Sensitivities `sensitivities/new_line_s0.yaml` (× s0, release only; near-free H where s0 is low) and
+`new_line_gen.yaml` (× 1). new_line $/kW across zones, p10 / median / p90: curve_end 126 / 237 / 463;
+× 1 (as first committed) 177 / 319 / 650; × s0 7 / 45 / 225. Past the support edge the three agree
+within 11% (medians $238–265). `uprates_*.csv` gain `reeds_cost_per_kw_gen` and `gen_mw_per_mw_h`.
+
 **3. Completed effect capped (default).** `tranches.status_pricing: capped` bounds each regime's
 completed effect to within `status_cap_ratio` [0.5, 2] × the pooled effect (multiplicatively).
 Moves NYISO (×3.61 → ×1.72), PJM (×0.42 → ×0.46) and PacifiCorp (×0.24 → ×0.46); MISO, SPP and FRCC

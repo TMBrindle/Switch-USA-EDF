@@ -160,6 +160,7 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
         t["cost_per_kw"] *= scen["cost_multiplier"]
         z["release_cost_per_kw"] *= scen["cost_multiplier"]
     opts = cfg.get("uprate_options", {})
+    gen_per_h = gen_mw_per_mw_h(z, t, cfg)
     zone_cost = reinforcement_costs(cfg) if any(
         isinstance(opts[n].get("cost_per_kw"), str) for n in list(scen.get("uprates", [])) + list(cfg.get("backstop_uprates", []))) else None
     rows = []
@@ -169,9 +170,16 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
         for _, r in z.iterrows():
             rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name),
                          "max_mw": o["share_of_capacity"] * r["base_capacity_mw"],
-                         "cost_per_kw": uprate_cost(o, r["ba"], zone_cost),
-                         "available_year": int(o.get("available_year", 0))})
-    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "max_mw", "cost_per_kw", "available_year"])
+                         "cost_per_kw": uprate_cost(o, r["ba"], zone_cost, gen_per_h),
+                         "available_year": int(o.get("available_year", 0)),
+                         # ReEDS basis ($ per kW of generation) and the MW of weighted generation one MW
+                         # of H hosts, for options priced from ReEDS (blank otherwise)
+                         "reeds_cost_per_kw_gen": (float(zone_cost[r["ba"]]) if o["cost_per_kw"] == "reeds_reinforcement"
+                                                   else np.nan),
+                         "gen_mw_per_mw_h": (float(gen_per_h[r["ba"]]) if o["cost_per_kw"] == "reeds_reinforcement"
+                                             else np.nan)})
+    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "max_mw", "cost_per_kw", "available_year",
+                                    "reeds_cost_per_kw_gen", "gen_mw_per_mw_h"])
     return z, t.sort_values(["ba", "sat_from"]).reset_index(drop=True), u
 
 
@@ -186,13 +194,37 @@ def reinforcement_costs(cfg: dict) -> pd.Series:
     return t.set_index("ba")[f"reinforcement_{rc.get('quantile', 'median')}_per_kw"]
 
 
-def uprate_cost(option: dict, ba: str, zone_cost: pd.Series | None) -> float:
-    """$/kW of network capacity: a number from config, or 'reeds_reinforcement' (zone table)."""
+def gen_mw_per_mw_h(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict) -> pd.Series:
+    """Weighted generation MW that one MW of network capacity H hosts, per zone, for converting ReEDS's
+    reinforcement cost ($ per MW of generation) to $ per MW of H (reinforcement.per_mw_h):
+
+      curve_end (recommended)  the saturation at the end of the zone's curve: one MW of H releases s0 MW
+                               of headroom and stretches the remaining steps by (end - s0) MW, so it
+                               hosts `end` MW in all (the support edge, or s0 + edge_step for zones past it)
+      s0                       release only: the s0 MW freed at the start saturation
+      gen                      1, ReEDS's own method: one MW of route capacity per MW of generation
+    """
+    how = (cfg.get("reinforcement") or {}).get("per_mw_h", "curve_end")
+    s0 = zones.set_index("ba")["start_saturation"]
+    if how == "gen":
+        return pd.Series(1.0, index=s0.index)
+    if how == "s0":
+        return s0.astype(float)
+    if how == "curve_end":
+        end = tranches.groupby("ba")["sat_to"].max() if len(tranches) else pd.Series(dtype=float)
+        return end.reindex(s0.index).fillna(s0).astype(float)
+    raise ValueError(f"reinforcement.per_mw_h must be curve_end, s0 or gen, not {how!r}")
+
+
+def uprate_cost(option: dict, ba: str, zone_cost: pd.Series | None, gen_per_h: pd.Series | None = None) -> float:
+    """$/kW of network capacity: a number from config, or 'reeds_reinforcement': the zone's ReEDS cost
+    per kW of generation x the generation MW one MW of network hosts (gen_mw_per_mw_h; 1 if not given)."""
     c = option["cost_per_kw"]
     if c == "reeds_reinforcement":
         if zone_cost is None or ba not in zone_cost.index:
             raise KeyError(f"no ReEDS reinforcement cost for zone {ba}")
-        return float(zone_cost[ba])
+        factor = 1.0 if gen_per_h is None else float(gen_per_h[ba])
+        return float(zone_cost[ba]) * factor
     if isinstance(c, str):
         raise ValueError(f"unknown uprate cost source {c!r}")
     return float(c)

@@ -220,6 +220,16 @@ reinforcement:
   supply_curves: [data/raw/reeds/supplycurve_upv-reference.csv, data/raw/reeds/supplycurve_wind-ons-reference.csv]
   zone_table: data/reference/reeds_reinforcement_by_zone.csv
   quantile: median            # median | p10 | p90: which zone statistic prices new_line
+  # Unit conversion. ReEDS's cost is $ per MW(AC) of generation: it reinforces one MW of route capacity
+  # (POI -> zone centre) per MW of new wind/solar (ReEDS docs "Network reinforcement"; output_calc
+  # reinforcement GW-mi = new GW x distance). new_line's cost is per MW of network capacity H, and one
+  # MW of H hosts more or less than one MW of (weighted) generation depending on saturation. So
+  # $/MW-H = ReEDS $/MW-gen x gen MW hosted per MW of H:
+  #   curve_end (default, recommended): x the zone's curve-end saturation (release s0 + stretch to the
+  #       end), so a MW of generation hosted through new_line costs ReEDS's $/MW, wherever the zone is
+  #   s0: x start saturation (release only); near-free H in low-saturation zones (median s0 0.15)
+  #   gen: x 1, ReEDS's route MW taken as H MW; overprices generation hosted where saturation < 1
+  per_mw_h: curve_end
 
 # Engineering cost of network capacity added by reactive (generator-paid) upgrades, $/kW of
 # network. Used only to REPORT an estimate of capacity added along the empirical curve
