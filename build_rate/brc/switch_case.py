@@ -41,10 +41,17 @@ def _read(folder: Path, name: str) -> pd.DataFrame | None:
     return pd.read_csv(p, na_values=["."]) if p.exists() else None
 
 
-def _window_mean(table: pd.Series, start: int, end: int) -> float:
-    """Mean of an annual series over [start, end]; years outside the table take the nearest year."""
+def _window_sum(table: pd.Series, start: int, end: int) -> float:
+    """Sum of an annual series over the build window [start, end] (years outside the table take the
+    nearest year). Cumulative limits are always this sum, never the period-year value x W."""
     yrs = np.clip(np.arange(start, end + 1), table.index.min(), table.index.max())
-    return float(table.reindex(yrs).mean())
+    return float(table.reindex(yrs).sum())
+
+
+def _window_mean(table: pd.Series, start: int, end: int) -> float:
+    """Window sum / W: the per-year rate the module multiplies back by W (so width x rate x W =
+    width x sum over the window of R[y])."""
+    return _window_sum(table, start, end) / (end - start + 1)
 
 
 def check_gas_cap(groups, max_cap_req: pd.DataFrame | None):
@@ -127,7 +134,7 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
         for _, pr in periods.iterrows():
             p, s, e = int(pr["INVESTMENT_PERIOD"]), int(pr["period_start"]), int(pr["period_end"])
             w = e - s + 1
-            r = _window_mean(rd, s, e)
+            r = _window_mean(rd, s, e)        # = sum of R[y] over the window / W
             committed = 0.0
             if predet is not None:
                 d = predet[predet["GENERATION_PROJECT"].isin(gproj)
@@ -200,7 +207,7 @@ def regional_frames(gens, periods, rates, groups, settings, predet):
             for _, pr in periods.iterrows():
                 p, s, e = int(pr["INVESTMENT_PERIOD"]), int(pr["period_start"]), int(pr["period_end"])
                 w = e - s + 1
-                cap = _window_mean(ser, s, e)
+                cap = _window_mean(ser, s, e)  # sum over the window of max(share x m x top x R[y], floor) / W
                 if predet is not None:
                     d = predet[predet["GENERATION_PROJECT"].isin(proj)
                                & (predet["build_year"].between(s, e) | (predet["build_year"] == p))]

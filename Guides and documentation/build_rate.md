@@ -28,14 +28,20 @@ W_p = period_end − period_start + 1 years:
 ```
 NewBuild[G,p] = Σ BuildGen over the group's projects with a build year in the window
                 (new builds in p + predetermined builds dated inside the window)
-R[G,p]       ≤ R_data[G,p]                                 data rate (mean over the window)
+R[G,p]       ≤ R_data[G,p] = (1/W_p) · Σ_{y∈W_p} R_data[G,y]   window sum of the annual rates / W
 R[G,p]       ≤ (1+growth_G)^W_p · NewBuild[G,p−1]/W_{p−1} + floor_G (+ committed/(top·W_p))
 Σ_k Tier[G,p,k] = NewBuild[G,p]
-Tier[G,p,k]  ≤ width_k · R[G,p] · W_p                      bands 1.3 / 0.45 / 0.25 → ceiling 2.0·R
-Σ BuildGen in region r ≤ max(share_r · m_G · 2.0 · R_data, regional floor_G) · W_p
+Tier[G,p,k]  ≤ width_k · R[G,p] · W_p   (= width_k · Σ_{y∈W_p} R_data[G,y] at R = R_data)
+Σ BuildGen in region r ≤ Σ_{y∈W_p} max(share_r · m_G · 2.0 · R_data[G,y], regional floor_G)
 cost = Σ_k Tier · adder_k  (overnight $), annualised with crf(r, life_G), charged while the vintage lives
 ```
 
+* Cumulative limits are always the sum of the annual values over the build window, never R at the
+  period year × W_p. A single 2035 period (2026–35) and a 2028 / 2030 / 2035 run get the same
+  cumulative limits (central wind at 1.0R: 89.2 GW, not R[2035] × 10 = 105.3 GW). Tests:
+  `test_toy_cumulative_limits_window_sum_single_vs_three_periods` (case writer on the 3-zone toy,
+  national, ceiling and regional limits with floors) and `test_toy_solve_ceiling_is_window_sum`
+  (Switch solve: the ceiling binds at 2.0 × the window sum).
 * Marginal charging keeps the model an LP (IPM charges its adder on all capacity in a run year).
 * R is a variable: the model takes the smaller of the data rate and the ramp bound.
 * Ramp in perfect foresight uses the previous period only (a "best rate so far" ratchet would make
@@ -310,6 +316,26 @@ Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, 
    `chain_build_rate_inputs`; each is called once from `post_solve`), and `pg_to_switch.py` (the
    `br_case` import and two short blocks; keep the headroom lines too).
 2. Build the tables: `cd build_rate && bash scripts/fetch_data.sh && python -m brc.cli run`.
+
+   **Existing cases (no rebuild).** To add build_rate to a case already built by pg_to_switch, patch
+   its inputs folder. This writes all `build_rate_*.csv`, including the generator → group mapping
+   (`build_rate_gens.csv`), from the case's own `gen_info.csv`, `periods.csv`, `gen_build_costs.csv`,
+   `gen_build_predetermined.csv` and min/max cap files, and runs the same gas-cap and MinCap checks:
+
+   ```bash
+   cd build_rate
+   python -m brc.cli patch-case <case>/inputs --level central            # default groups: wind, solar, storage
+   #   --groups wind_onshore solar storage gas   (gas only with MaxCapTag_GasTurbineSupply released)
+   #   --no-regional | --zone-map zone_map.csv (columns ba, zone; only for aggregated zones)
+   #   --ceiling-slack-cost 5000                 (diagnostic, $/kW)
+   ```
+
+   Then switch the module on. If the case runs with the merged `switch/modules.txt` it already lists
+   `study_modules.build_rate` (inert without the files). Otherwise add
+   `--include-module study_modules.build_rate` to the case's line in `scenarios.txt` (Switch accepts
+   it with any `--module-list`). Patch an uncapped-S0 copy of the case (the WindGrowth/SolarGrowth
+   caps released), not the S0 case itself. A patched case is solved in foresight; myopic chaining
+   needs the pg_to_switch route (it adds the `build_rate_prev_build` alias).
 3. Add a `build_rate` column to `pg/extra_inputs/scenario_inputs.csv`: `off` in every existing row.
    Then add these rows (they copy `s4x1_S0unc_2035_icoff` / `_icon` and set build_rate):
 

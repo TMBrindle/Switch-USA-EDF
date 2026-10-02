@@ -366,3 +366,116 @@ def test_chain_build_rate_inputs(tmp_path):
     out = pd.read_csv(nxt / "build_rate_prev_build.chained.c.csv").set_index("BR_GROUP")["br_prev_rate_mw_per_yr"]
     assert out["wind_onshore"] == 9.0       # best rate so far (earlier stage) is kept
     assert out["solar"] == 10.0             # this stage: 40 MW / 4 years
+
+
+# ---------------------------------------------------------------------------- window sums (toy case)
+
+def _annual_tables(tmp_path):
+    """Rising annual R (fixture): wind 0.02 x (y - 2016) MW/yr, solar 10x that; one regional row."""
+    t = tmp_path / "annual"
+    t.mkdir()
+    rows = []
+    for g, k in (("wind_onshore", 0.02), ("solar", 0.2)):
+        for y in range(2015, 2051):
+            r = k * (y - 2016)
+            rows.append({"group": g, "region": "national", "year": y, "r_data_mw_per_yr": r, "ceiling_mw_per_yr": 2 * r,
+                         "r0_mw_per_yr": r, "growth": 0.05, "floor_applied": False})
+            # regional ceiling crosses its floor (0.5 MW/yr) mid-window
+            rows.append({"group": g, "region": "SPP", "year": y, "r_data_mw_per_yr": r / 2,
+                         "ceiling_mw_per_yr": max(r, 0.5), "r0_mw_per_yr": r / 2, "growth": 0.05, "floor_applied": r < 0.5})
+    rates_df = pd.DataFrame(rows)
+    rates_df.to_csv(t / "rates_central.csv", index=False)
+    pd.concat([rates.tiers(CFG, g).assign(group=g) for g in ("wind_onshore", "solar")]).to_csv(t / "tiers.csv", index=False)
+    return t, rates_df
+
+
+def _toy_case(tmp_path, periods):
+    if not TOY.exists():
+        pytest.skip("3zone_toy example not available")
+    d = tmp_path / f"case{len(periods)}"
+    shutil.copytree(TOY / "inputs", d)
+    pd.DataFrame(periods, columns=["INVESTMENT_PERIOD", "period_start", "period_end"]).to_csv(d / "periods.csv", index=False)
+    return d
+
+
+def test_toy_cumulative_limits_window_sum_single_vs_three_periods(tmp_path, monkeypatch):
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir, rd = _annual_tables(tmp_path)
+    s = {"build_rate": {"enabled": True, "level": "central", "tables_dir": str(tdir), "groups": ["wind_onshore", "solar"]},
+         "_zone_map": {"p35": "North"}}          # toy zone North -> SPP (ReEDS BA p35)
+    one = _toy_case(tmp_path, [(2035, 2026, 2035)])
+    three = _toy_case(tmp_path, [(2028, 2026, 2028), (2030, 2029, 2030), (2035, 2031, 2035)])
+    out = {}
+    for name, d in (("one", one), ("three", three)):
+        switch_case.write_case_inputs(d, s)
+        per = pd.read_csv(d / "periods.csv").set_index("INVESTMENT_PERIOD")
+        w = (per["period_end"] - per["period_start"] + 1)
+        p = pd.read_csv(d / "build_rate_periods.csv")
+        t = pd.read_csv(d / "build_rate_tiers.csv")
+        reg = pd.read_csv(d / "build_rate_regions.csv")
+        lim = {}
+        for g in ("wind_onshore", "solar"):
+            pg = p[p.BR_GROUP == g].set_index("PERIOD")["br_rate_data_mw"]
+            tg = t[t.BR_GROUP == g]
+            # module: Tier[k] <= width_k x R x W, with R <= br_rate_data_mw
+            lim[(g, "1.0R")] = float((pg * w).sum())
+            lim[(g, "ceiling")] = float(sum(tg[tg.PERIOD == q]["br_tier_width"].sum() * pg[q] * w[q] for q in pg.index))
+            rg = reg[(reg.BR_GROUP == g) & (reg.BR_REGION == "SPP")].set_index("PERIOD")["br_region_max_mw_per_yr"]
+            lim[(g, "SPP")] = float((rg * w).sum())
+        out[name] = lim
+    for g in ("wind_onshore", "solar"):
+        nat = rd[(rd.group == g) & (rd.region == "national")].set_index("year")
+        spp = rd[(rd.group == g) & (rd.region == "SPP")].set_index("year")
+        window_sum = nat.loc[2026:2035, "r_data_mw_per_yr"].sum()
+        for key, want in (("1.0R", window_sum), ("ceiling", 2.0 * window_sum),
+                          ("SPP", spp.loc[2026:2035, "ceiling_mw_per_yr"].sum())):   # floors summed year by year
+            assert out["one"][(g, key)] == pytest.approx(want)
+            assert out["three"][(g, key)] == pytest.approx(want)
+        # and not R[2035] x W
+        assert out["one"][(g, "1.0R")] != pytest.approx(nat.loc[2035, "r_data_mw_per_yr"] * 10)
+
+
+def test_toy_solve_ceiling_is_window_sum(tmp_path, monkeypatch):
+    """Switch solve on the 3-zone toy: the writer's window-mean rate x the module's W caps 2030-window
+    wind at 2.0 x sum of R[y] over 2027-36 (not 2.0 x R[2030] x 10)."""
+    if shutil.which("switch") is None or not TOY.exists():
+        pytest.skip("switch / 3zone_toy example not available")
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir, rd = _annual_tables(tmp_path)
+    run = tmp_path / "toy"
+    shutil.copytree(TOY, run)
+    (run / "br_mod").mkdir()
+    shutil.copy(REPO / "switch/study_modules/build_rate.py", run / "br_mod")
+    (run / "br_mod/__init__.py").touch()
+    with open(run / "inputs/modules.txt", "a") as f:
+        f.write("\nbr_mod.build_rate\n")
+    gi = pd.read_csv(run / "inputs/gen_info.csv", na_values=".")
+    gi["gen_unit_size"] = np.nan
+    gi["gen_min_build_capacity"] = 0
+    gi.to_csv(run / "inputs/gen_info.csv", index=False, na_rep=".")
+    cfg = dict(CFG, ramp_floor_mw=dict(CFG["ramp_floor_mw"], wind_onshore=100.0, solar=1000.0))   # ramp slack
+    switch_case.write_case_inputs(run / "inputs", {"build_rate": {"enabled": True, "level": "central",
+                                  "tables_dir": str(tdir), "groups": ["wind_onshore"], "regional": False}}, cfg)
+    r = subprocess.run(["switch", "solve", "--solver", "appsi_highs"], cwd=run, capture_output=True, text=True,
+                       env={**__import__("os").environ, "PYTHONPATH": str(run)})
+    assert r.returncode == 0, r.stderr[-3000:] + r.stdout[-2000:]
+    nb = pd.read_csv(run / "outputs/build_rate_new_build.csv").set_index(["group", "period"])
+    nat = rd[(rd.group == "wind_onshore") & (rd.region == "national")].set_index("year")["r_data_mw_per_yr"]
+    ceiling = 2.0 * nat.loc[2027:2036].sum()             # 6.2 MW; R[2030] x 10 x 2 would be 5.6
+    assert nb.loc[("wind_onshore", 2030), "new_build_mw"] == pytest.approx(ceiling, rel=1e-6)
+
+
+def test_patch_case_cli(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir, _ = _annual_tables(tmp_path)
+    d = _toy_case(tmp_path, [(2035, 2026, 2035)])
+    zm = tmp_path / "zm.csv"
+    pd.DataFrame({"ba": ["p35"], "zone": ["North"]}).to_csv(zm, index=False)
+    cli.main(["patch-case", str(d), "--config", str(ROOT / "config.yaml"), "--tables-dir", str(tdir),
+              "--groups", "wind_onshore", "solar", "--zone-map", str(zm)])
+    for f in ("build_rate_gens.csv", "build_rate_groups.csv", "build_rate_periods.csv", "build_rate_tiers.csv",
+              "build_rate_zones.csv", "build_rate_regions.csv"):
+        assert (d / f).exists(), f
+    gens = pd.read_csv(d / "build_rate_gens.csv")
+    assert set(gens["br_gen_group"]) == {"wind_onshore", "solar"}
+    assert "--include-module study_modules.build_rate" in capsys.readouterr().out

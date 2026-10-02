@@ -1,7 +1,7 @@
 """Command line for the build-rate pipeline (run from build_rate/).
 
-    python -m brc.cli run       # all tables -> outputs/
-    python -m brc.cli summary   # print the report tables from outputs/
+    python -m brc.cli run                       # all tables -> outputs/
+    python -m brc.cli patch-case <inputs_dir>   # add build_rate_*.csv to an existing Switch case
 """
 from __future__ import annotations
 
@@ -73,15 +73,51 @@ def cmd_run(cfg: dict) -> dict:
     return info
 
 
+def cmd_patch_case(cfg: dict, inputs_dir: str, level: str, groups: list[str], regional: bool,
+                   zone_map_csv: str | None, slack_cost: float | None, tables_dir: str | None) -> list[str]:
+    """Write build_rate_*.csv (incl. the generator -> group mapping, build_rate_gens.csv) into an
+    existing case's inputs folder from its own gen_info.csv, periods.csv, gen_build_costs.csv,
+    gen_build_predetermined.csv and min/max cap files, without rebuilding the case."""
+    from . import switch_case
+    settings = {"build_rate": {"enabled": True, "level": level, "groups": groups, "regional": regional,
+                               "tables_dir": tables_dir or str(Path(cfg["paths"]["outputs"])),
+                               "ceiling_slack_cost": slack_cost}}
+    if zone_map_csv:   # aggregated zones: columns ba, zone
+        zm = pd.read_csv(zone_map_csv)
+        settings["_zone_map"] = dict(zip(zm["ba"], zm["zone"]))
+    files = switch_case.write_case_inputs(Path(inputs_dir), settings, cfg)
+    gens = pd.read_csv(Path(inputs_dir) / "build_rate_gens.csv")
+    print(f"wrote {', '.join(files)} in {inputs_dir}")
+    print("generators by group: " + ", ".join(f"{g} {n}" for g, n in gens["br_gen_group"].value_counts().items()))
+    if regional and "build_rate_zones.csv" not in files:
+        print("note: no load zone mapped to a single transreg; regional ceilings not written "
+              "(pass --zone-map for aggregated zones)")
+    print("switch the module on: add `--include-module study_modules.build_rate` to the case's line in "
+          "scenarios.txt (not needed if its module list already has study_modules.build_rate)")
+    return files
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="brc")
-    ap.add_argument("command", choices=["run"])
+    ap.add_argument("command", choices=["run", "patch-case"])
+    ap.add_argument("inputs_dir", nargs="?", help="patch-case: the case's Switch inputs folder")
     ap.add_argument("--config", default="config.yaml")
+    ap.add_argument("--level", default="central")
+    ap.add_argument("--groups", nargs="+", default=["wind_onshore", "solar", "storage"])
+    ap.add_argument("--no-regional", action="store_true")
+    ap.add_argument("--zone-map", help="CSV with columns ba, zone (only for aggregated zones)")
+    ap.add_argument("--ceiling-slack-cost", type=float, help="$/kW; diagnostic slack above the ceiling")
+    ap.add_argument("--tables-dir", help="pipeline outputs (default: this config's outputs)")
     a = ap.parse_args(argv)
     cfg = load_cfg(a.config)
     if a.command == "run":
         info = cmd_run(cfg)
         print(yaml.safe_dump(info, sort_keys=False))
+    elif a.command == "patch-case":
+        if not a.inputs_dir:
+            ap.error("patch-case needs the case's inputs folder")
+        cmd_patch_case(cfg, a.inputs_dir, a.level, a.groups, not a.no_regional, a.zone_map,
+                       a.ceiling_slack_cost, a.tables_dir)
 
 
 if __name__ == "__main__":

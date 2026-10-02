@@ -8,7 +8,7 @@ For each group G and investment period p, with build window W_p = period_end - p
 
   NewBuild[G,p] = sum of BuildGen over the group's projects with a build year in the window
                   (new builds in p plus predetermined builds dated inside the window)
-  R[G,p]       <= br_rate_data_mw[G,p]                       (data-anchored rate, MW/yr)
+  R[G,p]       <= br_rate_data_mw[G,p]                       (window sum of the annual data rates / W_p)
   R[G,p]       <= (1+growth)^W_p x NewBuild[G,p-1]/W_{p-1} + floor + committed[G,p]/(top x W_p)
                   (ramp; first period of a chained myopic stage uses br_prev_rate_mw_per_yr)
   sum_k Tier[G,p,k] (+ Slack) = NewBuild[G,p]

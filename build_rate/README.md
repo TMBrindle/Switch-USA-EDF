@@ -12,3 +12,6 @@ pytest -q                    # pipeline unit tests and Switch toy solves (HiGHS)
 House rules as in `interconnection_headroom/CLAUDE.md`: synthetic data is never a result; if a real
 input is missing, say what and stop; mark placeholders in config.yaml and replace them only with
 sourced values.
+
+Existing case, no rebuild: `python -m brc.cli patch-case <case>/inputs --level central`, then run it with
+`--include-module study_modules.build_rate` (see the guide's VM handoff).

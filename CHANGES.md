@@ -843,5 +843,11 @@ dispatch mapping. `high_ipm` uses IPM's shape: R = Step 1 per year, free to 1.0R
 marginally. Central stays at +15% / +50% with the ceiling at 2.0R. Platform v6 values are kept as a
 historical column.
 
+**Window sums and patch mode (update):** cumulative limits (bands, ceiling, regional ceilings and
+floors) are the sum of the annual values over each build window (`_window_sum` in
+`switch_case.py`), so one 2035 period and a 2028/2030/2035 run get the same totals; toy tests
+cover the writer and a Switch solve. `python -m brc.cli patch-case <inputs_dir>` adds build_rate to
+an existing case without rebuilding it.
+
 **R0 rules (update):** low = min(mean 2023–25, mean 2021–25), central = max(the same), high = best
 year 2021–25; the pipeline stops unless low ≤ central ≤ high.
