@@ -1,0 +1,220 @@
+# Build-rate supply curves
+
+A data-anchored, tiered limit on how fast new onshore wind, solar, storage (and, opt-in, gas) can
+be built. It replaces the trend-based `MaxCapTag_WindGrowth` / `MaxCapTag_SolarGrowth` growth caps
+(cumulative stock caps such as `growth_caps/S0.csv` on the fedpol branches) with:
+
+* a national build rate R (MW/yr) per technology group and period, anchored to observed EIA-860M
+  additions and the LBNL interconnection-queue pipeline;
+* cost bands above R (marginal adders: only the MW inside a band pay it) and a hard ceiling;
+* a ramp bound tying each period's rate to the previous period's build;
+* regional (transreg) ceilings from recent regional shares, with a minimum per region.
+
+Why: in the 2035 S0 tests, removing the growth caps let the model build 270–360 GW of new onshore
+wind against ~5–9 GW/yr of real build, and the wind share of new wind + solar came out ~0.50 against
+0.28 in EIA 2021–25. Unsubsidised wind LCOE is at or below solar's, yet solar outbuilds wind ~5:1,
+so the binding limits are non-cost (supply chain, siting, permitting, lead times). This module makes
+them explicit, sourced and adjustable as policy levers ("permitting reform", "supply-chain shock").
+
+Code: `build_rate/` (pipeline, pandas only), `switch/study_modules/build_rate.py` (Switch module),
+`build_rate/brc/switch_case.py` (called by `pg_to_switch.py`), `pg/settings/build_rate.yml`,
+`build_rate` axis in `pg/settings/scenario_management.yml`. Change log: CHANGES.md §39.
+
+## Formulation
+
+For group G (wind_onshore, solar, storage, gas) and investment period p with build window
+W_p = period_end − period_start + 1 years:
+
+```
+NewBuild[G,p] = Σ BuildGen over the group's projects with a build year in the window
+                (new builds in p + predetermined builds dated inside the window)
+R[G,p]       ≤ R_data[G,p]                                 data rate (mean over the window)
+R[G,p]       ≤ (1+growth_G)^W_p · NewBuild[G,p−1]/W_{p−1} + floor_G (+ committed/(top·W_p))
+Σ_k Tier[G,p,k] = NewBuild[G,p]
+Tier[G,p,k]  ≤ width_k · R[G,p] · W_p                      bands 1.3 / 0.45 / 0.25 → ceiling 2.0·R
+Σ BuildGen in region r ≤ max(share_r · m_G · 2.0 · R_data, regional floor_G) · W_p
+cost = Σ_k Tier · adder_k  (overnight $), annualised with crf(r, life_G), charged while the vintage lives
+```
+
+* Marginal charging keeps the model an LP (IPM charges its adder on all capacity in a run year).
+* R is a variable: the model takes the smaller of the data rate and the ramp bound.
+* Ramp in perfect foresight uses the previous period only (a "best rate so far" ratchet would make
+  the bound non-convex). In myopic runs, `prepare_next_stage.chain_build_rate_inputs` writes
+  `build_rate_prev_build.chained.<case>.csv` with the best rate achieved so far, and the next stage's
+  first period uses it, so the bound never falls below it.
+* Regional ceilings use R_data (a parameter), not the variable R, to stay linear.
+* Committed (predetermined) builds count toward the rate. If they exceed a ceiling, the case writer
+  raises that ceiling to the committed amount and warns.
+* Optional `ceiling_slack_cost` ($/kW, off by default) allows builds above the ceiling at that cost,
+  for diagnosing infeasibility.
+
+Outputs: `build_rate_tiers_built.csv` (MW per band, whether full), `build_rate_duals.csv` (duals of
+each band, the data rate, the ramp and regional limits, converted to overnight-equivalent $/kW), and
+`build_rate_new_build.csv` and `build_rate_costs.csv`. `BuildRateCosts` appears in `costs_itemized.csv`.
+
+## Data (build_rate/, `python -m brc.cli run`)
+
+| Step | Source | Method |
+|---|---|---|
+| Base rates 2015–25 | EIA-860M (Aug 2026), Operating + Retired sheets | nameplate MW by operating year, group, transreg (county → ReEDS BA → transreg; 99.0% of MW mapped) |
+| R0 | base rates | low = mean 2023–25, central = mean 2021–25, high = max 2021–25 |
+| Near-term to 2030 | LBNL Queued Up (through 2025; read with `git show` from `origin/tom/interconnection-headroom`) | active MW with an executed IA or under construction × completion rate × phased by COD |
+| Completion rates | same file | IA-executed requests queued ≤ 2018 and resolved: share of MW that reached operation (wind 0.46, solar 0.65, storage 0.87, gas 0.66). Construction: **PLACEHOLDER 0.9** (the file reclassifies completed projects as IA Executed, so it has no resolved Construction history) |
+| COD phasing | same file | COD = max(proposed year, IA year + median IA-to-COD years of operational requests queued ≥ 2015: wind 1, gas 1, solar 2, storage 2). Proposed CODs in the file are revised as projects progress, so slip can't be measured from them. Overdue requests (COD already passed: 18 GW wind, 57 GW solar, 11 GW storage, 16 GW gas) are spread evenly over 2026–30 (**PLACEHOLDER rule**) |
+| R_data | above | years ≤ 2030: max(queue-based, R0); later: R_data(2030) × (1+growth)^(y−2030) |
+| Growth after 2030 | **PLACEHOLDER** low/central/high per group | candidate sources: NREL ATB / Standard Scenarios, ReEDS absolute limits, WoodMac/SEIA/ACP outlooks, LBNL completion trends |
+| Regional shares | EIA 2016–25 | share of national additions by transreg |
+| Regional floors | **PLACEHOLDER** | 500 MW/yr wind, 1,000 solar, 500 storage, 500 gas per transreg (reform: 1,500 wind) |
+
+## Tiers and their sources
+
+| Band (× R) | Adder (central) | ReEDS-exact (`tier_set: reeds_exact`) | Gas (opt-in) |
+|---|---|---|---|
+| 0 – 1.3 | 0 | 0 | 0 |
+| 1.3 – 1.75 | +15% of capex | +10% | +44% |
+| 1.75 – 2.0 (ceiling) | +50% | +50% | +140% |
+
+* Bands: ReEDS growth bins 1.3 / 1.75 / 2.0 (`inputs/growth_constraints/growth_bin_size_mult.csv`,
+  ReEDS-2.0 commit 2f583ff5; penalties 0 / 0.1 / 0.5 / 1000 × capex in `growth_penalty.csv`).
+  ReEDS's growth penalties are off by default (`GSw_GrowthPenalties = 0`) and are relative to the
+  model's own previous build, per state.
+* +15%: between ReEDS's +10% and IPM's Step 2 (+16–25% of capex for wind and solar, 2028–2035;
+  EPA Platform v6 Post-IRA 2022 Reference Case, Chapter 4, Table 4-13 against Table 4-15).
+* +50%: ReEDS, and the low end of IPM's Step 3 (+52–78%).
+* Gas: IPM Table 4-13 combined cycle / combustion turbine Step 2 = +44–45%, Step 3 = +139–143% of
+  Table 4-12 capex.
+* $/MW per case: adder fraction × the median new-build overnight cost of the group's projects in that
+  case and period (`gen_build_costs.csv`).
+
+### Why central is tighter than IPM
+
+IPM's no-adder band (Table 4-13 Step 1) for onshore wind is 192.6 / 50.2 / 145.9 GW in the 2028 /
+2030 / 2035 run years. The 2030 bound alone exceeds all US onshore wind additions in 2021–25
+(41 GW, EIA-860M), so IPM's free band appears to be several times observed build. Our central case
+is anchored to observed EIA rates plus the queue pipeline instead, because the S0 tests over-built
+wind against history. The `high_ipm` level reproduces IPM's Step 1 bounds (with its 45X step-width
+scalars 1.21 / 1.29 / 1.50); it needs IPM's run-year → calendar-year mapping (Platform v6 Chapter 2),
+entered as `ipm.run_year_span` in `build_rate/config.yaml`. Until then the pipeline skips that level
+and a case build with `level: high_ipm` stops with a message.
+
+### Spur and access adders (IPM Tables 4-38 / 4-42): not adopted
+
+They are spur-line / resource-access capital-cost adders by resource and cost class, and PowerGenome
+already includes spur costs (`spur_capex`), so adding them would double count. They are evidence for
+applying the siting lever to wind first: the median wind access adder is $103/kW (10% of 2028 base
+capex; 90th percentile $915) against $11/kW for solar (1.3%; 90th percentile $344), about 9× at the
+median. The `reform` level therefore relaxes wind's regional multiplier (1.5 → 3.0) and floor
+(500 → 1,500 MW/yr).
+
+## Levels (scenario axis `build_rate`)
+
+| Level | R0 | Growth | Other |
+|---|---|---|---|
+| off | — | — | module inert |
+| low | mean 2023–25 | low | |
+| central | mean 2021–25 | central | |
+| high | max 2021–25 | high | |
+| reform | mean 2021–25 | central | wind regional multiplier 3.0, floor 1,500 MW/yr |
+| high_ipm | IPM Step 1 per calendar year | high | needs `ipm.run_year_span` |
+
+Note: with the decision-(b) rules, `low` R0 is above `central` for solar and storage, whose largest
+years are the most recent (solar 26.9 vs 21.1 GW/yr, storage 11.6 vs 8.5). Near-term years use the
+queue-based rate whenever it is higher.
+
+## Interactions
+
+* **MaxCap growth caps.** With build_rate on, release `MaxCapTag_WindGrowth` / `SolarGrowth` for the
+  same groups (e.g. `policies: S0_uncapped`); both limit the same builds otherwise.
+* **Gas.** Opt-in (`groups: [..., gas]`) and off by default. The case build raises an error if gas is
+  on while `MaxCapTag_GasTurbineSupply` is still in `max_cap_requirements.csv`. Nuclear
+  (`MaxCapTag_NuclearGrowth`) and offshore wind (`MaxCapTag_Ban`, `offshore_wind_policy`) are unchanged.
+* **MinCap.** The case build checks that each MinCap program whose generators are all in one group
+  needs no more new build than the cumulative national ceilings allow; it stops with a message unless
+  `ceiling_slack_cost` is set. The RPS ACP (on `tom/ic-test-fedpol`) is unaffected.
+* **Interconnection headroom** (`tom/interconnection-headroom`). Both modules limit the same new
+  builds: headroom prices network capacity by zone, build rate prices national development
+  throughput. Neither cost term contains the other. Possible overlap: LBNL network-upgrade costs
+  partly reflect queue congestion, which is itself a rate effect. To limit it, the build-rate adders
+  come from IPM and ReEDS, never from LBNL interconnection costs. Both use Queued Up, but for
+  different quantities (headroom: county location; build rate: stage and COD).
+
+## Settings
+
+`pg/settings/build_rate.yml`:
+
+```yaml
+build_rate:
+  enabled: false
+  level: central            # low | central | high | reform | high_ipm
+  tables_dir: build_rate/outputs
+  groups: [wind_onshore, solar, storage]   # add gas only with MaxCapTag_GasTurbineSupply released
+  regional: true
+  ceiling_slack_cost: null  # $/kW
+```
+
+The `build_rate` axis touches only `build_rate.enabled` and `build_rate.level`, so it never shares a
+flattened key with `policies` (carbon settings, `max_cap_req_fn`) in the same scenario row. It needs
+a `build_rate` column in `scenario_inputs.csv` (not added on this branch; see the handoff below).
+
+Commands (from `build_rate/`): `bash scripts/fetch_data.sh`, `python -m brc.cli run`, `pytest -q`.
+
+## Results (1 Oct 2026 inputs: EIA-860M Aug 2026, Queued Up through 2025)
+
+National R and bands, GW/yr (ceiling = 2.0 × R), and cumulative 2026–y new build, GW:
+
+| Level | Group | R 2028 / 2030 / 2035 | Ceiling 2035 | Cum. free band (1.3R) to 2028 / 2030 / 2035 | Cum. ceiling to 2035 | S0 new build since 2025 (2028 / 2030 / 2035) |
+|---|---|---|---|---|---|---|
+| central | wind_onshore | 8.2 / 8.2 / 10.5 | 21.1 | 32 / 54 / 116 | 178 | 38.5 / 61.6 / 124.2 |
+| central | solar | 33.4 / 21.1 / 27.0 | 54.0 | 145 / 200 / 359 | 552 | 90.8 / 168.6 / 413.7 |
+| central | storage | 20.8 / 8.6 / 12.7 | 25.4 | 93 / 117 / 188 | 289 | — |
+| low | wind_onshore | 6.0 / 6.0 / 6.6 | 13.2 | 26 / 42 / 83 | 128 | |
+| high | wind_onshore | 13.8 / 13.8 / 22.3 | 44.6 | 54 / 90 / 211 | 324 | |
+
+S0's caps are cumulative stock (wind 198.2 / 221.3 / 283.9 GW, solar 243.7 / 321.5 / 566.6 GW);
+the new-build column subtracts the end-2025 EIA-860M operating stock (wind 159.7 GW incl. offshore,
+which the WindGrowth tag also covers; solar PV 152.9 GW), ignoring retirements before 2035.
+
+## VM test handoff
+
+Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, where S0,
+`growth_caps/`, `max_cap_req_fn`, `S0_uncapped` and the RPS ACP exist.
+
+1. Merge (on the VM, in the repo):
+
+   ```bash
+   git fetch origin tom/build-rate tom/ic-test-fedpol
+   git checkout tom/ic-test-fedpol
+   git merge --no-ff origin/tom/build-rate
+   ```
+
+   Expected conflicts are additive only: CHANGES.md (keep both; this is §39),
+   `pg/settings/scenario_management.yml` (keep both axes), `switch/modules.txt` (keep both lines),
+   `switch/study_modules/prepare_next_stage.py` (keep `chain_ic_inputs` and
+   `chain_build_rate_inputs`; each is called once from `post_solve`), and `pg_to_switch.py` (the
+   `br_case` import and two short blocks; keep the headroom lines too).
+2. Build the tables: `cd build_rate && bash scripts/fetch_data.sh && python -m brc.cli run`.
+3. Add a `build_rate` column to `pg/extra_inputs/scenario_inputs.csv`: `off` in every existing row.
+   Then add these rows (they copy `s4x1_S0unc_2035_icoff` / `_icon` and set build_rate):
+
+   ```
+   s4x1_S0br_2035_icoff,2035,s4x1,firm,edf_epri_med,yes,S0_uncapped,RGGI10,none,hist5_high_gas,none,full,no,1,constrained,zero,yes,yes,yes,yes,none,no_wind_solar,none,none,blocked_2030_coal_gas,capped_2025,none,none,section232_2025,off,central
+   s4x1_S0br_2035_icon,2035,s4x1,firm,edf_epri_med,yes,S0_uncapped,RGGI10,none,hist5_high_gas,none,full,no,1,constrained,zero,yes,yes,yes,yes,none,no_wind_solar,none,none,blocked_2030_coal_gas,capped_2025,none,none,section232_2025,on,central
+   ```
+
+   `S0_uncapped` is the `policies` preset on `tom/ic-test-fedpol` (S0 carbon settings with
+   `max_cap_req_fn: growth_caps/uncapped.csv`), so this is "S0_buildrate": S0 with the wind/solar
+   growth caps released and build_rate central. GasTurbineSupply and NuclearGrowth stay as they are.
+4. Runs (2035, s4x1), each with the corrected wind profiles via the **windloss profile alias**
+   (`<windloss alias: not on any branch; fill in from the VM>`):
+   * `s4x1_S0br_2035_icoff`: uncapped S0 + build_rate central, headroom off;
+   * `s4x1_S0br_2035_icon`: the same with interconnection headroom on;
+   * reference: `s4x1_S0_2035_icoff` (S0 caps) and `s4x1_S0unc_2035_icoff` (uncapped).
+5. Compare new onshore wind and solar by 2035 (target: wind share of new wind + solar near the 0.28
+   EIA 2021–25 value), `build_rate_tiers_built.csv` (which bands fill), `build_rate_duals.csv` (ceiling
+   price in $/kW), and `costs_itemized.csv` (BuildRateCosts).
+
+## Placeholders (all marked in build_rate/config.yaml)
+
+construction completion rate (0.9), overdue-pipeline rule (spread evenly 2026–30), growth rates
+after 2030 (low/central/high), ramp floors, regional multipliers and floors, amortisation lives, and
+IPM's run-year mapping (`ipm.run_year_span`, needed for high_ipm).

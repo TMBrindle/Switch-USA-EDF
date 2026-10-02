@@ -1,0 +1,83 @@
+"""Command line for the build-rate pipeline (run from build_rate/).
+
+    python -m brc.cli run       # all tables -> outputs/
+    python -m brc.cli summary   # print the report tables from outputs/
+"""
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import pandas as pd
+import yaml
+
+from . import data, rates
+
+LEVELS = ("low", "central", "high", "reform", "high_ipm")
+
+
+def load_cfg(path: str = "config.yaml") -> dict:
+    cfg = yaml.safe_load(open(path))
+    root = Path(path).resolve().parent
+    cfg["paths"] = {k: str((root / v).resolve()) for k, v in cfg["paths"].items()}
+    cfg["_root"] = str(root)
+    return cfg
+
+
+def check_inputs(cfg: dict):
+    missing = [f"{k}: {v}" for k, v in cfg["paths"].items() if k != "outputs" and not Path(v).exists()]
+    if missing:
+        raise FileNotFoundError("Missing real inputs (run scripts/fetch_data.sh): " + "; ".join(missing))
+
+
+def cmd_run(cfg: dict) -> dict:
+    check_inputs(cfg)
+    out = Path(cfg["paths"]["outputs"])
+    out.mkdir(parents=True, exist_ok=True)
+    c2t = data.county_transreg(cfg["paths"]["county2zone"], cfg["paths"]["hierarchy"])
+    add = data.eia_additions(cfg["paths"]["eia860m"], c2t)
+    h = cfg["history"]
+    base = rates.base_rates(add, h["first_year"], h["last_year"])
+    base.to_csv(out / "base_rates.csv", index=False)
+    r0s = pd.DataFrame({rule: rates.r0(base, spec) for rule, spec in cfg["r0_rule"].items()})
+    r0s.rename_axis("group").to_csv(out / "r0.csv")
+    shares = rates.regional_shares(base, h["share_years"])
+    shares.to_csv(out / "regional_shares.csv", index=False)
+    comp = data.queue_components(data.load_queued_up(cfg["paths"]["queued_up"]), c2t)
+    comp_rates = rates.completion_rates(comp, cfg)
+    comp_rates.to_csv(out / "completion_rates.csv", index=False)
+    delay = rates.cod_delay(comp, cfg)
+    delay.to_csv(out / "cod_delay.csv")
+    rates.overdue_summary(comp, delay, cfg).rename("overdue_mw").to_csv(out / "overdue_pipeline.csv")
+    near = rates.near_term(comp, comp_rates, delay, cfg)
+    near.to_csv(out / "near_term.csv", index=False)
+    pd.concat([rates.tiers(cfg, g).assign(group=g) for g in cfg["groups"]]).to_csv(out / "tiers.csv", index=False)
+    written, skipped = [], {}
+    for lv in LEVELS:
+        try:
+            rates.rate_table(cfg, lv, base, near, shares).to_csv(out / f"rates_{lv}.csv", index=False)
+            written.append(lv)
+        except ValueError as e:
+            skipped[lv] = str(e)
+            (out / f"rates_{lv}.csv").unlink(missing_ok=True)
+    match = add[add["year"].between(h["first_year"], h["last_year"])]
+    info = {"eia_mw_mapped_to_transreg": float(match.loc[match["transreg"].notna(), "mw"].sum() / match["mw"].sum()),
+            "queue_mw_mapped_to_transreg": float(comp.loc[comp["transreg"].notna(), "mw"].sum() / comp["mw"].sum()),
+            "levels_written": written, "levels_skipped": skipped}
+    yaml.safe_dump(info, open(out / "run_info.yaml", "w"), sort_keys=False)
+    return info
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="brc")
+    ap.add_argument("command", choices=["run"])
+    ap.add_argument("--config", default="config.yaml")
+    a = ap.parse_args(argv)
+    cfg = load_cfg(a.config)
+    if a.command == "run":
+        info = cmd_run(cfg)
+        print(yaml.safe_dump(info, sort_keys=False))
+
+
+if __name__ == "__main__":
+    main()

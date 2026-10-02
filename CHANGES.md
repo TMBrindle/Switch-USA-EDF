@@ -796,3 +796,39 @@ Top-5 utilities by CO2: 195, 6452, 7140, 18642, 19876.
 Added a script to remove RPS, CES, min-cap, and max-cap policies for historical
 (non-planning) periods. Prevents constraint infeasibility in historical
 calibration runs where future policy targets should not apply.
+
+---
+
+## 39. Build-Rate Supply Curves (replacing trend-based growth caps)
+
+**Date:** 2026-10-02 · **Branch:** `tom/build-rate` (off `edf-baseline`)
+**See also:** `Guides and documentation/build_rate.md`. (Numbered after `tom/ic-test-fedpol`'s §38,
+where this will be tested.)
+
+A data-anchored, tiered build-rate limit for new onshore wind, solar and storage (gas opt-in),
+meant to replace `MaxCapTag_WindGrowth` / `SolarGrowth` growth caps.
+
+**Files (new):**
+- `build_rate/` — pipeline (pandas): EIA-860M base rates 2015–25 by group and transreg, R0 by level,
+  LBNL Queued Up near-term rates to 2030 (IA executed / under construction × completion rate,
+  phased by COD), growth to 2050, regional shares and floors, tier tables. `python -m brc.cli run`
+  writes `build_rate/outputs/`. Placeholders marked in `build_rate/config.yaml`.
+  `build_rate/brc/switch_case.py` writes the case inputs.
+- `switch/study_modules/build_rate.py` — per group and period: NewBuild = Σ tiers; tier ≤ width ×
+  R × window; R ≤ data rate and ≤ ramp from the previous period; regional ceilings; marginal tier
+  adders in `Cost_Components_Per_Period` (BuildRateCosts). Outputs tiers built, duals ($/kW) and
+  new build. No-op without `build_rate_*.csv`.
+- `pg/settings/build_rate.yml` — `enabled: false` by default.
+
+**Files changed (small, self-contained blocks):**
+- `pg_to_switch.py` — `write_build_rate_files()` after the other case files; chained
+  `build_rate_prev_build.csv` input alias for myopic stages when enabled.
+- `switch/study_modules/prepare_next_stage.py` — new `chain_build_rate_inputs()` (best build rate so
+  far → next stage), called once from `post_solve`.
+- `switch/modules.txt` — `study_modules.build_rate`.
+- `pg/settings/scenario_management.yml` — `build_rate` axis (off/low/central/high/reform/high_ipm),
+  touching only `build_rate.*` keys.
+- `.gitignore` — whitelists `build_rate/`, ignores its `data/raw/` and `outputs/`.
+
+**Behaviour with the setting off:** unchanged. Gas with `MaxCapTag_GasTurbineSupply` still active, or
+a MinCap target above the ceiling, stops the case build with a message.

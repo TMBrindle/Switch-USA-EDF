@@ -1,0 +1,204 @@
+"""Write build-rate inputs into a Switch-USA-EDF case folder (called from pg_to_switch.py).
+
+Reads the case's own periods.csv, gen_info.csv, gen_build_costs.csv, gen_build_predetermined.csv,
+min_cap_*.csv and max_cap_requirements.csv, plus the pipeline tables
+(<tables_dir>/rates_<level>.csv, tiers.csv). Only pandas and a YAML reader are needed.
+
+Settings (pg/settings/build_rate.yml):
+
+    build_rate:
+      enabled: false
+      level: central                 # low | central | high | reform | high_ipm
+      tables_dir: build_rate/outputs
+      groups: [wind_onshore, solar, storage]   # add gas only with MaxCapTag_GasTurbineSupply released
+      regional: true
+      ceiling_slack_cost: null       # $/kW; diagnostic slack above the ceiling (off when null)
+"""
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import yaml
+
+from .groups import switch_group
+
+logger = logging.getLogger(__name__)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+PIPELINE_CONFIG = REPO_ROOT / "build_rate" / "config.yaml"
+GAS_CAP_TAG = "MaxCapTag_GasTurbineSupply"
+
+
+def br_settings(settings: dict) -> dict | None:
+    s = settings.get("build_rate") or {}
+    return s if s.get("enabled") else None
+
+
+def _read(folder: Path, name: str) -> pd.DataFrame | None:
+    p = Path(folder) / name
+    return pd.read_csv(p, na_values=["."]) if p.exists() else None
+
+
+def _window_mean(table: pd.Series, start: int, end: int) -> float:
+    """Mean of an annual series over [start, end]; years outside the table take the nearest year."""
+    yrs = np.clip(np.arange(start, end + 1), table.index.min(), table.index.max())
+    return float(table.reindex(yrs).mean())
+
+
+def check_gas_cap(groups, max_cap_req: pd.DataFrame | None):
+    if "gas" in groups and max_cap_req is not None and len(max_cap_req) and \
+            (max_cap_req["MAX_CAP_PROGRAM"] == GAS_CAP_TAG).any():
+        raise ValueError(
+            f"build_rate group 'gas' is on but {GAS_CAP_TAG} is still active in max_cap_requirements.csv. "
+            f"Release {GAS_CAP_TAG} (remove its MaxCapReq entries) or drop 'gas' from build_rate.groups; "
+            "both would limit new gas turbines.")
+
+
+def check_min_cap(gens: pd.DataFrame, periods: pd.DataFrame, ceilings: pd.DataFrame,
+                  min_req: pd.DataFrame | None, min_gens: pd.DataFrame | None,
+                  predet: pd.DataFrame | None, slack: bool) -> list[str]:
+    """MinCap programs whose generators all belong to one build-rate group: the new build they need by
+    each period must fit under the cumulative national ceilings. Raises unless slack is on."""
+    problems = []
+    if min_req is None or min_gens is None or not len(min_req):
+        return problems
+    grp = gens.set_index("GENERATION_PROJECT")["br_gen_group"]
+    for prog, pg in min_gens.groupby("MIN_CAP_PROGRAM"):
+        g = pg["MIN_CAP_GEN"].map(grp)
+        if g.isna().any() or g.nunique() != 1:
+            continue
+        group = g.iat[0]
+        for _, r in min_req[min_req["MIN_CAP_PROGRAM"] == prog].iterrows():
+            p = r["PERIOD"]
+            have = 0.0
+            if predet is not None:
+                d = predet[predet["GENERATION_PROJECT"].isin(pg["MIN_CAP_GEN"]) & (predet["build_year"] <= p)]
+                have = float(d["build_gen_predetermined"].sum())
+            need = float(r["min_cap_mw"]) - have
+            allowed = float(ceilings[(ceilings["group"] == group) & (ceilings["period"] <= p)]["ceiling_mw"].sum())
+            if need > allowed + 1e-6:
+                problems.append(f"{prog} needs {need:,.0f} MW of new {group} by {p} but the build-rate "
+                                f"ceilings allow {allowed:,.0f} MW")
+    if problems and not slack:
+        raise ValueError("MinCap targets exceed the build-rate ceiling (set build_rate.ceiling_slack_cost to "
+                         "diagnose, or relax the level): " + "; ".join(problems))
+    for msg in problems:
+        logger.warning("build_rate: %s (slack on)", msg)
+    return problems
+
+
+def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | None = None) -> list[str]:
+    """Write build_rate_*.csv into out_folder. Returns the files written ([] when disabled)."""
+    br = br_settings(settings)
+    if br is None:
+        return []
+    out_folder = Path(out_folder)
+    cfg = pipeline_cfg or yaml.safe_load(open(PIPELINE_CONFIG))
+    level = br.get("level", "central")
+    groups = list(br.get("groups") or ["wind_onshore", "solar", "storage"])
+    tdir = REPO_ROOT / br.get("tables_dir", "build_rate/outputs")
+    rates_path = tdir / f"rates_{level}.csv"
+    if not rates_path.exists():
+        raise FileNotFoundError(f"build_rate is enabled but {rates_path} is missing. Run `python -m brc.cli run` "
+                                "in build_rate/ (level high_ipm also needs ipm.run_year_span), or set enabled: false.")
+    rates = pd.read_csv(rates_path)
+    tiers = pd.read_csv(tdir / "tiers.csv")
+    check_gas_cap(groups, _read(out_folder, "max_cap_requirements.csv"))
+
+    periods = _read(out_folder, "periods.csv")
+    gi = _read(out_folder, "gen_info.csv")
+    costs = _read(out_folder, "gen_build_costs.csv")
+    predet = _read(out_folder, "gen_build_predetermined.csv")
+    dist = gi["gen_is_distributed"] if "gen_is_distributed" in gi else pd.Series(0, index=gi.index)
+    gi = gi.assign(br_gen_group=[switch_group(t, e, d) for t, e, d in
+                                 zip(gi["gen_tech"], gi["gen_energy_source"], dist)])
+    gens = gi[gi["br_gen_group"].isin(groups)][["GENERATION_PROJECT", "br_gen_group", "gen_load_zone"]]
+
+    nat = rates[rates["region"] == "national"]
+    rows_p, rows_t, ceil = [], [], []
+    for g in groups:
+        rd = nat[nat["group"] == g].set_index("year")["r_data_mw_per_yr"]
+        tg = tiers[tiers["group"] == g]
+        top = float(tg["width"].sum())
+        gproj = gens.loc[gens["br_gen_group"] == g, "GENERATION_PROJECT"]
+        for _, pr in periods.iterrows():
+            p, s, e = int(pr["INVESTMENT_PERIOD"]), int(pr["period_start"]), int(pr["period_end"])
+            w = e - s + 1
+            r = _window_mean(rd, s, e)
+            committed = 0.0
+            if predet is not None:
+                d = predet[predet["GENERATION_PROJECT"].isin(gproj)
+                           & (predet["build_year"].between(s, e) | (predet["build_year"] == p))]
+                committed = float(d["build_gen_predetermined"].sum())
+            if committed > top * r * w + 1e-6:
+                logger.warning("build_rate: committed %s build in period %s (%.0f MW) exceeds the ceiling; "
+                               "raising the rate to %.0f MW/yr", g, p, committed, committed / (top * w))
+                r = committed / (top * w)
+            rows_p.append({"BR_GROUP": g, "PERIOD": p, "br_rate_data_mw": round(r, 3)})
+            ceil.append({"group": g, "period": p, "ceiling_mw": top * r * w})
+            c = costs[costs["GENERATION_PROJECT"].isin(gproj)] if costs is not None else None
+            capex = np.nan
+            if c is not None and len(c):
+                at_p = c[c["build_year"] == p]["gen_overnight_cost"]
+                capex = float((at_p if len(at_p) else c["gen_overnight_cost"]).median())
+            for _, t in tg.iterrows():
+                rows_t.append({"BR_GROUP": g, "PERIOD": p, "BR_TIER": t["tier"], "br_tier_width": t["width"],
+                               "br_tier_adder_per_mw": round(float(t["adder"]) * (0 if np.isnan(capex) else capex), 2)})
+    slack_kw = br.get("ceiling_slack_cost")
+    grp_rows = [{"BR_GROUP": g, "br_growth": float(nat[nat["group"] == g]["growth"].iat[0]),
+                 "br_ramp_floor_mw": cfg["ramp_floor_mw"][g], "br_life_years": cfg["life_years"][g],
+                 "br_ceiling_slack_cost_per_mw": float(slack_kw) * 1000 if slack_kw is not None else -1}
+                for g in groups]
+    gens_out = gens[["GENERATION_PROJECT", "br_gen_group"]]
+    check_min_cap(gens_out, periods, pd.DataFrame(ceil), _read(out_folder, "min_cap_requirements.csv"),
+                  _read(out_folder, "min_cap_generators.csv"), predet, slack_kw is not None)
+
+    files = {"build_rate_groups.csv": pd.DataFrame(grp_rows), "build_rate_gens.csv": gens_out,
+             "build_rate_periods.csv": pd.DataFrame(rows_p), "build_rate_tiers.csv": pd.DataFrame(rows_t)}
+    if br.get("regional", True):
+        zones, regions = regional_frames(gens, periods, rates, groups, settings, predet)
+        if len(zones):
+            files["build_rate_zones.csv"] = zones
+            files["build_rate_regions.csv"] = regions
+    for name, df in files.items():
+        df.to_csv(out_folder / name, index=False)
+    logger.info("build_rate: level %s, groups %s -> %s", level, groups, ", ".join(files))
+    return list(files)
+
+
+def regional_frames(gens, periods, rates, groups, settings, predet):
+    """Load zone -> transreg (zones that are ReEDS BAs, or aggregates inside one transreg) and the
+    regional ceilings averaged over each period's window, raised to cover committed builds."""
+    h = pd.read_csv(REPO_ROOT / "hierarchy.csv")[["ba", "transreg"]].set_index("ba")["transreg"]
+    zone_map = settings.get("_zone_map") or {}
+    members = {}
+    for ba, z in zone_map.items():
+        members.setdefault(z, set()).add(ba)
+    rows = []
+    for z in sorted(gens["gen_load_zone"].unique()):
+        bas = members.get(z, {z})
+        trs = {h.get(b) for b in bas}
+        if len(trs) == 1 and None not in trs:
+            rows.append({"LOAD_ZONE": z, "br_zone_region": trs.pop()})
+    zones = pd.DataFrame(rows, columns=["LOAD_ZONE", "br_zone_region"])
+    zr = zones.set_index("LOAD_ZONE")["br_zone_region"]
+    out = []
+    for g in groups:
+        rg = rates[(rates["group"] == g) & (rates["region"] != "national")]
+        for reg, tab in rg.groupby("region"):
+            ser = tab.set_index("year")["ceiling_mw_per_yr"]
+            proj = gens[(gens["br_gen_group"] == g) & gens["gen_load_zone"].map(zr).eq(reg)]["GENERATION_PROJECT"]
+            if not len(proj):
+                continue
+            for _, pr in periods.iterrows():
+                p, s, e = int(pr["INVESTMENT_PERIOD"]), int(pr["period_start"]), int(pr["period_end"])
+                w = e - s + 1
+                cap = _window_mean(ser, s, e)
+                if predet is not None:
+                    d = predet[predet["GENERATION_PROJECT"].isin(proj)
+                               & (predet["build_year"].between(s, e) | (predet["build_year"] == p))]
+                    cap = max(cap, float(d["build_gen_predetermined"].sum()) / w)
+                out.append({"BR_GROUP": g, "BR_REGION": reg, "PERIOD": p, "br_region_max_mw_per_yr": round(cap, 3)})
+    return zones, pd.DataFrame(out, columns=["BR_GROUP", "BR_REGION", "PERIOD", "br_region_max_mw_per_yr"])

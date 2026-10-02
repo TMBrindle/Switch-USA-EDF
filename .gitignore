@@ -14,6 +14,10 @@ switch/out/
 !PowerGenome/**
 !Guides and documentation/
 !Guides and documentation/**
+!build_rate/
+!build_rate/**
+build_rate/data/raw/
+build_rate/outputs/
 
 # include growth_rates/*.csv
 !growth_rates/
