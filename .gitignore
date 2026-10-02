@@ -16,6 +16,10 @@ switch/out/
 !Guides and documentation/**
 !interconnection_headroom/
 !interconnection_headroom/**
+!build_rate/
+!build_rate/**
+build_rate/data/raw/
+build_rate/outputs/
 
 # include growth_rates/*.csv
 !growth_rates/

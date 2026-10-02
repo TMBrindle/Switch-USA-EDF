@@ -17,6 +17,8 @@ from pathlib import Path
 
 from typing import List, Optional
 from typing_extensions import Annotated
+# build-rate supply curves (build_rate/, study_modules.build_rate); inert unless build_rate.enabled
+from build_rate.brc import switch_case as br_case
 import pandas as pd
 import numpy as np
 import scipy
@@ -3353,6 +3355,13 @@ def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
     return True
 
 
+def write_build_rate_files(scen_settings_dict, out_folder):
+    """Build-rate inputs (build_rate_*.csv) when build_rate.enabled; see build_rate/brc/switch_case.py."""
+    settings = first_value(scen_settings_dict)
+    if br_case.br_settings(settings):
+        br_case.write_case_inputs(out_folder, settings)
+
+
 def scenario_files(results_folder, case_settings, myopic):
     """
     Create switch/scenarios*.txt, defining all the cases to run.
@@ -3398,6 +3407,8 @@ def scenario_files(results_folder, case_settings, myopic):
                         f" {f}.csv={f}.chained.{scen_name}.csv"
                         for f in ("ic_zones", "ic_tranches", "ic_uprates")
                     ) + " "
+                if (settings.get("build_rate") or {}).get("enabled"):
+                    line += f"build_rate_prev_build.csv=build_rate_prev_build.chained.{scen_name}.csv "
         scenarios[scen_name].append(line.strip())
 
     for case, year_settings in case_settings.items():
@@ -3758,6 +3769,7 @@ def main(
             out_folder=out_folder,
         )
         write_gen_zone_ratio_files(scen_settings_dict, out_folder)
+        write_build_rate_files(scen_settings_dict, out_folder)
 
     scenario_files(results_folder, case_settings, myopic)
 

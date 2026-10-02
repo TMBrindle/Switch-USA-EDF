@@ -1271,6 +1271,22 @@ settings_management:
         interconnection_headroom:
           enabled: true
           scenario: reference
+    # Build-rate supply curves (pg/settings/build_rate.yml, build_rate/, study_modules.build_rate).
+    # Touches only build_rate.enabled / build_rate.level, so it never collides with `policies`
+    # (carbon settings, max_cap_req_fn). Needs a `build_rate` column in scenario_inputs.csv.
+    build_rate:
+      "off":
+        build_rate: {enabled: false}
+      low:
+        build_rate: {enabled: true, level: low}
+      central:
+        build_rate: {enabled: true, level: central}
+      high:
+        build_rate: {enabled: true, level: high}
+      reform:
+        build_rate: {enabled: true, level: reform}
+      high_ipm:
+        build_rate: {enabled: true, level: high_ipm}
     policies:
       current:
         # Per-program costs and hard RGGI cap; CCR prices are year-specific below.

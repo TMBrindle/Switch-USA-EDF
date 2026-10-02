@@ -1,0 +1,17 @@
+# Build-rate supply curves for new onshore wind, solar, storage (and optionally gas).
+# Pipeline: build_rate/   Switch module: study_modules.build_rate (in switch/modules.txt; no-op
+# without build_rate_*.csv)   Guide: "Guides and documentation/build_rate.md"
+#
+# When enabled, pg_to_switch.py writes build_rate_*.csv into each case folder from
+# <tables_dir>/rates_<level>.csv and tiers.csv (`python -m brc.cli run` in build_rate/).
+# Scenario axis: `build_rate` in scenario_management.yml (off | low | central | high | reform | high_ipm).
+# With build_rate on, release the MaxCapTag_WindGrowth/SolarGrowth caps for the same groups
+# (e.g. policies S0_uncapped on the fedpol branches), or both will limit the same builds.
+build_rate:
+  enabled: false
+  level: central
+  tables_dir: build_rate/outputs
+  # gas is opt-in: adding it requires MaxCapTag_GasTurbineSupply to be released (case build errors otherwise)
+  groups: [wind_onshore, solar, storage]
+  regional: true
+  ceiling_slack_cost: null   # $/kW; diagnostic slack above the ceiling (off when null)
