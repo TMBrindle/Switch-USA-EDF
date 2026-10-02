@@ -156,7 +156,8 @@ def test_sensitivity_configs_extend_base(cfg):
                         ("status_own", ("tranches", "status_pricing"), "own"),
                         ("previous_defaults", ("tranches", "trend_freeze"), "none"),
                         ("new_line_gen", ("reinforcement", "per_mw_h"), "gen"),
-                        ("new_line_s0", ("reinforcement", "per_mw_h"), "s0")]:
+                        ("new_line_s0", ("reinforcement", "per_mw_h"), "s0"),
+                        ("new_line_stretch", ("new_line_mode",), "stretch")]:
         c = cli.load_cfg(str(ROOT / "sensitivities" / f"{f}.yaml"))
         v = c
         for k in key:
@@ -269,16 +270,24 @@ def test_reinforcement_table_and_backstop(cfg):
     tr = pd.DataFrame({"ba": ["p1", "p1", "p80"], "sat_from": [0.1, 0.4, 0.9], "sat_to": [0.4, 0.67, 0.95],
                        "cost_per_kw": [50.0, 60.0, 90.0]})
     want = t.set_index("ba")["reinforcement_median_per_kw"]
+    # default host mode: ReEDS $/kW of generation, no conversion
+    _, _, up = tranches.apply_scenario(zones, tr, cfg, {})
+    nl = up[up["uprate"] == "new_line"].set_index("ba")
+    assert cfg["new_line_mode"] == "host" and (nl["mode"] == "host").all()
+    assert np.allclose(nl["cost_per_kw"], want[nl.index]) and nl["gen_mw_per_mw_h"].isna().all()
+    _, _, ug = tranches.apply_scenario(zones, tr, cfg, {"uprates": ["gets"]})
+    assert (ug.loc[ug["uprate"] == "gets", "mode"] == "stretch").all()                  # GETs always stretch
+    # stretch mode: $ per MW of H = ReEDS $/MW-gen x gen MW hosted per MW of H
     factors = {"curve_end": {"p1": 0.67, "p80": 0.95}, "s0": {"p1": 0.1, "p80": 0.9}, "gen": {"p1": 1.0, "p80": 1.0}}
     for how, f in factors.items():
-        c = dict(cfg, reinforcement=dict(cfg["reinforcement"], per_mw_h=how))
+        c = dict(cfg, new_line_mode="stretch", reinforcement=dict(cfg["reinforcement"], per_mw_h=how))
         _, _, up = tranches.apply_scenario(zones, tr, c, {})
         nl = up[up["uprate"] == "new_line"].set_index("ba")
+        assert (nl["mode"] == "stretch").all()
         for ba in ("p1", "p80"):
             assert nl.at[ba, "cost_per_kw"] == pytest.approx(want[ba] * f[ba]), (how, ba)
             assert nl.at[ba, "reeds_cost_per_kw_gen"] == pytest.approx(want[ba])
             assert nl.at[ba, "gen_mw_per_mw_h"] == pytest.approx(f[ba])
-        # cost per MW of generation hosted over the whole curve equals ReEDS's cost under curve_end
         if how == "curve_end":
             assert np.allclose(nl["cost_per_kw"] / nl["gen_mw_per_mw_h"], want[nl.index])
     assert np.allclose(nl["max_mw"], cfg["uprate_options"]["new_line"]["share_of_capacity"] * zones.set_index("ba")["base_capacity_mw"])
@@ -363,6 +372,87 @@ def test_switch_module_on_toy(tmp_path):
     new_gas_c = bg[(bg.GEN_BLD_YRS_1 == "C-NG_CC") & (bg.GEN_BLD_YRS_2 >= 2020)].BuildGen.sum()
     c30 = hr[(hr.load_zone == "Central") & (hr.period == 2030)].iloc[0]
     assert c30.new_capacity_mw_weighted >= new_gas_c - 1e-6
+
+
+def _toy_run(tmp_path, zones, tranches_df, uprates_df):
+    """Copy the 3-zone toy, make it an LP (no unit sizes / minimum builds, so duals exist), add the
+    module and the given IC inputs, solve with HiGHS. Returns the run folder."""
+    import os
+    base = Path(os.environ.get("SWITCH_SRC", ROOT.parent.parent / "switch-src"))
+    src = base / "examples" / "3zone_toy"
+    if not src.exists():
+        pytest.skip("set SWITCH_SRC to a clone of https://github.com/switch-model/switch to run")
+    run = tmp_path / "toy"
+    shutil.copytree(src, run)
+    (run / "ic_mod").mkdir()
+    shutil.copy(ROOT.parent / "switch/study_modules/interconnection_headroom.py", run / "ic_mod")
+    (run / "ic_mod/__init__.py").touch()
+    with open(run / "inputs/modules.txt", "a") as f:
+        f.write("\nic_mod.interconnection_headroom\n")
+    gi = pd.read_csv(run / "inputs/gen_info.csv", na_values=".")
+    gi["gen_unit_size"] = np.nan
+    gi["gen_min_build_capacity"] = 0
+    gi.to_csv(run / "inputs/gen_info.csv", index=False, na_rep=".")
+    for f in ("ic_params.csv", "ic_weights.csv"):
+        shutil.copy(ROOT / "tests/switch_toy" / f, run / "inputs")
+    zones.to_csv(run / "inputs/ic_zones.csv", index=False)
+    tranches_df.to_csv(run / "inputs/ic_tranches.csv", index=False)
+    uprates_df.to_csv(run / "inputs/ic_uprates.csv", index=False)
+    r = subprocess.run(["switch", "solve", "--solver", "appsi_highs", "--suffixes", "dual"], cwd=run,
+                       capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(run)})
+    assert r.returncode == 0, r.stderr[-2000:] + r.stdout[-2000:]
+    return run
+
+
+@pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
+def test_switch_toy_new_line_hosts_at_reeds_cost(tmp_path):
+    """North sits past the data edge (one short edge step). New wind there is hosted by a host-mode
+    new line: it pays only the line's $/MW of generation (no step or release cost on top), H does not
+    change, and the marginal headroom price equals the line cost."""
+    zones = pd.DataFrame({"IC_ZONE": ["N", "C", "S"], "ic_zone_load_zone": ["North", "Central", "South"],
+                          "ic_base_capacity_mw": [10.0, 10.0, 10.0], "ic_start_saturation": [0.8, 0.3, 0.3],
+                          "ic_release_cost_per_mw": [50000.0, 50000.0, 100000.0]})
+    steps = pd.DataFrame({"IC_TRANCHE": ["N_nu1", "C_nu1", "C_nu2", "S_nu1", "S_nu2"],
+                          "ic_tranche_zone": ["N", "C", "C", "S", "S"],
+                          "ic_tranche_width": [0.05, 0.3, 5, 0.1, 5],
+                          "ic_tranche_cost_per_mw": [50000.0, 50000.0, 5e6, 100000.0, 5e6],
+                          "ic_tranche_available_year": [0] * 5})
+    line_cost = 200000.0
+    ups = pd.DataFrame({"IC_UPRATE": ["N_gets", "N_new_line"], "ic_uprate_zone": ["N", "N"],
+                        "ic_uprate_type": ["gets", "new_line"], "ic_uprate_max_mw": [0.0, 100.0],
+                        "ic_uprate_cost_per_mw": [20000.0, line_cost], "ic_uprate_available_year": [0, 0],
+                        "ic_uprate_mode": ["stretch", "host"]})
+    run = _toy_run(tmp_path, zones, steps, ups)
+    net = pd.read_csv(run / "outputs/ic_network.csv").set_index(["ic_zone", "period"])
+    spend = pd.read_csv(run / "outputs/ic_spend.csv")
+    n = net.loc[("N", 2030)]
+    assert n.hosted_mw > 1 and n.deliberate_mw_added == 0                          # hosted, H unchanged
+    assert n.headroom_released_mw == pytest.approx(0, abs=1e-9)                    # no release on top
+    assert n.headroom_from_curve_mw <= 0.05 * 10 + 1e-6                            # only the edge step
+    assert n.curve_end_saturation == pytest.approx(0.85)
+    assert n.new_line_network_mw_implied == pytest.approx(n.hosted_mw / 0.85)
+    sp = spend[(spend.ic_zone == "N") & (spend.period == 2030)].set_index("type")
+    assert sp.loc["new_line", "overnight_cost"] == pytest.approx(n.hosted_mw * line_cost)
+    assert sp.loc["new_line", "generation_mw_enabled"] == pytest.approx(n.hosted_mw)
+    # reactive spend is only the edge step: hosted MW carry no empirical cost
+    assert sp.loc["reactive_upgrades", "overnight_cost"] == pytest.approx(n.headroom_from_curve_mw * 50000.0)
+    # marginal $/kW of headroom in North 2030 = the line cost (dual / (crf x discount factor))
+    hr = pd.read_csv(run / "outputs/ic_headroom.csv").set_index(["load_zone", "period"])
+    from switch_model.financials import (capital_recovery_factor, future_to_present_value,
+                                         uniform_series_to_present_value)
+    fin = pd.read_csv(run / "inputs/financials.csv")
+    r, base_year = fin["interest_rate"].iat[0], fin["base_financial_year"].iat[0]
+    dr = fin["discount_rate"].iat[0]
+    per = pd.read_csv(run / "inputs/periods.csv").set_index("INVESTMENT_PERIOD")
+    s, e = per.loc[2030, "period_start"], per.loc[2030, "period_end"]
+    # Switch's bring_annual_costs_to_base_year for period 2030
+    pv = uniform_series_to_present_value(dr, e - s + 1) * future_to_present_value(dr, s - base_year)
+    marginal = abs(hr.loc[("North", 2030), "headroom_dual"]) / (capital_recovery_factor(r, 40) * pv) / 1000
+    assert marginal == pytest.approx(line_cost / 1000, rel=1e-3)
+    # carry-forward file for myopic chaining: hosted MW in the last period, none of it unused here
+    hb = pd.read_csv(run / "outputs/ic_hosted_built.csv").set_index("ic_zone")
+    assert hb.at["N", "hosted_mw"] == pytest.approx(n.hosted_mw) and hb.at["N", "unused_mw"] == pytest.approx(0, abs=1e-6)
+    print(f"marginal headroom price North 2030: ${marginal:.2f}/kW (line cost ${line_cost / 1000:.0f}/kW)")
 
 
 # ---------------------------------------------------------------------------
@@ -466,3 +556,38 @@ def test_prepare_next_stage_chains_headroom(tmp_path):
     assert u.ic_uprate_max_mw == 0
     # no headroom outputs -> nothing written
     pns.chain_ic_inputs(tmp_path / "in/none", out, tmp_path / "in/none2", "c")
+
+
+def test_prepare_next_stage_chains_hosted_headroom(tmp_path):
+    """Host-mode new lines don't change H or s0; their unused hosted MW carry forward as free headroom,
+    and their cap shrinks by what was built. Stretch uprates still grow H."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "pns", ROOT.parent / "switch/study_modules/prepare_next_stage.py")
+    pns = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pns)
+    inp, nxt, out = tmp_path / "in/2030/c", tmp_path / "in/2035/c", tmp_path / "out/2030/c"
+    for d in (inp, nxt, out):
+        d.mkdir(parents=True)
+    pd.DataFrame({"IC_ZONE": ["p1"], "ic_zone_load_zone": ["p1"], "ic_base_capacity_mw": [1000.0],
+                  "ic_start_saturation": [0.7], "ic_release_cost_per_mw": [1e4]}).to_csv(inp / "ic_zones.csv", index=False)
+    pd.DataFrame({"IC_TRANCHE": ["p1_nu1"], "ic_tranche_zone": ["p1"], "ic_tranche_width": [0.05],
+                  "ic_tranche_cost_per_mw": [1e4], "ic_tranche_available_year": [0]}).to_csv(inp / "ic_tranches.csv", index=False)
+    pd.DataFrame({"IC_UPRATE": ["p1_gets", "p1_new_line"], "ic_uprate_zone": ["p1", "p1"],
+                  "ic_uprate_type": ["gets", "new_line"], "ic_uprate_max_mw": [100.0, 10000.0],
+                  "ic_uprate_cost_per_mw": [2e4, 3e5], "ic_uprate_available_year": [0, 0],
+                  "ic_uprate_mode": ["stretch", "host"]}).to_csv(inp / "ic_uprates.csv", index=False)
+    pd.DataFrame({"ic_tranche": ["p1_nu1"], "ic_zone": ["p1"], "period": [2030], "used_mw": [55.0]}).to_csv(
+        out / "ic_tranches_built.csv", index=False)
+    pd.DataFrame({"ic_uprate": ["p1_gets", "p1_new_line"], "ic_zone": ["p1", "p1"], "period": [2030, 2030],
+                  "built_mw": [100.0, 400.0]}).to_csv(out / "ic_uprates_built.csv", index=False)
+    pd.DataFrame({"ic_zone": ["p1"], "period": [2030], "released_mw": [70.0]}).to_csv(out / "ic_release_built.csv", index=False)
+    pd.DataFrame({"ic_zone": ["p1"], "period": [2030], "hosted_mw": [400.0], "unused_mw": [150.0]}).to_csv(
+        out / "ic_hosted_built.csv", index=False)
+    pns.chain_ic_inputs(inp, out, nxt, "c")
+    z = pd.read_csv(nxt / "ic_zones.chained.c.csv").iloc[0]
+    assert z.ic_base_capacity_mw == 1100                                  # GETs only; the new line adds no H
+    assert np.isclose(z.ic_start_saturation, (0.7 * 1000 + 55 + 70) / 1100, atol=1e-6)   # hosted MW not on H
+    assert z.ic_hosted_headroom_mw == 150                                 # unused hosted headroom carries forward
+    u = pd.read_csv(nxt / "ic_uprates.chained.c.csv").set_index("IC_UPRATE")["ic_uprate_max_mw"]
+    assert u["p1_new_line"] == 9600 and u["p1_gets"] == 0

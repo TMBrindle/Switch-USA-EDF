@@ -4,8 +4,9 @@ Outputs per scenario (see cli.cmd_run):
   zones_<scenario>.csv     ba, base_capacity_mw (H0), start_saturation (s0), release_cost_per_kw
   tranches_<scenario>.csv  ba, tranche, width (saturation units), cost_per_kw, sat_from, sat_to,
                            extrapolated, available_year
-  uprates_<scenario>.csv   ba, uprate, type, max_mw (network MW), cost_per_kw (per kW of network
-                           capacity), available_year
+  uprates_<scenario>.csv   ba, uprate, type, max_mw, cost_per_kw, available_year, mode. mode stretch:
+                           MW and $/kW of network capacity H; mode host (new lines by default): MW
+                           and $/kW of weighted generation hosted directly
 
 In Switch, step k provides width x H MW of generation headroom, where H = H0 + uprates built, so
 uprates stretch the curve; and up to s0 x (uprate MW) of headroom is released at release_cost.
@@ -167,18 +168,21 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
     names = list(dict.fromkeys(list(scen.get("uprates", [])) + list(cfg.get("backstop_uprates", []))))
     for name in names:
         o = opts[name]
+        mode = uprate_mode(o, cfg)
         for _, r in z.iterrows():
             rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name),
                          "max_mw": o["share_of_capacity"] * r["base_capacity_mw"],
-                         "cost_per_kw": uprate_cost(o, r["ba"], zone_cost, gen_per_h),
+                         "cost_per_kw": uprate_cost(o, r["ba"], zone_cost, gen_per_h if mode == "stretch" else None),
+                         "mode": mode,
                          "available_year": int(o.get("available_year", 0)),
                          # ReEDS basis ($ per kW of generation) and the MW of weighted generation one MW
                          # of H hosts, for options priced from ReEDS (blank otherwise)
                          "reeds_cost_per_kw_gen": (float(zone_cost[r["ba"]]) if o["cost_per_kw"] == "reeds_reinforcement"
                                                    else np.nan),
-                         "gen_mw_per_mw_h": (float(gen_per_h[r["ba"]]) if o["cost_per_kw"] == "reeds_reinforcement"
+                         "gen_mw_per_mw_h": (float(gen_per_h[r["ba"]])
+                                             if o["cost_per_kw"] == "reeds_reinforcement" and mode == "stretch"
                                              else np.nan)})
-    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "max_mw", "cost_per_kw", "available_year",
+    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "max_mw", "cost_per_kw", "available_year", "mode",
                                     "reeds_cost_per_kw_gen", "gen_mw_per_mw_h"])
     return z, t.sort_values(["ba", "sat_from"]).reset_index(drop=True), u
 
@@ -192,6 +196,16 @@ def reinforcement_costs(cfg: dict) -> pd.Series:
         raise ValueError(f"{rc['zone_table']} is in {t['dollar_year'].iat[0]}$, the pipeline in {cfg['dollar_year']}$; "
                          "rebuild it with `python -m icsc.cli reinforcement`")
     return t.set_index("ba")[f"reinforcement_{rc.get('quantile', 'median')}_per_kw"]
+
+
+def uprate_mode(option: dict, cfg: dict) -> str:
+    """host or stretch: new lines follow new_line_mode (default host); every other option stretches."""
+    if option.get("type") == "new_line":
+        mode = cfg.get("new_line_mode", "host")
+        if mode not in ("host", "stretch"):
+            raise ValueError(f"new_line_mode must be host or stretch, not {mode!r}")
+        return mode
+    return "stretch"
 
 
 def gen_mw_per_mw_h(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict) -> pd.Series:

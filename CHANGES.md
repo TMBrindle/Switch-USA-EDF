@@ -1063,3 +1063,24 @@ The support edge (0.67) and the zones beyond it depend on saturation only, so th
 change them. `sensitivities/previous_defaults.yaml` reproduces the old outputs ($177.2/kW).
 Tests: 18 (trend freeze and status pricing on the real sample, reinforcement quantiles and
 fallbacks, the committed table and the new_line uprate cost).
+
+*New lines host generation directly (follow-up).* ReEDS's reinforcement cost is the full cost of
+delivering a MW of new generation to the zone centre; with new lines stretching the curve,
+generation on the stretched steps also paid those steps' LBNL network-upgrade costs and the release
+cost, counting upgrades twice. New default `new_line_mode: host`: a new line adds one weighted MW of
+headroom per MW built at the zone's ReEDS cost per MW of generation (no conversion, no step or release
+cost on top), and leaves H, the steps and the release unchanged; cap 10 × H0 as before.
+`new_line_mode: stretch` (`sensitivities/new_line_stretch.yaml`) keeps the previous mechanism, with
+`reinforcement.per_mw_h` converting to $ per MW of H; GETs and reconductoring always stretch.
+- Switch module: optional `ic_uprate_mode` (stretch | host) in `ic_uprates.csv` and
+  `ic_hosted_headroom_mw` in `ic_zones.csv`; hosted MW enter the headroom limit directly.
+  `ic_network.csv` adds `hosted_mw`, `curve_end_saturation` and `new_line_network_mw_implied` (=
+  hosted MW / curve-end saturation); `ic_spend.csv` new_line rows give hosted MW as
+  `generation_mw_enabled`. New `ic_hosted_built.csv` (hosted and unused MW in the last period).
+- `prepare_next_stage.chain_ic_inputs`: host builds don't add to H or the next stage's s0; unused
+  hosted MW carry forward as `ic_hosted_headroom_mw`; caps shrink by MW built.
+- new_line $/kW across zones (host = ReEDS per MW-gen), p10 / p25 / median / p75 / p90: 177 / 237 /
+  319 / 438 / 650 (stretch, curve_end: 126 / 173 / 237 / 316 / 463). Curves unchanged (median first
+  step $129.0/kW, 20 zones beyond the edge).
+- Toy (zone past the edge, s0 0.8, $50/kW edge step, $200/kW line): marginal headroom $200/kW in
+  host mode vs $250/kW in stretch mode. Tests: 20.

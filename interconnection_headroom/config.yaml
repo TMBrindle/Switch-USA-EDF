@@ -220,7 +220,8 @@ reinforcement:
   supply_curves: [data/raw/reeds/supplycurve_upv-reference.csv, data/raw/reeds/supplycurve_wind-ons-reference.csv]
   zone_table: data/reference/reeds_reinforcement_by_zone.csv
   quantile: median            # median | p10 | p90: which zone statistic prices new_line
-  # Unit conversion. ReEDS's cost is $ per MW(AC) of generation: it reinforces one MW of route capacity
+  # Unit conversion, new_line_mode: stretch only (host prices per MW of generation hosted, x 1).
+  # ReEDS's cost is $ per MW(AC) of generation: it reinforces one MW of route capacity
   # (POI -> zone centre) per MW of new wind/solar (ReEDS docs "Network reinforcement"; output_calc
   # reinforcement GW-mi = new GW x distance). new_line's cost is per MW of network capacity H, and one
   # MW of H hosts more or less than one MW of (weighted) generation depending on saturation. So
@@ -247,6 +248,16 @@ reactive_cost_per_kw_network: 150
 # curve (the data's support edge), headroom comes only from building network capacity.
 # ---------------------------------------------------------------------------
 backstop_uprates: [new_line]   # ReEDS reinforcement cost by zone; available_year is a placeholder
+# How new lines provide headroom (Switch ic_uprate_mode):
+#   host (default): a new line hosts generation directly: each MW adds one weighted MW to the zone's
+#     headroom limit at the ReEDS reinforcement cost per MW of generation (no unit conversion), with no
+#     empirical step or release cost on top. ReEDS's cost is the full cost of delivering a MW of new
+#     generation to the zone centre, so charging the LBNL step costs as well would count network
+#     upgrades twice. H, the steps and the release are untouched. share_of_capacity caps hosted MW.
+#   stretch (previous behaviour): a new line adds MW to H like GETs and reconductoring (stretches the
+#     steps, releases s0 x MW), priced per MW of H with reinforcement.per_mw_h.
+# GETs and reconductoring always stretch: they raise the capacity of the existing network.
+new_line_mode: host
 
 scenarios:
   reference: {}

@@ -1,7 +1,8 @@
 # Sensitivity: convert the ReEDS reinforcement cost ($ per MW of generation) to $ per MW of network
-# capacity H with reinforcement.per_mw_h: s0 instead of curve_end (see config.yaml).
+# capacity H with new_line_mode: stretch and reinforcement.per_mw_h: s0 instead of curve_end (see config.yaml).
 # Run: python -m icsc.cli --config sensitivities/new_line_s0.yaml run --start-year 2026
 extends: ../config.yaml
 paths: {outputs: outputs/sens_new_line_s0}
 reinforcement:
   per_mw_h: s0
+new_line_mode: stretch
