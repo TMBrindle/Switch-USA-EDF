@@ -38,7 +38,16 @@ def br_settings(settings: dict) -> dict | None:
 
 def _read(folder: Path, name: str) -> pd.DataFrame | None:
     p = Path(folder) / name
-    return pd.read_csv(p, na_values=["."]) if p.exists() else None
+    if not p.exists():
+        return None
+    df = pd.read_csv(p, na_values=["."])
+    # Switch reads the index columns by position, so PowerGenome's BUILD_YEAR (written as 2016.0) is as
+    # valid as build_year; normalise it here
+    if "BUILD_YEAR" in df and "build_year" not in df:
+        df = df.rename(columns={"BUILD_YEAR": "build_year"})
+    if "build_year" in df:
+        df["build_year"] = df["build_year"].astype(int)
+    return df
 
 
 def _window_sum(table: pd.Series, start: int, end: int) -> float:
