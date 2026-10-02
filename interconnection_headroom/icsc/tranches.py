@@ -168,6 +168,7 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
     zone_cost = reinforcement_costs(cfg) if any(
         isinstance(opts[n].get("cost_per_kw"), (str, dict)) for n in names) else None
     level = scen.get("uprate_level", cfg.get("uprate_level"))
+    transreg = zone_transregs(cfg)
     rows = []
     for name in names:
         o = uprate_option(cfg, name, level)
@@ -175,12 +176,13 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
         for _, r in z.iterrows():
             rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name), "level": o.get("level"),
                          "max_mw": o["share_of_capacity"] * r["base_capacity_mw"],
-                         "cost_per_kw": uprate_cost(o, r["ba"], zone_cost, gen_per_h if mode == "stretch" else None),
+                         "cost_per_kw": uprate_cost(o, r["ba"], zone_cost, gen_per_h if mode == "stretch" else None,
+                                                    transreg.get(r["ba"])),
                          "mode": mode,
                          "available_year": int(o.get("available_year", 0)),
                          # ReEDS basis ($ per kW of generation) and the MW of weighted generation one MW
                          # of H hosts, for options priced from ReEDS (blank otherwise)
-                         "cost_per_kw_gen": cost_per_kw_gen(o, r["ba"], zone_cost),
+                         "cost_per_kw_gen": cost_per_kw_gen(o, r["ba"], zone_cost, transreg.get(r["ba"])),
                          "reeds_cost_per_kw_gen": (float(zone_cost[r["ba"]]) if _uses_reeds(o) else np.nan),
                          "gen_mw_per_mw_h": (float(gen_per_h[r["ba"]])
                                              if mode == "stretch" and not _is_number(o["cost_per_kw"])
@@ -188,6 +190,14 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
     u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "level", "max_mw", "cost_per_kw", "available_year", "mode",
                                     "cost_per_kw_gen", "reeds_cost_per_kw_gen", "gen_mw_per_mw_h"])
     return z, t.sort_values(["ba", "sat_from"]).reset_index(drop=True), u
+
+
+def zone_transregs(cfg: dict) -> dict:
+    """ReEDS zone -> transreg (hierarchy.csv), for costs given by transreg; empty if unavailable."""
+    path = (cfg.get("paths") or {}).get("hierarchy")
+    if not path or not Path(path).exists():
+        return {}
+    return pd.read_csv(path).set_index("ba")["transreg"].to_dict()
 
 
 def reinforcement_costs(cfg: dict) -> pd.Series:
@@ -226,15 +236,16 @@ def _uses_reeds(option: dict) -> bool:
     return c == "reeds_reinforcement" or (isinstance(c, dict) and "reeds_reinforcement_x" in c)
 
 
-def cost_per_kw_gen(option: dict, ba: str, zone_cost: pd.Series | None) -> float:
+def cost_per_kw_gen(option: dict, ba: str, zone_cost: pd.Series | None, transreg: str | None = None) -> float:
     """The option's cost per kW of generation enabled, before any conversion to $ per kW of H
-    (NaN for options priced directly per kW of network)."""
+    (NaN for options priced directly per kW of network). {per_kw_gen: x, per_kw_gen_by_transreg: {...}}
+    uses the zone's transreg value where one is given, else x."""
     c = option["cost_per_kw"]
     if c == "reeds_reinforcement":
         return float(zone_cost[ba])
     if isinstance(c, dict):
         if "per_kw_gen" in c:
-            return float(c["per_kw_gen"])
+            return float((c.get("per_kw_gen_by_transreg") or {}).get(transreg, c["per_kw_gen"]))
         if "reeds_reinforcement_x" in c:
             return float(c["reeds_reinforcement_x"]) * float(zone_cost[ba])
     return np.nan
@@ -272,7 +283,8 @@ def gen_mw_per_mw_h(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict) -> p
     raise ValueError(f"reinforcement.per_mw_h must be curve_end, s0 or gen, not {how!r}")
 
 
-def uprate_cost(option: dict, ba: str, zone_cost: pd.Series | None, gen_per_h: pd.Series | None = None) -> float:
+def uprate_cost(option: dict, ba: str, zone_cost: pd.Series | None, gen_per_h: pd.Series | None = None,
+                transreg: str | None = None) -> float:
     """$/kW of network capacity: a number from config, or 'reeds_reinforcement': the zone's ReEDS cost
     per kW of generation x the generation MW one MW of network hosts (gen_mw_per_mw_h; 1 if not given)."""
     c = option["cost_per_kw"]
@@ -283,7 +295,7 @@ def uprate_cost(option: dict, ba: str, zone_cost: pd.Series | None, gen_per_h: p
         if isinstance(c, dict) and not ({"per_kw_gen", "reeds_reinforcement_x"} & set(c)):
             raise ValueError(f"unknown uprate cost form {c!r}")
         factor = 1.0 if gen_per_h is None else float(gen_per_h[ba])
-        return cost_per_kw_gen(option, ba, zone_cost) * factor
+        return cost_per_kw_gen(option, ba, zone_cost, transreg) * factor
     if isinstance(c, str):
         raise ValueError(f"unknown uprate cost source {c!r}")
     return float(c)

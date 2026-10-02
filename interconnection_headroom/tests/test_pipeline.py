@@ -304,12 +304,21 @@ def test_uprate_levels_and_sourced_costs(cfg):
     tr = pd.DataFrame({"ba": ["p1", "p1", "p80"], "sat_from": [0.1, 0.4, 0.9], "sat_to": [0.4, 0.67, 0.95],
                        "cost_per_kw": [50.0, 60.0, 90.0]})
     end = {"p1": 0.67, "p80": 0.95}
+    hier = geo.load_hierarchy(cfg["paths"]["hierarchy"]).set_index("ba")["transreg"]
+    gets_cost = cfg["uprate_options"]["gets"]["cost_per_kw"]
     levels = cfg["uprate_levels"]
-    assert cfg["uprate_level"] == "planned" and set(levels) == {"current", "planned", "reform"}
-    for lv in ("current", "planned", "reform"):
-        assert levels["current"]["gets"]["share_of_capacity"] <= levels[lv]["gets"]["share_of_capacity"] \
-            <= levels["reform"]["gets"]["share_of_capacity"]
-        assert levels[lv]["reconductor"]["share_of_capacity"] <= 0.98 + 1e-12        # 2x on 98% of lines at most
+    assert cfg["uprate_level"] == "planned" and set(levels) == {"s0", "s0_mandate_only", "planned", "reform"}
+    order = ("s0_mandate_only", "s0", "planned", "reform")
+    for name in ("gets", "reconductor"):
+        caps = [levels[lv][name]["share_of_capacity"] for lv in order]
+        assert caps == sorted(caps), (name, caps)                                     # levels nest
+    assert levels["s0_mandate_only"]["gets"]["share_of_capacity"] == 0
+    assert levels["s0"]["gets"]["share_of_capacity"] == pytest.approx(0.01 * 0.25)  # 1% of system x 25% (Liftoff p. 88)
+    assert levels["planned"]["gets"]["share_of_capacity"] == pytest.approx(317 / 742 * 0.25, abs=5e-4)
+    assert levels["reform"]["gets"]["share_of_capacity"] == pytest.approx(317 / 742 * 0.44, abs=5e-4)
+    assert levels["planned"]["reconductor"]["share_of_capacity"] == pytest.approx(0.15 * (2 - 1))
+    assert levels["reform"]["reconductor"]["share_of_capacity"] == pytest.approx(0.98 * 0.80 * (2 - 1))
+    for lv in order:
         _, _, up = tranches.apply_scenario(zones, tr, cfg, {"uprates": ["gets", "reconductor"], "uprate_level": lv})
         u = up.set_index(["uprate", "ba"])
         for name in ("gets", "reconductor"):
@@ -318,12 +327,15 @@ def test_uprate_levels_and_sourced_costs(cfg):
                 assert row["max_mw"] == pytest.approx(levels[lv][name]["share_of_capacity"] * h0)
                 assert row["available_year"] == levels[lv][name]["available_year"]
                 assert row["mode"] == "stretch" and row["level"] == lv
-                gen_cost = 15.0 if name == "gets" else 1.0 * t[ba]
+                gen_cost = (gets_cost["per_kw_gen_by_transreg"].get(hier[ba], gets_cost["per_kw_gen"])
+                            if name == "gets" else 1.0 * t[ba])
                 assert row["cost_per_kw_gen"] == pytest.approx(gen_cost)
                 assert row["cost_per_kw"] == pytest.approx(gen_cost * end[ba])
         nl = u.loc["new_line"]
         assert (nl["mode"] == "host").all() and np.allclose(nl["cost_per_kw"], t[nl.index])
-    assert levels["current"]["gets"]["share_of_capacity"] == 0 and levels["current"]["reconductor"]["share_of_capacity"] == 0
+    # GETs cost by study region: PJM (RMI) $15.2, SPP (Brattle) $33.7, elsewhere the SPP value
+    assert hier["p80"] == "PJM" and gets_cost["per_kw_gen_by_transreg"]["PJM"] == pytest.approx(0.1e9 / 6.6e6, abs=0.1)
+    assert gets_cost["per_kw_gen_by_transreg"]["SPP"] == pytest.approx(90e6 / 2.670e6, abs=0.1)
     # scenario-level override; unknown level is an error
     assert cfg["scenarios"]["atts_reform"]["uprate_level"] == "reform"
     with pytest.raises(ValueError, match="uprate_level"):
