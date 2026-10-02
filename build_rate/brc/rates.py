@@ -3,7 +3,8 @@
 R_data[G, national, y] (MW/yr) by level:
     y <= near_term.last_year:  max(queue-based expected additions in y, R0)
     later:                     R_data[last near-term year] x (1 + growth_G) ** (y - last near-term year)
-Regional ceiling[G, r, y] = max(share_r x regional_mult_G x top band x R_data[G, y], regional_floor_G).
+Regional ceiling[G, r, y] = max(share_r x regional_mult_G x top band x R_data[G, y], floor[G, r]),
+floor[G, r] = max(floor_min_G, k_stock_G x existing MW end-2025, k_peak_G x peak annual build 2010-25).
 """
 from __future__ import annotations
 
@@ -42,6 +43,22 @@ def regional_shares(base: pd.DataFrame, years) -> pd.DataFrame:
     tot = b.groupby("group")["mw"].transform("sum")
     s = b.groupby(["group", "region"])["mw"].sum() / b.groupby("group")["mw"].sum()
     return s.rename("share").reset_index()
+
+
+def floor_basis(add: pd.DataFrame, stock: pd.DataFrame, peak_years) -> pd.DataFrame:
+    """Per group and transreg: existing MW (stock) and peak annual additions over peak_years (MW/yr)."""
+    lo, hi = peak_years
+    a = add[add["transreg"].notna() & add["year"].between(lo, hi)]
+    peak = a.groupby(["group", "transreg", "year"])["mw"].sum().groupby(["group", "transreg"]).max()
+    st = stock[stock["transreg"].notna()].groupby(["group", "transreg"])["mw"].sum()
+    out = pd.concat([st.rename("stock_mw"), peak.rename("peak_build_mw")], axis=1).fillna(0.0)
+    return out.rename_axis(["group", "region"]).reset_index()
+
+
+def regional_floor(cfg: dict, level: str, group: str, stock_mw: float, peak_mw: float) -> float:
+    """floor = max(floor_min, k_stock x existing MW, k_peak x peak annual build), MW/yr."""
+    f = level_params(cfg, level, group, "regional_floor")
+    return max(f["floor_min_mw"], f["k_stock"] * stock_mw, f["k_peak"] * peak_mw)
 
 
 def completion_rates(comp: pd.DataFrame, cfg: dict) -> pd.DataFrame:
@@ -169,8 +186,10 @@ def level_params(cfg: dict, level: str, group: str, key: str):
     return (lv.get(key) or {}).get(group, cfg[key][group])
 
 
-def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, shares: pd.DataFrame) -> pd.DataFrame:
-    """R_data (national) and regional ceilings, MW/yr, for every year near_term.first_year..horizon."""
+def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, shares: pd.DataFrame,
+               basis: pd.DataFrame | None = None) -> pd.DataFrame:
+    """R_data (national) and regional ceilings, MW/yr, for every year near_term.first_year..horizon.
+    basis: floor_basis() (existing MW and peak build per transreg); missing regions count as 0."""
     lv = cfg["levels"][level]
     nt = cfg["near_term"]
     years = range(nt["first_year"], cfg["horizon_last_year"] + 1)
@@ -194,13 +213,17 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
                 r[y] = ipm_rate_for_year(cfg, ipm, y, growth)
         top = tiers(cfg, g, level_tier_set(cfg, level))["upto"].max()
         mult = level_params(cfg, level, g, "regional_mult")
-        floor = level_params(cfg, level, g, "regional_floor_mw")
         sh = shares[shares["group"] == g].set_index("region")["share"]
+        bg = (basis[basis["group"] == g].set_index("region") if basis is not None
+              else pd.DataFrame(columns=["stock_mw", "peak_build_mw"]))
+        floors = {reg: regional_floor(cfg, level, g, float(bg["stock_mw"].get(reg, 0.0)),
+                                      float(bg["peak_build_mw"].get(reg, 0.0))) for reg in sh.index}
         for y in years:
             rows.append({"group": g, "region": NATIONAL, "year": y, "r_data_mw_per_yr": r[y],
                          "ceiling_mw_per_yr": top * r[y], "r0_mw_per_yr": base_r0, "growth": growth,
                          "floor_applied": False})
             for reg, s in sh.items():
+                floor = floors[reg]
                 cap = s * mult * top * r[y]
                 rows.append({"group": g, "region": reg, "year": y, "r_data_mw_per_yr": s * r[y],
                              "ceiling_mw_per_yr": max(cap, floor), "r0_mw_per_yr": s * base_r0,

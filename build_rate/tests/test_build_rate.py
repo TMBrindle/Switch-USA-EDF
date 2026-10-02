@@ -1,4 +1,5 @@
 """Run with: pytest -q  (from build_rate/). Small hand-built frames are test fixtures, not results."""
+import os
 import shutil
 import subprocess
 import sys
@@ -100,13 +101,37 @@ def test_rate_table_levels_regional_floor():
     assert nat["central"][("wind_onshore", 2035)] == pytest.approx(nat["central"][("wind_onshore", 2030)] * (1 + g) ** 5)
     # regional ceiling = max(share x mult x top x R, floor); MISO wind share 0.25 x small R -> floor applies
     t = tabs["central"].set_index(["group", "region", "year"])
-    floor = CFG["regional_floor_mw"]["wind_onshore"]
+    floor = CFG["regional_floor"]["wind_onshore"]["floor_min_mw"]     # no basis -> floor_min
     row = t.loc[("wind_onshore", "MISO", 2030)]
     assert row["ceiling_mw_per_yr"] == pytest.approx(max(0.25 * 1.5 * 2.0 * nat["central"][("wind_onshore", 2030)], floor))
     assert bool(row["floor_applied"])
     # reform raises wind's regional multiplier and floor
     assert tabs["reform"].set_index(["group", "region", "year"]).loc[("wind_onshore", "MISO", 2030), "ceiling_mw_per_yr"] \
         >= row["ceiling_mw_per_yr"]
+
+
+def test_regional_floor_stock_and_peak():
+    add = pd.DataFrame([{"group": "wind_onshore", "transreg": "MISO", "year": y, "mw": mw}
+                        for y, mw in [(2009, 9000), (2012, 3000), (2012, 1000), (2020, 2500), (2025, 800)]])
+    stock = pd.DataFrame([{"group": "wind_onshore", "transreg": "MISO", "mw": 40000},
+                          {"group": "wind_onshore", "transreg": "PJM", "mw": 2000}])
+    fb = rates.floor_basis(add, stock, [2010, 2025]).set_index(["group", "region"])
+    assert fb.loc[("wind_onshore", "MISO"), "peak_build_mw"] == 4000          # 2012 total; 2009 outside the window
+    f = CFG["regional_floor"]["wind_onshore"]
+    miso = rates.regional_floor(CFG, "central", "wind_onshore", 40000, 4000)
+    assert miso == max(f["floor_min_mw"], f["k_stock"] * 40000, f["k_peak"] * 4000)
+    assert rates.regional_floor(CFG, "central", "wind_onshore", 2000, 0) == f["floor_min_mw"]
+    rf = CFG["levels"]["reform"]["regional_floor"]["wind_onshore"]
+    assert rates.regional_floor(CFG, "reform", "wind_onshore", 40000, 4000) == max(
+        rf["floor_min_mw"], rf["k_stock"] * 40000, rf["k_peak"] * 4000) > miso
+    # the floor reaches the rate table
+    b = rates.base_rates(_additions(), 2015, 2025)
+    shares = rates.regional_shares(b, [2016, 2025])
+    nt = rates.near_term(_queue(), rates.completion_rates(_queue(), CFG), rates.cod_delay(_queue(), CFG), CFG)
+    basis = pd.DataFrame([{"group": "wind_onshore", "region": "MISO", "stock_mw": 40000, "peak_build_mw": 4000}])
+    t = rates.rate_table(dict(CFG, groups=["wind_onshore"]), "central", b, nt, shares, basis)
+    row = t.set_index(["region", "year"]).loc[("MISO", 2030)]
+    assert row["ceiling_mw_per_yr"] == pytest.approx(miso) and bool(row["floor_applied"])
 
 
 def test_tiers_and_switch():
@@ -136,7 +161,7 @@ def test_high_ipm_implied_build_windows_and_ipm_shape():
 
 def test_placeholders_marked():
     text = (ROOT / "config.yaml").read_text()
-    for key in ("construction_completion", "growth:", "ramp_floor_mw", "regional_mult", "regional_floor_mw",
+    for key in ("construction_completion", "growth:", "ramp_floor_mw", "regional_mult", "regional_floor:", "k_stock", "k_peak",
                 "life_years", "overdue_rule"):
         block = text[text.index(key) - 400: text.index(key) + 300]
         assert "PLACEHOLDER" in block, key
@@ -250,7 +275,20 @@ def test_min_cap_guard(tmp_path, monkeypatch):
 
 # ---------------------------------------------------------------------------- Switch toy (HiGHS)
 
-TOY = Path("/opt/switch-src/examples/3zone_toy")
+def _switch_src() -> Path:
+    """Switch source tree: $SWITCH_SRC, else /opt/switch-src, else the installed switch_model's parent."""
+    if os.environ.get("SWITCH_SRC"):
+        return Path(os.environ["SWITCH_SRC"])
+    if Path("/opt/switch-src").exists():
+        return Path("/opt/switch-src")
+    try:
+        import switch_model
+        return Path(switch_model.__file__).resolve().parents[1]
+    except ImportError:
+        return Path("/opt/switch-src")
+
+
+TOY = _switch_src() / "examples" / "3zone_toy"
 
 
 def _toy(tmp_path, wind_rate=0.5, adders=(0.0, 0.15, 0.50), prev=None, slack=None, regions=None, floor=10.0, solar_rate=100.0):
@@ -296,7 +334,7 @@ def _toy(tmp_path, wind_rate=0.5, adders=(0.0, 0.15, 0.50), prev=None, slack=Non
         pd.DataFrame([{"BR_GROUP": "wind_onshore", "BR_REGION": r, "PERIOD": p, "br_region_max_mw_per_yr": c}
                       for r, c in caps.items() for p in (2020, 2030)]).to_csv(inp / "build_rate_regions.csv", index=False)
     r = subprocess.run(["switch", "solve", "--solver", "appsi_highs", "--suffixes", "dual"], cwd=run,
-                       capture_output=True, text=True, env={**__import__("os").environ, "PYTHONPATH": str(run)})
+                       capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(run)})
     assert r.returncode == 0, r.stderr[-3000:] + r.stdout[-2000:]
     return run
 
@@ -457,7 +495,7 @@ def test_toy_solve_ceiling_is_window_sum(tmp_path, monkeypatch):
     switch_case.write_case_inputs(run / "inputs", {"build_rate": {"enabled": True, "level": "central",
                                   "tables_dir": str(tdir), "groups": ["wind_onshore"], "regional": False}}, cfg)
     r = subprocess.run(["switch", "solve", "--solver", "appsi_highs"], cwd=run, capture_output=True, text=True,
-                       env={**__import__("os").environ, "PYTHONPATH": str(run)})
+                       env={**os.environ, "PYTHONPATH": str(run)})
     assert r.returncode == 0, r.stderr[-3000:] + r.stdout[-2000:]
     nb = pd.read_csv(run / "outputs/build_rate_new_build.csv").set_index(["group", "period"])
     nat = rd[(rd.group == "wind_onshore") & (rd.region == "national")].set_index("year")["r_data_mw_per_yr"]
@@ -479,3 +517,23 @@ def test_patch_case_cli(tmp_path, monkeypatch, capsys):
     gens = pd.read_csv(d / "build_rate_gens.csv")
     assert set(gens["br_gen_group"]) == {"wind_onshore", "solar"}
     assert "--include-module study_modules.build_rate" in capsys.readouterr().out
+
+
+def test_rps_check_warns_without_acp(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir, _ = _annual_tables(tmp_path)          # SPP ceilings are floor-set early in the window
+    d = _toy_case(tmp_path, [(2035, 2026, 2035)])
+    s = {"build_rate": {"enabled": True, "level": "central", "tables_dir": str(tdir), "groups": ["wind_onshore", "solar"]},
+         "_zone_map": {"p35": "North"}}
+    req = pd.DataFrame({"RPS_PROGRAM": ["ESR_X", "ESR_LOW"], "LOAD_ZONE": ["North", "North"], "PERIOD": [2035, 2035],
+                        "rps_share": [0.5, 0.1], "unbundled_rec_limit_fraction": [1, 1]})
+    req.to_csv(d / "rps_requirements.csv", index=False)
+    with caplog.at_level("WARNING"):
+        switch_case.write_case_inputs(d, s)
+    msgs = [r.getMessage() for r in caplog.records if "RPS" in r.getMessage()]
+    assert len(msgs) == 1 and "ESR_X" in msgs[0] and "SPP" in msgs[0] and "ACP" in msgs[0]
+    caplog.clear()
+    req.assign(rps_acp_per_mwh=[60, ""]).to_csv(d / "rps_requirements.csv", index=False)   # ACP on -> no warning
+    with caplog.at_level("WARNING"):
+        switch_case.write_case_inputs(d, s)
+    assert not [r for r in caplog.records if "RPS" in r.getMessage()]

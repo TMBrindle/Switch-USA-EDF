@@ -105,6 +105,49 @@ def check_min_cap(gens: pd.DataFrame, periods: pd.DataFrame, ceilings: pd.DataFr
     return problems
 
 
+def check_rps(out_folder: Path, zones: pd.DataFrame, rates: pd.DataFrame, groups, periods: pd.DataFrame,
+              cfg: dict) -> list[str]:
+    """Warn (never raise) when an RPS program with no ACP has a high share in transregs whose wind or
+    solar regional ceilings are set by the floor. Returns the warning messages."""
+    req = _read(out_folder, "rps_requirements.csv")
+    if req is None or not len(req) or not len(zones):
+        return []
+    rc = cfg.get("rps_check") or {}
+    warn_share, cf = float(rc.get("warn_share", 0.3)), rc.get("cf") or {}
+    zr = zones.set_index("LOAD_ZONE")["br_zone_region"]
+    acp = pd.to_numeric(req["rps_acp_per_mwh"], errors="coerce") if "rps_acp_per_mwh" in req else pd.Series(np.nan, index=req.index)
+    req = req.assign(_acp=acp.fillna(-1) >= 0, _tr=req["LOAD_ZONE"].map(zr))
+    loads = _read(out_folder, "loads.csv")
+    msgs = []
+    for (prog, p), d in req.groupby(["RPS_PROGRAM", "PERIOD"]):
+        share = float(d["rps_share"].max())
+        if d["_acp"].all() or share < warn_share:
+            continue
+        pr = periods.set_index("INVESTMENT_PERIOD").loc[p]
+        s, e = int(pr["period_start"]), int(pr["period_end"])
+        trs = sorted(t for t in d["_tr"].dropna().unique())
+        win = rates[rates["region"].isin(trs) & rates["year"].between(s, e) & rates["group"].isin(
+            [g for g in ("wind_onshore", "solar") if g in groups])]
+        floored = win[win["floor_applied"]]
+        if not len(floored):
+            continue
+        cum = win.groupby("group")["ceiling_mw_per_yr"].sum()      # window sum, MW
+        twh = sum(cum.get(g, 0.0) * cf.get(g, 0.0) * 8.76e-3 for g in cum.index) / (e - s + 1)
+        need = ""
+        if loads is not None:
+            z = loads[loads["LOAD_ZONE"].isin(d["LOAD_ZONE"])]
+            if len(z):
+                load_twh = z.groupby("LOAD_ZONE")["zone_demand_mw"].mean().sum() * 8.76e-3
+                need = f"; target {share:.0%} of ~{load_twh:,.0f} TWh/yr = ~{share * load_twh:,.0f} TWh/yr"
+        msgs.append(f"RPS {prog} {p}: share {share:.0%}, no ACP; {', '.join(sorted(floored['group'].unique()))} "
+                    f"ceilings in {', '.join(trs)} are set by the regional floor (little recent build). New "
+                    f"wind+solar allowed there over {s}-{e} averages ~{twh:,.0f} TWh/yr at rough CFs{need} "
+                    "(existing eligible generation not counted). Consider the RPS ACP (rps_acp_per_mwh).")
+    for m_ in msgs:
+        logger.warning("build_rate: %s", m_)
+    return msgs
+
+
 def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | None = None) -> list[str]:
     """Write build_rate_*.csv into out_folder. Returns the files written ([] when disabled)."""
     br = br_settings(settings)
@@ -183,6 +226,7 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
         if len(zones):
             files["build_rate_zones.csv"] = zones
             files["build_rate_regions.csv"] = regions
+            check_rps(out_folder, zones, rates[rates["region"] != "national"], groups, periods, cfg)
     for name, df in files.items():
         df.to_csv(out_folder / name, index=False)
     logger.info("build_rate: level %s, groups %s -> %s", level, groups, ", ".join(files))
