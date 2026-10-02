@@ -1278,3 +1278,21 @@ limited, not siting limited. Setting in `pg/settings/build_rate.yml`; `patch-cas
 and ramp respond to its own deployment in earlier periods (exact in myopic chaining, additive linear
 approximation under perfect foresight; national ceiling stays exogenous). See "Future development"
 in `Guides and documentation/build_rate.md`.
+
+---
+
+## 40. Interconnection Headroom — Trend and Status Pricing Sensitivities
+
+**Date:** 2026-10-02 · **Branch:** `tom/ic-test-fedpol` · **Sensitivity configs only; defaults unchanged**
+
+**Why.** The reference curves evaluate the queue-year trend (+0.115 log points/yr) at
+`tranches.reference_year` 2024, past the estimation sample (last queue year 2023 overall; 2020 for
+MISO, PJM, SPP and NYISO), and price at completed status. A diagnostic on the S0 2035 test runs found
+the trend alone moves completed-project costs ×2.9 (mean queue year 2013 → 2024).
+
+- `interconnection_headroom/sensitivities/trend_last_sample.yaml`: `tranches.reference_year: 2023`
+  (median first step $177 → $158/kW).
+- `interconnection_headroom/sensitivities/trend_last_sample_active.yaml`: 2023 and
+  `reference_status: active` ($204/kW). The existing `price_active.yaml` alone gives $229/kW.
+- Per-regime trend freezing (each regime's last sample year; median $119/kW) is not expressible as a
+  single config value; it was computed analytically for the diagnostic only.
