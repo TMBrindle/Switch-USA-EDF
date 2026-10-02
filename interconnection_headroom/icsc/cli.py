@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from . import eia, estimate, geo, linkage, lbnl, load, network, switch_writer, synthetic, tranches
+from . import eia, estimate, geo, linkage, lbnl, load, network, reinforcement, switch_writer, synthetic, tranches
 
 
 def _merge(base: dict, over: dict) -> dict:
@@ -226,7 +226,8 @@ def cmd_fit_weights(cfg: dict, proxies: list[str] | None = None) -> pd.DataFrame
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="icsc")
-    ap.add_argument("command", choices=["panel", "load-stats", "inspect-lbnl", "link-report", "fit-weights", "run", "synthetic"])
+    ap.add_argument("command", choices=["panel", "load-stats", "inspect-lbnl", "link-report", "fit-weights", "run", "synthetic",
+                                        "reinforcement"])
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--start-year", type=int, default=2026)
     ap.add_argument("--scenarios", nargs="*")
@@ -254,6 +255,13 @@ def main(argv=None):
         cmd_fit_weights(cfg)
     elif a.command == "run":
         cmd_run(cfg, a.start_year, a.scenarios)
+    elif a.command == "reinforcement":
+        z = reinforcement.build(cfg)
+        dest = Path(cfg["_root"]) / cfg["reinforcement"]["zone_table"]
+        z.round({c: 2 for c in z.columns if c.endswith("_per_kw")} | {"capacity_mw": 1}).to_csv(dest, index=False)
+        print(f"wrote {dest}: {len(z)} zones ({z['source'].value_counts().to_dict()}), "
+              f"ReEDS {z['reeds_dollar_year'].iat[0]}$ -> {cfg['dollar_year']}$")
+        print(z[[c for c in z.columns if c.endswith("_per_kw")]].describe().round(1).to_string())
     elif a.command == "synthetic":
         panel, _, c2z = build_panel(cfg)
         d = synthetic.make(panel, c2z, geo.load_hierarchy(cfg["paths"]["hierarchy"]),

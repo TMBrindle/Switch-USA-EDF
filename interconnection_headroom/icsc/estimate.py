@@ -67,6 +67,7 @@ class CostModel:
     sat_support: float = 1.0      # saturation beyond which predictions are extrapolated
     estimator: str = "log_ols"
     status_regimes: dict = None   # status -> regimes with their own status effect (others pooled)
+    last_queue_year: dict = None  # regime -> last queue year in the estimation sample ("_all": whole sample)
 
     @property
     def r2(self) -> float:
@@ -91,6 +92,16 @@ class CostModel:
         p = self.result.params
         slope = p.get("sat", 0.0) + sum(p.get(f"sat_gt_{k:g}", 0.0) for k in self.knots if k < self.sat_support)
         return y + max(slope, 0.0) * np.clip(sat - self.sat_support, 0, None)
+
+    def pooled_status_effect(self, status: str) -> float:
+        """The pooled (or single) coefficient of `status` vs active; 0 if the model has none."""
+        if status == "active":
+            return 0.0
+        p = self.result.params
+        for c in (f"status_{status}@pooled", f"status_{status}"):
+            if c in p:
+                return float(p[c])
+        return 0.0
 
     def status_effect(self, regime: str, status: str) -> float:
         """Coefficient of `status` (vs active) for a regime: its own if it has one, else the pooled one."""
@@ -193,8 +204,10 @@ def fit(sample: pd.DataFrame, cfg: dict) -> CostModel:
         smear = float(np.mean(np.exp(res.resid))) if cfg["tranches"]["duan_smearing"] else 1.0
     knots = [k for k in knots if f"sat_gt_{k:g}" in X.columns]
     support = float(d["saturation"].quantile(ec.get("support_quantile", 0.98)))
+    last_qy = {str(k): int(v) for k, v in d.groupby("regime")["queue_year"].max().items()}
+    last_qy["_all"] = int(d["queue_year"].max())
     return CostModel(res, list(X.columns), knots, regimes, base_regime, smear, techs, support, estimator,
-                     status_regimes)
+                     status_regimes, last_qy)
 
 
 def coef_table(m: CostModel) -> pd.DataFrame:

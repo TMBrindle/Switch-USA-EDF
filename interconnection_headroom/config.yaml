@@ -167,25 +167,70 @@ tranches:
   reference_capacity_mw: 150
   reference_service: NRIS
   reference_status: completed    # status the reference curves are priced at; "active" for the sensitivity
+  # How the reference status effect is priced in each zone (estimation.status_by_regime_min gives
+  # regimes with >= 25 completed projects their own completed effect; the rest share a pooled one):
+  #   own     the zone's regime effect as estimated (NYISO x3.6, PJM x0.42, PacifiCorp x0.24 vs active)
+  #   capped  the regime effect bounded to within status_cap_ratio x the pooled effect (multiplicative)
+  #   pooled  every zone at the pooled effect
+  # Default capped (Oct 2026): the regime-level completed effects rest on 28-307 completed projects
+  # each (NYISO 28, PacifiCorp 67) and span x15 between regimes (NYISO x3.6 vs PacifiCorp x0.24),
+  # against a pooled effect of x0.93 (s.e. 0.46); capping keeps each effect's direction relative to
+  # the pooled one while bounding it to x0.5-2. pooled is the sensitivity
+  # (sensitivities/status_pooled.yaml).
+  status_pricing: capped
+  status_cap_ratio: [0.5, 2.0]
   # log_ols only: smearing correction when back-transforming from log space (Duan); false = median
   duan_smearing: true
   # Upper bound on $/kW for the final tranche (anything above is treated as not buildable)
   max_cost_per_kw: 1500
-  # Year used for the time-trend term when predicting (avoid extrapolating the trend into the future)
+  # Year used for the time-trend term when predicting. With trend_freeze: per_regime (default) each
+  # zone uses min(reference_year, the last queue year of its regime's estimation sample; zones whose
+  # regime has no projects use the sample's last year), so curves never extrapolate the queue-year
+  # trend (+0.115 log points/yr, x1.12/yr) past a regime's data. Why (Oct 2026 sample): the ISO
+  # workbooks end in queue year 2020 (ISO-NE 2021) and only the non-ISO release reaches 2023; only 8
+  # completed projects were queued after 2021 (all Duke Energy Florida, FRCC) and 3 in 2021; and the
+  # unfrozen trend moves completed-project costs x2.9 between the sample's mean queue year (2013)
+  # and 2024. trend_freeze: none evaluates every zone at reference_year (previous default).
   reference_year: 2024
+  trend_freeze: per_regime
 
 # ---------------------------------------------------------------------------
 # Network uprate options: MW of intra-zonal network capacity Switch may add in a zone.
 # max MW = share_of_capacity x the zone's base capacity (headroom proxy). Costs are $ per kW of
-# NETWORK capacity, not of generation. ALL VALUES BELOW ARE PLACEHOLDERS: replace with sourced
-# values (GETs: Brattle SPP studies; reconductoring: GridLab/Berkeley 2024; new lines: ReEDS cost
-# surface or MISO/SPP cost guides) and cite them here. Caps should come from HIFLD line-km by kV.
+# NETWORK capacity, not of generation. GETs and reconductoring values are PLACEHOLDERS: replace with
+# sourced values (GETs: Brattle SPP studies; reconductoring: GridLab/Berkeley 2024) and cite them here;
+# caps should come from HIFLD line-km by kV. new_line is priced from ReEDS's reinforcement cost, which
+# ReEDS states per MW of generation capacity delivered from the POI to the zone's load centre; it is
+# used here as the cost of one MW of intra-zonal network capacity.
 # GETs and reconductoring act on the same lines: keep their shares summing to a shared ceiling.
 # ---------------------------------------------------------------------------
 uprate_options:
   gets:        {type: gets,        share_of_capacity: 0.10, cost_per_kw: 20,  available_year: 0}
   reconductor: {type: reconductor, share_of_capacity: 0.30, cost_per_kw: 80,  available_year: 2028}
-  new_line:    {type: new_line,    share_of_capacity: 1.00, cost_per_kw: 250, available_year: 2030}
+  # new_line: cost per kW from ReEDS's zone-level reinforcement cost (reinforcement block below:
+  # capacity-weighted median of the zone's reV sites, pipeline dollar year). share_of_capacity is a
+  # finite numerical bound for the LP, not a physical limit: as the backstop beyond the data's support
+  # edge it should not bind (was 1.0 x base capacity, which could bind in high-build runs).
+  new_line:    {type: new_line,    share_of_capacity: 10.0, cost_per_kw: reeds_reinforcement, available_year: 2030}
+
+# ReEDS reinforcement cost by zone (icsc/reinforcement.py; `python -m icsc.cli reinforcement`
+# rebuilds zone_table from the raw ReEDS files fetched by scripts/fetch_data.sh)
+reinforcement:
+  h5: data/raw/reeds/interconnection_land.h5
+  supply_curves: [data/raw/reeds/supplycurve_upv-reference.csv, data/raw/reeds/supplycurve_wind-ons-reference.csv]
+  zone_table: data/reference/reeds_reinforcement_by_zone.csv
+  quantile: median            # median | p10 | p90: which zone statistic prices new_line
+  # Unit conversion, new_line_mode: stretch only (host prices per MW of generation hosted, x 1).
+  # ReEDS's cost is $ per MW(AC) of generation: it reinforces one MW of route capacity
+  # (POI -> zone centre) per MW of new wind/solar (ReEDS docs "Network reinforcement"; output_calc
+  # reinforcement GW-mi = new GW x distance). new_line's cost is per MW of network capacity H, and one
+  # MW of H hosts more or less than one MW of (weighted) generation depending on saturation. So
+  # $/MW-H = ReEDS $/MW-gen x gen MW hosted per MW of H:
+  #   curve_end (default, recommended): x the zone's curve-end saturation (release s0 + stretch to the
+  #       end), so a MW of generation hosted through new_line costs ReEDS's $/MW, wherever the zone is
+  #   s0: x start saturation (release only); near-free H in low-saturation zones (median s0 0.15)
+  #   gen: x 1, ReEDS's route MW taken as H MW; overprices generation hosted where saturation < 1
+  per_mw_h: curve_end
 
 # Engineering cost of network capacity added by reactive (generator-paid) upgrades, $/kW of
 # network. Used only to REPORT an estimate of capacity added along the empirical curve
@@ -202,7 +247,17 @@ reactive_cost_per_kw_network: 150
 # backstop_uprates are available in every scenario, including reference: beyond the empirical
 # curve (the data's support edge), headroom comes only from building network capacity.
 # ---------------------------------------------------------------------------
-backstop_uprates: [new_line]   # cost and year are the marked placeholders in uprate_options
+backstop_uprates: [new_line]   # ReEDS reinforcement cost by zone; available_year is a placeholder
+# How new lines provide headroom (Switch ic_uprate_mode):
+#   host (default): a new line hosts generation directly: each MW adds one weighted MW to the zone's
+#     headroom limit at the ReEDS reinforcement cost per MW of generation (no unit conversion), with no
+#     empirical step or release cost on top. ReEDS's cost is the full cost of delivering a MW of new
+#     generation to the zone centre, so charging the LBNL step costs as well would count network
+#     upgrades twice. H, the steps and the release are untouched. share_of_capacity caps hosted MW.
+#   stretch (previous behaviour): a new line adds MW to H like GETs and reconductoring (stretches the
+#     steps, releases s0 x MW), priced per MW of H with reinforcement.per_mw_h.
+# GETs and reconductoring always stretch: they raise the capacity of the existing network.
+new_line_mode: host
 
 scenarios:
   reference: {}

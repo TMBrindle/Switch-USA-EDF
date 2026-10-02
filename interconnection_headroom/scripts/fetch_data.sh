@@ -62,3 +62,23 @@ if [ ${#failed[@]} -gt 0 ]; then
 fi
 n=$(find data/raw/lbnl -maxdepth 1 -name '*.xls*' ! -name 'SYNTHETIC*' | wc -l)
 echo "LBNL: ${n} real workbook(s) in data/raw/lbnl"
+# ReEDS site-level reinforcement costs (new_line uprate cost) and site capacities, at the pinned
+# ReEDS commit (data/reference/REEDS_COMMIT.txt). interconnection_land.h5 is a git-LFS object in
+# NREL/ReEDS-2.0 (now NatLabRockies/ReEDS-2.0); media.githubusercontent.com serves LFS content.
+REEDS_SHA="$(cut -d' ' -f1 data/reference/REEDS_COMMIT.txt)"
+REEDS_LFS_SHA256="cca210228dc0bef8b09abe97ab019152da7bd3bc104abd0ab42fee92bae89f32"   # LFS oid at that commit
+mkdir -p data/raw/reeds
+h5="data/raw/reeds/interconnection_land.h5"
+if [ ! -s "$h5" ] || [ "$(sha256sum "$h5" | cut -d' ' -f1)" != "$REEDS_LFS_SHA256" ]; then
+  curl -fsSL -o "$h5" "https://media.githubusercontent.com/media/NatLabRockies/ReEDS-2.0/${REEDS_SHA}/inputs/supply_curve/interconnection_land.h5"
+fi
+if [ "$(sha256sum "$h5" | cut -d' ' -f1)" = "$REEDS_LFS_SHA256" ]; then
+  echo "ReEDS interconnection_land.h5: present, sha256 matches commit ${REEDS_SHA:0:8}"
+else
+  echo "ReEDS interconnection_land.h5: download FAILED or sha256 mismatch"
+fi
+for sc in upv-reference wind-ons-reference; do
+  f="data/raw/reeds/supplycurve_${sc}.csv"
+  [ -s "$f" ] || curl -fsSL -o "$f" "https://raw.githubusercontent.com/NatLabRockies/ReEDS-2.0/${REEDS_SHA}/inputs/supply_curve/supplycurve_${sc}.csv"
+  [ -s "$f" ] && echo "ReEDS supplycurve_${sc}.csv: present" || echo "ReEDS supplycurve_${sc}.csv: download FAILED"
+done
