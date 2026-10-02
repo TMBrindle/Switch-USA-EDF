@@ -1106,15 +1106,28 @@ from `tom/ic-test-fedpol` @ 4d696df) and Brattle/WATT (SPP, Feb 2021) are in
   value. Liftoff bounds: DLR < 5% of rebuilding (p. 10); DLR and APFC < 25% of traditional upgrades
   (p. 25). Lead time: under three months (DLR, Liftoff p. 10) to 8–18 months (FACTS, GridLab).
 - Reconductoring: Liftoff ~15% of lines (20% reconductorable × 80% with structure life), 1.7× / 2×
-  / 3× (p. 88); GridLab 2× on ~98% of lines (< 50 miles). Cost under half of new build (Liftoff
-  p. 25; GridLab) → 1.0 × the zone's ReEDS reinforcement cost per kW of generation (ReEDS prices
-  reinforcement at greenfield × 0.5; 0.5× in `sensitivities/reconductor_low_cost.yaml`). Lead time
-  18–36 months.
+  / 3× (p. 88); GridLab 2× on ~98% of lines (< 50 miles). Lead time 18–36 months.
+- Reconductoring vs new lines (supersedes §41's new_line price). ReEDS's `cost_reinforcement` is
+  already a reconductoring cost: routes are priced "with capital expenditure (CAPEX) costs multiplied
+  by 50% to approximate the lower cost for reconductoring compared to greenfield transmission
+  construction" (ReEDS `docs/source/model_documentation.md`, "Network reinforcement", line 1809, commit
+  2f583ff5). Pricing both reconductoring and new_line at it counted the discount twice. Now
+  reconductoring = 1.0 × the ReEDS cost per kW of generation (consistent with Liftoff p. 25 and GridLab,
+  "less than half" of new build; GridLab gives no $/MW figure in its text; 0.5× in
+  `sensitivities/reconductor_low_cost.yaml`), and new_line (host mode) = ReEDS / 0.5 = 2.0×, full new
+  build. new_line $/kW across zones, p10 / p25 / median / p75 / p90: 355 / 475 / 639 / 876 / 1,299
+  (was 177 / 237 / 319 / 438 / 650); median past the support edge $529; transreg medians $399 (FRCC)
+  to $927 (WestConnect).
 - New cost forms in `uprate_options`: `{per_kw_gen: x, per_kw_gen_by_transreg: {...}}` and
   `{reeds_reinforcement_x: f}`, converted to $ per kW of H with the curve-end saturation.
 
-**Layer 2, adoption levels** (`uprate_levels`, chosen by `uprate_level`, default `planned`;
-scenario override `uprate_level`; scenarios `atts_s0`, `atts_s0_mandate_only`, `atts_reform`):
+**Layer 2, adoption levels** (`uprate_levels`, chosen by `uprate_level`, default `s0`, the
+current-trajectory baseline; planned and reform only when a scenario selects them). GETs and
+reconductoring are now `baseline_uprates`, offered in every scenario at its level (like the new-line
+backstop). `reference` = `atts_s0`, and `pg/settings/interconnection_headroom.yml` and the case writer
+default to `atts_s0`, so S0 cases (the VM's `on` setting names `reference`) always get s0. Scenarios:
+`atts_s0`, `atts_s0_mandate_only`, `atts_planned`, `atts_reform`, `atts_reform_techmax`; the old `gets`
+and `reconductoring` scenarios are replaced by `atts_planned`.
 - `s0`: observed deployment. GETs 0.25% of H0 (Liftoff p. 88: DLR "not used today" on 99% of the
   system, × 25%); reconductoring 0 (deployed share not given). Why small: Order No. 1920 (89 FR 49280)
   requires consideration (P 1198), not deployment (P 1200); Order No. 881 (87 FR 2244) requires
@@ -1124,14 +1137,22 @@ scenario override `uprate_level`; scenarios `atts_s0`, `atts_s0_mandate_only`, `
 - `s0_mandate_only` (sensitivity): 0 and 0.
 - `planned`: GETs 10.7% (317/742 × 25%) from 2028; reconductoring 15% (15% × 1) from 2029 (Order 1920
   timeline P 12, P 1072, plus lead time).
-- `reform`: GETs 18.8% (317/742 × 44%) from 2027; reconductoring 78% (98% × 80% × 1) from 2028.
+- `reform`: GETs 18.8% (317/742 × 44%) from 2027; reconductoring 30% (Liftoff high case: 15% of lines
+  × (3× − 1), p. 88) from 2028.
+- `reform_techmax` (sensitivity, `atts_reform_techmax`): reconductoring 78% (GridLab's 98% of lines ×
+  Liftoff's 80% structure life × 1). The sources disagree on the reconductorable share: Liftoff 20% of
+  lines (from INL), GridLab ~98% (all lines under 50 miles); reform uses Liftoff, the more
+  conservative and the one with a structure-life screen.
+- GETs costs rest on two regional studies (RMI PJM, Brattle SPP); planned and reform results are
+  sensitive to them (project doc note).
 
 **Missing from the documents (not estimated):** Order No. 1920-A; ISO Order 881 compliance pages;
 APFC and topology optimisation deployed today; advanced conductors deployed today; capacity of
 committed projects; combined GETs potential; GETs costs outside PJM and SPP; dollar years of the
 GETs costs; GETs O&M (not modelled); a reconductoring $/MW figure.
 
-**Results** (curves unchanged: median first step $129.0/kW): across 1,356 GW of H0, GETs 3.3 GW
-(s0), 145 GW (planned), 255 GW (reform); reconductoring 0, 204 and 1,063 GW. Median cost per kW of
-H: GETs $23 ($10 in PJM; was $20), reconductoring $237 (was $80). `previous_defaults.yaml` restores
-the placeholders. Tests: 21.
+**Results** (curves unchanged: median first step $129.0/kW, 20 zones past the edge): across 1,356 GW
+of H0, GETs 3.4 GW (s0, also reference), 145 GW (planned), 255 GW (reform); reconductoring 0, 203 and
+407 GW (1,063 GW reform_techmax). Median cost per kW of H: GETs $23 ($10 in PJM; was $20),
+reconductoring $237 (was $80); new line $639 per kW of generation. `previous_defaults.yaml` restores
+the placeholders and the backstop-only reference. Tests: 22.

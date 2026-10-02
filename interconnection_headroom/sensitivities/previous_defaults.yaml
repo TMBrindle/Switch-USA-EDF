@@ -14,3 +14,4 @@ uprate_options:
   new_line: {type: new_line, share_of_capacity: 1.0, cost_per_kw: 250, available_year: 2030}
 new_line_mode: stretch
 uprate_level: null      # placeholder caps above, not uprate_levels
+baseline_uprates: []    # reference was backstop-only before the GETs/reconductoring layers

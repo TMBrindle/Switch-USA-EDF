@@ -136,7 +136,8 @@ def test_synthetic_recovery(cfg, built, tmp_path):
     gets_cap = c["uprate_levels"][c["uprate_level"]]["gets"]["share_of_capacity"]
     assert np.allclose(g["max_mw"], gets_cap * g["base_capacity_mw"])
     _, _, ref = tranches.apply_scenario(zr, tr, c, {})
-    assert set(ref["uprate"]) == set(c["backstop_uprates"]) and len(ref) == len(zr)
+    assert set(ref["uprate"]) == set(c["backstop_uprates"]) | set(c["baseline_uprates"])   # every scenario
+    assert len(ref) == len(zr) * len(set(ref["uprate"]))
 
     # empirical steps stop at the support edge; zones beyond it get one edge-priced step
     edge = m.sat_support
@@ -271,11 +272,14 @@ def test_reinforcement_table_and_backstop(cfg):
     tr = pd.DataFrame({"ba": ["p1", "p1", "p80"], "sat_from": [0.1, 0.4, 0.9], "sat_to": [0.4, 0.67, 0.95],
                        "cost_per_kw": [50.0, 60.0, 90.0]})
     want = t.set_index("ba")["reinforcement_median_per_kw"]
-    # default host mode: ReEDS $/kW of generation, no conversion
+    # default host mode: full new build = ReEDS reinforcement / 0.5 (ReEDS prices reinforcement at greenfield
+    # CAPEX x 0.5 for reconductoring), per kW of generation, no conversion
+    assert cfg["uprate_options"]["new_line"]["cost_per_kw"] == {"reeds_reinforcement_x": 2.0}
+    assert cfg["uprate_options"]["reconductor"]["cost_per_kw"] == {"reeds_reinforcement_x": 1.0}
     _, _, up = tranches.apply_scenario(zones, tr, cfg, {})
     nl = up[up["uprate"] == "new_line"].set_index("ba")
     assert cfg["new_line_mode"] == "host" and (nl["mode"] == "host").all()
-    assert np.allclose(nl["cost_per_kw"], want[nl.index]) and nl["gen_mw_per_mw_h"].isna().all()
+    assert np.allclose(nl["cost_per_kw"], 2.0 * want[nl.index]) and nl["gen_mw_per_mw_h"].isna().all()
     _, _, ug = tranches.apply_scenario(zones, tr, cfg, {"uprates": ["gets"]})
     assert (ug.loc[ug["uprate"] == "gets", "mode"] == "stretch").all()                  # GETs always stretch
     # stretch mode: $ per MW of H = ReEDS $/MW-gen x gen MW hosted per MW of H
@@ -286,11 +290,11 @@ def test_reinforcement_table_and_backstop(cfg):
         nl = up[up["uprate"] == "new_line"].set_index("ba")
         assert (nl["mode"] == "stretch").all()
         for ba in ("p1", "p80"):
-            assert nl.at[ba, "cost_per_kw"] == pytest.approx(want[ba] * f[ba]), (how, ba)
+            assert nl.at[ba, "cost_per_kw"] == pytest.approx(2.0 * want[ba] * f[ba]), (how, ba)
             assert nl.at[ba, "reeds_cost_per_kw_gen"] == pytest.approx(want[ba])
             assert nl.at[ba, "gen_mw_per_mw_h"] == pytest.approx(f[ba])
         if how == "curve_end":
-            assert np.allclose(nl["cost_per_kw"] / nl["gen_mw_per_mw_h"], want[nl.index])
+            assert np.allclose(nl["cost_per_kw"] / nl["gen_mw_per_mw_h"], 2.0 * want[nl.index])
     assert np.allclose(nl["max_mw"], cfg["uprate_options"]["new_line"]["share_of_capacity"] * zones.set_index("ba")["base_capacity_mw"])
     assert cfg["reinforcement"]["per_mw_h"] == "curve_end"
 
@@ -307,8 +311,9 @@ def test_uprate_levels_and_sourced_costs(cfg):
     hier = geo.load_hierarchy(cfg["paths"]["hierarchy"]).set_index("ba")["transreg"]
     gets_cost = cfg["uprate_options"]["gets"]["cost_per_kw"]
     levels = cfg["uprate_levels"]
-    assert cfg["uprate_level"] == "planned" and set(levels) == {"s0", "s0_mandate_only", "planned", "reform"}
-    order = ("s0_mandate_only", "s0", "planned", "reform")
+    assert cfg["uprate_level"] == "s0"                                               # default: current trajectory
+    assert set(levels) == {"s0", "s0_mandate_only", "planned", "reform", "reform_techmax"}
+    order = ("s0_mandate_only", "s0", "planned", "reform", "reform_techmax")
     for name in ("gets", "reconductor"):
         caps = [levels[lv][name]["share_of_capacity"] for lv in order]
         assert caps == sorted(caps), (name, caps)                                     # levels nest
@@ -317,7 +322,15 @@ def test_uprate_levels_and_sourced_costs(cfg):
     assert levels["planned"]["gets"]["share_of_capacity"] == pytest.approx(317 / 742 * 0.25, abs=5e-4)
     assert levels["reform"]["gets"]["share_of_capacity"] == pytest.approx(317 / 742 * 0.44, abs=5e-4)
     assert levels["planned"]["reconductor"]["share_of_capacity"] == pytest.approx(0.15 * (2 - 1))
-    assert levels["reform"]["reconductor"]["share_of_capacity"] == pytest.approx(0.98 * 0.80 * (2 - 1))
+    assert levels["reform"]["reconductor"]["share_of_capacity"] == pytest.approx(0.15 * (3 - 1))     # Liftoff high
+    assert levels["reform_techmax"]["reconductor"]["share_of_capacity"] == pytest.approx(0.98 * 0.80 * (2 - 1))
+    # S0 cases: reference and atts_s0 both get the s0 level; planned / reform only when selected
+    for name in ("reference", "atts_s0", "best_regime"):
+        assert (cfg["scenarios"][name] or {}).get("uprate_level", cfg["uprate_level"]) == "s0", name
+    _, _, ref = tranches.apply_scenario(zones, tr, cfg, cfg["scenarios"]["reference"])
+    r = ref.set_index(["uprate", "ba"])
+    assert r.loc[("gets", "p1"), "max_mw"] == pytest.approx(0.0025 * 1000) and r.loc[("gets", "p1"), "level"] == "s0"
+    assert cfg["scenarios"]["atts_reform_techmax"]["uprate_level"] == "reform_techmax"
     for lv in order:
         _, _, up = tranches.apply_scenario(zones, tr, cfg, {"uprates": ["gets", "reconductor"], "uprate_level": lv})
         u = up.set_index(["uprate", "ba"])
@@ -332,7 +345,7 @@ def test_uprate_levels_and_sourced_costs(cfg):
                 assert row["cost_per_kw_gen"] == pytest.approx(gen_cost)
                 assert row["cost_per_kw"] == pytest.approx(gen_cost * end[ba])
         nl = u.loc["new_line"]
-        assert (nl["mode"] == "host").all() and np.allclose(nl["cost_per_kw"], t[nl.index])
+        assert (nl["mode"] == "host").all() and np.allclose(nl["cost_per_kw"], 2.0 * t[nl.index])
     # GETs cost by study region: PJM (RMI) $15.2, SPP (Brattle) $33.7, elsewhere the SPP value
     assert hier["p80"] == "PJM" and gets_cost["per_kw_gen_by_transreg"]["PJM"] == pytest.approx(0.1e9 / 6.6e6, abs=0.1)
     assert gets_cost["per_kw_gen_by_transreg"]["SPP"] == pytest.approx(90e6 / 2.670e6, abs=0.1)
@@ -555,7 +568,7 @@ def test_switch_case_write_with_zone_map(tmp_path, monkeypatch):
                   "max_mw": [100.0, 50.0], "cost_per_kw": [20, 20],
                   "available_year": [2028, 2028]}).to_csv(tdir / "uprates_reference.csv", index=False)
     monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
-    settings = {"interconnection_headroom": {"enabled": True, "tranches_dir": "tr"},
+    settings = {"interconnection_headroom": {"enabled": True, "tranches_dir": "tr", "scenario": "reference"},
                 "_zone_map": {"p1": "TX", "p2": "TX", "p3": "OK"}}
     gi = _gen_info().assign(gen_load_zone="TX")
     out = tmp_path / "case"
@@ -647,3 +660,13 @@ def test_prepare_next_stage_chains_hosted_headroom(tmp_path):
     assert z.ic_hosted_headroom_mw == 150                                 # unused hosted headroom carries forward
     u = pd.read_csv(nxt / "ic_uprates.chained.c.csv").set_index("IC_UPRATE")["ic_uprate_max_mw"]
     assert u["p1_new_line"] == 9600 and u["p1_gets"] == 0
+
+
+def test_s0_cases_default_to_atts_s0():
+    """pg_to_switch cases without an explicit scenario get the current-trajectory baseline (atts_s0)."""
+    import inspect
+    import yaml
+    from icsc import switch_case as sc
+    s = yaml.safe_load(open(ROOT.parent / "pg/settings/interconnection_headroom.yml"))
+    assert s["interconnection_headroom"]["scenario"] == "atts_s0"
+    assert 'ic.get("scenario", "atts_s0")' in inspect.getsource(sc.write_case_inputs)

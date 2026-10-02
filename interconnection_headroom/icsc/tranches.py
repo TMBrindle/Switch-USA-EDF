@@ -146,7 +146,7 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
       cost_multiplier: x        height: scale every step's cost (and the release cost)
       slope_multiplier: m       steepness: c_k -> c_1 * (c_k / c_1) ** m within each zone
       uprates: [names]          network capacity options from `uprate_options`, which Switch may build
-                                (plus `backstop_uprates`, available in every scenario)
+                                (plus `baseline_uprates` and `backstop_uprates`, in every scenario)
       uprate_level: name        adoption level (`uprate_levels`; default `uprate_level`) setting the
                                 caps and first years of the options it lists (GETs, reconductoring)
     """
@@ -164,7 +164,8 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
         z["release_cost_per_kw"] *= scen["cost_multiplier"]
     opts = cfg.get("uprate_options", {})
     gen_per_h = gen_mw_per_mw_h(z, t, cfg)
-    names = list(dict.fromkeys(list(scen.get("uprates", [])) + list(cfg.get("backstop_uprates", []))))
+    names = list(dict.fromkeys(list(scen.get("uprates", [])) + list(cfg.get("baseline_uprates", []))
+                               + list(cfg.get("backstop_uprates", []))))
     zone_cost = reinforcement_costs(cfg) if any(
         isinstance(opts[n].get("cost_per_kw"), (str, dict)) for n in names) else None
     level = scen.get("uprate_level", cfg.get("uprate_level"))

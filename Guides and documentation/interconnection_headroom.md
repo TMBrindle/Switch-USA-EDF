@@ -35,7 +35,8 @@ Per IC zone and period:
 - When H grows, existing use fills less of it, releasing up to `s0 x MW of stretch uprates` of
   headroom priced at the zone's starting marginal cost.
 - New lines (`ic_uprate_mode: host`, pipeline `new_line_mode: host`, the default) add weighted MW of
-  headroom directly at the zone's ReEDS reinforcement cost per MW of generation (median $319/kW),
+  headroom directly at full new-build cost per MW of generation (2 × the zone's ReEDS reinforcement
+  cost, which ReEDS sets at 50% of new-build CAPEX to represent reconductoring; median $639/kW),
   with no step or release cost on top, and leave H unchanged. ReEDS's cost already covers delivering
   the MW to the zone centre, so charging the LBNL step costs too would count upgrades twice.
   `new_line_mode: stretch` restores the old behaviour (a new line adds to H).
@@ -87,11 +88,17 @@ MW are exact model decisions.
 
 | `scenario` | Curve |
 |---|---|
-| `reference` | Empirical curve with each zone's regime effect; no uprate options |
-| `best_regime` | Lowest regime effect everywhere (height) |
-| `gets` | Switch may add GETs up to 10% of H0 (placeholder cost) |
-| `reconductoring` | GETs plus reconductoring up to 30% of H0 from 2028 (placeholders) |
-| `proactive_planning` | All uprate options incl. new lines from 2032, and slope × 0.7 (placeholders) |
+| `reference` = `atts_s0` (default) | Empirical curve with each zone's regime effect; GETs and reconductoring at observed deployment (GETs 0.25% of H0, reconductoring 0); new-line backstop. S0 cases use this |
+| `atts_s0_mandate_only` | GETs and reconductoring caps 0 (what Orders 881 and 1920 require for planning) |
+| `atts_planned` | Liftoff mid case: GETs 10.7% of H0 from 2028, reconductoring 15% from 2029 |
+| `atts_reform` | GETs 18.8% from 2027, reconductoring 30% (Liftoff high case) from 2028 |
+| `atts_reform_techmax` | As atts_reform, reconductoring 78% (GridLab line share; sensitivity) |
+| `best_regime` | Lowest regime effect everywhere (height); s0 uprates |
+| `proactive_planning` | Planned-level uprates and slope × 0.7 (placeholder multiplier) |
+
+Every scenario includes GETs and reconductoring at its adoption level (`uprate_level`, default `s0`) and
+the new-line backstop. GETs costs come from two regional studies (RMI PJM $15.2, Brattle SPP $33.7 per kW
+of generation), so planned and reform results are sensitive to them (project doc, "Uprate options").
 
 ## Checks on the first real run
 

@@ -11,8 +11,10 @@
 interconnection_headroom:
   enabled: false
   # tranches_<scenario>.csv from `python -m icsc.cli run`:
-  # reference | best_regime | gets | reconductoring | proactive_planning
-  scenario: reference
+  # reference (= atts_s0, the current-trajectory baseline: GETs and reconductoring at observed
+  # deployment) | atts_s0_mandate_only | atts_planned | atts_reform | atts_reform_techmax |
+  # best_regime | proactive_planning. S0 cases use reference / atts_s0.
+  scenario: atts_s0
   tranches_dir: interconnection_headroom/outputs
   exclude_network_reinforcement: true
   # Optional overrides of interconnection_headroom/config.yaml (keep them equal unless testing):
