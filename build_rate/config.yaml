@@ -1,0 +1,195 @@
+# Build-rate supply curves for new wind, solar, storage (and optionally gas).
+# Run from build_rate/: `python -m brc.cli run` writes outputs/ (see brc/cli.py).
+# Every value marked PLACEHOLDER is an assumption to replace with a sourced value (record the
+# source in a comment). Everything else is computed from EIA-860M and LBNL Queued Up.
+
+paths:
+  eia860m: data/raw/august_generator2026.xlsx          # scripts/fetch_data.sh
+  queued_up: data/raw/queued_up.xlsx                     # scripts/fetch_data.sh (git show, tom/interconnection-headroom)
+  county2zone: data/reference/county2zone.csv            # ReEDS inputs/county2zone.csv (REEDS_COMMIT.txt)
+  hierarchy: ../hierarchy.csv                            # ReEDS BA -> transreg (repo root)
+  outputs: outputs
+
+# Groups. Offshore wind, nuclear, distributed generation and everything else are not covered.
+groups: [wind_onshore, solar, storage, gas]
+
+history:
+  first_year: 2015
+  last_year: 2025          # last full year of EIA-860M additions
+  share_years: [2016, 2025]  # window for regional shares of national additions
+
+# R0: reference national build rate (MW/yr) from EIA-860M annual additions, by level.
+# One rule for all groups (decision b, Oct 2026).
+r0_rule:
+  # "Sustained demonstrated rate": low <= central <= high for every group (checked at run time).
+  low: {combine: min, of: [{years: [2023, 2025], stat: mean}, {years: [2021, 2025], stat: mean}]}
+  central: {combine: max, of: [{years: [2023, 2025], stat: mean}, {years: [2021, 2025], stat: mean}]}
+  high: {years: [2021, 2025], stat: max}   # best single year
+
+# Near-term rates to ~2030 from the LBNL queue: active capacity with an executed IA or under
+# construction x historical completion rate (stage x group), phased by proposed COD + delay.
+near_term:
+  first_year: 2026
+  last_year: 2030
+  stages: ["IA Executed", "Construction"]
+  completion_cohort_max_queue_year: 2018   # resolved requests queued by this year
+  # Queued Up reclassifies completed projects as "IA Executed", so it has no resolved history
+  # for the Construction stage. PLACEHOLDER: share of under-construction MW that reaches
+  # operation (candidate sources: EIA-860M planned-to-operating transitions; LBNL Queued Up
+  # completion tables by phase).
+  construction_completion: 0.9
+  # COD = max(proposed year, IA year + median IA-to-COD years of operational requests queued from
+  # delay_cohort_min_queue_year on, by group; computed). Proposed CODs in the file are revised as
+  # projects progress, so proposed-vs-actual slip can't be measured from it.
+  delay_cohort_min_queue_year: 2015
+  # Active requests whose COD has already passed (overdue; ~62 GW solar, ~15 GW wind with an IA or
+  # under construction at end-2025). PLACEHOLDER rule: spread their expected MW evenly over the
+  # near-term years (first_year..last_year) instead of stacking them in first_year.
+  overdue_rule: spread_even
+
+# Growth after the near-term years, per year from the last near-term rate. All PLACEHOLDER.
+# Candidate sources: NREL ATB / Standard Scenarios deployment ranges; ReEDS absolute growth
+# limits (wind 8,854 / PV 28,582 / battery 12,032 MW/yr, inputs/growth_constraints at the pinned
+# commit); Wood Mackenzie/SEIA and ACP market outlooks; LBNL queue completion trends.
+growth:
+  low:     {wind_onshore: 0.02, solar: 0.02, storage: 0.04, gas: 0.00}   # PLACEHOLDER
+  central: {wind_onshore: 0.05, solar: 0.05, storage: 0.08, gas: 0.02}   # PLACEHOLDER
+  high:    {wind_onshore: 0.10, solar: 0.10, storage: 0.15, gas: 0.05}   # PLACEHOLDER
+
+# Ramp bound between model periods: R_p <= (1+growth)^W x build_{p-1}/W_{p-1} + floor.
+# PLACEHOLDER floors (MW/yr, national); ReEDS uses 100-300 MW per state (gbin_min).
+ramp_floor_mw: {wind_onshore: 1000, solar: 1000, storage: 1000, gas: 1000}   # PLACEHOLDER
+
+# Regional ceiling per transreg: max(share_r x regional_mult x top band x R, regional_floor).
+regional_mult: {wind_onshore: 1.5, solar: 1.5, storage: 1.5, gas: 1.5}             # PLACEHOLDER
+# Regional floor per transreg (MW/yr): max(floor_min_mw, k_stock x existing capacity at the end of
+# floor_basis.stock_year, k_peak x peak annual build over floor_basis.peak_years). All PLACEHOLDER.
+# Gas (opt-in) keeps a flat floor: its stock is large and not a measure of new-build capacity.
+regional_floor:                                                                  # PLACEHOLDER
+  wind_onshore: {floor_min_mw: 500, k_stock: 0.05, k_peak: 0.75}                 # PLACEHOLDER
+  solar:        {floor_min_mw: 1000, k_stock: 0.05, k_peak: 0.75}                # PLACEHOLDER
+  storage:      {floor_min_mw: 500, k_stock: 0.10, k_peak: 0.75}                 # PLACEHOLDER
+  gas:          {floor_min_mw: 500, k_stock: 0.0, k_peak: 0.0}                   # PLACEHOLDER
+floor_basis: {stock_year: 2025, peak_years: [2010, 2025]}
+
+# Case-build RPS check (warning only; RPS is in energy, ceilings in MW). A program without an ACP
+# whose share reaches warn_share, in transregs where a wind or solar regional ceiling is set by the
+# floor (little recent build), may be infeasible with build_rate on. Rough capacity factors turn
+# the window's cumulative ceilings into energy for the message only.
+rps_check: {warn_share: 0.30, cf: {wind_onshore: 0.35, solar: 0.25}}             # PLACEHOLDER
+
+# Amortisation life for annualising tier adders (years). PLACEHOLDER: match gen_max_age.
+life_years: {wind_onshore: 30, solar: 30, storage: 15, gas: 30}                     # PLACEHOLDER
+
+# Levels. Each picks an R0 rule, a growth set, and optional overrides.
+levels:
+  low:     {r0: low, growth: low}
+  central: {r0: central, growth: central}
+  high:    {r0: high, growth: high}
+  # siting reform: relax wind's regional limits (IPM's wind spur/access adders, Tables 4-38/4-42,
+  # are ~9x solar's at the median, so siting binds wind first). PLACEHOLDER values.
+  reform:  {r0: central, growth: central,
+            regional_mult: {wind_onshore: 3.0},
+            # reform scales all three floor terms up for wind (PLACEHOLDER)
+            regional_floor: {wind_onshore: {floor_min_mw: 1500, k_stock: 0.10, k_peak: 1.5}}}
+  # IPM's own shape (EPA 2025 Reference Case): R = Table 4-13 Step 1 per build year (implied build
+  # windows, ipm.run_year_span), ipm2025 tiers; storage (no Table 4-13 row) follows `high`'s R.
+  high_ipm: {r0: ipm, growth: high, tier_set: ipm2025}
+
+# Tier bands (upper edge as a multiple of R) and adders (fraction of the group's new-build
+# overnight capex, marginal: only the MW inside a band pay its adder). The top band's edge is a
+# hard ceiling unless it is 1000 (no ceiling). One-line switch: tier_set (a level's own tier_set wins).
+tier_set: central
+tier_sets:
+  # central: 0 / +15% / +50% at 1.3 / 1.75 / 2.0 x R. Set against EPA Platform v6 Post-IRA 2022:
+  # +15% between ReEDS's +10% and v6 Step 2 (+16-25% of capex for wind/solar); +50% = ReEDS and
+  # the low end of v6 Step 3 (+52-78%). UNDER REVIEW: the EPA 2025 Reference Case adders are
+  # +45-48% / +143-153% of 2025 base capex (see ipm.table_4_13 below). Bands = ReEDS growth bins.
+  central: [{upto: 1.3, adder: 0.0}, {upto: 1.75, adder: 0.15}, {upto: 2.0, adder: 0.50}]
+  # ReEDS-exact: inputs/growth_constraints/growth_penalty.csv and growth_bin_size_mult.csv at
+  # ReEDS commit 2f583ff5 (bins 1.3/1.75/2.0/1000, penalties 0/0.1/0.5/1000 x capex).
+  reeds_exact: [{upto: 1.3, adder: 0.0}, {upto: 1.75, adder: 0.10}, {upto: 2.0, adder: 0.50}]
+  # IPM's own shape (EPA 2025 Table 4-13): free to Step 1 (1.0 x R), Step 2 to 1.74 x R (the
+  # Step 2 / Step 1 bound ratio in every 2030 and 2035 row), Step 3 with no limit (1000 = no hard
+  # ceiling, as ReEDS's last bin). Adders = 2025 wind/solar Step 2 / Step 3 as a share of 2025 base
+  # capex (wind 46-48 / 145-153%, solar 45-48 / 143-151%). Charged marginally (LP); IPM's text
+  # charges the adder on all capacity in the run year. No adders after the 2035 run year's build
+  # window (2032-2036), as IPM.
+  ipm2025: [{upto: 1.0, adder: 0.0}, {upto: 1.74, adder: 0.46}, {upto: 1000, adder: 1.47}]
+# Group-specific bands inside a tier set. IPM has no short-term adder for storage (no Table 4-13
+# row), so high_ipm leaves storage with one free, unbounded band (R still follows `high`).
+group_tier_overrides:
+  ipm2025: {storage: [{upto: 1000, adder: 0.0}]}
+# Last calendar build year a tier set's adders apply to (none = every year).
+tier_adders_last_year: {ipm2025: 2036}
+# Gas has its own adders, IPM-style: EPA 2025 Table 4-13 CC+CT Step 2 / Step 3 as a share of Table
+# 4-12 capex. `default` serves central / reeds_exact (same bands as the other groups).
+gas_tiers:
+  default: [{upto: 1.3, adder: 0.0}, {upto: 1.75, adder: 0.44}, {upto: 2.0, adder: 1.40}]
+  # 2025 CC+CT Step 2 / Step 3 against CT frame capex (44 / 139-141%; against CC multi-shaft 40-42 / 127-134%)
+  ipm2025: [{upto: 1.0, adder: 0.0}, {upto: 1.74, adder: 0.44}, {upto: 1000, adder: 1.40}]
+
+# EPA 2025 Reference Case (incremental to the 2023 Reference Case), IPM.
+#  * Table 4-13 "Short-Term Capital Cost Adders for New Power Plants in the EPA 2025 Reference Case
+#    (2022$)": Step 1 / Step 2 upper bounds (MW of new capacity in a run year) and Step 2 / Step 3
+#    adders ($/kW, 2022$). Step 3 has no limit.
+#  * Base capex (2022$/kW): Table 4-15 (2025) for onshore wind and solar PV; Table 4-12 (as printed
+#    in the 2025 document, captioned "EPA 2023 Reference Case") for CC multi-shaft / CT frame.
+#  * Method (2023 Reference Case documentation, Section 4.4.3): Step 1 is the capacity that can be
+#    built in a run year without an adder; above it the Step 2 or Step 3 adder applies to the
+#    entire capacity deployed in that run year; adders apply to run years through 2035 only.
+#  * Build windows. Table 2-1 (2023 Reference Case, p. 2-6) maps calendar years to run years for
+#    dispatch and costs (2028 = 2028-29, 2030 = 2030-31, 2035 = 2032-37), but the Step 1 bounds
+#    imply different build windows. Across every 2025 row, Step 1(2035)/Step 1(2030) = 2.50 (coal,
+#    fuel cell, biomass, CC+CT, wind, landfill gas) and Step 1(2028)/Step 1(2030) = 2.00-2.14 (coal
+#    and fuel cell exactly 2.000 / 2.500): the bounds scale with 4 / 2 / 5 build years, so 2028
+#    absorbs 2026-29 (new builds from the start of the planning horizon), 2030 = 2030-31 and
+#    2035 = 2032-36. Per year that gives near-flat rates (wind 17.1 / 16.5 / 16.5 GW/yr). Solar PV,
+#    nuclear, solar thermal, hydro and geothermal have 2035/2030 = 2.05: same window, a ~18% lower
+#    rate per year in 2035.
+#  * 45X: Section 4.4.3 (2023) widens renewable steps by 21% / 29% / 50% in 2028 / 2030 / 2035. The
+#    2023 Table 4-13 already embeds this (wind and solar 2035/2030 Step 1 ratio 2.907 = 2.5 x
+#    1.50/1.29, against 2.5 for CC+CT). In the 2025 table wind's ratio is 2.500, like CC+CT, and the
+#    2025 document does not restate the scalar, so the published 2025 bounds are used as is.
+#  * Caveat: the 2025 document captions Table 4-12 "EPA 2023 Reference Case", but its values differ
+#    from the 2023 document's Table 4-12 (CC multi-shaft 2028: $732 vs $989/kW); treated as 2025.
+#  * v6_post_ira_2022: EPA Platform v6 Post-IRA 2022 Reference Case Table 4-13 (2019$), kept as a
+#    historical column only; its run-year mapping was never available, so it is not converted.
+ipm:
+  edition: EPA 2025 Reference Case
+  dollar_year: 2022
+  step1_mw:
+    wind_onshore: {2028: 68555, 2030: 33089, 2035: 82724}
+    solar: {2028: 184882, 2030: 86378, 2035: 177003}
+    gas: {2028: 91596, 2030: 44253, 2035: 110632}     # Combined Cycle + Combustion Turbine row
+  build_window_first_year: 2026                       # first run year's window starts here
+  run_year_span: {2028: 4, 2030: 2, 2035: 5}          # build years per run year (2026-29, 2030-31, 2032-36)
+  apply_45x_scalars: false
+  scalars_45x: {2028: 1.21, 2030: 1.29, 2035: 1.50}   # 2023 Section 4.4.3; not applied (see above)
+  table_4_13:                                         # record only (not read by the model)
+    wind_onshore:
+      step2_mw: {2028: 118448, 2030: 57547, 2035: 143867}
+      adder_step2_per_kw: {2028: 582, 2030: 540, 2035: 505}
+      adder_step3_per_kw: {2028: 1848, 2030: 1714, 2035: 1603}
+      base_capex_per_kw: {2028: 1206, 2030: 1159, 2035: 1102}
+    solar:
+      step2_mw: {2028: 308122, 2030: 150222, 2035: 307832}
+      adder_step2_per_kw: {2028: 507, 2030: 465, 2035: 385}
+      adder_step3_per_kw: {2028: 1611, 2030: 1477, 2035: 1224}
+      base_capex_per_kw: {2028: 1065, 2030: 1005, 2035: 856}
+    gas:
+      step2_mw: {2028: 157013, 2030: 76962, 2035: 192404}
+      adder_step2_per_kw: {2028: 308, 2030: 294, 2035: 273}
+      adder_step3_per_kw: {2028: 979, 2030: 933, 2035: 867}
+      base_capex_per_kw: {cc_multi_shaft: {2028: 732, 2030: 714, 2035: 681},
+                          ct_industrial_frame: {2028: 694, 2030: 670, 2035: 622}}
+  v6_post_ira_2022:                                   # historical (2019$)
+    step1_mw:
+      wind_onshore: {2028: 192613, 2030: 50181, 2035: 145875}
+      solar: {2028: 148217, 2030: 37485, 2035: 108968}
+      gas: {2028: 463134, 2030: 132009, 2035: 330022}
+    adder_step2_per_kw: {wind_onshore: {2028: 220, 2030: 176, 2035: 142}, solar: {2028: 217, 2030: 154, 2035: 134}}
+    adder_step3_per_kw: {wind_onshore: {2028: 700, 2030: 559, 2035: 451}, solar: {2028: 688, 2030: 489, 2035: 426}}
+    base_capex_per_kw: {wind_onshore: {2028: 995, 2030: 910, 2035: 865}, solar: {2028: 877, 2030: 759, 2035: 726}}
+
+horizon_last_year: 2050

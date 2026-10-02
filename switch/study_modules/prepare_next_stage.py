@@ -266,6 +266,8 @@ def post_solve(m, outdir):
     costs = merge_build_data(costs, "gen_build_costs.csv")
     to_csv(costs, chained(next_in_path, "gen_build_costs.csv"))
 
+    chain_build_rate_inputs(m, in_path, next_in_path, chained, possibly_chained, read_csv, to_csv)
+
     # combine starting transmission for this case with transmission expansion
     trans = read_csv(possibly_chained(in_path, "transmission_lines.csv"))
     trans_built = (
@@ -318,3 +320,27 @@ if __name__ == "__main__":
         raise RuntimeError(
             "usage: python prepare_next_stage.py <inputs-dir> <outputs-dir>"
         )
+
+
+def chain_build_rate_inputs(m, in_path, next_in_path, chained, possibly_chained, read_csv, to_csv):
+    """Carry the best build rate achieved so far into the next myopic stage (study_modules.build_rate).
+
+    Writes build_rate_prev_build.chained.<case>.csv in the next stage's inputs dir with, per group,
+    the larger of this stage's new build per year in its last period and any rate chained in from
+    earlier stages, so the ramp bound never falls below the best rate already achieved.
+    No-op unless the build_rate module is active.
+    """
+    if not hasattr(m, "BR_GROUP_PERIODS") or not len(m.BR_GROUP_PERIODS):
+        return
+    from pyomo.environ import value
+
+    last = m.PERIODS.last()
+    rates = {grp: value(m.BRNewBuild[grp, p]) / value(m.br_window_years[p])
+             for (grp, p) in m.BR_GROUP_PERIODS if p == last}
+    prev_path = possibly_chained(in_path, "build_rate_prev_build.csv")
+    if prev_path.exists():
+        for _, r in read_csv(prev_path).iterrows():
+            rates[r["BR_GROUP"]] = max(rates.get(r["BR_GROUP"], 0.0), float(r["br_prev_rate_mw_per_yr"]))
+    to_csv(pd.DataFrame({"BR_GROUP": list(rates), "br_prev_rate_mw_per_yr": list(rates.values())}),
+           chained(next_in_path, "build_rate_prev_build.csv"))
+

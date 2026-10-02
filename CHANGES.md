@@ -796,3 +796,76 @@ Top-5 utilities by CO2: 195, 6452, 7140, 18642, 19876.
 Added a script to remove RPS, CES, min-cap, and max-cap policies for historical
 (non-planning) periods. Prevents constraint infeasibility in historical
 calibration runs where future policy targets should not apply.
+
+---
+
+## 39. Build-Rate Supply Curves (replacing trend-based growth caps)
+
+**Date:** 2026-10-02 · **Branch:** `tom/build-rate` (off `edf-baseline`)
+**See also:** `Guides and documentation/build_rate.md`. (Numbered after `tom/ic-test-fedpol`'s §38,
+where this will be tested.)
+
+A data-anchored, tiered build-rate limit for new onshore wind, solar and storage (gas opt-in),
+meant to replace `MaxCapTag_WindGrowth` / `SolarGrowth` growth caps.
+
+**Files (new):**
+- `build_rate/` — pipeline (pandas): EIA-860M base rates 2015–25 by group and transreg, R0 by level,
+  LBNL Queued Up near-term rates to 2030 (IA executed / under construction × completion rate,
+  phased by COD), growth to 2050, regional shares and floors, tier tables. `python -m brc.cli run`
+  writes `build_rate/outputs/`. Placeholders marked in `build_rate/config.yaml`.
+  `build_rate/brc/switch_case.py` writes the case inputs.
+- `switch/study_modules/build_rate.py` — per group and period: NewBuild = Σ tiers; tier ≤ width ×
+  R × window; R ≤ data rate and ≤ ramp from the previous period; regional ceilings; marginal tier
+  adders in `Cost_Components_Per_Period` (BuildRateCosts). Outputs tiers built, duals ($/kW) and
+  new build. No-op without `build_rate_*.csv`.
+- `pg/settings/build_rate.yml` — `enabled: false` by default.
+
+**Files changed (small, self-contained blocks):**
+- `pg_to_switch.py` — `write_build_rate_files()` after the other case files; chained
+  `build_rate_prev_build.csv` input alias for myopic stages when enabled.
+- `switch/study_modules/prepare_next_stage.py` — new `chain_build_rate_inputs()` (best build rate so
+  far → next stage), called once from `post_solve`.
+- `switch/modules.txt` — `study_modules.build_rate`.
+- `pg/settings/scenario_management.yml` — `build_rate` axis (off/low/central/high/reform/high_ipm),
+  touching only `build_rate.*` keys.
+- `.gitignore` — whitelists `build_rate/`, ignores its `data/raw/` and `outputs/`.
+
+**Behaviour with the setting off:** unchanged. Gas with `MaxCapTag_GasTurbineSupply` still active, or
+a MinCap target above the ceiling, stops the case build with a message.
+
+**IPM reference (update):** IPM inputs come from the EPA 2025 Reference Case (incremental
+documentation: Table 4-13 adders and bounds, 2022$; Tables 4-12 / 4-15 capex; Table 4-12's caption
+says "2023" but its values are new) with the method from the EPA 2023 Reference Case (Section
+4.4.3). Step 1 bounds convert to per-year rates over the build windows the bounds imply (2028 = 4
+years from 2026, 2030 = 2, 2035 = 5; every row's 2035/2030 ratio is 2.50 or 2.05), not Table 2-1's
+dispatch mapping. `high_ipm` uses IPM's shape: R = Step 1 per year, free to 1.0R, +46% to 1.74R,
++147% above with no ceiling (gas +44% / +140%; storage free), no adders after 2036, charged
+marginally. Central stays at +15% / +50% with the ceiling at 2.0R. Platform v6 values are kept as a
+historical column.
+
+**Window sums and patch mode (update):** cumulative limits (bands, ceiling, regional ceilings and
+floors) are the sum of the annual values over each build window (`_window_sum` in
+`switch_case.py`), so one 2035 period and a 2028/2030/2035 run get the same totals; toy tests
+cover the writer and a Switch solve. `python -m brc.cli patch-case <inputs_dir>` adds build_rate to
+an existing case without rebuilding it.
+
+**Regional floors (update):** floor_r,G = max(floor_min_G, k_stock_G × capacity in service at
+end-2025, k_peak_G × peak annual build 2010–25), all PLACEHOLDER (wind 500 MW/yr / 0.05 / 0.75;
+solar 1,000 / 0.05 / 0.75; storage 500 / 0.10 / 0.75; gas flat 500); reform scales all three for
+wind (1,500 / 0.10 / 1.5) and keeps the 3.0 multiplier. New `floor_basis.csv` output. Case-build
+RPS warning (`check_rps`) for high-share programs without an ACP in floor-limited transregs.
+Ported aecee82 (patch-case reads PowerGenome's `BUILD_YEAR`). Toy tests read `$SWITCH_SRC`.
+
+**R0 rules (update):** low = min(mean 2023–25, mean 2021–25), central = max(the same), high = best
+year 2021–25; the pipeline stops unless low ≤ central ≤ high.
+
+**Per-group regional limits (update):** regional (transreg) ceilings only for `regional_groups`
+(default `[wind_onshore, solar]`); storage and gas keep the national limit only. On the VM, storage
+regional ceilings (500 MW/yr floors) held central to 36 GW against an EIA pace of ~83 GW, because
+2021–25 storage build was concentrated in CAISO / ERCOT / WestConnect; storage is supply-chain
+limited, not siting limited. Setting in `pg/settings/build_rate.yml`; `patch-case --regional-groups`.
+
+**Future development recorded (not implemented):** dynamic regional limits, where a region's floor
+and ramp respond to its own deployment in earlier periods (exact in myopic chaining, additive linear
+approximation under perfect foresight; national ceiling stays exogenous). See "Future development"
+in `Guides and documentation/build_rate.md`.
