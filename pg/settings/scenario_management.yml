@@ -1287,6 +1287,18 @@ settings_management:
         build_rate: {enabled: true, level: reform}
       high_ipm:
         build_rate: {enabled: true, level: high_ipm}
+    # S0 production case build (pg/settings/s0_production.yml, s0_workflow/production.py). Touches
+    # only s0_production.*; the settings it turns on are merged by pg_to_switch.py. Needs an
+    # `s0_production` column in scenario_inputs.csv (off in every row that predates it).
+    s0_production:
+      "off":
+        s0_production: {enabled: false}
+      "on":
+        s0_production: {enabled: true}
+      on_windows:
+        s0_production: {enabled: true, foresight: {mode: windows}}
+      on_pgdays:
+        s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}
     policies:
       current:
         # Per-program costs and hard RGGI cap; CCR prices are year-specific below.
@@ -1334,7 +1346,7 @@ settings_management:
       S0_uncapped:
         # Identical to S0 except max_cap_req_fn: national + all 9 regional
         # wind/solar growth caps released (growth_caps/uncapped.csv). Other
-        # MaxCapTag programs (Ban, NuclearGrowth, GasTurbineSupply) unchanged.
+        # MaxCapTag programs (Ban, NuclearGrowth) unchanged; the gas-turbine cap is build_rate.gas_turbine_cap.
         # Used by the s4x1_S0unc_2035_ic* interconnection-headroom test cases.
         carbon_cost_by_program:
           "ETS 1": .
@@ -5478,9 +5490,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 451444.19999999995
   2025:
     offshore_wind_policy:
       capped_2025:
@@ -5540,9 +5549,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 461110.86666666664
   2026:
     offshore_wind_policy:
       capped_2025:
@@ -5614,9 +5620,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 470777.53333333327
   2027:
     offshore_wind_policy:
       capped_2025:
@@ -5688,9 +5691,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 480444.19999999995
   2028:
     offshore_wind_policy:
       capped_2025:
@@ -5772,9 +5772,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 490110.86666666664
   2029:
     offshore_wind_policy:
       capped_2025:
@@ -5853,9 +5850,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 499777.53333333327
   2030:
     offshore_wind_policy:
       capped_2025:
@@ -5957,9 +5951,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 100016.40000000001
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 509444.19999999995
   2035:
     offshore_wind_policy:
       capped_2025:
@@ -6102,9 +6093,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 110016.40000000001
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 557777.5333333333
   2040:
     offshore_wind_policy:
       capped_2025:
@@ -6237,9 +6225,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 199315.6
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 606110.8666666666
   2045:
     offshore_wind_policy:
       capped_2025:
@@ -6372,9 +6357,6 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 421520.58534399996
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 654444.2
   2050:
     offshore_wind_policy:
       capped_2025:
@@ -6507,6 +6489,3 @@ settings_management:
         MaxCapTag_NuclearGrowth:
           description: National Nuclear Growth Limit
           max_mw: 974437.6944751819
-        MaxCapTag_GasTurbineSupply:
-          description: Gas Turbine Supply-Chain Limit
-          max_mw: 702777.5333333332

@@ -1,0 +1,120 @@
+# S0 production case build: one settings block that turns on everything the S0 test workflow did by
+# hand (s0_workflow/README.md). Code: s0_workflow/production.py and s0_workflow/day_selection.py, called
+# from pg_to_switch.py. Inert unless s0_production.enabled, which the `s0_production` column of
+# pg/extra_inputs/scenario_inputs.csv sets per case (axis in scenario_management.yml):
+#   off          (default for every existing row)
+#   on           everything below; fleet-independent days; mode A (myopic chain of single years)
+#   on_windows   as `on`, mode B (rolling two-period windows)
+#   on_pgdays    as `on` with PowerGenome's k-means days and no chain (one case, all its years
+#                together): the s4x1 2035 regression case against the ic_v4 B6+B8 + NY buyout run
+# Changes to shared code and defaults made for this are listed in SHARED_CHANGES.md.
+s0_production:
+  enabled: false
+
+  # deep-merged over the case's settings for every model year when enabled
+  settings:
+    # build-rate central "v2" (the build_rate_*.central.v2 aliases of the test runs: 87729a5 defaults,
+    # transreg ceilings for wind and solar, storage national-only)
+    build_rate:
+      enabled: true
+      level: central
+      groups: [wind_onshore, solar, storage]
+      regional: true
+      regional_groups: [wind_onshore, solar]
+    # interconnection headroom, atts_s0 (host mode; the ic_v4 inputs of the test runs)
+    interconnection_headroom:
+      enabled: true
+      scenario: atts_s0
+
+  # diagnostic slack on the headroom limit ($/MW; ic_params.ic_v2 of the test runs), so a case that
+  # cannot meet the headroom limit solves and reports where (ic_headroom.csv)
+  interconnection_slack_cost_per_mw: 5.0e7
+
+  # item 1: representative days, selected per model year (s0_workflow/day_selection.py)
+  time_sampling:
+    method: fleet_independent      # fleet_independent | powergenome (PowerGenome k-means)
+    n_days: 24                     # including the 3 + 3 tail days; plus PowerGenome's peak-load day
+    n_top_load_days: 3
+    n_low_net_load_days: 3
+    tolerances:                    # by transreg and nationally, full-record means
+      load_rel: 0.01               # mean load, relative
+      wind_cf: 0.010               # mean onshore-wind CF (x the wind-loss factor), absolute
+      solar_cf: 0.005              # mean utility solar CF, absolute
+    top_load_share_pct: [0.75, 1.25]      # sample weight of the top-1% load hours (%)
+    low_net_load_share_pct: [0.5, 1.5]    # sample weight of the bottom-1% net-load hours (%)
+    # net load for the low tail: solved runs (folders with dispatch_gen_annual_summary.csv), or, when
+    # empty, a stylised fleet with wind and solar sized to these shares of each region's load
+    low_net_load_fleets: []
+    stylised_fleet: {wind_energy_share: 0.20, solar_energy_share: 0.20}
+    w_min: 1.0                     # days/yr
+    seed: 0
+    kmeans_n_init: 20
+    relax: {factor: 1.5, max_steps: 2}
+    diag_dir: time_sampling        # diagnostics in <case>/time_sampling/<model year>/
+
+  # item 2: new CC/CT capex
+  gas_capex:
+    # atb_moderate: ATB 2024 Moderate (the GridLab absolute override in resources.yml atb_modifiers is
+    #   neutralised; PowerGenome averages ATB over each period's span, as test step B6 did)
+    # gridlab_fade: ATB Moderate x (1 + w(year) x (ratio - 1)), w = 1 to full_until, falling linearly
+    #   to 0 at zero_by
+    # gridlab: the resources.yml override as is (pre-S0-production behaviour)
+    mode: atb_moderate
+    gridlab_fade:
+      full_until: 2030             # GridLab's figures are a 2030 read
+      zero_by: 2033
+      # GridLab 2030 / ATB 2024 Moderate (2031-35 mean, 2022$), the inverse of the B6 factors
+      ratios:
+        "NaturalGas_1-on-1 Combined Cycle (H-Frame)": 1.353953  # 2,061,000 / 1,522,209
+        "NaturalGas_Combustion Turbine (F-Frame)": 1.421715     # 1,606,000 / 1,129,622
+
+  # item 3: zonal coal CF caps (s0_workflow/data/README.md)
+  coal_cf_caps:
+    enabled: true
+    table: s0_workflow/data/coal_cf_caps_eia923_2021_2024.csv   # s0_workflow/scripts/fetch_coal_cf_eia923.py
+    min_history_mw: 500
+    fallback_cf: 0.65
+
+  # item 4: wind losses (ATB/ReEDS 13.4% against the 1.7% in the reV profiles): CF x 0.88098
+  wind_loss:
+    enabled: true
+    factor: 0.8809766022380468     # (1 - 0.134) / (1 - 0.017)
+    onshore: true                  # LandbasedWind_* and existing "Onshore Wind Turbine"
+    offshore: true                 # OffShoreWind_* and existing "Offshore Wind Turbine" (windloss2)
+
+  # item 4: NY RPS buyout: NYSERDA's 2024 Tier 1 ACP, the last published (from 2025 Tier 1 is a
+  # load-share charge with no ACP). ESR_NY_ces and every other program stay hard requirements.
+  # https://www.nyserda.ny.gov/All-Programs/Clean-Energy-Standard/LSE-Obligations/2024-Compliance-Year
+  rps_acp:
+    enabled: true
+    programs: {ESR_NY_rps: 45.39}
+
+  # item 6: extra Switch modules on the case's scenario line (not switch/modules.txt)
+  extra_modules: [study_modules.gen_amortization_period]
+
+  # item 8 prerequisite: no economic retirement of existing coal or gas in periods before 2030,
+  # economic from 2030 (study_modules.retirement_rules, added to the scenario line)
+  retirement_rule:
+    enabled: true
+    no_retirement_before: 2030
+    energy_sources: [coal, naturalgas]
+
+  # item 8: bounded foresight
+  foresight:
+    mode: myopic                   # single | myopic (mode A) | windows (mode B)
+    window_periods: 2              # mode B: 2028-30, 2030-35, 2035-40, 2040-45
+  # Period spans (INVESTMENT_PERIOD: first and last calendar year), the repo convention that a
+  # period ends at its model year. They come from model_definition.yml (model_year /
+  # model_first_planning_year); apply_settings checks they agree. How the span enters the model:
+  #   costs: each year of the span is charged the period's annual costs, discounted (Switch
+  #     bring_annual_costs_to_base_year); ATB capex is the mean over the span (PowerGenome)
+  #   annuities: new capacity pays overnight cost x crf(interest, gen_amortization_period) each year
+  #     it is in service, so a 2-year period carries two years of it
+  #   build-rate limits: window W = span length; cumulative ceilings are sums of annual rates over
+  #     the window; the gas-turbine cap is in-service MW at the period (cumulative form)
+  period_spans:
+    2028: [2026, 2028]
+    2030: [2029, 2030]
+    2035: [2031, 2035]
+    2040: [2036, 2040]
+    2045: [2041, 2045]

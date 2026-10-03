@@ -423,27 +423,31 @@ def post_solve(m, outdir):
         print("WARNING: interconnection_headroom diagnostic slack used:",
               ", ".join(f"{r.load_zone}/{r.period} {r.headroom_slack_mw:.1f} MW" for r in used.itertuples()))
 
-    # remaining state, for chaining myopic stages (prepare_next_stage.chain_ic_inputs)
-    last = m.PERIODS.last()
-    pd.DataFrame([{"ic_tranche": t, "ic_zone": m.ic_tranche_zone[t], "period": last,
-                   "used_mw": value(m.ICStep[t, last])} for t in m.IC_TRANCHES]).to_csv(
+    # remaining state, for chaining myopic stages (prepare_next_stage.chain_ic_inputs): cumulative
+    # values for every period, so a rolling-window stage can hand on its committed period
+    pd.DataFrame([{"ic_tranche": t, "ic_zone": m.ic_tranche_zone[t], "period": p,
+                   "used_mw": value(m.ICStep[t, p])} for p in m.PERIODS for t in m.IC_TRANCHES],
+                 columns=["ic_tranche", "ic_zone", "period", "used_mw"]).to_csv(
         os.path.join(outdir, "ic_tranches_built.csv"), index=False)
-    pd.DataFrame([{"ic_uprate": u, "ic_zone": m.ic_uprate_zone[u], "period": last,
-                   "built_mw": value(m.ICUprateCapacity[u, last])} for u in m.IC_UPRATES]).to_csv(
+    pd.DataFrame([{"ic_uprate": u, "ic_zone": m.ic_uprate_zone[u], "period": p,
+                   "built_mw": value(m.ICUprateCapacity[u, p])} for p in m.PERIODS for u in m.IC_UPRATES],
+                 columns=["ic_uprate", "ic_zone", "period", "built_mw"]).to_csv(
         os.path.join(outdir, "ic_uprates_built.csv"), index=False)
-    pd.DataFrame([{"ic_zone": i, "period": last, "released_mw": value(m.ICRelease[i, last])}
-                  for i in m.IC_ZONES]).to_csv(os.path.join(outdir, "ic_release_built.csv"), index=False)
-    # hosted headroom (host uprates) not used by this stage's builds: the headroom constraint's slack in
-    # the load zone, up to the hosted MW, shared across its IC zones in proportion to hosted MW
+    pd.DataFrame([{"ic_zone": i, "period": p, "released_mw": value(m.ICRelease[i, p])}
+                  for p in m.PERIODS for i in m.IC_ZONES]).to_csv(os.path.join(outdir, "ic_release_built.csv"),
+                                                                   index=False)
+    # hosted headroom (host uprates) not used by builds: the headroom constraint's slack in the load
+    # zone, up to the hosted MW, shared across its IC zones in proportion to hosted MW
     hosted_rows = []
-    for z in m.IC_ACTIVE_LOAD_ZONES:
-        con = m.IC_Headroom_Limit[z, last]
-        slack = max(0.0, value(con.upper) - value(con.body)) if con.has_ub() else 0.0
-        hz = {i: value(m.ICHostedHeadroom[i, last]) for i in m.IC_ZONES_IN_LOAD_ZONE[z]}
-        tot = sum(hz.values())
-        for i, h in hz.items():
-            hosted_rows.append({"ic_zone": i, "period": last, "hosted_mw": h,
-                                "unused_mw": min(slack, tot) * h / tot if tot > 1e-9 else 0.0})
+    for p in m.PERIODS:
+        for z in m.IC_ACTIVE_LOAD_ZONES:
+            con = m.IC_Headroom_Limit[z, p]
+            slack = max(0.0, value(con.upper) - value(con.body)) if con.has_ub() else 0.0
+            hz = {i: value(m.ICHostedHeadroom[i, p]) for i in m.IC_ZONES_IN_LOAD_ZONE[z]}
+            tot = sum(hz.values())
+            for i, h in hz.items():
+                hosted_rows.append({"ic_zone": i, "period": p, "hosted_mw": h,
+                                    "unused_mw": min(slack, tot) * h / tot if tot > 1e-9 else 0.0})
     pd.DataFrame(hosted_rows, columns=["ic_zone", "period", "hosted_mw", "unused_mw"]).to_csv(
         os.path.join(outdir, "ic_hosted_built.csv"), index=False)
 

@@ -34,6 +34,21 @@ build_rate_tiers.csv    BR_GROUP, PERIOD, BR_TIER, br_tier_width, br_tier_adder_
 build_rate_zones.csv    LOAD_ZONE, br_zone_region                                      [optional]
 build_rate_regions.csv  BR_GROUP, BR_REGION, PERIOD, br_region_max_mw_per_yr           [optional]
 build_rate_prev_build.csv  BR_GROUP, br_prev_rate_mw_per_yr  (myopic chaining)         [optional]
+
+Gas-turbine supply cap (configurable gas group; replaces MaxCapTag_GasTurbineSupply; written by
+build_rate/brc/turbine_cap.py whenever build_rate.gas_turbine_cap.enabled, independently of the
+groups above):
+
+  cumulative_in_service:     sum over covered g of weight_g x (MW of g alive in p) <= gtc_max_mw[p]
+                             (BuildGen of every vintage alive in p; net of SuspendGen only when
+                             gtc_retirements_free_room = 1)
+  new_additions_per_period:  sum over covered g of weight_g x (MW with a build year in p's window)
+                             <= gtc_max_mw[p]
+
+gas_turbine_cap_gens.csv    GENERATION_PROJECT, gtc_class, gtc_weight                    [optional]
+gas_turbine_cap.csv         PERIOD, gtc_max_mw                                           [optional]
+gas_turbine_cap_params.csv  gtc_form, gtc_retirements_free_room                          [optional]
+Output: gas_turbine_cap_results.csv (covered MW, cap and dual per period).
 """
 import os
 
@@ -144,6 +159,27 @@ def define_components(m):
         return sum(terms) <= m.br_region_max_mw_per_yr[grp, r, p] * m.br_window_years[p]
     m.BR_Region = Constraint(m.BR_REGION_PERIODS, rule=region_rule)
 
+    # ---- gas-turbine supply cap ----------------------------------------------
+    m.GTC_GENS = Set(dimen=1, within=m.GENERATION_PROJECTS)
+    m.gtc_class = Param(m.GTC_GENS, within=Any, default="")
+    m.gtc_weight = Param(m.GTC_GENS, within=NonNegativeReals, default=1.0)
+    m.GTC_PERIODS = Set(dimen=1, within=m.PERIODS)
+    m.gtc_max_mw = Param(m.GTC_PERIODS, within=NonNegativeReals)
+    m.gtc_form = Param(within=Any, default="cumulative_in_service")
+    m.gtc_retirements_free_room = Param(within=Any, default=0)
+
+    def gtc_mw(m, p):
+        if value(m.gtc_form) == "new_additions_per_period":
+            return sum(m.gtc_weight[g] * m.BuildGen[g, y] for g in m.GTC_GENS
+                       for y in m.BLD_YRS_FOR_GEN[g] if build_period(m, y) == p)
+        net = str(value(m.gtc_retirements_free_room)).strip() in ("1", "1.0", "True", "true")
+        return sum(m.gtc_weight[g] * (m.BuildGen[g, y]
+                                      - (m.SuspendGen[g, y, p] if net and (g, y, p) in m.GEN_BLD_SUSPEND_YRS else 0))
+                   for g in m.GTC_GENS for y in m.BLD_YRS_FOR_GEN_PERIOD[g, p])
+    m.GTCCoveredMW = Expression(m.GTC_PERIODS, rule=gtc_mw)
+    m.GTC_Cap = Constraint(m.GTC_PERIODS, rule=lambda m, p: m.GTCCoveredMW[p] <= m.gtc_max_mw[p]
+                           if m.GTC_GENS else Constraint.Skip)
+
     # one-time adder cost per vintage (overnight $), annualised over the group's life
     m.BRAdderOvernight = Expression(m.BR_GROUP_PERIODS, rule=lambda m, grp, p: sum(
         m.BRTier[t] * m.br_tier_adder_per_mw[t] for t in m.BR_TIERS if t[0] == grp and t[1] == p)
@@ -161,6 +197,15 @@ def define_components(m):
 
 
 def load_inputs(m, switch_data, inputs_dir):
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "gas_turbine_cap_gens.csv"), optional=True, index=m.GTC_GENS,
+        param=(m.gtc_class, m.gtc_weight))
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "gas_turbine_cap.csv"), optional=True, index=m.GTC_PERIODS,
+        param=(m.gtc_max_mw,))
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "gas_turbine_cap_params.csv"), optional=True,
+        param=(m.gtc_form, m.gtc_retirements_free_room))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "build_rate_groups.csv"), optional=True, index=m.BR_GROUPS,
         optional_params=["br_growth", "br_ramp_floor_mw", "br_life_years", "br_ceiling_slack_cost_per_mw"],
@@ -195,12 +240,18 @@ def pv_factor(m, grp, v):
 def post_solve(m, outdir):
     import pandas as pd
 
-    if not len(m.BR_GROUP_PERIODS):
-        return
     dual = getattr(m, "dual", None)
 
     def d(c):
         return dual[c] if dual is not None and c in dual else None
+
+    if len(m.GTC_PERIODS) and len(m.GTC_GENS):
+        pd.DataFrame([{"period": p, "form": value(m.gtc_form), "covered_mw": value(m.GTCCoveredMW[p]),
+                       "cap_mw": value(m.gtc_max_mw[p]),
+                       "dual": d(m.GTC_Cap[p]) if p in m.GTC_Cap else None} for p in m.GTC_PERIODS]).to_csv(
+            os.path.join(outdir, "gas_turbine_cap_results.csv"), index=False)
+    if not len(m.BR_GROUP_PERIODS):
+        return
 
     rows, drows, nrows = [], [], []
     for (grp, p) in m.BR_GROUP_PERIODS:

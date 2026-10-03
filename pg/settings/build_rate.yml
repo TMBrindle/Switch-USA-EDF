@@ -17,3 +17,37 @@ build_rate:
   # transreg ceilings only for siting-limited groups; storage and gas stay national-only
   regional_groups: [wind_onshore, solar]
   ceiling_slack_cost: null   # $/kW; diagnostic slack above the ceiling (off when null)
+  # Gas-turbine supply cap (moved here from make_emission_policies.py's MaxCapTag_GasTurbineSupply,
+  # Oct 2026; see SHARED_CHANGES.md). Active whenever gas_turbine_cap.enabled, independently of
+  # build_rate.enabled; written by build_rate/brc/turbine_cap.py, enforced by study_modules.build_rate.
+  # When on, the case's MaxCapTag_GasTurbineSupply rows are dropped from max_cap_requirements.csv /
+  # max_cap_generators.csv so the two never both apply. The defaults reproduce that cap exactly:
+  #   cap(P) = 451,444.2 MW + 9,666.67 MW/yr x (P - 2024), on cumulative in-service CC + CT capacity
+  #   (existing, planned and new), economic retirements not freeing room, raised to the covered
+  #   generators' predetermined MW where that is higher (as cap_req_files did).
+  # Source of the default: Wood Mackenzie, 58 GW of gas additions 2025-30 (58,000 / 6 MW/yr), extended
+  # linearly; baseline = EIA-860M CC + CT winter capacity operating by 2024 with no planned
+  # retirement. A separate research task will supply a new trajectory (annual_additions_mw).
+  gas_turbine_cap:
+    enabled: true
+    baseline_year: 2024
+    baseline_mw: 451444.2
+    # MW/yr added by build year; years after the last key repeat its value, years before the first
+    # use the first value
+    annual_additions_mw: {2025: 9666.666666666666}
+    # combined_cycle | combustion_turbine | aeroderivative | reciprocating_engine. Existing
+    # aeroderivatives are inside EIA's "Natural Gas Fired Combustion Turbine" and count as
+    # combustion_turbine; new-build ATB "Combustion Turbine (Aeroderivative)" counts as aeroderivative.
+    coverage: [combined_cycle, combustion_turbine]
+    # full_plant: CC counts at full plant MW (default, as the old cap); turbine_share: only the gas
+    # turbines' share of CC MW (cc_turbine_share) counts
+    cc_accounting: full_plant
+    cc_turbine_share: 0.67      # PLACEHOLDER (1-on-1 CC: CT ~2/3 of plant MW); used only with turbine_share
+    # cumulative_in_service: covered MW in service in each period (all vintages alive) <= cap(P)
+    # new_additions_per_period: covered MW with a build year in the period's window <= sum of
+    #   annual_additions_mw over the window
+    form: cumulative_in_service
+    # cumulative form only: false (default) = economic retirements don't free room (BuildGen, not net
+    # of SuspendGen); true = net of SuspendGen
+    retirements_free_room: false
+

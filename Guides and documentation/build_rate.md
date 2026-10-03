@@ -382,6 +382,27 @@ Real-case tests run on the VM by merging this branch into `tom/ic-test-fedpol`, 
    EIA 2021–25 value), `build_rate_tiers_built.csv` (which bands fill), `build_rate_duals.csv` (ceiling
    price in $/kW), and `costs_itemized.csv` (BuildRateCosts).
 
+## Gas-turbine supply cap (`build_rate.gas_turbine_cap`)
+
+Moved here from `make_emission_policies.py`'s `MaxCapTag_GasTurbineSupply` (CHANGES §44,
+SHARED_CHANGES.md). It is on by default and applies whether or not `build_rate.enabled`.
+`build_rate/brc/turbine_cap.py` writes `gas_turbine_cap_gens.csv`, `gas_turbine_cap.csv` and
+`gas_turbine_cap_params.csv`, and drops the MaxCapTag rows from `max_cap_*`.
+`study_modules.build_rate` enforces it; output `gas_turbine_cap_results.csv`.
+
+The options:
+- annual additions by year (`annual_additions_mw`);
+- coverage (combined cycle, combustion turbine, aeroderivative, reciprocating engine);
+- CC at full plant MW or its turbine share;
+- cumulative in-service vs new additions per period;
+- whether economic retirements free room.
+
+The defaults reproduce the old cap exactly: 451,444.2 MW in 2024 + 9,666.67 MW/yr (Wood Mackenzie
+58 GW over 2025-30, extended linearly), cumulative in-service CC + CT, retirements not freeing room,
+raised to the covered predetermined MW. This cap is separate from the opt-in `gas` tier group above.
+Both may apply.
+See `Guides and documentation/s0_production.md` for the table of settings.
+
 ## Placeholders (all marked in build_rate/config.yaml)
 
 construction completion rate (0.9), overdue-pipeline rule (spread evenly 2026–30), growth rates

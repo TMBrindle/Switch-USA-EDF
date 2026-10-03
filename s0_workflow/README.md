@@ -1,6 +1,22 @@
-# s0_workflow: staging copies of the S0 test-workflow scripts
+# s0_workflow: S0 production build (and the staged test-workflow scripts)
 
-**Status:** staging only. Nothing here is wired into `pg_to_switch.py`, `modules.txt` or the settings.
+**Status (CHANGES §44):** productionised. The S0 production case now builds through tracked settings
+with no hand steps: `pg/settings/s0_production.yml`, switched on per case by the `s0_production`
+column of `scenario_inputs.csv`. See `Guides and documentation/s0_production.md` (what each setting
+replaces), `VM_RECIPES.md` (regression and mode-B recipes) and `../SHARED_CHANGES.md`.
+
+| Production code | Replaces |
+|---|---|
+| `production.py` | `case_aliases/*` (B6 gas capex, B8 coal caps, windloss/windloss2, NY ACP, build-rate central v2, headroom slack), the amortisation `--include-module`, stages for bounded foresight |
+| `day_selection.py` | `day_selection/netload_days_fi.py` + `pg_to_switch_netload.py` |
+| `coal_cf.py`, `scripts/fetch_coal_cf_eia923.py`, `data/` | `case_aliases/b8_coalcf.py` (PUDL), from public EIA-923/860 |
+| `scripts/compare_s0_runs.py`, `scripts/measure_run.py` | (new) regression and memory/time checks |
+| `tests/` | (new) |
+
+The staged scripts below are kept unchanged, for reference and to rebuild the October test runs.
+The rest of this file describes them.
+
+**Staged scripts:** nothing below is wired into `pg_to_switch.py`, `modules.txt` or the settings.
 
 These are the scripts behind the October 2026 S0 2035 test runs, collected so they can be reviewed and productionised. They were run from the VM work folder `ic_test_fedpol_work/` (outside the repo). The copies here:
 - take paths as arguments (repo-relative defaults) instead of hard-coded folders;

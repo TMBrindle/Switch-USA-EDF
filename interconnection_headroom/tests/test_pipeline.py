@@ -664,7 +664,7 @@ def test_switch_toy_conv_reinforcement_hosts_at_reeds_cost(tmp_path):
     marginal = abs(hr.loc[("North", 2030), "headroom_dual"]) / (capital_recovery_factor(r, 40) * pv) / 1000
     assert marginal == pytest.approx(line_cost / 1000, rel=1e-3)
     # carry-forward file for myopic chaining: hosted MW in the last period, none of it unused here
-    hb = pd.read_csv(run / "outputs/ic_hosted_built.csv").set_index("ic_zone")
+    hb = pd.read_csv(run / "outputs/ic_hosted_built.csv").query("period == 2030").set_index("ic_zone")
     assert hb.at["N", "hosted_mw"] == pytest.approx(n.hosted_mw) and hb.at["N", "unused_mw"] == pytest.approx(0, abs=1e-6)
     print(f"marginal headroom price North 2030: ${marginal:.2f}/kW (line cost ${line_cost / 1000:.0f}/kW)")
 

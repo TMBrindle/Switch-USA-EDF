@@ -91,20 +91,18 @@ max_growth_limits = [
         lambda y: 0 if y < 2035 else 10000 * 1.2 ** (y - 2035),
         "National Nuclear Growth Limit",
     ),
-    # Gas: 58 GW limit for 2025-2030 based on
+    # Gas turbine supply chain: moved to the build-rate module (Oct 2026), as
+    # build_rate.gas_turbine_cap in pg/settings/build_rate.yml (written by
+    # build_rate/brc/turbine_cap.py, enforced by study_modules.build_rate). Its
+    # defaults reproduce the cap this entry wrote: EIA-860M CC + CT baseline
+    # (451,444.2 MW operating by 2024, no planned retirement) + 58 GW / 6 yr
+    # (9,666.67 MW/yr), cumulative. Sources were:
     # https://www.woodmac.com/press-releases/coal-and-gas-generation-can-accommodate-40-to-75-of-expected-us-peak-demand-growth-through-20302/
-    # and anecdotal reports that gas turbine supply chains are maxed out in the 10-20 GW/year range
-    # see, e.g.,
     # https://pages.marketintelligence.spglobal.com/rs/565-BDO-100/images/Global%20gas%20turbine%20manufacturing%20faces%20soaring.pdf
     # https://www.utilitydive.com/news/mitsubishi-gas-turbine-manufacturing-capacity-expansion-supply-demand/759371/
     # https://gridlab.org/portfolio-item/gas-tubine-cost-report/
     # https://rmi.org/gas-turbine-supply-constraints-threaten-grid-reliability-more-affordable-near-term-solutions-can-help/
-    (
-        "MaxCapTag_GasTurbineSupply",
-        "technology_description.isin(['Natural Gas Fired Combined Cycle', 'Natural Gas Fired Combustion Turbine'])",
-        58000 / (2030 - 2024),
-        "Gas Turbine Supply-Chain Limit",
-    ),
+    # See SHARED_CHANGES.md.
 ]
 
 # EIA 860M balancing authority code → Switch transreg label.
@@ -615,9 +613,9 @@ for file, cdf in [
 #   2025:
 #     all_cases:
 #       MaxCapReq:
-#         MaxCapTag_GasTurbineSupply:
-#           description: Gas Turbine Supply-Chain Limit
-#           max_mw: 9700
+#         MaxCapTag_NuclearGrowth:
+#           description: National Nuclear Growth Limit
+#           max_mw: 10000
 #
 # National + regional wind/solar growth caps (MaxCapTag_WindGrowth,
 # MaxCapTag_SolarGrowth, MaxCapTag_WindGrowth_<transreg>) are NOT written to
@@ -672,7 +670,8 @@ for tag, selector, limit, description in max_growth_limits:
     lims.append((tag, description, lim_func, baseline_capacity))
 
 # write caps to the settings_management yaml entry in format above (Nuclear
-# and GasTurbineSupply only -- Wind/SolarGrowth go to growth_cap_rows instead)
+# only -- Wind/SolarGrowth go to growth_cap_rows instead; the gas-turbine cap
+# is in the build-rate module)
 for y in possible_model_years:
     d = {}
     for tag, description, lim_func, baseline_capacity in lims:

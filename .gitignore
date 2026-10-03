@@ -22,6 +22,7 @@ build_rate/data/raw/
 build_rate/outputs/
 !s0_workflow/
 !s0_workflow/**
+s0_workflow/data/raw/
 
 # include growth_rates/*.csv
 !growth_rates/

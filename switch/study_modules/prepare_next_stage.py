@@ -11,6 +11,20 @@ Prepare inputs for the next model stage when running a series of single-year
 Then, for chained models, alternative versions of gen_build_predetermined.csv,
 gen_build_costs.csv and transmission_lines.csv will be stored in the next inputs
 directory, with the filename changed to <filename>.chained.<case_name>.csv.
+
+Bounded foresight (stage_info.csv, written by pg_to_switch.py for S0 production chains; see
+s0_workflow/production.py): when this stage's inputs dir has stage_info.csv
+(stage, commit_period, next_stage), the next stage's inputs dir is
+<inputs root>/<next_stage>/<case> instead of the fixed year list below, and only what this stage
+committed is handed on:
+  * builds with a build year after the end of commit_period (later periods of a rolling window, and
+    predetermined builds dated after it, which the next stage supplies itself) are dropped;
+  * retirements (SuspendGen) only in periods up to commit_period;
+  * transmission built only in periods up to commit_period;
+  * interconnection headroom used, uprates built and released headroom as of commit_period;
+  * the build-rate ramp history from commit_period.
+With commit_period = this stage's last period (a myopic stage, or the last window) this is the
+same as before. Without stage_info.csv nothing changes.
 """
 
 import os, sys
@@ -34,6 +48,18 @@ def post_solve(m, outdir):
     out_path = Path(m.options.outputs_dir)
 
     year_name, case_name = out_path.parts[-2:]
+
+    stage = read_stage_info(in_path)
+    if stage is not None:
+        if stage["next_stage"] in (None, "", "."):
+            return   # last stage of the chain
+        next_in_path = Path(*in_path.parts[:-2], str(stage["next_stage"]), in_path.parts[-1])
+        if not next_in_path.exists():
+            raise FileNotFoundError(f"{__name__}: next stage inputs {next_in_path} (stage_info.csv) not found")
+        commit = int(stage["commit_period"])
+        periods = pd.read_csv(in_path / "periods.csv").set_index("INVESTMENT_PERIOD")
+        commit_end = int(periods.loc[commit, "period_end"])
+        return chain_stage(m, in_path, out_path, next_in_path, case_name, commit, commit_end)
 
     # sanity checks on directory names
     if year_name not in {str(y) for y in next_year_dict.keys()}:
@@ -62,6 +88,20 @@ def post_solve(m, outdir):
         *in_path.parts[:-2], str(next_year_dict[year]), in_path.parts[-1]
     )
 
+    return chain_stage(m, in_path, out_path, next_in_path, case_name, None, None)
+
+
+def read_stage_info(in_path):
+    """stage_info.csv in a stage's inputs dir as a dict, or None (legacy myopic chains)."""
+    p = Path(in_path) / "stage_info.csv"
+    if not p.exists():
+        return None
+    return pd.read_csv(p, dtype=str, keep_default_na=False).iloc[0].to_dict()
+
+
+def chain_stage(m, in_path, out_path, next_in_path, case_name, commit=None, commit_end=None):
+    """Write the next stage's chained inputs. commit / commit_end: the period this stage commits and
+    its last calendar year (None = everything this stage built, the legacy behaviour)."""
     # finished preparing and validating year, year_name, case_name, in_path (this
     # model's inputs dir), out_path (this model's outputs dir) and next_in_path (
     # inputs dir for next model in the chain)
@@ -193,6 +233,11 @@ def post_solve(m, outdir):
         }
     )
     predet = build_mw.merge(build_mwh, how="left")
+    if commit_end is not None:
+        # bounded foresight: hand on only builds up to the end of the committed period; later
+        # optimised builds were not committed, and predetermined builds dated later come from the
+        # next stage's own gen_build_predetermined.csv (merge_build_data below)
+        predet = predet[predet["build_year"] <= commit_end]
 
     # Treat any retired capacity as if it was never built.
     # Note: this will not carry forward capital costs of retired plants, so it
@@ -219,6 +264,9 @@ def post_solve(m, outdir):
         & (retire["retire_mw"] > 1e-6),
         :,
     ]
+    if commit is not None:
+        # only retirements taken in committed periods
+        retire = retire[(retire["retire_year"] <= commit) & (retire["build_year"] <= commit_end)]
     # handle chained models with multi-period stages (possible in the future)
     retire = (
         retire.groupby(["GENERATION_PROJECT", "build_year"])[["retire_mw"]]
@@ -280,12 +328,15 @@ def post_solve(m, outdir):
     ]
     to_csv(costs, chained(next_in_path, "gen_build_costs.csv"))
 
-    chain_build_rate_inputs(m, in_path, next_in_path, chained, possibly_chained, read_csv, to_csv)
+    chain_build_rate_inputs(m, in_path, next_in_path, chained, possibly_chained, read_csv, to_csv, commit)
 
     # combine starting transmission for this case with transmission expansion
     trans = read_csv(possibly_chained(in_path, "transmission_lines.csv"))
+    trans_built = read_csv(out_path, "BuildTx.csv")
+    if commit is not None:
+        trans_built = trans_built[trans_built["TRANS_BLD_YRS_2"] <= commit]
     trans_built = (
-        read_csv(out_path, "BuildTx.csv")
+        trans_built
         .rename(columns={"TRANS_BLD_YRS_1": "TRANSMISSION_LINE"})
         .groupby("TRANSMISSION_LINE")[["BuildTx"]]
         .sum()
@@ -303,10 +354,10 @@ def post_solve(m, outdir):
     to_csv(trans, chained(next_in_path, "transmission_lines.csv"))
 
     # carry interconnection headroom forward (study_modules.interconnection_headroom)
-    chain_ic_inputs(in_path, out_path, next_in_path, case_name)
+    chain_ic_inputs(in_path, out_path, next_in_path, case_name, commit)
 
 
-def chain_ic_inputs(in_path, out_path, next_in_path, case_name):
+def chain_ic_inputs(in_path, out_path, next_in_path, case_name, commit=None):
     """
     Write ic_zones/ic_tranches/ic_uprates.chained.<case>.csv for the next stage:
     network capacity grows by the stretch-mode uprates built (if any; GETs and
@@ -318,7 +369,9 @@ def chain_ic_inputs(in_path, out_path, next_in_path, case_name):
     headroom they host and this stage left unused carries forward as
     ic_hosted_headroom_mw (free next stage). Builds from this stage become
     predetermined next stage, so they no longer count against headroom. Does nothing
-    when the interconnection_headroom module wasn't used.
+    when the interconnection_headroom module wasn't used. The *_built.csv outputs are
+    cumulative by period; `commit` picks the period handed on (default: the last one in
+    the files, the legacy behaviour).
     """
     in_path, out_path, next_in_path = Path(in_path), Path(out_path), Path(next_in_path)
 
@@ -331,11 +384,19 @@ def chain_ic_inputs(in_path, out_path, next_in_path, case_name):
     if not all(p.exists() for p in needed):
         return
     rd = lambda p: pd.read_csv(p, na_values=["."])
+
+    def at_commit(df):
+        """Rows of a cumulative *_built.csv for the committed period (default: its last period)."""
+        if "period" not in df or not len(df):
+            return df
+        p = commit if commit is not None else df["period"].max()
+        return df[df["period"] == p]
+
     zones, steps = rd(src("ic_zones")), rd(src("ic_tranches"))
-    used = rd(out_path / "ic_tranches_built.csv").set_index("ic_tranche")["used_mw"]
-    released = rd(out_path / "ic_release_built.csv").set_index("ic_zone")["released_mw"]
+    used = at_commit(rd(out_path / "ic_tranches_built.csv")).set_index("ic_tranche")["used_mw"]
+    released = at_commit(rd(out_path / "ic_release_built.csv")).set_index("ic_zone")["released_mw"]
     uprates = rd(src("ic_uprates")) if src("ic_uprates").exists() else None
-    up_built = (rd(out_path / "ic_uprates_built.csv").set_index("ic_uprate")["built_mw"]
+    up_built = (at_commit(rd(out_path / "ic_uprates_built.csv")).set_index("ic_uprate")["built_mw"]
                 if (out_path / "ic_uprates_built.csv").exists() else pd.Series(dtype=float))
 
     added = pd.Series(0.0, index=zones["IC_ZONE"])
@@ -358,7 +419,7 @@ def chain_ic_inputs(in_path, out_path, next_in_path, case_name):
     zones["ic_start_saturation"] = ((s0 * h0 + bought) / h1.where(h1 > 0)).fillna(0).round(6)
     hosted_file = out_path / "ic_hosted_built.csv"
     if hosted_file.exists():
-        unused = rd(hosted_file).set_index("ic_zone")["unused_mw"]
+        unused = at_commit(rd(hosted_file)).set_index("ic_zone")["unused_mw"]
         zones["ic_hosted_headroom_mw"] = unused.reindex(zones.index).fillna(0).clip(lower=0).round(3)
     zones.reset_index().to_csv(next_in_path / f"ic_zones.chained.{case_name}.csv", index=False, na_rep=".")
 
@@ -403,19 +464,20 @@ if __name__ == "__main__":
         )
 
 
-def chain_build_rate_inputs(m, in_path, next_in_path, chained, possibly_chained, read_csv, to_csv):
+def chain_build_rate_inputs(m, in_path, next_in_path, chained, possibly_chained, read_csv, to_csv,
+                            commit=None):
     """Carry the best build rate achieved so far into the next myopic stage (study_modules.build_rate).
 
     Writes build_rate_prev_build.chained.<case>.csv in the next stage's inputs dir with, per group,
-    the larger of this stage's new build per year in its last period and any rate chained in from
-    earlier stages, so the ramp bound never falls below the best rate already achieved.
-    No-op unless the build_rate module is active.
+    the larger of this stage's new build per year in its last period (bounded foresight: the
+    committed period) and any rate chained in from earlier stages, so the ramp bound never falls
+    below the best rate already achieved. No-op unless the build_rate module is active.
     """
     if not hasattr(m, "BR_GROUP_PERIODS") or not len(m.BR_GROUP_PERIODS):
         return
     from pyomo.environ import value
 
-    last = m.PERIODS.last()
+    last = m.PERIODS.last() if commit is None else commit
     rates = {grp: value(m.BRNewBuild[grp, p]) / value(m.br_window_years[p])
              for (grp, p) in m.BR_GROUP_PERIODS if p == last}
     prev_path = possibly_chained(in_path, "build_rate_prev_build.csv")

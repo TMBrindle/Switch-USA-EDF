@@ -19,6 +19,10 @@ from typing import List, Optional
 from typing_extensions import Annotated
 # build-rate supply curves (build_rate/, study_modules.build_rate); inert unless build_rate.enabled
 from build_rate.brc import switch_case as br_case
+from build_rate.brc import turbine_cap as gtc_case
+# S0 production case build (pg/settings/s0_production.yml); inert unless s0_production.enabled
+from s0_workflow import production as s0prod
+from s0_workflow import day_selection as s0days
 import pandas as pd
 import numpy as np
 import scipy
@@ -632,17 +636,38 @@ def operational_files(
             # results is a dict with keys "resource_profiles" (gen_variability), "load_profiles",
             # "time_series_mapping" (maps clusters sequentially to potential periods in year),
             # "ClusterWeights", etc. See PG for full details.
-            results, representative_point, weights = kmeans_time_clustering(
-                resource_profiles=period_variability,
-                load_profiles=period_lc,
-                days_in_group=days_in_group,
-                num_clusters=num_clusters,
-                include_peak_day=include_peak_day,
-                load_weight=year_settings.get("demand_weight_factor", 1),
-                variable_resources_only=year_settings.get(
-                    "variable_resources_only", True
-                ),
-            )
+            fi_days = s0days.ts_settings(year_settings)
+            if fi_days is not None:
+                # S0 production: fleet-independent day selection for this model year
+                # (s0_production.time_sampling; s0_workflow/day_selection.py)
+                if days_in_group != 1:
+                    raise ValueError("fleet-independent day selection needs time_domain_days_per_period: 1")
+                logger.info(
+                    f"Fleet-independent day selection ({fi_days['n_days']} days, {model_year}); "
+                    f"time_domain_periods {num_clusters} is not used."
+                )
+                results, representative_point, weights = s0days.select_days(
+                    resource_profiles=period_variability,
+                    load_profiles=period_lc,
+                    gens=period_gens,
+                    ts=fi_days,
+                    diag_dir=out_folder / fi_days["diag_dir"] / str(model_year),
+                    zone_map=year_settings.get("_zone_map"),
+                    include_peak_day=include_peak_day,
+                    variable_resources_only=year_settings.get("variable_resources_only", True),
+                )
+            else:
+                results, representative_point, weights = kmeans_time_clustering(
+                    resource_profiles=period_variability,
+                    load_profiles=period_lc,
+                    days_in_group=days_in_group,
+                    num_clusters=num_clusters,
+                    include_peak_day=include_peak_day,
+                    load_weight=year_settings.get("demand_weight_factor", 1),
+                    variable_resources_only=year_settings.get(
+                        "variable_resources_only", True
+                    ),
+                )
             logger.info("Finished clustering timeseries.")
             period_lc_sampled = results["load_profiles"]
             period_variability_sampled = results["resource_profiles"]
@@ -3356,13 +3381,16 @@ def write_gen_zone_ratio_files(scen_settings_dict, out_folder):
 
 
 def write_build_rate_files(scen_settings_dict, out_folder):
-    """Build-rate inputs (build_rate_*.csv) when build_rate.enabled; see build_rate/brc/switch_case.py."""
+    """Build-rate inputs (build_rate_*.csv) when build_rate.enabled; see build_rate/brc/switch_case.py.
+    The gas-turbine supply cap (gas_turbine_cap_*.csv, build_rate.gas_turbine_cap.enabled) is written
+    first and independently; it replaces the MaxCapTag_GasTurbineSupply rows (build_rate/brc/turbine_cap.py)."""
     settings = first_value(scen_settings_dict)
+    gtc_case.write_case_inputs(out_folder, settings)
     if br_case.br_settings(settings):
         br_case.write_case_inputs(out_folder, settings)
 
 
-def scenario_files(results_folder, case_settings, myopic):
+def scenario_files(results_folder, case_settings, myopic, case_stages=None):
     """
     Create switch/scenarios*.txt, defining all the cases to run.
     """
@@ -3387,6 +3415,7 @@ def scenario_files(results_folder, case_settings, myopic):
             line += f"--module-list {settings['switch_module_list']} "
         if settings.get("gen_zone_ratio_agg") and settings.get("gen_zone_ratio_agg") != "none":
             line += "--include-module study_modules.gen_zone_ratio "
+        line += s0prod.scenario_options(settings)
         line += extra
         line = line.strip() + " "
         if myopic:
@@ -3411,7 +3440,44 @@ def scenario_files(results_folder, case_settings, myopic):
                     line += f"build_rate_prev_build.csv=build_rate_prev_build.chained.{scen_name}.csv "
         scenarios[scen_name].append(line.strip())
 
+    def add_stage_row(scen_name, case, stage, idx, stages, settings, extra=""):
+        """Scenario line for one stage of an S0 production chain (myopic or rolling windows): inputs
+        in <results>/<stage>/<case>; prepare_next_stage hands on what the stage commits
+        (stage_info.csv); later stages read the chained aliases."""
+        in_folder, out_folder = model_folder_names(results_folder, scen_name, case, stage["name"], True)
+        line = f"--scenario-name {scen_name}_{stage['name']} "
+        line += f"--inputs-dir {shlex.quote(str(in_folder))} --outputs-dir {shlex.quote(str(out_folder))} "
+        if settings.get("switch_module_list"):
+            line += f"--module-list {settings['switch_module_list']} "
+        if settings.get("gen_zone_ratio_agg") and settings.get("gen_zone_ratio_agg") != "none":
+            line += "--include-module study_modules.gen_zone_ratio "
+        line += s0prod.scenario_options(settings)
+        line += extra
+        line = line.strip() + " "
+        if stage["next"]:
+            line += "--include-module study_modules.prepare_next_stage "
+        if idx > 0:
+            aliases = [f"{f}.csv={f}.chained.{scen_name}.csv" for f in
+                       ("gen_build_predetermined", "gen_build_costs", "transmission_lines")]
+            if ic_case.ic_settings(settings):
+                aliases += [f"{f}.csv={f}.chained.{scen_name}.csv" for f in ("ic_zones", "ic_tranches", "ic_uprates")]
+            if (settings.get("build_rate") or {}).get("enabled"):
+                aliases.append(f"build_rate_prev_build.csv=build_rate_prev_build.chained.{scen_name}.csv")
+            line += "--input-aliases " + " ".join(aliases) + " "
+        scenarios[scen_name].append(line.strip())
+        chain_names.add(scen_name)
+
+    chain_names = set()
     for case, year_settings in case_settings.items():
+        stages = (case_stages or {}).get(case)
+        if stages and not stages[0].get("legacy"):
+            for idx, st in enumerate(stages):
+                settings = year_settings[st["years"][0]]
+                add_stage_row(case, case, st, idx, stages, settings)
+                for price in settings.get("alternative_carbon_slack") or []:
+                    add_stage_row(f"{case}_co2_{price}", case, st, idx, stages, settings,
+                                  f"--input-alias carbon_policies_regional.csv=carbon_policies_regional.{price}.csv")
+            continue
         for year, settings in year_settings.items():
             # add the standard scenario for this case
             add_scenario_row(case, case, year, settings)
@@ -3433,7 +3499,7 @@ def scenario_files(results_folder, case_settings, myopic):
     for scen_name, lines in scenarios.items():
         scen_file = (
             results_folder
-            / f"scenarios_{scen_name}{'' if myopic else '_foresight'}.txt"
+            / f"scenarios_{scen_name}{'' if myopic or scen_name in chain_names else '_foresight'}.txt"
         )
         with open(scen_file, "w") as f:
             f.writelines(f"{line}\n" for line in lines)
@@ -3686,24 +3752,37 @@ def main(
                         f"(was {len(model_regions) + sum(len(v)-1 for v in (region_aggregations or {}).values())} BAs)"
                     )
 
-    if myopic:
-        # run each case/year separately; split the settings for each year into
-        # separate dicts and process them individually
-        to_run = [
-            (c, {y: year_settings})
-            for c, scen_settings_dict in case_settings.items()
-            for y, year_settings in scen_settings_dict.items()
-        ]
-    else:
-        # run all years together within each case
-        to_run = list(case_settings.items())
+    # S0 production settings (pg/settings/s0_production.yml): merged into each case/year that has
+    # s0_production.enabled before anything is built; no effect on other cases
+    s0prod.apply_settings(case_settings)
+
+    # stages of each case: legacy cases follow --myopic; S0 production cases choose single (all
+    # years together), myopic (mode A) or windows (mode B) with s0_production.foresight.mode
+    case_stages = {}
+    for c, scen_settings_dict in case_settings.items():
+        mode = s0prod.foresight_mode(first_value(scen_settings_dict))
+        if mode == "default":
+            mode = "myopic" if myopic else "single"
+            stages = s0prod.plan_stages(scen_settings_dict.keys(), mode)
+            for st in stages:
+                st["legacy"] = True
+        else:
+            fs = s0prod.s0_settings(first_value(scen_settings_dict)).get("foresight") or {}
+            stages = s0prod.plan_stages(scen_settings_dict.keys(), mode, fs.get("window_periods", 2))
+        case_stages[c] = stages
+    to_run = [
+        (c, {y: case_settings[c][y] for y in st["years"]}, st)
+        for c, stages in case_stages.items()
+        for st in stages
+    ]
 
     lines = []
     lines.append("=" * 60)
     lines.append("Preparing models for the following case(s) and year(s):")
-    for c, scen_settings_dict in to_run:
+    for c, scen_settings_dict, stage in to_run:
         all_years = scen_settings_dict.keys()
-        lines.append(f"{c}: {', '.join(str(y) for y in all_years)}")
+        lines.append(f"{c}: {', '.join(str(y) for y in all_years)}"
+                     + ("" if stage.get("legacy") else f" (stage {stage['name']}, commits {stage['commit_period']})"))
     lines.append("=" * 60)
     logger.info("\n".join(lines))
     # %% [skip]
@@ -3714,7 +3793,7 @@ def main(
     #%% [skip]
     """
     # Run through the different cases and save files in a new folder for each.
-    for c, scen_settings_dict in to_run:
+    for c, scen_settings_dict, stage in to_run:
         # %%
         # c is case_id for this case
         # scen_settings_dict has all settings for this case, organized by year
@@ -3724,7 +3803,9 @@ def main(
             + f"\nstarting case {c} ({', '.join(str(y) for y in all_years)})\n"
             + "-" * 60
         )
-        out_folder = results_folder / year_name(all_years) / c
+        out_folder = results_folder / (
+            year_name(all_years) if stage.get("legacy") else stage["name"]
+        ) / c
         out_folder.mkdir(parents=True, exist_ok=True)
 
         first_year_settings = first_value(scen_settings_dict)
@@ -3769,9 +3850,14 @@ def main(
             out_folder=out_folder,
         )
         write_gen_zone_ratio_files(scen_settings_dict, out_folder)
+        # S0 production steps (gas capex premium, coal CF caps, wind loss, NY ACP, headroom
+        # slack, retirement rule); before build rate so its checks see the final inputs
+        s0prod.write_case_inputs(out_folder, scen_settings_dict)
         write_build_rate_files(scen_settings_dict, out_folder)
+        if not stage.get("legacy"):
+            s0prod.write_stage_info(out_folder, stage)
 
-    scenario_files(results_folder, case_settings, myopic)
+    scenario_files(results_folder, case_settings, myopic, case_stages)
 
 
 if __name__ == "__main__" and "ipykernel" not in sys.argv[0]:
