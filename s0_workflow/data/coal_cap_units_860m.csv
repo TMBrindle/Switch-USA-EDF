@@ -1,0 +1,433 @@
+# coal cap units (coal_spec.md §1.1-1.4): latest-860M Operating, Technology Conventional Steam Coal,
+# status OP/SB/OA, any planned retirement; cf_max = highest valid 2021-24 annual CF (EIA-923 Page 4 /
+# EIA-860 winter capacity); zone: reeds_plant_map.csv, then county2zone.csv; built 2026-10-03 by s0_workflow/scripts/fetch_coal_spec_eia.py from EIA-860M august 2026
+kn,Plant ID,Generator ID,Plant Name,Plant State,County,Latitude,Longitude,zone,zone_source,Technology,Energy Source Code,status,Operating Year,Planned Retirement Year,winter_mw,cf_max,years
+1001|1,1001,1,Cayuga,IN,Vermillion,39.9242,-87.4244,p105,plant map,Conventional Steam Coal,BIT,OP,1970.0,,505.0,0.541436,3.0
+1001|2,1001,2,Cayuga,IN,Vermillion,39.9242,-87.4244,p105,plant map,Conventional Steam Coal,BIT,OP,1972.0,,500.0,0.609409,3.0
+10113|GEN1,10113,GEN1,John B Rich Memorial Power Station,PA,Schuylkill,40.7903,-76.1983,p122,plant map,Conventional Steam Coal,WC,OP,1988.0,,80.0,0.909735,4.0
+1012|2,1012,2,F B Culley,IN,Warrick,37.9111,-87.3275,p107,plant map,Conventional Steam Coal,BIT,OP,1966.0,2026.0,90.0,0.31865,4.0
+1012|3,1012,3,F B Culley,IN,Warrick,37.9111,-87.3275,p107,plant map,Conventional Steam Coal,BIT,OP,1973.0,,270.0,0.801796,4.0
+10143|COLV,10143,COLV,Colver Green Energy,PA,Cambria,40.55108,-78.79794,p122,plant map,Conventional Steam Coal,WC,OP,1995.0,,110.0,0.743402,4.0
+10151|GEN1,10151,GEN1,Grant Town Power Plant,WV,Marion,39.561831,-80.16314,p116,plant map,Conventional Steam Coal,WC,OP,1992.0,,80.0,0.900983,4.0
+10234|GEN1,10234,GEN1,Biron Mill,WI,Wood,44.43,-89.78,p76,county,Conventional Steam Coal,BIT,OA,1964.0,,15.3,0.329393,4.0
+10343|TG1,10343,TG1,Foster Wheeler Mt Carmel Cogen,PA,Northumberland,40.811189,-76.45295,p122,plant map,Conventional Steam Coal,WC,OP,1990.0,,40.0,0.302551,4.0
+1040|1,1040,1,Whitewater Valley,IN,Wayne,39.8028,-84.8953,p107,plant map,Conventional Steam Coal,BIT,OP,1955.0,,34.7,0.048975,4.0
+1040|2,1040,2,Whitewater Valley,IN,Wayne,39.8028,-84.8953,p107,plant map,Conventional Steam Coal,BIT,OP,1973.0,,65.0,0.062316,4.0
+10603|GEN1,10603,GEN1,Ebensburg Power,PA,Cambria,40.455,-78.7472,p122,plant map,Conventional Steam Coal,WC,OP,1990.0,,50.0,0.836043,4.0
+10671|GEN1,10671,GEN1,River Valley,OK,Le Flore,35.1931,-94.6458,p50,plant map,Conventional Steam Coal,SUB,OP,1990.0,,160.6,0.348651,4.0
+10671|GEN2,10671,GEN2,River Valley,OK,Le Flore,35.1931,-94.6458,p50,plant map,Conventional Steam Coal,SUB,OP,1990.0,,160.4,0.473752,4.0
+10684|TG8,10684,TG8,Argus Cogen Plant,CA,San Bernardino,35.765,-117.3833,p10,county,Conventional Steam Coal,BIT,OP,1978.0,,25.0,0.689619,4.0
+10684|TG9,10684,TG9,Argus Cogen Plant,CA,San Bernardino,35.765,-117.3833,p10,county,Conventional Steam Coal,BIT,OP,1978.0,,25.0,0.712785,4.0
+1073|3,1073,3,Prairie Creek,IA,Linn,41.944039,-91.63917,p70,plant map,Conventional Steam Coal,SUB,OP,1958.0,,32.5,0.17366,4.0
+10784|GEN1,10784,GEN1,Colstrip Energy LP,MT,Rosebud,45.9752,-106.6547,p20,plant map,Conventional Steam Coal,WC,OP,1990.0,,40.5,0.907605,4.0
+1082|3,1082,3,Walter Scott Jr Energy Center,IA,Pottawattamie,41.18,-95.8408,p45,plant map,Conventional Steam Coal,SUB,OP,1978.0,,705.9,0.60565,4.0
+1082|4,1082,4,Walter Scott Jr Energy Center,IA,Pottawattamie,41.18,-95.8408,p45,plant map,Conventional Steam Coal,SUB,OP,2007.0,,805.8,0.470181,4.0
+10860|1A,10860,1A,Archer Daniels Midland Clinton,IA,Clinton,41.8206,-90.2097,p70,county,Conventional Steam Coal,SUB,OP,2009.0,,75.0,0.527807,4.0
+10860|2A,10860,2A,Archer Daniels Midland Clinton,IA,Clinton,41.8206,-90.2097,p70,county,Conventional Steam Coal,SUB,OP,2009.0,,105.0,0.503713,4.0
+10864|GEN1,10864,GEN1,Archer Daniels Midland Cedar Rapids,IA,Linn,41.9221,-91.6875,p70,county,Conventional Steam Coal,SUB,OP,1988.0,,31.0,0.277869,4.0
+10864|GEN2,10864,GEN2,Archer Daniels Midland Cedar Rapids,IA,Linn,41.9221,-91.6875,p70,county,Conventional Steam Coal,SUB,OP,1988.0,,31.0,0.408352,4.0
+10864|GEN3,10864,GEN3,Archer Daniels Midland Cedar Rapids,IA,Linn,41.9221,-91.6875,p70,county,Conventional Steam Coal,SUB,OP,1988.0,,31.0,0.356043,4.0
+10864|GEN4,10864,GEN4,Archer Daniels Midland Cedar Rapids,IA,Linn,41.9221,-91.6875,p70,county,Conventional Steam Coal,SUB,OP,1988.0,,31.0,0.486482,4.0
+10864|GEN5,10864,GEN5,Archer Daniels Midland Cedar Rapids,IA,Linn,41.9221,-91.6875,p70,county,Conventional Steam Coal,SUB,OP,1995.0,,31.0,0.541722,4.0
+10864|GEN6,10864,GEN6,Archer Daniels Midland Cedar Rapids,IA,Linn,41.9221,-91.6875,p70,county,Conventional Steam Coal,SUB,OP,2000.0,,105.0,0.304691,4.0
+10865|GEN2,10865,GEN2,Archer Daniels Midland Decatur,IL,Macon,39.870074,-88.89076,p83,county,Conventional Steam Coal,BIT,OP,1987.0,,31.0,0.25752,4.0
+10865|GEN3,10865,GEN3,Archer Daniels Midland Decatur,IL,Macon,39.870074,-88.89076,p83,county,Conventional Steam Coal,BIT,OP,1987.0,,31.0,0.263205,4.0
+10865|GEN4,10865,GEN4,Archer Daniels Midland Decatur,IL,Macon,39.870074,-88.89076,p83,county,Conventional Steam Coal,BIT,OP,1987.0,,31.0,0.239958,4.0
+10865|GEN5,10865,GEN5,Archer Daniels Midland Decatur,IL,Macon,39.870074,-88.89076,p83,county,Conventional Steam Coal,BIT,OP,1987.0,,31.0,0.269454,4.0
+10865|GEN6,10865,GEN6,Archer Daniels Midland Decatur,IL,Macon,39.870074,-88.89076,p83,county,Conventional Steam Coal,BIT,OP,1994.0,,31.0,0.186732,4.0
+10865|GEN7,10865,GEN7,Archer Daniels Midland Decatur,IL,Macon,39.870074,-88.89076,p83,county,Conventional Steam Coal,BIT,OP,1997.0,,75.0,0.619212,4.0
+10865|GEN8,10865,GEN8,Archer Daniels Midland Decatur,IL,Macon,39.870074,-88.89076,p83,county,Conventional Steam Coal,BIT,OP,2005.0,,105.0,0.512271,4.0
+108|1,108,1,Holcomb,KS,Finney,37.9308,-100.9725,p52,plant map,Conventional Steam Coal,SUB,OP,1983.0,,358.9,0.52872,4.0
+1091|3,1091,3,George Neal North,IA,Woodbury,42.32517,-96.37971,p45,plant map,Conventional Steam Coal,SUB,OP,1975.0,,514.0,0.378174,4.0
+1167|7,1167,7,Muscatine Plant #1,IA,Muscatine,41.3917,-91.0569,p70,plant map,Conventional Steam Coal,SUB,OP,1958.0,,20.1,0.312252,4.0
+1167|8,1167,8,Muscatine Plant #1,IA,Muscatine,41.3917,-91.0569,p70,plant map,Conventional Steam Coal,SUB,OP,1969.0,,68.0,0.179301,4.0
+1167|9,1167,9,Muscatine Plant #1,IA,Muscatine,41.3917,-91.0569,p70,plant map,Conventional Steam Coal,SUB,OP,1983.0,,160.8,0.559528,4.0
+1241|1,1241,1,La Cygne,KS,Linn,38.3481,-94.6456,p53,plant map,Conventional Steam Coal,SUB,OP,1973.0,2032.0,779.2,0.560606,4.0
+1241|2,1241,2,La Cygne,KS,Linn,38.3481,-94.6456,p53,plant map,Conventional Steam Coal,SUB,OP,1977.0,2039.0,666.5,0.604971,4.0
+1250|4,1250,4,Lawrence Energy Center,KS,Douglas,39.0072,-95.26917,p53,plant map,Conventional Steam Coal,SUB,OP,1960.0,2032.0,109.1,0.515964,4.0
+1250|5,1250,5,Lawrence Energy Center,KS,Douglas,39.0072,-95.26917,p53,plant map,Conventional Steam Coal,SUB,OP,1971.0,2032.0,382.2,0.473783,4.0
+130|1,130,1,Cross,SC,Berkeley,33.371506,-80.11324,p96,plant map,Conventional Steam Coal,BIT,OP,1995.0,,585.0,0.391104,4.0
+130|2,130,2,Cross,SC,Berkeley,33.371506,-80.11324,p96,plant map,Conventional Steam Coal,BIT,OP,1984.0,,570.0,0.132552,4.0
+130|3,130,3,Cross,SC,Berkeley,33.371506,-80.11324,p96,plant map,Conventional Steam Coal,BIT,OP,2007.0,,580.0,0.643209,4.0
+130|4,130,4,Cross,SC,Berkeley,33.371506,-80.11324,p96,plant map,Conventional Steam Coal,BIT,OP,2008.0,,595.0,0.650132,4.0
+1355|3,1355,3,E W Brown,KY,Mercer,37.78831,-84.71257,p109,plant map,Conventional Steam Coal,BIT,OP,1971.0,,416.0,0.361363,4.0
+1356|1,1356,1,Ghent,KY,Carroll,38.7497,-85.035,p109,plant map,Conventional Steam Coal,BIT,OP,1974.0,,479.0,0.686621,4.0
+1356|2,1356,2,Ghent,KY,Carroll,38.7497,-85.035,p109,plant map,Conventional Steam Coal,BIT,OP,1977.0,,486.0,0.607987,4.0
+1356|3,1356,3,Ghent,KY,Carroll,38.7497,-85.035,p109,plant map,Conventional Steam Coal,BIT,OP,1981.0,,481.0,0.675602,4.0
+1356|4,1356,4,Ghent,KY,Carroll,38.7497,-85.035,p109,plant map,Conventional Steam Coal,BIT,OP,1984.0,,478.0,0.598342,4.0
+1364|2,1364,2,Mill Creek (KY),KY,Jefferson,38.0525,-85.9103,p109,plant map,Conventional Steam Coal,BIT,OP,1974.0,,297.0,0.630998,4.0
+1364|3,1364,3,Mill Creek (KY),KY,Jefferson,38.0525,-85.9103,p109,plant map,Conventional Steam Coal,BIT,OP,1978.0,,394.0,0.671229,4.0
+1364|4,1364,4,Mill Creek (KY),KY,Jefferson,38.0525,-85.9103,p109,plant map,Conventional Steam Coal,BIT,OP,1982.0,,486.0,0.66548,4.0
+136|2,136,2,Seminole (FL),FL,Putnam,29.733056,-81.63278,p101,plant map,Conventional Steam Coal,BIT,OP,1984.0,,640.0,0.60555,4.0
+1379|1,1379,1,Shawnee,KY,McCracken,37.1517,-88.775,p93,plant map,Conventional Steam Coal,SUB,OP,1953.0,2033.0,138.0,0.601836,4.0
+1379|2,1379,2,Shawnee,KY,McCracken,37.1517,-88.775,p93,plant map,Conventional Steam Coal,SUB,OP,1953.0,2033.0,138.0,0.595397,4.0
+1379|3,1379,3,Shawnee,KY,McCracken,37.1517,-88.775,p93,plant map,Conventional Steam Coal,SUB,OP,1953.0,,138.0,0.589895,4.0
+1379|4,1379,4,Shawnee,KY,McCracken,37.1517,-88.775,p93,plant map,Conventional Steam Coal,SUB,OP,1954.0,2033.0,138.0,0.569341,4.0
+1379|5,1379,5,Shawnee,KY,McCracken,37.1517,-88.775,p93,plant map,Conventional Steam Coal,SUB,OP,1954.0,2033.0,138.0,0.621096,4.0
+1379|6,1379,6,Shawnee,KY,McCracken,37.1517,-88.775,p93,plant map,Conventional Steam Coal,SUB,OP,1954.0,2033.0,138.0,0.589762,4.0
+1379|7,1379,7,Shawnee,KY,McCracken,37.1517,-88.775,p93,plant map,Conventional Steam Coal,SUB,OP,1954.0,2033.0,138.0,0.540098,4.0
+1379|8,1379,8,Shawnee,KY,McCracken,37.1517,-88.775,p93,plant map,Conventional Steam Coal,SUB,OP,1955.0,2033.0,138.0,0.590984,4.0
+1379|9,1379,9,Shawnee,KY,McCracken,37.1517,-88.775,p93,plant map,Conventional Steam Coal,SUB,OP,1955.0,2033.0,138.0,0.605585,4.0
+1384|1,1384,1,Cooper,KY,Pulaski,36.9981,-84.5919,p93,plant map,Conventional Steam Coal,BIT,OP,1965.0,,116.0,0.143347,4.0
+1384|2,1384,2,Cooper,KY,Pulaski,36.9981,-84.5919,p93,plant map,Conventional Steam Coal,BIT,OP,1969.0,,225.0,0.209006,4.0
+1393|6,1393,6,R S Nelson,LA,Calcasieu,30.2844,-93.2911,p58,plant map,Conventional Steam Coal,SUB,OP,1982.0,,531.9,0.441232,4.0
+160|ST3,160,ST3,Apache Station,AZ,Cochise,32.0603,-109.8931,p28,plant map,Conventional Steam Coal,SUB,OP,1979.0,,175.0,0.797701,4.0
+165|2,165,2,GREC,OK,Mayes,36.190278,-95.2894,p51,plant map,Conventional Steam Coal,SUB,OP,1985.0,,487.0,0.317779,4.0
+1710|1,1710,1,J H Campbell,MI,Ottawa,42.910296,-86.20074,p103,plant map,Conventional Steam Coal,SUB,OP,1962.0,2026.0,260.0,0.831807,4.0
+1710|2,1710,2,J H Campbell,MI,Ottawa,42.910296,-86.20074,p103,plant map,Conventional Steam Coal,SUB,OP,1967.0,2026.0,280.0,0.478943,4.0
+1710|3,1710,3,J H Campbell,MI,Ottawa,42.910296,-86.20074,p103,plant map,Conventional Steam Coal,SUB,OP,1980.0,2026.0,789.3,0.796556,4.0
+1733|1,1733,1,Monroe (MI),MI,Monroe,41.8906,-83.3464,p103,plant map,Conventional Steam Coal,SUB,OP,1971.0,2032.0,758.0,0.683756,4.0
+1733|2,1733,2,Monroe (MI),MI,Monroe,41.8906,-83.3464,p103,plant map,Conventional Steam Coal,SUB,OP,1973.0,2032.0,783.0,0.600868,4.0
+1733|3,1733,3,Monroe (MI),MI,Monroe,41.8906,-83.3464,p103,plant map,Conventional Steam Coal,SUB,OP,1973.0,2028.0,783.0,0.665528,4.0
+1733|4,1733,4,Monroe (MI),MI,Monroe,41.8906,-83.3464,p103,plant map,Conventional Steam Coal,SUB,OP,1974.0,2028.0,762.0,0.587712,4.0
+1893|3,1893,3,Clay Boswell,MN,Itasca,47.2611,-93.6528,p43,plant map,Conventional Steam Coal,SUB,OP,1973.0,,352.0,0.693796,4.0
+1893|4,1893,4,Clay Boswell,MN,Itasca,47.2611,-93.6528,p43,plant map,Conventional Steam Coal,SUB,OP,1980.0,,585.0,0.58444,4.0
+1915|1,1915,1,Allen S King,MN,Washington,45.03,-92.7786,p43,plant map,Conventional Steam Coal,SUB,OP,1958.0,2028.0,511.0,0.289942,4.0
+2079|5,2079,5,Hawthorn,MO,Jackson,39.1306,-94.4778,p54,plant map,Conventional Steam Coal,SUB,OP,1969.0,,561.1,0.641723,4.0
+2103|1,2103,1,Labadie,MO,Franklin,38.562244,-90.83769,p72,plant map,Conventional Steam Coal,SUB,OP,1970.0,,616.0,0.790419,4.0
+2103|2,2103,2,Labadie,MO,Franklin,38.562244,-90.83769,p72,plant map,Conventional Steam Coal,SUB,OP,1971.0,,616.0,0.82685,4.0
+2103|3,2103,3,Labadie,MO,Franklin,38.562244,-90.83769,p72,plant map,Conventional Steam Coal,SUB,OP,1972.0,,616.0,0.800064,4.0
+2103|4,2103,4,Labadie,MO,Franklin,38.562244,-90.83769,p72,plant map,Conventional Steam Coal,SUB,OP,1973.0,,616.0,0.754234,4.0
+2107|1,2107,1,Sioux,MO,St Charles,38.915479,-90.29025,p72,plant map,Conventional Steam Coal,SUB,OP,1967.0,2028.0,497.0,0.413669,4.0
+2107|2,2107,2,Sioux,MO,St Charles,38.915479,-90.29025,p72,plant map,Conventional Steam Coal,SUB,OP,1968.0,2028.0,497.0,0.479107,4.0
+2167|1,2167,1,New Madrid,MO,New Madrid,36.5147,-89.5617,p84,plant map,Conventional Steam Coal,SUB,OP,1972.0,,607.0,0.743578,4.0
+2167|2,2167,2,New Madrid,MO,New Madrid,36.5147,-89.5617,p84,plant map,Conventional Steam Coal,SUB,OP,1977.0,,615.0,0.738353,4.0
+2168|1,2168,1,Thomas Hill,MO,Randolph,39.5522,-92.6381,p72,plant map,Conventional Steam Coal,SUB,OP,1966.0,,167.0,0.852935,4.0
+2168|2,2168,2,Thomas Hill,MO,Randolph,39.5522,-92.6381,p72,plant map,Conventional Steam Coal,SUB,OP,1969.0,,272.0,0.842778,4.0
+2168|3,2168,3,Thomas Hill,MO,Randolph,39.5522,-92.6381,p72,plant map,Conventional Steam Coal,SUB,OP,1982.0,,714.0,0.888276,4.0
+2240|6,2240,6,Lon Wright,NE,Dodge,41.4281,-96.4623,p41,plant map,Conventional Steam Coal,SUB,OP,1957.0,,15.5,0.507154,4.0
+2240|7,2240,7,Lon Wright,NE,Dodge,41.4281,-96.4623,p41,plant map,Conventional Steam Coal,SUB,OP,1963.0,,21.0,0.461835,4.0
+2240|8,2240,8,Lon Wright,NE,Dodge,41.4281,-96.4623,p41,plant map,Conventional Steam Coal,SUB,OP,1976.0,,82.0,0.53231,4.0
+2277|1,2277,1,Sheldon,NE,Lancaster,40.5589,-96.7847,p41,plant map,Conventional Steam Coal,SUB,OP,1961.0,,102.0,0.506292,4.0
+2277|2,2277,2,Sheldon,NE,Lancaster,40.5589,-96.7847,p41,plant map,Conventional Steam Coal,SUB,OP,1965.0,,112.0,0.55229,4.0
+2291|4,2291,4,North Omaha,NE,Douglas,41.32909,-95.94466,p41,plant map,Conventional Steam Coal,SUB,OP,1963.0,,101.8,0.739855,4.0
+2291|5,2291,5,North Omaha,NE,Douglas,41.32909,-95.94466,p41,plant map,Conventional Steam Coal,SUB,OP,1968.0,,174.9,0.697411,4.0
+2364|1,2364,1,Merrimack,NH,Merrimack,43.1411,-71.4692,p130,plant map,Conventional Steam Coal,BIT,OP,1960.0,2027.0,108.0,0.128046,4.0
+2442|4,2442,4,Four Corners,NM,San Juan,36.69,-108.4814,p31,plant map,Conventional Steam Coal,BIT,OP,1969.0,2031.0,770.0,0.761194,4.0
+2442|5,2442,5,Four Corners,NM,San Juan,36.69,-108.4814,p31,plant map,Conventional Steam Coal,BIT,OP,1970.0,2031.0,770.0,0.767339,4.0
+26|5,26,5,E C Gaston,AL,Shelby,33.244211,-86.45806,p89,plant map,Conventional Steam Coal,BIT,OP,1974.0,,832.0,0.469918,4.0
+2712|1,2712,1,Roxboro,NC,Person,36.4833,-79.0731,p98,plant map,Conventional Steam Coal,BIT,OP,1966.0,,380.0,0.309584,4.0
+2712|2,2712,2,Roxboro,NC,Person,36.4833,-79.0731,p98,plant map,Conventional Steam Coal,BIT,OP,1968.0,,673.0,0.391404,4.0
+2712|3,2712,3,Roxboro,NC,Person,36.4833,-79.0731,p98,plant map,Conventional Steam Coal,BIT,OP,1973.0,,698.0,0.363036,4.0
+2712|4,2712,4,Roxboro,NC,Person,36.4833,-79.0731,p98,plant map,Conventional Steam Coal,BIT,OP,1980.0,,711.0,0.249117,4.0
+2727|2,2727,2,Marshall (NC),NC,Catawba,35.5975,-80.9658,p97,plant map,Conventional Steam Coal,BIT,OP,1966.0,2028.0,380.0,0.32651,4.0
+2727|4,2727,4,Marshall (NC),NC,Catawba,35.5975,-80.9658,p97,plant map,Conventional Steam Coal,BIT,OP,1970.0,2033.0,660.0,0.588898,4.0
+2817|1,2817,1,Leland Olds,ND,Mercer,47.280769,-101.3212,p36,plant map,Conventional Steam Coal,LIG,OP,1966.0,,220.0,0.641958,4.0
+2817|2,2817,2,Leland Olds,ND,Mercer,47.280769,-101.3212,p36,plant map,Conventional Steam Coal,LIG,OP,1975.0,,440.0,0.65983,4.0
+2823|1,2823,1,Milton R Young,ND,Oliver,47.065854,-101.2131,p36,plant map,Conventional Steam Coal,LIG,OP,1970.0,,237.0,0.854039,4.0
+2823|2,2823,2,Milton R Young,ND,Oliver,47.065854,-101.2131,p36,plant map,Conventional Steam Coal,LIG,OP,1977.0,,455.0,0.754763,4.0
+2828|1,2828,1,Cardinal,OH,Jefferson,40.2522,-80.6486,p112,plant map,Conventional Steam Coal,BIT,OP,1967.0,,595.0,0.723403,4.0
+2828|2,2828,2,Cardinal,OH,Jefferson,40.2522,-80.6486,p112,plant map,Conventional Steam Coal,BIT,OP,1967.0,,595.0,0.734229,4.0
+2828|3,2828,3,Cardinal,OH,Jefferson,40.2522,-80.6486,p112,plant map,Conventional Steam Coal,BIT,OP,1977.0,2028.0,620.0,0.705055,4.0
+2832|7,2832,7,Miami Fort,OH,Hamilton,39.1128,-84.8036,p114,plant map,Conventional Steam Coal,BIT,OP,1975.0,,510.0,0.727958,4.0
+2832|8,2832,8,Miami Fort,OH,Hamilton,39.1128,-84.8036,p114,plant map,Conventional Steam Coal,BIT,OP,1978.0,,510.0,0.79832,4.0
+2876|1,2876,1,Kyger Creek,OH,Gallia,38.9144,-82.1289,p112,plant map,Conventional Steam Coal,BIT,OP,1955.0,,198.7,0.613897,4.0
+2876|2,2876,2,Kyger Creek,OH,Gallia,38.9144,-82.1289,p112,plant map,Conventional Steam Coal,BIT,OP,1955.0,,198.0,0.734597,4.0
+2876|3,2876,3,Kyger Creek,OH,Gallia,38.9144,-82.1289,p112,plant map,Conventional Steam Coal,BIT,OP,1955.0,,198.0,0.637465,4.0
+2876|4,2876,4,Kyger Creek,OH,Gallia,38.9144,-82.1289,p112,plant map,Conventional Steam Coal,BIT,OP,1955.0,,198.0,0.618008,4.0
+2876|5,2876,5,Kyger Creek,OH,Gallia,38.9144,-82.1289,p112,plant map,Conventional Steam Coal,BIT,OP,1955.0,,198.0,0.593685,4.0
+2914|3,2914,3,Dover (OH),OH,Tuscarawas,40.520066,-81.46815,p112,plant map,Conventional Steam Coal,BIT,SB,1954.0,,8.0,0.0,3.0
+2914|4,2914,4,Dover (OH),OH,Tuscarawas,40.520066,-81.46815,p112,plant map,Conventional Steam Coal,BIT,OP,1968.0,,15.2,0.583829,3.0
+2935|10,2935,10,Orrville,OH,Wayne,40.850964,-81.76576,p112,plant map,Conventional Steam Coal,BIT,OP,1971.0,,23.0,0.04391,4.0
+2935|9,2935,9,Orrville,OH,Wayne,40.850964,-81.76576,p112,plant map,Conventional Steam Coal,BIT,OP,1961.0,,20.0,0.046564,4.0
+2936|3,2936,3,Painesville,OH,Lake,41.7265,-81.254,p111,plant map,Conventional Steam Coal,BIT,SB,1953.0,,7.0,0.0,4.0
+2936|5,2936,5,Painesville,OH,Lake,41.7265,-81.254,p111,plant map,Conventional Steam Coal,BIT,OP,1965.0,,15.5,0.000707,4.0
+2936|7,2936,7,Painesville,OH,Lake,41.7265,-81.254,p111,plant map,Conventional Steam Coal,BIT,OP,1990.0,,17.5,0.006154,4.0
+2936|ST2,2936,ST2,Painesville,OH,Lake,41.7265,-81.254,p111,plant map,Conventional Steam Coal,BIT,SB,1949.0,,7.0,0.0,4.0
+2952|6,2952,6,Muskogee,OK,Muskogee,35.76135,-95.28732,p51,plant map,Conventional Steam Coal,SUB,OP,1984.0,,531.0,0.630542,4.0
+2963|3,2963,3,Northeastern,OK,Rogers,36.4317,-95.7008,p51,plant map,Conventional Steam Coal,SUB,OP,1979.0,,420.0,0.614785,3.0
+298|1,298,1,Limestone,TX,Limestone,31.4219,-96.2525,p63,plant map,Conventional Steam Coal,SUB,OP,1985.0,,831.0,0.44111,4.0
+298|2,298,2,Limestone,TX,Limestone,31.4219,-96.2525,p63,plant map,Conventional Steam Coal,SUB,OP,1986.0,,857.0,0.538202,4.0
+3118|1,3118,1,Conemaugh,PA,Indiana,40.3842,-79.0611,p122,plant map,Conventional Steam Coal,BIT,OP,1970.0,,850.0,0.473645,4.0
+3118|2,3118,2,Conemaugh,PA,Indiana,40.3842,-79.0611,p122,plant map,Conventional Steam Coal,BIT,OP,1971.0,,850.0,0.501775,4.0
+3130|FB1,3130,FB1,Seward (PA),PA,Indiana,40.40625,-79.03366,p122,plant map,Conventional Steam Coal,WC,OP,2004.0,,521.0,0.626371,4.0
+3136|1,3136,1,Keystone,PA,Armstrong,40.6604,-79.3411,p115,plant map,Conventional Steam Coal,BIT,OP,1967.0,,850.0,0.548418,4.0
+3136|2,3136,2,Keystone,PA,Armstrong,40.6604,-79.3411,p115,plant map,Conventional Steam Coal,BIT,OP,1968.0,,850.0,0.447483,4.0
+3297|1,3297,1,Wateree,SC,Richland,33.8264,-80.6228,p96,plant map,Conventional Steam Coal,BIT,OP,1970.0,,342.0,0.503568,4.0
+3297|2,3297,2,Wateree,SC,Richland,33.8264,-80.6228,p96,plant map,Conventional Steam Coal,BIT,OP,1971.0,,342.0,0.436879,4.0
+3298|ST1,3298,ST1,Williams,SC,Berkeley,33.0158,-79.9297,p96,plant map,Conventional Steam Coal,BIT,OP,1973.0,,610.0,0.455334,4.0
+3399|1,3399,1,Cumberland (TN),TN,Stewart,36.3903,-87.6539,p92,plant map,Conventional Steam Coal,BIT,OP,1973.0,2028.0,1265.0,0.493638,4.0
+3399|2,3399,2,Cumberland (TN),TN,Stewart,36.3903,-87.6539,p92,plant map,Conventional Steam Coal,BIT,OP,1973.0,2034.0,1257.0,0.557585,4.0
+3403|1,3403,1,Gallatin (TN),TN,Sumner,36.3156,-86.4006,p92,plant map,Conventional Steam Coal,BIT,OP,1956.0,2031.0,228.0,0.615054,4.0
+3403|2,3403,2,Gallatin (TN),TN,Sumner,36.3156,-86.4006,p92,plant map,Conventional Steam Coal,SUB,OP,1957.0,2031.0,228.0,0.436417,4.0
+3403|3,3403,3,Gallatin (TN),TN,Sumner,36.3156,-86.4006,p92,plant map,Conventional Steam Coal,SUB,OP,1959.0,2031.0,266.0,0.520438,4.0
+3403|4,3403,4,Gallatin (TN),TN,Sumner,36.3156,-86.4006,p92,plant map,Conventional Steam Coal,SUB,OP,1959.0,2031.0,266.0,0.569836,4.0
+3407|1,3407,1,Kingston,TN,Roane,35.8992,-84.5194,p92,plant map,Conventional Steam Coal,SUB,OP,1954.0,2027.0,106.0,0.393317,4.0
+3407|2,3407,2,Kingston,TN,Roane,35.8992,-84.5194,p92,plant map,Conventional Steam Coal,SUB,OP,1954.0,2027.0,107.0,0.289042,4.0
+3407|3,3407,3,Kingston,TN,Roane,35.8992,-84.5194,p92,plant map,Conventional Steam Coal,SUB,OP,1954.0,2027.0,107.0,0.517411,4.0
+3407|4,3407,4,Kingston,TN,Roane,35.8992,-84.5194,p92,plant map,Conventional Steam Coal,SUB,OP,1954.0,2027.0,101.0,0.35537,4.0
+3407|5,3407,5,Kingston,TN,Roane,35.8992,-84.5194,p92,plant map,Conventional Steam Coal,SUB,OP,1955.0,2027.0,154.0,0.399053,4.0
+3407|6,3407,6,Kingston,TN,Roane,35.8992,-84.5194,p92,plant map,Conventional Steam Coal,SUB,OP,1955.0,2027.0,144.0,0.241572,4.0
+3407|7,3407,7,Kingston,TN,Roane,35.8992,-84.5194,p92,plant map,Conventional Steam Coal,SUB,OP,1955.0,2034.0,151.0,0.295656,4.0
+3407|8,3407,8,Kingston,TN,Roane,35.8992,-84.5194,p92,plant map,Conventional Steam Coal,SUB,OP,1955.0,2034.0,154.0,0.412655,4.0
+3407|9,3407,9,Kingston,TN,Roane,35.8992,-84.5194,p92,plant map,Conventional Steam Coal,SUB,OP,1955.0,2034.0,151.0,0.32135,4.0
+3470|5,3470,5,W A Parish,TX,Fort Bend,29.4828,-95.6311,p67,plant map,Conventional Steam Coal,SUB,OP,1977.0,,664.0,0.673385,4.0
+3470|6,3470,6,W A Parish,TX,Fort Bend,29.4828,-95.6311,p67,plant map,Conventional Steam Coal,SUB,OP,1978.0,,663.0,0.610278,4.0
+3470|7,3470,7,W A Parish,TX,Fort Bend,29.4828,-95.6311,p67,plant map,Conventional Steam Coal,SUB,OP,1980.0,,577.0,0.695948,4.0
+3470|8,3470,8,W A Parish,TX,Fort Bend,29.4828,-95.6311,p67,plant map,Conventional Steam Coal,SUB,OP,1982.0,,610.0,0.562228,4.0
+3845|2,3845,2,Transalta Centralia Generation,WA,Lewis,46.755938,-122.8598,p2,plant map,Conventional Steam Coal,SUB,OP,1973.0,,670.0,0.705952,4.0
+3935|1,3935,1,John E Amos,WV,Putnam,38.4731,-81.8233,p117,plant map,Conventional Steam Coal,BIT,OP,1971.0,,800.0,0.502169,4.0
+3935|2,3935,2,John E Amos,WV,Putnam,38.4731,-81.8233,p117,plant map,Conventional Steam Coal,BIT,OP,1972.0,,800.0,0.418533,4.0
+3935|3,3935,3,John E Amos,WV,Putnam,38.4731,-81.8233,p117,plant map,Conventional Steam Coal,BIT,OP,1973.0,,1299.0,0.488507,4.0
+3943|1,3943,1,FirstEnergy Fort Martin Power Station,WV,Monongalia,39.710833,-79.9275,p116,plant map,Conventional Steam Coal,BIT,OP,1967.0,,552.0,0.60182,4.0
+3943|2,3943,2,FirstEnergy Fort Martin Power Station,WV,Monongalia,39.710833,-79.9275,p116,plant map,Conventional Steam Coal,BIT,OP,1968.0,,546.0,0.559953,4.0
+3944|1,3944,1,FirstEnergy Harrison Power Station,WV,Harrison,39.384167,-80.3325,p116,plant map,Conventional Steam Coal,BIT,OP,1972.0,,662.0,0.789876,4.0
+3944|2,3944,2,FirstEnergy Harrison Power Station,WV,Harrison,39.384167,-80.3325,p116,plant map,Conventional Steam Coal,BIT,OP,1973.0,,661.0,0.743362,4.0
+3944|3,3944,3,FirstEnergy Harrison Power Station,WV,Harrison,39.384167,-80.3325,p116,plant map,Conventional Steam Coal,BIT,OP,1974.0,,661.0,0.781649,4.0
+3948|1,3948,1,Mitchell (WV),WV,Marshall,39.8297,-80.8153,p116,plant map,Conventional Steam Coal,BIT,OP,1971.0,,770.0,0.314566,4.0
+3948|2,3948,2,Mitchell (WV),WV,Marshall,39.8297,-80.8153,p116,plant map,Conventional Steam Coal,BIT,OP,1971.0,,790.0,0.431903,4.0
+3954|1,3954,1,Mt Storm,WV,Grant,39.2008,-79.2636,p116,plant map,Conventional Steam Coal,BIT,OP,1965.0,,548.1,0.335447,4.0
+3954|2,3954,2,Mt Storm,WV,Grant,39.2008,-79.2636,p116,plant map,Conventional Steam Coal,BIT,OP,1966.0,,560.4,0.369162,4.0
+3954|3,3954,3,Mt Storm,WV,Grant,39.2008,-79.2636,p116,plant map,Conventional Steam Coal,BIT,OP,1973.0,,522.0,0.42375,4.0
+3|4,3,4,Barry,AL,Mobile,31.0069,-88.0103,p90,plant map,Conventional Steam Coal,BIT,OP,1969.0,,362.0,0.227057,4.0
+3|5,3,5,Barry,AL,Mobile,31.0069,-88.0103,p90,plant map,Conventional Steam Coal,BIT,OP,1971.0,,756.5,0.517481,4.0
+4041|7,4041,7,South Oak Creek,WI,Milwaukee,42.8457,-87.8294,p79,plant map,Conventional Steam Coal,SUB,OP,1965.0,2027.0,309.3,0.642994,4.0
+4041|8,4041,8,South Oak Creek,WI,Milwaukee,42.8457,-87.8294,p79,plant map,Conventional Steam Coal,SUB,OP,1967.0,2027.0,312.7,0.553126,4.0
+4050|5,4050,5,Edgewater,WI,Sheboygan,43.715142,-87.70586,p79,plant map,Conventional Steam Coal,SUB,OP,1985.0,,402.7,0.64854,4.0
+4078|3,4078,3,Weston,WI,Marathon,44.8606,-89.6553,p75,plant map,Conventional Steam Coal,SUB,OP,1981.0,,339.8,0.417762,4.0
+4078|4,4078,4,Weston,WI,Marathon,44.8606,-89.6553,p75,plant map,Conventional Steam Coal,SUB,OP,2008.0,,558.5,0.715452,4.0
+4158|1,4158,1,Dave Johnston,WY,Converse,42.8378,-105.7769,p24,plant map,Conventional Steam Coal,SUB,OP,1959.0,,99.0,0.696549,4.0
+4158|2,4158,2,Dave Johnston,WY,Converse,42.8378,-105.7769,p24,plant map,Conventional Steam Coal,SUB,OP,1961.0,,106.0,0.781059,4.0
+4158|3,4158,3,Dave Johnston,WY,Converse,42.8378,-105.7769,p24,plant map,Conventional Steam Coal,SUB,OP,1964.0,2027.0,220.0,0.572188,4.0
+4158|4,4158,4,Dave Johnston,WY,Converse,42.8378,-105.7769,p24,plant map,Conventional Steam Coal,SUB,OP,1972.0,,330.0,0.57715,4.0
+4162|1,4162,1,Naughton,WY,Lincoln,41.7581,-110.5983,p21,plant map,Conventional Steam Coal,SUB,OP,1963.0,,156.0,0.894268,4.0
+4162|2,4162,2,Naughton,WY,Lincoln,41.7581,-110.5983,p21,plant map,Conventional Steam Coal,SUB,OP,1968.0,,201.0,0.596662,4.0
+4271|1,4271,1,John P Madgett,WI,Buffalo,44.303583,-91.91265,p46,plant map,Conventional Steam Coal,SUB,OP,1979.0,,392.5,0.611244,4.0
+470|2,470,2,Comanche (CO),CO,Pueblo,38.2081,-104.5747,p34,plant map,Conventional Steam Coal,SUB,OP,1975.0,2026.0,335.0,0.722283,4.0
+470|3,470,3,Comanche (CO),CO,Pueblo,38.2081,-104.5747,p34,plant map,Conventional Steam Coal,SUB,OP,2010.0,2030.0,766.0,0.702412,4.0
+50308|GEN1,50308,GEN1,FWA Central Heat and Power Plant,AK,Fairbanks North Star,64.825601,-147.6486,,,Conventional Steam Coal,SUB,OP,1955.0,,4.3,0.388393,4.0
+50308|GEN3,50308,GEN3,FWA Central Heat and Power Plant,AK,Fairbanks North Star,64.825601,-147.6486,,,Conventional Steam Coal,SUB,OP,1955.0,,6.2,0.379198,4.0
+50308|GEN4,50308,GEN4,FWA Central Heat and Power Plant,AK,Fairbanks North Star,64.825601,-147.6486,,,Conventional Steam Coal,SUB,OP,1955.0,,6.2,0.407479,4.0
+50308|GEN5,50308,GEN5,FWA Central Heat and Power Plant,AK,Fairbanks North Star,64.825601,-147.6486,,,Conventional Steam Coal,SUB,OP,1989.0,,6.2,0.366722,4.0
+50392|TG3,50392,TG3,Eielson AFB Central Heat & Power Plant,AK,Fairbanks North Star,64.67141,-147.076,,,Conventional Steam Coal,SUB,OP,1955.0,,5.0,0.328333,4.0
+50392|TG4,50392,TG4,Eielson AFB Central Heat & Power Plant,AK,Fairbanks North Star,64.67141,-147.076,,,Conventional Steam Coal,SUB,OP,1969.0,,5.0,0.426438,4.0
+50392|TG5,50392,TG5,Eielson AFB Central Heat & Power Plant,AK,Fairbanks North Star,64.67141,-147.076,,,Conventional Steam Coal,SUB,OP,1987.0,,9.5,0.662149,4.0
+50392|TG6,50392,TG6,Eielson AFB Central Heat & Power Plant,AK,Fairbanks North Star,64.67141,-147.076,,,Conventional Steam Coal,SUB,OP,2025.0,,9.5,,
+50397|GEN5,50397,GEN5,Pixelle Specialty Solutions LLC - Spring,PA,York,39.870935,-76.86812,p122,county,Conventional Steam Coal,BIT,OP,1989.0,,36.1,0.517659,4.0
+50481|TG10,50481,TG10,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1946.0,,6.0,0.765217,4.0
+50481|TG11,50481,TG11,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1949.0,,6.0,0.837356,4.0
+50481|TG12,50481,TG12,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1953.0,,6.0,0.831374,4.0
+50481|TG13,50481,TG13,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1960.0,,7.0,0.403196,4.0
+50481|TG14,50481,TG14,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1962.0,,10.0,0.78226,4.0
+50481|TG15,50481,TG15,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1963.0,,7.5,0.476776,4.0
+50481|TG22,50481,TG22,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1982.0,,15.4,0.57303,4.0
+50481|TG25,50481,TG25,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1994.0,,18.0,0.855911,4.0
+50481|TG26,50481,TG26,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1994.0,,16.6,0.591345,4.0
+50481|TGO7,50481,TGO7,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1936.0,,6.0,0.750797,4.0
+50481|TGO8,50481,TGO8,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1939.0,,6.0,0.784532,4.0
+50481|TGO9,50481,TGO9,Tennessee Eastman Operations,TN,Sullivan,36.5219,-82.5431,p92,county,Conventional Steam Coal,BIT,OP,1941.0,,6.0,0.766564,4.0
+50611|GEN1,50611,GEN1,Westwood Generation LLC,PA,Schuylkill,40.6191,-76.45,p122,plant map,Conventional Steam Coal,WC,OP,1987.0,,30.0,0.659467,4.0
+50711|GEN5,50711,GEN5,University of Alaska Fairbanks,AK,Fairbanks North Star,64.854171,-147.8221,,,Conventional Steam Coal,SUB,OP,2020.0,,17.0,0.490706,4.0
+50776|GEN1,50776,GEN1,Panther Creek Energy Facility,PA,Carbon,40.8556,-75.8781,p122,plant map,Conventional Steam Coal,WC,OP,1992.0,,80.0,0.725461,4.0
+50835|GEN1,50835,GEN1,TES Filer City Station,MI,Manistee,44.217299,-86.28905,p103,plant map,Conventional Steam Coal,BIT,OP,1990.0,,60.0,0.948358,4.0
+50888|GEN1,50888,GEN1,Northampton Generating Company LP,PA,Northampton,40.6917,-75.4792,p122,plant map,Conventional Steam Coal,WC,OP,1995.0,,112.0,0.518701,3.0
+50900|GEN3,50900,GEN3,Covington Facility,VA,Alleghany,37.799722,-79.9947,p99,county,Conventional Steam Coal,BIT,OP,1951.0,,10.5,0.798761,4.0
+50900|GEN5,50900,GEN5,Covington Facility,VA,Alleghany,37.799722,-79.9947,p99,county,Conventional Steam Coal,BIT,OP,1989.0,,32.5,0.612041,4.0
+50951|GEN1,50951,GEN1,Sunnyside Cogen Associates,UT,Carbon,39.5472,-110.3917,p25,plant map,Conventional Steam Coal,WC,OP,1993.0,,51.0,0.906095,3.0
+50974|GEN1,50974,GEN1,Scrubgrass Reclamation CO. LP.,PA,Venango,41.2691,-79.8134,p122,plant map,Conventional Steam Coal,WC,OP,1993.0,,80.7,0.50488,4.0
+525|1,525,1,Hayden,CO,Routt,40.4856,-107.185,p33,plant map,Conventional Steam Coal,BIT,OP,1965.0,2028.0,179.0,0.783097,4.0
+525|2,525,2,Hayden,CO,Routt,40.4856,-107.185,p33,plant map,Conventional Steam Coal,BIT,OP,1976.0,2027.0,262.0,0.748176,4.0
+54210|G1,54210,G1,American Crystal Sugar Hillsboro,ND,Traill,47.437562,-97.06311,p37,county,Conventional Steam Coal,SUB,OP,1990.0,,13.3,0.792255,4.0
+54211|G1,54211,G1,American Crystal Sugar Moorhead,MN,Clay,46.9026,-96.76112,p42,county,Conventional Steam Coal,SUB,OP,1948.0,,3.0,,
+54211|G2,54211,G2,American Crystal Sugar Moorhead,MN,Clay,46.9026,-96.76112,p42,county,Conventional Steam Coal,SUB,OP,1961.0,,2.0,,
+54212|G1,54212,G1,American Crystal Sugar Crookston,MN,Polk,47.76468,-96.63338,p42,county,Conventional Steam Coal,SUB,OP,1954.0,,3.5,,
+54212|G2,54212,G2,American Crystal Sugar Crookston,MN,Polk,47.76468,-96.63338,p42,county,Conventional Steam Coal,SUB,OP,1975.0,,3.0,,
+54213|G1,54213,G1,American Crystal Sugar Drayton,ND,Pembina,48.593158,-97.17608,p37,county,Conventional Steam Coal,SUB,OP,1965.0,,6.0,,
+54214|G1,54214,G1,American Crystal Sugar East Grand Forks,MN,Polk,47.927202,-97.00715,p42,county,Conventional Steam Coal,SUB,OP,1990.0,,2.5,,
+54214|G2,54214,G2,American Crystal Sugar East Grand Forks,MN,Polk,47.927202,-97.00715,p42,county,Conventional Steam Coal,SUB,OP,1990.0,,5.0,,
+54276|TG3,54276,TG3,Univ of NC Chapel Hill Cogen Facility,NC,Orange,35.9069,-79.0617,p98,county,Conventional Steam Coal,BIT,OP,1991.0,,28.7,0.215845,3.0
+54318|TG1,54318,TG1,General Chemical,WY,Sweetwater,41.5933,-109.7542,p21,county,Conventional Steam Coal,BIT,OP,1968.0,,15.0,0.854353,4.0
+54318|TG2,54318,TG2,General Chemical,WY,Sweetwater,41.5933,-109.7542,p21,county,Conventional Steam Coal,BIT,OP,1977.0,,15.0,0.919361,4.0
+54533|1,54533,0001,Southern Minnesota Beet Sugar,MN,Renville,44.796405,-95.17979,p44,county,Conventional Steam Coal,SUB,OP,1976.0,,7.5,0.457641,4.0
+54634|SNCP,54634,SNCP,St Nicholas Cogen Project,PA,Schuylkill,40.8222,-76.1736,p122,plant map,Conventional Steam Coal,WC,OP,1990.0,,86.0,0.875666,4.0
+54867|M387,54867,M387,Neenah Paper Munising Mill,MI,Alger,46.4094,-86.6443,p74,county,Conventional Steam Coal,BIT,SB,1930.0,,5.8,,
+55076|RHGF,55076,RHGF,Red Hills Generating Facility,MS,Choctaw,33.3761,-89.2183,p88,plant map,Conventional Steam Coal,LIG,OP,2001.0,,440.0,0.756948,3.0
+55479|1,55479,0001,Wygen 1,WY,Campbell,44.2858,-105.3833,p23,plant map,Conventional Steam Coal,SUB,OP,2003.0,,86.0,0.914057,4.0
+55749|UNT1,55749,UNT1,Hardin Generator Project,MT,Big Horn,45.7578,-107.6,p18,plant map,Conventional Steam Coal,SUB,OP,2006.0,,107.0,0.526936,4.0
+55856|PC1,55856,PC1,Prairie State Generating Station,IL,St Clair,38.279167,-89.66694,p81,plant map,Conventional Steam Coal,BIT,OP,2012.0,,815.0,0.857094,4.0
+55856|PC2,55856,PC2,Prairie State Generating Station,IL,St Clair,38.279167,-89.66694,p81,plant map,Conventional Steam Coal,BIT,OP,2012.0,,815.0,0.92846,4.0
+56068|1,56068,1,Elm Road Generating Station,WI,Milwaukee,42.8492,-87.8336,p79,plant map,Conventional Steam Coal,SUB,OP,2010.0,,637.3,0.759271,4.0
+56068|2,56068,2,Elm Road Generating Station,WI,Milwaukee,42.8492,-87.8336,p79,plant map,Conventional Steam Coal,SUB,OP,2011.0,,638.1,0.755795,4.0
+56224|1,56224,001,TS Power Plant,NV,Eureka,40.7461,-116.5297,p12,plant map,Conventional Steam Coal,SUB,OP,2008.0,,219.2,0.699133,4.0
+56319|1,56319,0001,Wygen 2,WY,Campbell,44.2919,-105.3811,p23,plant map,Conventional Steam Coal,SUB,OP,2008.0,,91.0,0.903925,4.0
+56456|STG1,56456,STG1,Plum Point Energy Station,AR,Mississippi,35.6644,-89.9489,p85,plant map,Conventional Steam Coal,SUB,OP,2010.0,,680.0,0.730866,4.0
+564|1,564,1,Stanton Energy Center,FL,Orange,28.4822,-81.1678,p101,plant map,Conventional Steam Coal,BIT,OP,1987.0,,453.4,0.511762,4.0
+564|2,564,2,Stanton Energy Center,FL,Orange,28.4822,-81.1678,p101,plant map,Conventional Steam Coal,BIT,OP,1996.0,,469.3,0.619415,4.0
+56564|1,56564,1,John W Turk Jr Power Plant,AR,Hempstead,33.649722,-93.81194,p85,plant map,Conventional Steam Coal,SUB,OP,2012.0,,650.0,0.64653,4.0
+56596|5,56596,5,Wygen III,WY,Campbell,44.2919,-105.3806,p23,plant map,Conventional Steam Coal,SUB,OP,2010.0,,103.0,0.922001,4.0
+56609|1,56609,01,Dry Fork Station,WY,Campbell,44.388889,-105.4608,p23,plant map,Conventional Steam Coal,SUB,OP,2011.0,,405.0,0.829751,4.0
+56671|MKA01,56671,MKA01,Longview Power Plant,WV,Monongalia,39.707893,-79.95897,p116,plant map,Conventional Steam Coal,BIT,OP,2011.0,,710.0,0.892629,4.0
+56808|1,56808,1,Virginia City Hybrid Energy Center,VA,Wise,36.916389,-82.33806,p118,plant map,Conventional Steam Coal,BIT,OP,2012.0,,621.5,0.249439,4.0
+57046|GEN1,57046,GEN1,Archer Daniels Midland Columbus,NE,Platte,41.416442,-97.28633,p40,county,Conventional Steam Coal,SUB,OP,2010.0,,61.0,0.563791,4.0
+57915|1,57915,1,WE Soda Alkalai LLC,WY,Sweetwater,41.621667,-109.8119,p21,county,Conventional Steam Coal,SUB,OP,1953.0,,3.5,0.807697,4.0
+57915|2,57915,2,WE Soda Alkalai LLC,WY,Sweetwater,41.621667,-109.8119,p21,county,Conventional Steam Coal,SUB,OP,1953.0,,3.5,0.791455,4.0
+57915|3,57915,3,WE Soda Alkalai LLC,WY,Sweetwater,41.621667,-109.8119,p21,county,Conventional Steam Coal,SUB,OP,1964.0,,4.0,0.759933,4.0
+57915|4,57915,4,WE Soda Alkalai LLC,WY,Sweetwater,41.621667,-109.8119,p21,county,Conventional Steam Coal,SUB,OP,1972.0,,10.0,0.778653,4.0
+57915|5,57915,5,WE Soda Alkalai LLC,WY,Sweetwater,41.621667,-109.8119,p21,county,Conventional Steam Coal,SUB,OA,1975.0,,10.0,0.927648,4.0
+57915|6,57915,6,WE Soda Alkalai LLC,WY,Sweetwater,41.621667,-109.8119,p21,county,Conventional Steam Coal,SUB,OP,1975.0,,10.0,0.785765,4.0
+57928|GEN5,57928,GEN5,SIUC,IL,Jackson,37.711944,-89.215,p81,county,Conventional Steam Coal,BIT,OP,1998.0,,2.8,0.295947,4.0
+57949|1,57949,1,MSC Sebewaing,MI,Huron,43.741111,-83.44722,p103,county,Conventional Steam Coal,BIT,OP,1990.0,,1.4,0.108937,4.0
+59|1,59,1,Platte,NE,Hall,40.854765,-98.34822,p40,plant map,Conventional Steam Coal,SUB,OP,1982.0,,100.0,0.503435,4.0
+6002|1,6002,1,James H Miller Jr,AL,Jefferson,33.6319,-87.0597,p89,plant map,Conventional Steam Coal,SUB,OP,1978.0,,687.8,0.926641,4.0
+6002|2,6002,2,James H Miller Jr,AL,Jefferson,33.6319,-87.0597,p89,plant map,Conventional Steam Coal,SUB,OP,1985.0,,692.7,0.933696,4.0
+6002|3,6002,3,James H Miller Jr,AL,Jefferson,33.6319,-87.0597,p89,plant map,Conventional Steam Coal,SUB,OP,1989.0,,693.0,0.907014,4.0
+6002|4,6002,4,James H Miller Jr,AL,Jefferson,33.6319,-87.0597,p89,plant map,Conventional Steam Coal,SUB,OP,1991.0,,704.0,0.903494,4.0
+6004|1,6004,1,Pleasants Power Station,WV,Pleasants,39.366667,-81.29444,p116,plant map,Conventional Steam Coal,BIT,OP,1979.0,,650.0,0.720361,4.0
+6004|2,6004,2,Pleasants Power Station,WV,Pleasants,39.366667,-81.29444,p116,plant map,Conventional Steam Coal,BIT,OP,1980.0,,650.0,0.709508,4.0
+6009|1,6009,1,White Bluff,AR,Jefferson,34.4228,-92.1406,p85,plant map,Conventional Steam Coal,SUB,OP,1980.0,,425.3,0.429277,4.0
+6009|2,6009,2,White Bluff,AR,Jefferson,34.4228,-92.1406,p85,plant map,Conventional Steam Coal,SUB,OP,1981.0,,835.9,0.552991,4.0
+6017|1,6017,1,Newton,IL,Jasper,38.9361,-88.2781,p83,plant map,Conventional Steam Coal,SUB,OP,1977.0,2027.0,615.0,0.661989,4.0
+6018|2,6018,2,East Bend,KY,Boone,38.9036,-84.8514,p109,plant map,Conventional Steam Coal,BIT,OP,1981.0,,600.0,0.528482,4.0
+6021|1,6021,1,Craig (CO),CO,Moffat,40.4627,-107.5912,p33,plant map,Conventional Steam Coal,SUB,OP,1980.0,2026.0,427.0,0.685342,4.0
+6021|2,6021,2,Craig (CO),CO,Moffat,40.4627,-107.5912,p33,plant map,Conventional Steam Coal,SUB,OP,1979.0,2028.0,410.0,0.71048,4.0
+6021|3,6021,3,Craig (CO),CO,Moffat,40.4627,-107.5912,p33,plant map,Conventional Steam Coal,SUB,OP,1984.0,2029.0,448.0,0.656119,4.0
+602|1,602,1,Brandon Shores,MD,Anne Arundel,39.182073,-76.53715,p123,plant map,Conventional Steam Coal,BIT,OP,1984.0,2029.0,635.0,0.219722,4.0
+602|2,602,2,Brandon Shores,MD,Anne Arundel,39.182073,-76.53715,p123,plant map,Conventional Steam Coal,BIT,OP,1991.0,2029.0,638.0,0.227768,4.0
+6030|1,6030,1,Coal Creek,ND,McLean,47.377743,-101.1571,p37,plant map,Conventional Steam Coal,RC,OP,1979.0,,568.3,0.917172,4.0
+6030|2,6030,2,Coal Creek,ND,McLean,47.377743,-101.1571,p37,plant map,Conventional Steam Coal,RC,OP,1980.0,,573.9,0.872205,4.0
+6034|ST1,6034,ST1,Belle River,MI,St Clair,42.7756,-82.495,p103,plant map,Conventional Steam Coal,SUB,OP,1984.0,2028.0,635.0,0.591702,4.0
+6034|ST2,6034,ST2,Belle River,MI,St Clair,42.7756,-82.495,p103,plant map,Conventional Steam Coal,SUB,OP,1985.0,2028.0,635.0,0.697281,4.0
+6041|1,6041,1,H L Spurlock,KY,Mason,38.7,-83.8181,p109,plant map,Conventional Steam Coal,BIT,OP,1977.0,,300.0,0.749577,4.0
+6041|2,6041,2,H L Spurlock,KY,Mason,38.7,-83.8181,p109,plant map,Conventional Steam Coal,BIT,OP,1981.0,,510.0,0.728058,4.0
+6041|3,6041,3,H L Spurlock,KY,Mason,38.7,-83.8181,p109,plant map,Conventional Steam Coal,BIT,OP,2005.0,,268.0,0.800773,4.0
+6041|4,6041,4,H L Spurlock,KY,Mason,38.7,-83.8181,p109,plant map,Conventional Steam Coal,BIT,OP,2009.0,,268.0,0.832027,4.0
+6055|3,6055,3,Big Cajun 2,LA,Pointe Coupee,30.7261,-91.3692,p58,plant map,Conventional Steam Coal,SUB,OP,1983.0,,563.0,0.584413,4.0
+6064|1,6064,1,Nearman Creek,KS,Wyandotte,39.1681,-94.6975,p53,plant map,Conventional Steam Coal,SUB,OP,1981.0,,243.0,0.597588,4.0
+6065|1,6065,1,Iatan,MO,Platte,39.4472,-94.98,p54,plant map,Conventional Steam Coal,SUB,OP,1980.0,2039.0,716.7,0.503455,4.0
+6065|2,6065,2,Iatan,MO,Platte,39.4472,-94.98,p54,plant map,Conventional Steam Coal,SUB,OP,2010.0,,899.7,0.618436,4.0
+6068|1,6068,1,Jeffrey Energy Center,KS,Pottawatomie,39.286453,-96.11723,p53,plant map,Conventional Steam Coal,SUB,OP,1978.0,2039.0,725.2,0.626196,4.0
+6068|2,6068,2,Jeffrey Energy Center,KS,Pottawatomie,39.286453,-96.11723,p53,plant map,Conventional Steam Coal,SUB,OP,1980.0,,721.8,0.543648,4.0
+6068|3,6068,3,Jeffrey Energy Center,KS,Pottawatomie,39.286453,-96.11723,p53,plant map,Conventional Steam Coal,SUB,OP,1983.0,2030.0,731.8,0.415987,4.0
+6071|1,6071,1,Trimble County,KY,Trimble,38.5847,-85.4117,p109,plant map,Conventional Steam Coal,BIT,OP,1990.0,,493.0,0.806266,3.0
+6071|2,6071,2,Trimble County,KY,Trimble,38.5847,-85.4117,p109,plant map,Conventional Steam Coal,BIT,OP,2011.0,,760.0,0.798063,3.0
+6073|1,6073,1,Victor J Daniel Jr,MS,Jackson,30.5322,-88.5553,p87,plant map,Conventional Steam Coal,SUB,OP,1977.0,2027.0,502.0,0.438951,4.0
+6073|2,6073,2,Victor J Daniel Jr,MS,Jackson,30.5322,-88.5553,p87,plant map,Conventional Steam Coal,SUB,OP,1981.0,2027.0,502.0,0.350684,4.0
+6076|3,6076,3,Colstrip,MT,Rosebud,45.8831,-106.614,p20,plant map,Conventional Steam Coal,SUB,OP,1984.0,,740.0,0.839838,4.0
+6076|4,6076,4,Colstrip,MT,Rosebud,45.8831,-106.614,p20,plant map,Conventional Steam Coal,SUB,OP,1986.0,,740.0,0.857369,4.0
+6077|1,6077,1,Gerald Gentleman,NE,Lincoln,41.0808,-101.1408,p40,plant map,Conventional Steam Coal,SUB,OP,1979.0,,665.0,0.652405,4.0
+6077|2,6077,2,Gerald Gentleman,NE,Lincoln,41.0808,-101.1408,p40,plant map,Conventional Steam Coal,SUB,OP,1982.0,,700.0,0.637452,4.0
+6085|17,6085,17,R M Schahfer,IN,Jasper,41.2164,-87.0261,p105,plant map,Conventional Steam Coal,BIT,OP,1983.0,2026.0,361.0,0.38879,4.0
+6085|18,6085,18,R M Schahfer,IN,Jasper,41.2164,-87.0261,p105,plant map,Conventional Steam Coal,BIT,OP,1986.0,2026.0,361.0,0.361235,4.0
+6090|1,6090,1,Sherburne County,MN,Sherburne,45.3808,-93.8931,p43,plant map,Conventional Steam Coal,SUB,OP,1976.0,2026.0,680.0,0.545291,4.0
+6090|3,6090,3,Sherburne County,MN,Sherburne,45.3808,-93.8931,p43,plant map,Conventional Steam Coal,SUB,OP,1987.0,2030.0,876.0,0.489172,4.0
+6095|1,6095,1,Sooner,OK,Noble,36.45307,-97.05279,p50,plant map,Conventional Steam Coal,SUB,OP,1979.0,,523.0,0.298066,4.0
+6095|2,6095,2,Sooner,OK,Noble,36.45307,-97.05279,p50,plant map,Conventional Steam Coal,SUB,OP,1980.0,,525.0,0.409491,4.0
+6096|1,6096,1,Nebraska City,NE,Otoe,40.6214,-95.7764,p41,plant map,Conventional Steam Coal,SUB,OP,1979.0,,650.3,0.600451,4.0
+6096|2,6096,2,Nebraska City,NE,Otoe,40.6214,-95.7764,p41,plant map,Conventional Steam Coal,SUB,OP,2009.0,,687.2,0.638865,4.0
+6098|1,6098,1,Big Stone,SD,Grant,45.303652,-96.51007,p38,plant map,Conventional Steam Coal,SUB,OP,1975.0,,491.2,0.451019,4.0
+60|1,60,1,Whelan Energy Center,NE,Adams,40.580872,-98.31244,p40,plant map,Conventional Steam Coal,SUB,OP,1981.0,,76.0,0.662459,4.0
+60|2,60,2,Whelan Energy Center,NE,Adams,40.580872,-98.31244,p40,plant map,Conventional Steam Coal,SUB,OP,2011.0,,220.0,0.5847,4.0
+6101|1,6101,1,Wyodak,WY,Campbell,44.290128,-105.3815,p23,plant map,Conventional Steam Coal,SUB,OP,1978.0,,335.0,0.669645,3.0
+6113|1,6113,1,Gibson,IN,Gibson,38.372222,-87.76583,p107,plant map,Conventional Steam Coal,BIT,OP,1976.0,,635.0,0.497481,4.0
+6113|2,6113,2,Gibson,IN,Gibson,38.372222,-87.76583,p107,plant map,Conventional Steam Coal,BIT,OP,1975.0,,635.0,0.360795,4.0
+6113|3,6113,3,Gibson,IN,Gibson,38.372222,-87.76583,p107,plant map,Conventional Steam Coal,BIT,OP,1978.0,,635.0,0.362542,4.0
+6113|4,6113,4,Gibson,IN,Gibson,38.372222,-87.76583,p107,plant map,Conventional Steam Coal,BIT,OP,1979.0,,627.0,0.367283,4.0
+6113|5,6113,5,Gibson,IN,Gibson,38.372222,-87.76583,p107,plant map,Conventional Steam Coal,BIT,OP,1982.0,,625.0,0.390119,4.0
+6138|1,6138,1,Flint Creek,AR,Benton,36.2561,-94.5241,p56,plant map,Conventional Steam Coal,SUB,OP,1978.0,,494.0,0.648276,4.0
+6139|1,6139,1,Welsh,TX,Titus,33.05522,-94.83999,p57,plant map,Conventional Steam Coal,SUB,OP,1977.0,,500.0,0.581573,4.0
+6139|3,6139,3,Welsh,TX,Titus,33.05522,-94.83999,p57,plant map,Conventional Steam Coal,SUB,OP,1982.0,,500.0,0.451387,4.0
+6146|1,6146,1,Martin Lake,TX,Rusk,32.2606,-94.5706,p63,plant map,Conventional Steam Coal,SUB,OP,1977.0,,815.0,0.61836,3.0
+6146|2,6146,2,Martin Lake,TX,Rusk,32.2606,-94.5706,p63,plant map,Conventional Steam Coal,SUB,OP,1978.0,,820.0,0.602963,3.0
+6146|3,6146,3,Martin Lake,TX,Rusk,32.2606,-94.5706,p63,plant map,Conventional Steam Coal,SUB,OP,1979.0,,820.0,0.68643,3.0
+6165|1,6165,1,Hunter,UT,Emery,39.1747,-111.0289,p25,plant map,Conventional Steam Coal,BIT,OP,1978.0,,446.0,0.761144,3.0
+6165|2,6165,2,Hunter,UT,Emery,39.1747,-111.0289,p25,plant map,Conventional Steam Coal,BIT,OP,1980.0,,446.0,0.770736,3.0
+6165|3,6165,3,Hunter,UT,Emery,39.1747,-111.0289,p25,plant map,Conventional Steam Coal,BIT,OP,1983.0,,471.0,0.791081,3.0
+6166|1,6166,1,Rockport,IN,Spencer,37.9256,-87.0372,p107,plant map,Conventional Steam Coal,SUB,OP,1984.0,2028.0,1299.0,0.231866,1.0
+6166|2,6166,2,Rockport,IN,Spencer,37.9256,-87.0372,p107,plant map,Conventional Steam Coal,SUB,OP,1989.0,2028.0,1299.0,0.300602,3.0
+6177|CO1,6177,CO1,Coronado,AZ,Apache,34.5789,-109.2708,p29,plant map,Conventional Steam Coal,SUB,OP,1979.0,2032.0,380.0,0.481058,4.0
+6177|CO2,6177,CO2,Coronado,AZ,Apache,34.5789,-109.2708,p29,plant map,Conventional Steam Coal,SUB,OP,1980.0,2032.0,382.0,0.538159,4.0
+6178|1,6178,1,Coleto Creek,TX,Goliad,28.7128,-97.21417,p65,plant map,Conventional Steam Coal,SUB,OP,1980.0,,655.0,0.594803,4.0
+6179|1,6179,1,Fayette Power Project,TX,Fayette,29.9172,-96.7506,p64,plant map,Conventional Steam Coal,SUB,OP,1979.0,,598.0,0.729341,4.0
+6179|2,6179,2,Fayette Power Project,TX,Fayette,29.9172,-96.7506,p64,plant map,Conventional Steam Coal,SUB,OP,1980.0,,598.0,0.734383,4.0
+6179|3,6179,3,Fayette Power Project,TX,Fayette,29.9172,-96.7506,p64,plant map,Conventional Steam Coal,SUB,OP,1988.0,,440.0,0.846228,4.0
+6180|OG1,6180,OG1,Oak Grove (TX),TX,Robertson,31.1803,-96.4866,p63,plant map,Conventional Steam Coal,LIG,OP,2010.0,,855.0,0.868802,4.0
+6180|OG2,6180,OG2,Oak Grove (TX),TX,Robertson,31.1803,-96.4866,p63,plant map,Conventional Steam Coal,LIG,OP,2011.0,,855.0,0.874802,4.0
+6183|1,6183,1,San Miguel,TX,Atascosa,28.7044,-98.4775,p65,plant map,Conventional Steam Coal,LIG,OP,1982.0,,391.0,0.612932,4.0
+6190|2,6190,2,Brame Energy Center,LA,Rapides,31.395,-92.71667,p58,plant map,Conventional Steam Coal,SUB,OP,1982.0,,493.0,0.555915,4.0
+6194|1,6194,1,Tolk,TX,Lamb,34.186494,-102.57,p48,plant map,Conventional Steam Coal,SUB,OP,1982.0,2028.0,532.0,0.307179,4.0
+6194|2,6194,2,Tolk,TX,Lamb,34.186494,-102.57,p48,plant map,Conventional Steam Coal,SUB,OP,1985.0,2028.0,535.0,0.319106,4.0
+6195|ST1,6195,ST1,John Twitty Energy Center,MO,Greene,37.151706,-93.38804,p55,plant map,Conventional Steam Coal,SUB,OP,1976.0,,184.0,0.674904,4.0
+6195|ST2,6195,ST2,John Twitty Energy Center,MO,Greene,37.151706,-93.38804,p55,plant map,Conventional Steam Coal,SUB,OP,2011.0,,275.0,0.705257,4.0
+6204|1,6204,1,Laramie River Station,WY,Platte,42.108889,-104.8825,p24,plant map,Conventional Steam Coal,SUB,OP,1981.0,,560.0,0.482671,4.0
+6204|2,6204,2,Laramie River Station,WY,Platte,42.108889,-104.8825,p24,plant map,Conventional Steam Coal,SUB,OP,1981.0,,570.0,0.753963,4.0
+6204|3,6204,3,Laramie River Station,WY,Platte,42.108889,-104.8825,p24,plant map,Conventional Steam Coal,SUB,OP,1982.0,,570.0,0.836094,4.0
+6213|1,6213,1,Merom,IN,Sullivan,39.0694,-87.5108,p107,plant map,Conventional Steam Coal,BIT,OP,1983.0,,494.0,0.575393,4.0
+6213|2,6213,2,Merom,IN,Sullivan,39.0694,-87.5108,p107,plant map,Conventional Steam Coal,BIT,OP,1982.0,,496.0,0.644013,4.0
+62319|1,62319,1,Western Sugar Cooperative - Billings,MT,Yellowstone,45.765346,-108.4992,p20,county,Conventional Steam Coal,SUB,OP,2011.0,,1.5,,
+6249|1,6249,1,Winyah,SC,Georgetown,33.33184,-79.35724,p96,plant map,Conventional Steam Coal,BIT,OP,1975.0,2030.0,280.0,0.549956,4.0
+6249|2,6249,2,Winyah,SC,Georgetown,33.33184,-79.35724,p96,plant map,Conventional Steam Coal,BIT,OP,1977.0,2030.0,290.0,0.364745,4.0
+6249|3,6249,3,Winyah,SC,Georgetown,33.33184,-79.35724,p96,plant map,Conventional Steam Coal,BIT,OP,1980.0,2030.0,290.0,0.308405,4.0
+6249|4,6249,4,Winyah,SC,Georgetown,33.33184,-79.35724,p96,plant map,Conventional Steam Coal,BIT,OP,1981.0,2030.0,290.0,0.350175,4.0
+6250|1,6250,1,Mayo,NC,Person,36.5278,-78.8917,p98,plant map,Conventional Steam Coal,BIT,OP,1983.0,2031.0,713.0,0.208644,4.0
+6254|1,6254,1,Ottumwa,IA,Wapello,41.0961,-92.55583,p70,plant map,Conventional Steam Coal,SUB,OP,1981.0,,726.8,0.657725,4.0
+6257|1,6257,1,Scherer,GA,Monroe,33.0606,-83.8075,p94,plant map,Conventional Steam Coal,SUB,OP,1982.0,,860.0,0.454192,4.0
+6257|2,6257,2,Scherer,GA,Monroe,33.0606,-83.8075,p94,plant map,Conventional Steam Coal,SUB,OP,1984.0,,860.0,0.29322,4.0
+6257|3,6257,3,Scherer,GA,Monroe,33.0606,-83.8075,p94,plant map,Conventional Steam Coal,SUB,OP,1987.0,,860.0,0.376334,4.0
+6264|1,6264,1,Mountaineer,WV,Mason,38.9794,-81.9344,p117,plant map,Conventional Steam Coal,BIT,OP,1980.0,,1299.0,0.626822,4.0
+6288|1,6288,1,Healy,AK,Denali,63.8542,-148.95,,,Conventional Steam Coal,LIG,OP,1967.0,,25.0,0.777799,4.0
+6288|2,6288,2,Healy,AK,Denali,63.8542,-148.95,,,Conventional Steam Coal,LIG,OP,1998.0,,50.0,0.581061,4.0
+628|5,628,5,Crystal River,FL,Citrus,28.9656,-82.6977,p101,plant map,Conventional Steam Coal,BIT,OP,1984.0,2034.0,721.0,0.408779,4.0
+628|ST4,628,ST4,Crystal River,FL,Citrus,28.9656,-82.6977,p101,plant map,Conventional Steam Coal,BIT,OP,1982.0,2034.0,721.0,0.389564,4.0
+6469|1,6469,1,Antelope Valley,ND,Mercer,47.370542,-101.8357,p36,plant map,Conventional Steam Coal,LIG,OP,1984.0,,450.0,0.782695,4.0
+6469|2,6469,2,Antelope Valley,ND,Mercer,47.370542,-101.8357,p36,plant map,Conventional Steam Coal,LIG,OP,1986.0,,450.0,0.739423,4.0
+6641|1,6641,1,Independence Steam Electric Station,AR,Independence,35.678442,-91.40876,p85,plant map,Conventional Steam Coal,SUB,OP,1983.0,,836.0,0.408222,4.0
+6641|2,6641,2,Independence Steam Electric Station,AR,Independence,35.678442,-91.40876,p85,plant map,Conventional Steam Coal,SUB,OP,1984.0,,842.1,0.401194,4.0
+6664|1,6664,1,Louisa,IA,Louisa,41.3181,-91.0931,p70,plant map,Conventional Steam Coal,SUB,OP,1983.0,,755.0,0.666042,4.0
+667|1,667,1,Northside Generating Station,FL,Duval,30.4172,-81.5525,p101,plant map,Conventional Steam Coal,BIT,OP,1966.0,,293.0,0.23262,4.0
+667|2,667,2,Northside Generating Station,FL,Duval,30.4172,-81.5525,p101,plant map,Conventional Steam Coal,BIT,OP,1972.0,,293.0,0.571213,4.0
+6705|1,6705,1,Warrick,IN,Warrick,37.915,-87.3328,p107,plant map,Conventional Steam Coal,BIT,OP,1960.0,,157.8,0.737233,4.0
+6705|3,6705,3,Warrick,IN,Warrick,37.915,-87.3328,p107,plant map,Conventional Steam Coal,BIT,OP,1965.0,,152.3,0.746459,4.0
+6705|4,6705,4,Warrick,IN,Warrick,37.915,-87.3328,p107,plant map,Conventional Steam Coal,BIT,OP,1970.0,,288.8,0.674101,4.0
+6761|1,6761,1,Rawhide,CO,Larimer,40.860905,-105.0212,p33,plant map,Conventional Steam Coal,SUB,OP,1984.0,2029.0,280.0,0.806614,4.0
+6768|1,6768,1,Sikeston Power Station,MO,Scott,36.8791,-89.6209,p72,plant map,Conventional Steam Coal,SUB,OP,1981.0,,240.0,0.814796,4.0
+6772|1,6772,1,Hugo,OK,Choctaw,34.0158,-95.3206,p50,plant map,Conventional Steam Coal,SUB,OP,1982.0,,440.0,0.363804,4.0
+6823|1,6823,1,D B Wilson,KY,Ohio,37.4497,-87.0806,p108,plant map,Conventional Steam Coal,BIT,OP,1984.0,,417.0,0.835934,4.0
+7030|1,7030,1,Major Oak Power,TX,Robertson,31.091925,-96.69503,p63,plant map,Conventional Steam Coal,LIG,OP,1990.0,,153.0,0.945941,4.0
+7030|2,7030,2,Major Oak Power,TX,Robertson,31.091925,-96.69503,p63,plant map,Conventional Steam Coal,LIG,OP,1991.0,,154.0,0.945925,4.0
+703|1,703,1,Bowen,GA,Bartow,34.1256,-84.9222,p94,plant map,Conventional Steam Coal,BIT,OP,1971.0,,714.0,0.535746,4.0
+703|2,703,2,Bowen,GA,Bartow,34.1256,-84.9222,p94,plant map,Conventional Steam Coal,BIT,OP,1972.0,,718.0,0.436,4.0
+703|3,703,3,Bowen,GA,Bartow,34.1256,-84.9222,p94,plant map,Conventional Steam Coal,BIT,OP,1974.0,,883.0,0.421172,4.0
+703|4,703,4,Bowen,GA,Bartow,34.1256,-84.9222,p94,plant map,Conventional Steam Coal,BIT,OP,1975.0,,885.0,0.367704,4.0
+7097|1,7097,1,J K Spruce,TX,Bexar,29.309722,-98.3203,p65,plant map,Conventional Steam Coal,SUB,OP,1992.0,2028.0,560.0,0.638154,4.0
+7097|2,7097,2,J K Spruce,TX,Bexar,29.309722,-98.3203,p65,plant map,Conventional Steam Coal,SUB,OP,2010.0,,785.0,0.717761,4.0
+7213|1,7213,1,Clover,VA,Halifax,36.869,-78.704,p99,plant map,Conventional Steam Coal,BIT,OP,1995.0,,442.9,0.122585,4.0
+7213|2,7213,2,Clover,VA,Halifax,36.869,-78.704,p99,plant map,Conventional Steam Coal,BIT,OP,1996.0,,439.0,0.123191,4.0
+7343|4,7343,4,George Neal South,IA,Woodbury,42.3006,-96.3617,p45,plant map,Conventional Steam Coal,SUB,OP,1979.0,,651.0,0.254187,3.0
+7504|2,7504,2,Neil Simpson II,WY,Campbell,44.2856,-105.3833,p23,plant map,Conventional Steam Coal,SUB,OP,1995.0,,82.0,0.877767,4.0
+7790|1,7790,1,Bonanza,UT,Uintah,40.0864,-109.2844,p26,plant map,Conventional Steam Coal,BIT,OP,1986.0,,458.0,0.860063,3.0
+79|1,79,1,Chena Power Plant,AK,Fairbanks North Star,64.847743,-147.7351,,,Conventional Steam Coal,SUB,OP,1952.0,,4.3,0.911304,4.0
+79|2,79,2,Chena Power Plant,AK,Fairbanks North Star,64.847743,-147.7351,,,Conventional Steam Coal,SUB,OP,1952.0,,2.0,0.22129,4.0
+79|5,79,5,Chena Power Plant,AK,Fairbanks North Star,64.847743,-147.7351,,,Conventional Steam Coal,SUB,OP,1975.0,,18.8,0.84348,4.0
+8023|1,8023,1,Columbia (WI),WI,Columbia,43.4864,-89.4203,p76,plant map,Conventional Steam Coal,SUB,OP,1975.0,2029.0,582.0,0.563795,4.0
+8023|2,8023,2,Columbia (WI),WI,Columbia,43.4864,-89.4203,p76,plant map,Conventional Steam Coal,SUB,OP,1978.0,2029.0,545.3,0.596236,4.0
+8066|3,8066,3,Jim Bridger,WY,Sweetwater,41.7378,-108.7875,p21,plant map,Conventional Steam Coal,SUB,OP,1976.0,,523.0,0.564884,4.0
+8066|4,8066,4,Jim Bridger,WY,Sweetwater,41.7378,-108.7875,p21,plant map,Conventional Steam Coal,SUB,OP,1979.0,,526.0,0.610628,4.0
+8069|1,8069,1,Huntington,UT,Emery,39.3792,-111.0781,p25,plant map,Conventional Steam Coal,BIT,OP,1977.0,,459.0,0.77505,4.0
+8069|2,8069,2,Huntington,UT,Emery,39.3792,-111.0781,p25,plant map,Conventional Steam Coal,BIT,OP,1974.0,,450.0,0.798403,4.0
+8102|1,8102,1,"Gavin Power, LLC",OH,Gallia,38.9347,-82.1158,p112,plant map,Conventional Steam Coal,BIT,OP,1974.0,,1361.0,0.648847,4.0
+8102|2,8102,2,"Gavin Power, LLC",OH,Gallia,38.9347,-82.1158,p112,plant map,Conventional Steam Coal,BIT,OP,1975.0,,1361.0,0.558356,4.0
+8219|1,8219,1,Ray D Nixon,CO,El Paso,38.633451,-104.7058,p34,plant map,Conventional Steam Coal,SUB,OP,1980.0,2029.0,195.0,0.645952,3.0
+8222|1,8222,1,Coyote,ND,Mercer,47.221447,-101.8157,p36,plant map,Conventional Steam Coal,LIG,OP,1981.0,,431.5,0.689322,4.0
+8223|1,8223,1,Springerville,AZ,Apache,34.3186,-109.1639,p29,plant map,Conventional Steam Coal,SUB,OP,1985.0,2027.0,381.0,0.569884,4.0
+8223|2,8223,2,Springerville,AZ,Apache,34.3186,-109.1639,p29,plant map,Conventional Steam Coal,SUB,OP,1990.0,2032.0,406.0,0.700109,4.0
+8223|3,8223,3,Springerville,AZ,Apache,34.3186,-109.1639,p29,plant map,Conventional Steam Coal,SUB,OP,2006.0,,417.0,0.661676,4.0
+8223|4,8223,4,Springerville,AZ,Apache,34.3186,-109.1639,p29,plant map,Conventional Steam Coal,SUB,OP,2009.0,,415.0,0.557218,4.0
+876|1,876,1,Kincaid Generation LLC,IL,Christian,39.590556,-89.49639,p83,plant map,Conventional Steam Coal,SUB,OP,1967.0,2027.0,556.0,0.383072,4.0
+876|2,876,2,Kincaid Generation LLC,IL,Christian,39.590556,-89.49639,p83,plant map,Conventional Steam Coal,SUB,OP,1968.0,2027.0,556.0,0.467015,4.0
+879|5,879,5,Powerton,IL,Tazewell,40.5408,-89.6786,p82,plant map,Conventional Steam Coal,SUB,OP,1972.0,,769.0,0.368471,4.0
+879|6,879,6,Powerton,IL,Tazewell,40.5408,-89.6786,p82,plant map,Conventional Steam Coal,SUB,OP,1975.0,,769.0,0.387849,4.0
+889|1,889,1,Baldwin Energy Complex,IL,Randolph,38.205,-89.8544,p81,plant map,Conventional Steam Coal,SUB,OP,1970.0,2027.0,590.0,0.668164,4.0
+889|2,889,2,Baldwin Energy Complex,IL,Randolph,38.205,-89.8544,p81,plant map,Conventional Steam Coal,SUB,OP,1973.0,2027.0,595.0,0.658455,4.0
+963|4,963,4,Dallman,IL,Sangamon,39.754803,-89.60239,p82,plant map,Conventional Steam Coal,BIT,OP,2009.0,,209.3,0.68388,4.0
+976|1,976,1,Marion,IL,Williamson,37.619747,-88.95311,p81,plant map,Conventional Steam Coal,BIT,OP,1963.0,,40.0,0.609589,4.0
+976|2,976,2,Marion,IL,Williamson,37.619747,-88.95311,p81,plant map,Conventional Steam Coal,BIT,OP,1963.0,,40.0,0.649292,4.0
+976|3,976,3,Marion,IL,Williamson,37.619747,-88.95311,p81,plant map,Conventional Steam Coal,BIT,OP,1963.0,,40.0,0.703171,4.0
+983|1,983,1,Clifty Creek,IN,Jefferson,38.7378,-85.4206,p107,plant map,Conventional Steam Coal,BIT,OP,1955.0,,199.7,0.546986,4.0
+983|2,983,2,Clifty Creek,IN,Jefferson,38.7378,-85.4206,p107,plant map,Conventional Steam Coal,BIT,OP,1955.0,,199.7,0.674524,4.0
+983|3,983,3,Clifty Creek,IN,Jefferson,38.7378,-85.4206,p107,plant map,Conventional Steam Coal,BIT,OP,1955.0,,199.7,0.553218,4.0
+983|4,983,4,Clifty Creek,IN,Jefferson,38.7378,-85.4206,p107,plant map,Conventional Steam Coal,BIT,OP,1955.0,,199.7,0.58709,4.0
+983|5,983,5,Clifty Creek,IN,Jefferson,38.7378,-85.4206,p107,plant map,Conventional Steam Coal,BIT,OP,1955.0,,199.7,0.746107,4.0
+983|6,983,6,Clifty Creek,IN,Jefferson,38.7378,-85.4206,p107,plant map,Conventional Steam Coal,BIT,OP,1956.0,,199.7,0.304849,4.0
+994|4,994,4,AES Petersburg,IN,Pike,38.5281,-87.2525,p107,plant map,Conventional Steam Coal,BIT,OP,1986.0,,534.6,0.62632,4.0
+994|ST3,994,ST3,AES Petersburg,IN,Pike,38.5281,-87.2525,p107,plant map,Conventional Steam Coal,BIT,OP,1977.0,,540.3,0.604539,4.0
+997|12,997,12,Michigan City,IN,LaPorte,41.7208,-86.9086,p105,plant map,Conventional Steam Coal,SUB,OP,1974.0,2028.0,455.0,0.372663,4.0

@@ -1,5 +1,5 @@
 import os
-from pyomo.environ import Param, Constraint, Set, PercentFraction
+from pyomo.environ import Any, Param, Constraint, Set, PercentFraction
 
 
 def define_components(m):
@@ -30,9 +30,20 @@ def define_components(m):
         m.UNAVAILABLE_GEN_TPS, rule=lambda m, g, tp: m.DispatchGen[g, tp] == 0
     )
 
+    # optional per-period value (gen_max_annual_availability_by_period.csv), e.g. a zonal coal cap that
+    # differs by period in a multi-period case; defaults to the generator's single value
+    m.gen_max_annual_availability_by_period = Param(
+        m.GEN_PERIODS, within=Any, default=None
+    )
+
     def rule(m, g, p):
         # no constraint needed if completely available or completely unavailable
-        if m.gen_max_annual_availability[g] == 1 or g in m.UNAVAILABLE_GENS:
+        limit_frac = m.gen_max_annual_availability_by_period[g, p]
+        if limit_frac is None:
+            limit_frac = m.gen_max_annual_availability[g]
+        elif not 0 <= limit_frac <= 1:
+            raise ValueError(f"gen_max_annual_availability_by_period[{g}, {p}] = {limit_frac} is outside [0, 1]")
+        if limit_frac == 1 or g in m.UNAVAILABLE_GENS:
             return Constraint.Skip
 
         if hasattr(m, "CommitUpperLimit"):
@@ -53,7 +64,7 @@ def define_components(m):
         actual_production = sum(
             m.DispatchGen[g, t] * m.tp_weight[t] for t in m.TPS_IN_PERIOD[p]
         )
-        return actual_production <= m.gen_max_annual_availability[g] * max_production
+        return actual_production <= limit_frac * max_production
 
     m.Respect_Annual_Availability_Limit = Constraint(m.GEN_PERIODS, rule=rule)
 
@@ -65,8 +76,17 @@ def load_inputs(m, switch_data, inputs_dir):
 
         gen_info.csv
         ..., gen_max_annual_availability*
+
+        gen_max_annual_availability_by_period.csv*
+        GENERATION_PROJECT, PERIOD, gen_max_annual_availability_by_period
     """
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "gen_info.csv"),
         param=(m.gen_max_annual_availability),
+    )
+    # optional: GENERATION_PROJECT, PERIOD, gen_max_annual_availability_by_period
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "gen_max_annual_availability_by_period.csv"),
+        optional=True,
+        param=(m.gen_max_annual_availability_by_period,),
     )

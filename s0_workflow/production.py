@@ -10,7 +10,8 @@ workflow (s0_workflow/README.md) with tracked settings:
                                        s0_production.settings (build rate central, headroom atts_s0)
                                        and set the gas capex basis (ATB Moderate)
   write_case_inputs(folder, settings)  after the case is written: GridLab gas premium (optional),
-                                       zonal coal CF caps, wind loss, the NY RPS buyout (ACP),
+                                       zonal coal CF caps (coal spec rev. 2 by stage, coal_fleet.py;
+                                       or the legacy table), wind loss, the NY RPS buyout (ACP),
                                        headroom slack, the per-period retirement rule, the new-build
                                        rule (no new nuclear before 2035), period spans
   scenario_options(settings)           extra Switch modules for the case's scenario line
@@ -29,6 +30,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+from s0_workflow import coal_fleet
 
 logger = logging.getLogger(__name__)
 REPO = Path(__file__).resolve().parents[1]
@@ -83,6 +86,9 @@ def apply_settings(case_settings: dict) -> None:
             elif mode != "gridlab":
                 raise ValueError(f"s0_production.gas_capex.mode must be premium, atb_moderate or gridlab, "
                                  f"not {mode!r}")
+            if coal_fleet.spec_settings(s0):            # coal spec rev. 2: hold technologies, override exemption
+                techs = coal_fleet.apply_settings(s, s0)
+                logger.info("s0_production %s/%s: coal spec; hold projects %s", case, year, techs)
             gtc = s0.get("gas_turbine_cap") or {}
             form = gtc.get("form", "legacy")
             if form == "allowance":
@@ -444,12 +450,14 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     log = Log(out_folder)
     log(f"case {first.get('case_id')} years {list(scen_settings_dict)}: s0_production steps")
     apply_gas_capex(out_folder, s0, log)
-    apply_coal_cf_caps(out_folder, s0, first, log)
+    if not coal_fleet.spec_settings(s0):                   # legacy: one table, 500 MW / 0.65 fallback rule
+        apply_coal_cf_caps(out_folder, s0, first, log)
     apply_wind_loss(out_folder, s0, log)
     apply_rps_acp(out_folder, s0, log)
     apply_ic_slack(out_folder, s0, log)
     write_retirement_rules(out_folder, s0, log)
     write_build_rules(out_folder, s0, log)
+    coal_fleet.write_case_inputs(out_folder, s0, scen_settings_dict, log)   # coal spec rev. 2 (after the retirement rule)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))

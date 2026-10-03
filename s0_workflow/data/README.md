@@ -38,3 +38,23 @@ weighted national cap 0.584, 51 zones with at least 500 MW.
 **Difference from the test-run step (B8):** B8 read the same EIA-923/860 records from PUDL
 (`pudl.2025_08.sqlite`). Values should agree closely; the VM regression recipe
 (`s0_workflow/VM_RECIPES.md`) compares this table with the B8 `b8_zone_caps.csv`.
+
+## Coal specification rev. 2 tables (S0 default since Oct 2026)
+
+`coal_cap_units_860m.csv`, `coal_fleet_860m.csv`, `coal_plant_st_fuel.csv` and `coal_holds.csv`. They are
+built from public EIA data by `python s0_workflow/scripts/fetch_coal_spec_eia.py`:
+- EIA-860M August 2026 and June 2025;
+- EIA-860 2020-24;
+- EIA-923 2021-24, 2025 final and 2026 year-to-date.
+
+The script checks them against the spec's validation tables in `s0_workflow/specs/coal/`; `--check-only`
+writes nothing. Used by `s0_production.coal_spec` and `coal_holds` (`s0_workflow/coal_spec.py`,
+`coal_fleet.py`); see `Guides and documentation/s0_production.md` (Coal specification). The table above
+(`coal_cf_caps_eia923_2021_2024.csv`) is now the legacy setting, used by the regression case.
+
+| File | Rows | Content |
+|---|---|---|
+| `coal_cap_units_860m.csv` | 429 | 860M Operating, Conventional Steam Coal, OP/SB/OA, any planned retirement: zone (plant map, then county), winter MW, max valid annual CF 2021-24 |
+| `coal_fleet_860m.csv` | 2,249 | 860M Operating and Retired rows of every plant with a coal-group unit (EIA-860 2024 or this 860M); `conversion_year` for NG-coded units |
+| `coal_plant_st_fuel.csv` | 404 | monthly ST fuel (MMBtu) and net generation (MWh), NG and coal, 2023-26, plants with a converted unit |
+| `coal_holds.csv` | 10 | held units: hold cap (max(CF since the order, 0.001); 0.01 with < 3 months), window, S0 / holds_persist flags, encoded years, order basis |

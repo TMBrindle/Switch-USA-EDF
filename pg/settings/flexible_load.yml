@@ -145,4 +145,14 @@ flexible_demand_resources:
       fraction_shiftable: 0.0
       parameter_values:
         New_Build: -1
+  2040:
+    us_exports:
+      fraction_shiftable: 0.0
+      parameter_values:
+        New_Build: -1
+  2045:
+    us_exports:
+      fraction_shiftable: 0.0
+      parameter_values:
+        New_Build: -1
   # also see load_growth settings in scenario_settings

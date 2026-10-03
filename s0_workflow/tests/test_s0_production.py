@@ -197,6 +197,12 @@ def test_new_defaults_premium_buyouts_and_cap(tmp_path):
     assert s["atb_modifiers"]["ngcc"]["capex_mw"] == ["mul", 1.0]                 # ATB Moderate basis
     assert s["build_rate"]["gas_turbine_cap"]["form"] == "cumulative_additions"
     assert s["build_rate"]["gas_turbine_cap"]["allowance_path"] == "central"
+    # the coal spec needs PowerGenome's unit table (recorded by the hook during the real build): without it the
+    # case build stops; the coal steps are tested in test_coal_spec.py
+    with pytest.raises(RuntimeError, match="unit hook"):
+        s0prod.write_case_inputs(tmp_path, {2028: s, 2030: s, 2035: s})
+    _case(tmp_path)
+    s["s0_production"]["coal_spec"]["enabled"] = False
     s0prod.write_case_inputs(tmp_path, {2028: s, 2030: s, 2035: s})
     bc = pd.read_csv(tmp_path / "gen_build_costs.csv").set_index(["GENERATION_PROJECT", "build_year"])["gen_overnight_cost"]
     # periods 2028 = 2026-28, 2030 = 2029-30, 2035 = 2031-35; premium = mean over the in-service years

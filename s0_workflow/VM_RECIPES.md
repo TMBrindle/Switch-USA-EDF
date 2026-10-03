@@ -48,6 +48,7 @@ case build and the solve run there:
 | `brc.cli run` (build-rate tables) | `ic-pipeline` | fails in `switch-pg-reeds-fedpol` (old pandas) |
 | `pytest` (all three suites) | the env with `pytest` | no VM env has both `pytest` and `scikit-learn`: the day-selection test skips with a message where `sklearn` is missing |
 | `build_reeds_state_policies.py --check` (C step 1) | `ic-pipeline` | pandas and PyYAML only; writes with `lineterminator=` (pandas ≥ 1.5) |
+| `fetch_coal_spec_eia.py --check-only` (C step 1, optional) | `ic-pipeline` | pandas, openpyxl, PyYAML |
 | `pg_to_switch.py` (case builds: A, B, C) | `switch-pg-reeds-fedpol` | PowerGenome, `scipy`, `sklearn` |
 | `"<SWITCH_EXE>" solve` | `switch-pg-reeds-fedpol` (its `switch`) | Pyomo, Switch, Gurobi |
 | `compare_s0_runs.py` (input and output checks) | `ic-pipeline` | pandas and numpy only |
@@ -169,8 +170,20 @@ the October 2026 defaults:
 - $100/MWh buyouts on every state RPS and CES;
 - state RPS/CES targets from ReEDS release 2026.09.21
   (`rggi_carbon/emission_policies_reeds_2026.09.21.csv`; committed, built from the pinned copies);
-- the retirement rule;
-- coal caps, wind loss, build rate central, headroom atts_s0.
+- the retirement rule; no new nuclear before the 2035 stage;
+- the coal specification rev. 2 (`s0_workflow/specs/coal/coal_spec.md`): zonal coal caps by stage, the
+  fleet overrides from the August 2026 860M, and the S0 order holds (eight units, 2028 stage only);
+- wind loss, build rate central, headroom atts_s0.
+
+**The coal checks stop the build.** For each stage, the case build compares three things with the spec's
+validation tables (`s0_workflow/specs/coal/`):
+- the zonal caps (±0.001, same rule, H ±1 MW);
+- the overrides it applied (same units and actions, effective year exact, MW ±0.1);
+- the holds by stage (exact).
+
+A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrides_applied.csv` and
+`coal_holds_by_stage.csv` in the stage folder. Don't patch around it: send Tom those three files and
+`s0_production_log.txt`.
 
 1. Check the pinned state-policy files, then build into a fresh folder. The build writes all five stage
    folders and `scenarios_S0prod_A.txt`. The check needs no VM data: it rebuilds the policy files in
@@ -181,6 +194,11 @@ the October 2026 defaults:
    # only if the check printed "check exit 0":
    test -e switch/in/s0prod_A && echo "exists: pick another name" || \
    "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_A --case-id S0prod_A
+   ```
+   Optional, to re-verify the committed coal tables from public EIA data (downloads about 250 MB into
+   `s0_workflow/data/raw/`, gitignored). It must end with `CHECK OK`:
+   ```bash
+   "<ic-pipeline python>" s0_workflow/scripts/fetch_coal_spec_eia.py --check-only
    ```
 2. Check each stage folder `switch/in/s0prod_A/<year>/S0prod_A/` before solving:
    - `stage_info.csv`: `commit_period` = the year; `next_stage` = the next year (`.` for 2045).
@@ -216,6 +234,36 @@ the October 2026 defaults:
      1.090, for planned units and new builds alike (nameplate basis); no reciprocating engines.
    - `time_sampling/<year>/fi_target_errors.csv`: every row within tolerance.
    - `retirement_rules.csv`: coal and naturalgas, 2030.
+   - `build_rules.csv`: `uranium`, 2035 (no new nuclear before the 2035 stage).
+   - **Coal caps by stage:** in `coal_caps_by_stage.csv`, every row has `ok` True. The log line
+     `coal caps <year>: N ...` should match:
+
+     | Stage | N | Zones with model coal | Model coal after overrides (GW) |
+     |---|---|---|---|
+     | 2028 | 0.5806 | 74 | 157.28 |
+     | 2030 | 0.5926 | 71 | 142.06 |
+     | 2035 | 0.5998 | 68 | 126.40 |
+     | 2040 | 0.6001 | 68 | 124.31 |
+     | 2045 | 0.6001 | 68 | 124.31 |
+
+     p111 is the blend zone (cap 0.531 / 0.542 / 0.548 / 0.549 / 0.549). The log also lists any zone
+     whose model MW differs from the spec's reconstruction by more than 1 MW. The spec expects p107 and
+     p99 (§2.1). This is reported, not a failure: report the list. Coal clusters'
+     `gen_max_annual_availability` = cap / (1 − forced outage), capped at 1.
+   - **Applied overrides:** `coal_overrides_applied.csv` has 71 rows, all `ok`: 15 retire, 9 retire later,
+     8 convert to gas, 5 remove, 5 keep online, 8 hold, and 21 no-change / review rows. Converted
+     units are in the zone's `other_peaker` cluster, not the coal clusters. `coal_converted_heat_rates.csv`
+     gives their heat rates from the latest EIA-923, e.g. North Valmy 11.42 (2026 ST/NG), James E.
+     Rogers 10.55. The spec table's values (PUDL vintage) need `heat_rate_data_through: "2025-05"`.
+   - **Holds by stage:** `coal_holds_by_stage.csv` is all `ok`.
+     - 2028 stage: eight hold projects, 3,238 MW, named `p<zone>_conventional_steam_coal_hold_<plant>_<gen>_1`
+       (Centralia 2, Campbell 1/2/3, Schahfer 17/18, Culley 2, Craig 1).
+     - In `gen_info.csv`, each has `gen_max_annual_availability` = hold cap / (1 − forced outage), for
+       example Campbell 3 0.5539, and `gen_can_retire_early` 0.
+     - From the 2030 stage: no hold projects.
+   - **2045 stage:** the folder `2045/S0prod_A/` exists with a complete case (`gen_info.csv`,
+     `loads.csv`, `scenarios` line). The build reports no `flexible_demand_resources` error: the 2045
+     load entries are now in the settings.
 3. Solve the lines of `scenarios_S0prod_A.txt` in order, each with the solver options of recipe A,
    into fresh output folders. Stages 2-5 read the `*.chained.S0prod_A.csv` files that the previous
    stage's `prepare_next_stage` wrote. Check they exist before starting each stage.
@@ -232,6 +280,9 @@ the October 2026 defaults:
    - `gas_turbine_cap_results.csv`: covered MW, cap, dual.
    - `rps_buyout_by_state_year.csv`: buyout MWh and $ by state.
    - `retirement_rules_check.csv`: no coal or gas retirement in 2028; retirements from 2030.
+   - `build_rules_check.csv`: `new_mw` 0 for uranium in 2028 and 2030 (blocked), whatever is built from 2035.
+   - Coal: generation of the hold projects (2028) against their caps; coal generation and CF by zone
+     against `coal_caps_by_stage.csv`.
    - `ic_headroom.csv` slack.
    - Wall time and peak memory per stage (`measure_run.py`).
 

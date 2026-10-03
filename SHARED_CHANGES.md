@@ -55,6 +55,19 @@ its case files and checks them byte for byte against the previous code.
 |---|---|---|---|---|
 | 24 | `switch/study_modules/build_rules.py` (new), `s0_workflow/production.py` (`write_build_rules`, `scenario_options`) | For S0 new-defaults cases only: `build_rules.csv` and the module, which forbid new nuclear (`BuildGen` of new builds of its energy source) in periods before 2035. | An explicit rule, independent of the nuclear growth cap, which counts existing nuclear and can leave room in 2028/2030 if plants retire. | none (module not in modules.txt; file written only for S0 cases with `new_build_rule.enabled`; off for the legacy regression case) |
 
+### Added in §48 (Oct 2026: coal specification rev. 2, 2045 load entries)
+
+**Flagged for Ollie:** #27 and #28 change shared settings that every case reads. They add model-year
+entries and remove a comment block; no existing value changes.
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 25 | `pg_to_switch.py` | (a) `gc.create_all_generators()` runs inside `s0coal.unit_hooks(year_settings)`. For S0 cases with `s0_production.coal_spec` this wraps PowerGenome's `group_technologies` and `atb_fixed_var_om_existing` at runtime, to edit coal units before clustering; it restores them afterwards. (b) `apply_predetermined_retirement_override` honours a new settings key, `predetermined_retirement_override_exempt` (technology substrings), set to `[coal]` by the coal spec. | Coal spec §2: unit-level overrides before clustering, without editing PowerGenome or its data. The exemption keeps the spec's dated coal retirements (and the holds' encoded 2029) from being moved to 2030 by `blocked_2030_coal_gas`. | none: both are no-ops unless the S0 coal spec is on (tested on legacy rules) |
+| 26 | `switch/study_modules/gen_annual_availability_limits.py` | New optional input `gen_max_annual_availability_by_period.csv` (GENERATION_PROJECT, PERIOD, value), overriding the per-generator value in that period. | Coal caps differ by stage; a mode-B window has two periods in one case. | none without the file (default: the gen_info value, as before) |
+| 27 | `pg/settings/scenario_management.yml` | (a) New axis `coal_holds` (s0 / holds_persist), touching only `s0_production.coal_holds`. (b) `on_pgdays` turns `coal_spec` and `coal_holds` off. (c) `load_growth.edf_epri_med` gains 2045, and `load_growth.epri_high` gains 2040 and 2045 `flexible_demand_resources` entries (same shape as the other years). (d) The investigation-note comment blocks above `edf_epri_med` and `epri_high` are replaced by one-line pointers; their content moved to `Guides and documentation/load_growth.md`. | (a, b) Coal spec §3.4. (c) The 2045 stage, which PowerGenome can't build without the entry. (d) Tom: notes don't belong in the settings. | (a, b) none. (c) Only cases with a 2045 (or, for epri_high, 2040) model year read the new entries. Earlier years are unchanged. (d) Comments only. |
+| 28 | `pg/settings/flexible_load.yml` | `flexible_demand_resources` gains 2040 and 2045 `us_exports` entries (fraction 0, as the other years). | As #27(c). | only cases with those model years read them |
+| 29 | `pg/extra_inputs/scenario_inputs.csv` | New column `coal_holds`, `s0` in every row. | Coal spec §3.4 (blank would also mean s0 but makes PowerGenome warn for every row). | none (inert unless `s0_production.enabled` with the coal spec) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -74,3 +87,9 @@ its case files and checks them byte for byte against the previous code.
    `make_emission_policies.py` rather than refactoring that script. A change to those rules there
    should be mirrored. The test that the release's eligibility equals `regional_resource_tags.yml`
    catches a drift in the eligibility rules, but only while the two inputs agree.
+6. (§48) The coal spec wraps two PowerGenome functions at runtime (#25a), for S0 cases only. A PowerGenome
+   update that renames them or changes their order in `create_region_technology_clusters` would stop the
+   coal edits. The case build then stops: the coal check finds no recorded unit table.
+7. (§48) #27(c) and #28: the follow-up is to generate the per-year `flexible_demand_resources` entries from
+   the model-year list, so extending the horizon can't break a build again
+   (`Guides and documentation/load_growth.md`).

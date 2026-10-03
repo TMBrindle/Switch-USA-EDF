@@ -22,6 +22,7 @@ from build_rate.brc import switch_case as br_case
 from build_rate.brc import turbine_cap as gtc_case
 # S0 production case build (pg/settings/s0_production.yml); inert unless s0_production.enabled
 from s0_workflow import production as s0prod
+from s0_workflow import coal_fleet as s0coal
 from s0_workflow import day_selection as s0days
 import pandas as pd
 import numpy as np
@@ -1309,7 +1310,10 @@ def gen_tables(
         # Indicate if the PG unit retirement data bug should be replicated
         gc.pg_unit_bug = pg_unit_bug
 
-        gen_df = gc.create_all_generators().copy()
+        # S0 coal spec (s0_workflow/coal_fleet.py): unit-level coal overrides and holds before clustering;
+        # no-op for other cases
+        with s0coal.unit_hooks(year_settings):
+            gen_df = gc.create_all_generators().copy()
 
         # store fuel prices for later reference
         fuel_price_dfs.append(gc.fuel_prices.copy())
@@ -1669,6 +1673,11 @@ def apply_predetermined_retirement_override(units: pd.DataFrame, settings) -> pd
             raise ValueError(f"Unrecognized predetermined_retirement_override mode: {mode}")
 
         to_override = tech_match & in_scope
+        # technologies exempt from every rule (S0 coal spec: coal-group units retire in the year the spec
+        # encodes; s0_workflow/coal_fleet.py); empty for other cases
+        exempt = [t.lower() for t in settings.get("predetermined_retirement_override_exempt") or []]
+        if exempt:
+            to_override &= ~units["technology"].str.lower().apply(lambda tech: any(t in tech for t in exempt))
         if to_override.any():
             logger.info(
                 f"predetermined_retirement_override: {verb} {to_override.sum()} "

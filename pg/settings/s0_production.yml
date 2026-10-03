@@ -92,7 +92,45 @@ s0_production:
     form: allowance
     path: central
 
-  # item 3: zonal coal CF caps (s0_workflow/data/README.md)
+  # Coal specification rev. 2 (s0_workflow/specs/coal/coal_spec.md; s0_workflow/coal_spec.py and coal_fleet.py),
+  # S0 default; off for the legacy regression case (on_pgdays), which keeps coal_cf_caps below.
+  #  - zonal coal CF caps by stage from the latest EIA-860M cap units (coal_cap_units_860m.csv): coverage rule
+  #    (own history if H/M >= 0.5, else blended with the national value), national value per stage;
+  #  - fleet overrides on PowerGenome's unit table before clustering (latest 860M: dated retirements, removal of
+  #    out-of-service units, conversions to gas steam, keep online), coal-group units exempt from the
+  #    predetermined-retirement override (blocked_2030_*), so they retire in the year the spec encodes;
+  #  - the order holds below (coal_holds);
+  #  - checks against the spec's tables; a mismatch stops the build (fail_on_mismatch).
+  # Data: python s0_workflow/scripts/fetch_coal_spec_eia.py (public EIA; writes the s0_workflow/data tables).
+  coal_spec:
+    enabled: true
+    cap_units_table: s0_workflow/data/coal_cap_units_860m.csv
+    fleet_table: s0_workflow/data/coal_fleet_860m.csv
+    plant_fuel_table: s0_workflow/data/coal_plant_st_fuel.csv
+    # §1.1 lists OP, SB and OA; the validation tables were built with OP and SB (the two OA units, Biron Mill
+    # GEN1 15.3 MW p76 and WE Soda 5 10 MW p21, would move p21's cap by +0.002 in every stage). Add OA to follow
+    # §1.1's text; the cap check against the spec table will then fail in p21.
+    cap_statuses: [OP, SB]
+    # converted units' heat rate: the most recent year with >= 10 GWh of ST/NG (§2.3), on EIA-923 through this
+    # month (YYYY-MM), or the latest data when blank. "2025-05" reproduces the spec's table (PUDL 2025_08 vintage).
+    heat_rate_data_through: ~
+    expected_caps: s0_workflow/specs/coal/coal_spec_expected_caps_by_stage.csv
+    expected_overrides: s0_workflow/specs/coal/coal_spec_overrides.csv
+    expected_holds: s0_workflow/specs/coal/coal_spec_hold_by_stage.csv
+    tolerance: 0.001               # cap; H +-1 MW; same rule label
+    fail_on_mismatch: true
+
+  # Units held open by orders (coal_spec.md §3; with coal_spec). scenario (axis coal_holds; scenario_inputs.csv
+  # column coal_holds, blank = s0):
+  #   s0             Centralia 2, Campbell 1/2/3, Schahfer 17/18, Culley 2, Craig 1 held in the 2028 stage only
+  #                  (encoded retirement 2029), each its own project with its hold cap, excluded from zone caps
+  #   holds_persist  the same plus Intermountain 1/2 (cap 0.001), held through 2045
+  coal_holds:
+    enabled: true
+    scenario: s0
+    table: s0_workflow/data/coal_holds.csv
+
+  # item 3 (legacy, the regression case): zonal coal CF caps (s0_workflow/data/README.md); not used with coal_spec
   coal_cf_caps:
     enabled: true
     table: s0_workflow/data/coal_cf_caps_eia923_2021_2024.csv   # s0_workflow/scripts/fetch_coal_cf_eia923.py

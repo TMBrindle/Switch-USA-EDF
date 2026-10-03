@@ -1805,3 +1805,93 @@ existing nuclear too, so it can leave room for new units in 2028 or 2030 if exis
 - settings, scenario lines and the legacy checks.
 
 Build rate 22 and headroom 31 unchanged.
+
+---
+
+## 48. S0 Production: Coal Specification Rev. 2 (Caps by Stage, Fleet Overrides, Holds), 2045 Load Entries
+
+**Date:** 2026-10-03 · **Branch:** `tom/s0-prod-scripts`
+**See also:**
+- `s0_workflow/specs/coal/coal_spec.md` (the specification and validation tables, 79c5f35)
+- `Guides and documentation/s0_production.md` (Coal specification)
+- `Guides and documentation/load_growth.md`
+- `s0_workflow/VM_RECIPES.md` (recipe C)
+- `SHARED_CHANGES.md` (#25-29)
+
+The new-defaults cases (`s4x1_S0prod_2035_new`, `S0prod_A`, `S0prod_B`) implement the coal specification.
+The regression case `s4x1_S0prod_2035` (`on_pgdays`) keeps the legacy coal caps, with no overrides or
+holds. Its case files are still byte-identical to the earlier code (test).
+
+1. **Coal caps by stage (§1)**, from public EIA data. `scripts/fetch_coal_spec_eia.py` writes the committed
+   tables (`s0_workflow/data/coal_*.csv`) from:
+   - EIA-860M August 2026 and June 2025;
+   - EIA-860 2020-24;
+   - EIA-923 2021-26.
+
+   The cap unit rules (`coal_spec.py`):
+   - 860M Operating, Conventional Steam Coal, OP/SB, planned retirement blank or ≥ the stage, not held;
+   - generator-ID normalisation, with the collision check on coal-group units only;
+   - the 2021-24 unit maximum CF;
+   - zone from the plant map, then county (lat/lon hook for unmapped plants).
+
+   The case build (`coal_fleet.py`):
+   - computes M_z from PowerGenome's unit table per stage;
+   - applies the coverage rule, with a blend at 500 MW and the national value per stage;
+   - writes `coal_caps_by_stage.csv`.
+
+   Coal clusters get cap/(1 − FOR). Multi-period cases also get `gen_max_annual_availability_by_period.csv`
+   (new optional input of `gen_annual_availability_limits`).
+
+   **Check:** against `coal_spec_expected_caps_by_stage.csv` (cap ±0.001, rule, H ±1 MW); a mismatch stops
+   the build. Model-MW differences from the spec's reconstruction are logged.
+
+   **Cloud results:**
+   - Cap units vs `coal_cap_units_all.csv`: 427/427 units, unit max within 5e-5, zones identical.
+   - Every stage's H, N and unit counts are exact. With the spec's model MW, every cap is within 8e-5 (the
+     table's rounding) and every rule label is the same.
+   - N = 0.5806 / 0.5926 / 0.5998 / 0.6001 / 0.6001; p111 blends.
+
+   **Deviation:** §1.1 lists status OA, but the tables don't include it (2 units). The default
+   `cap_statuses: [OP, SB]` follows the tables; including OA moves p21 by +0.002.
+2. **Fleet overrides (§2)** on PowerGenome's unit table before clustering, through runtime wrappers of
+   `group_technologies` and `atb_fixed_var_om_existing`. PowerGenome is not edited.
+   - **Actions:** dated retirements (earlier and later than the model basis), removal of OS units (2026),
+     keep online, and conversions to gas steam (tech, NG, 860M winter MW, plant ST/NG heat rate).
+     Petroleum coke / IGCC and Edwardsport are unchanged.
+   - **Exemption:** coal-group units are exempt from `blocked_2030_coal_gas`'s predetermined override, so
+     they retire as encoded. This is a new settings key read by `pg_to_switch.py`.
+   - **Check:** the build compares its derived list with `coal_spec_overrides.csv` (units and actions
+     equal, effective year exact, MW ±0.1); a mismatch stops the build. Derived from the 860M extract, the
+     rules reproduce all 71 rows (73 in holds_persist), with no extra rows from the other ~360 units.
+   - **Heat rates:** converted units use the latest EIA-923 by default (e.g. North Valmy 11.42, Rogers
+     10.55); `heat_rate_data_through: "2025-05"` reproduces the spec table (PUDL vintage).
+   - **Conversion years:** 2025 is taken from the June 2025 860M, PUDL 2025_08's vintage. All 8 match.
+3. **Holds (§3).**
+   - **Settings:** `s0_production.coal_holds: {enabled, scenario: s0 | holds_persist, table}`, axis
+     `coal_holds`, column `coal_holds` in `scenario_inputs.csv` (`s0` in every row), data
+     `s0_workflow/data/coal_holds.csv`.
+   - **Caps:** computed from EIA-923 Page 4. They match `coal_spec_hold_online.csv` exactly.
+   - **Projects:** each held unit is its own technology/project ("Conventional Steam Coal Hold <plant>
+     <gen>", coal settings copied). It gets the hold cap/(1 − FOR) and `gen_can_retire_early` 0, and is
+     excluded from zone values.
+   - **Retirement:** s0 encodes 2029 (2028 stage only); holds_persist has no retirement.
+   - **Check:** against `coal_spec_hold_by_stage.csv` (exact).
+4. **Petroleum coke, IGCC, Edwardsport:** unchanged, documented in `s0_production.md` as the spec says.
+5. **2045 load entries:** `edf_epri_med` 2045, `epri_high` 2040 and 2045, and `flexible_load.yml` 2040 and 2045,
+   following the existing pattern. PowerGenome is not patched. The follow-up (generate them from the
+   model-year list) is logged in `load_growth.md`.
+6. **scenario_management.yml notes:** the investigation-note blocks above `edf_epri_med` and `epri_high`
+   are removed; what's still useful is in `load_growth.md`.
+7. **Recipe C:** new checks for:
+   - the coal caps by stage, with the expected N, zones and GW;
+   - the applied overrides (71) and the holds by stage;
+   - converted heat rates;
+   - `build_rules.csv` / `build_rules_check.csv`;
+   - the 2045 build.
+
+   The optional `fetch_coal_spec_eia.py --check-only` is added to the env table.
+
+**Tests:** `s0_workflow/tests` 56 (was 34); new `test_coal_spec.py` (22). Build rate 22, headroom 31.
+
+**Not run in the cloud:** PowerGenome (its data is VM-only). The wrappers are tested on a stand-in module and
+the case-build checks on fixtures. Recipe C's build is the first run of the hooks on the real unit table.
