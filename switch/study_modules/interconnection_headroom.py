@@ -69,7 +69,9 @@ ic_uprates.csv          IC_UPRATE, ic_uprate_zone, ic_uprate_type, ic_uprate_max
                         ic_uprate_mode (optional: stretch (default) | host)          [optional]
 ic_weights.csv          ic_key, ic_weight (gen_tech first, then gen_energy_source) [optional]
 ic_params.csv           ic_retirement_reuse_share, ic_storage_weight, ic_default_weight,
-                        ic_asset_life_years, ic_reactive_cost_per_mw_network        [optional]
+                        ic_asset_life_years, ic_reactive_cost_per_mw_network,
+                        ic_slack_cost_per_mw (diagnostic slack on the headroom limit, $/MW;
+                        absent or "." = hard constraint)                           [optional]
 ic_zone_params.csv      LOAD_ZONE, ic_initial_headroom_mw                           [optional]
 
 Status: draft. Tested on the Switch 2.0.9 3zone_toy example; not yet run on a full case.
@@ -90,6 +92,16 @@ dependencies = (
 )
 
 
+def ic_slack_cost(m):
+    """$/MW cost of the diagnostic headroom slack, or None if slack is off (absent, "." or < 0)."""
+    v = value(m.ic_slack_cost_per_mw)
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return v if v >= 0 else None
+
+
 def define_components(m):
     # ---- general parameters ----------------------------------------------
     m.ic_retirement_reuse_share = Param(within=NonNegativeReals, default=0.8)
@@ -99,6 +111,9 @@ def define_components(m):
     # engineering cost of network capacity added by reactive upgrades; used only to *report*
     # an estimate of capacity added by the empirical (generator-paid) curve
     m.ic_reactive_cost_per_mw_network = Param(within=NonNegativeReals, default=0.0)
+    # diagnostic slack on the headroom limit ($/MW overnight); absent or "." means no slack, i.e.
+    # a hard constraint ("." reaches a scalar param as a literal string, hence within=Any)
+    m.ic_slack_cost_per_mw = Param(within=Any, default=".")
     m.IC_ZONES_WITH_INITIAL = Set(dimen=1, within=m.LOAD_ZONES)
     m.ic_initial_headroom_mw = Param(m.LOAD_ZONES, within=NonNegativeReals, default=0.0)
 
@@ -250,12 +265,19 @@ def define_components(m):
             + m.ICHostedHeadroom[i, p]
             for i in m.IC_ZONES_IN_LOAD_ZONE[z]))
 
+    # diagnostic slack: weighted MW admitted beyond the headroom available (fixed at 0 unless
+    # ic_slack_cost_per_mw >= 0); costed in ICAnnualCost so it is used only as a last resort
+    m.ICHeadroomSlack = Var(
+        m.IC_ACTIVE_LOAD_ZONES, m.PERIODS, within=NonNegativeReals,
+        bounds=lambda m, z, p: (0, None) if ic_slack_cost(m) is not None else (0, 0))
+
     m.IC_Headroom_Limit = Constraint(
         m.IC_ACTIVE_LOAD_ZONES, m.PERIODS,
         rule=lambda m, z, p: m.ICNewCapacityWeighted[z, p]
         <= m.ic_initial_headroom_mw[z]
         + m.ic_retirement_reuse_share * m.ICFreedHeadroom[z, p]
-        + m.ICHeadroomBought[z, p])
+        + m.ICHeadroomBought[z, p]
+        + m.ICHeadroomSlack[z, p])
 
     # ---- costs (overnight, cumulative to period p) -------------------------
     m.ICReactiveOvernight = Expression(
@@ -267,10 +289,15 @@ def define_components(m):
         m.IC_ZONES, m.PERIODS,
         rule=lambda m, i, p: sum(m.ICUprateCapacity[u, p] * m.ic_uprate_cost_per_mw[u]
                                  for u in m.IC_UPRATES_IN_ZONE[i]))
+    m.ICSlackOvernight = Expression(
+        m.PERIODS,
+        rule=lambda m, p: sum(m.ICHeadroomSlack[z, p] for z in m.IC_ACTIVE_LOAD_ZONES)
+        * (ic_slack_cost(m) or 0.0))
     m.ICAnnualCost = Expression(
         m.PERIODS,
-        rule=lambda m, p: crf(m.interest_rate, m.ic_asset_life_years) * sum(
-            m.ICReactiveOvernight[i, p] + m.ICUprateOvernight[i, p] for i in m.IC_ZONES))
+        rule=lambda m, p: crf(m.interest_rate, m.ic_asset_life_years) * (sum(
+            m.ICReactiveOvernight[i, p] + m.ICUprateOvernight[i, p] for i in m.IC_ZONES)
+            + m.ICSlackOvernight[p]))
     m.Cost_Components_Per_Period.append("ICAnnualCost")
 
 
@@ -298,9 +325,10 @@ def load_inputs(m, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, "ic_params.csv"),
         optional=True,
         optional_params=["ic_retirement_reuse_share", "ic_storage_weight", "ic_default_weight",
-                         "ic_asset_life_years", "ic_reactive_cost_per_mw_network"],
+                         "ic_asset_life_years", "ic_reactive_cost_per_mw_network",
+                         "ic_slack_cost_per_mw"],
         param=(m.ic_retirement_reuse_share, m.ic_storage_weight, m.ic_default_weight,
-               m.ic_asset_life_years, m.ic_reactive_cost_per_mw_network))
+               m.ic_asset_life_years, m.ic_reactive_cost_per_mw_network, m.ic_slack_cost_per_mw))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "ic_zone_params.csv"),
         optional=True, index=m.IC_ZONES_WITH_INITIAL, param=(m.ic_initial_headroom_mw,))
@@ -379,9 +407,21 @@ def post_solve(m, outdir):
                 "freed_headroom_mw": value(m.ic_retirement_reuse_share * m.ICFreedHeadroom[z, p]),
                 "headroom_bought_mw": value(m.ICHeadroomBought[z, p]),
                 "initial_headroom_mw": value(m.ic_initial_headroom_mw[z]),
+                "headroom_slack_mw": value(m.ICHeadroomSlack[z, p]),
                 "headroom_dual": m.dual[c] if hasattr(m, "dual") and c in m.dual else None,
             })
-    pd.DataFrame(rows).to_csv(os.path.join(outdir, "ic_headroom.csv"), index=False)
+    hr = pd.DataFrame(rows)
+    hr.to_csv(os.path.join(outdir, "ic_headroom.csv"), index=False)
+    used = hr[hr["headroom_slack_mw"] > 1e-6]
+    if len(used):
+        import logging
+        logging.getLogger(__name__).warning(
+            "interconnection_headroom: diagnostic slack used in %d load zone/period(s), %.1f weighted "
+            "MW in total (%s). Something other than the headroom curve forces these builds; see "
+            "ic_headroom.csv.", len(used), used["headroom_slack_mw"].sum(),
+            ", ".join(f"{r.load_zone}/{r.period}: {r.headroom_slack_mw:.1f}" for r in used.itertuples()))
+        print("WARNING: interconnection_headroom diagnostic slack used:",
+              ", ".join(f"{r.load_zone}/{r.period} {r.headroom_slack_mw:.1f} MW" for r in used.itertuples()))
 
     # remaining state, for chaining myopic stages (prepare_next_stage.chain_ic_inputs)
     last = m.PERIODS.last()

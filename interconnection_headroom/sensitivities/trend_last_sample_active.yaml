@@ -1,0 +1,8 @@
+# Sensitivity: both trend_last_sample.yaml (trend evaluated at 2023, the sample's last queue year) and
+# price_active.yaml (reference curves priced at active-project costs instead of completed).
+# Run: python -m icsc.cli --config sensitivities/trend_last_sample_active.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_trend_last_sample_active}
+tranches:
+  reference_year: 2023
+  reference_status: active

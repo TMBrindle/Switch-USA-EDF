@@ -67,19 +67,71 @@ def category(energy_source: str, technology: str = "") -> str:
     return "other"
 
 
+def is_distributed(gen_tech: str, gen_is_distributed=0) -> bool:
+    """Distributed generation sits behind the meter, outside the transmission interconnection queue."""
+    flag = pd.to_numeric(pd.Series([gen_is_distributed]), errors="coerce").fillna(0).iloc[0]
+    t = str(gen_tech).lower()
+    return bool(flag == 1) or "distributed" in t or t in ("dg", "distpv", "dpv")
+
+
 def weights_by_tech(gen_info: pd.DataFrame, weights: dict) -> pd.DataFrame:
-    """One row per gen_tech with the weight its new builds use against headroom."""
+    """One row per gen_tech with the weight its new builds use against headroom.
+
+    Distributed generation (gen_is_distributed == 1, or a gen_tech named as distributed) gets 0.
+    """
     w = {**weights, "none": 0.0}
-    df = gen_info[["gen_tech", "gen_energy_source"]].drop_duplicates().copy()
+    cols = ["gen_tech", "gen_energy_source"] + (
+        ["gen_is_distributed"] if "gen_is_distributed" in gen_info else [])
+    df = gen_info[cols].drop_duplicates().copy()
     df["category"] = [category(es, t) for es, t in zip(df["gen_energy_source"], df["gen_tech"])]
+    dist = [is_distributed(t, d) for t, d in
+            zip(df["gen_tech"], df.get("gen_is_distributed", pd.Series(0, index=df.index)))]
+    df.loc[dist, "category"] = "none"
     df["ic_weight"] = df["category"].map(lambda c: w.get(c, w.get("other", 1.0)))
     out = df.groupby("gen_tech", as_index=False).agg(ic_weight=("ic_weight", "max"),
                                                       category=("category", "first"))
     return out.rename(columns={"gen_tech": "ic_key"})
 
 
-def strip_network_reinforcement(gen_info: pd.DataFrame, source: pd.DataFrame) -> pd.DataFrame:
-    """Remove PowerGenome's reinforcement cost (tx_capex) from gen_info.gen_connect_cost_per_mw.
+REINFORCEMENT_SHARE = REPO_ROOT / "interconnection_headroom" / "data" / "reference" / "reinforcement_share.csv"
+
+
+def reeds_tech(gen_tech: str, energy_source: str = "") -> str | None:
+    """ReEDS supply-curve tech (upv, wind-ons, wind-ofs) for a wind/solar gen_tech, else None."""
+    c = category(energy_source, gen_tech)
+    if c == "solar":
+        return "upv"
+    if c == "wind":
+        return "wind-ofs" if "offshore" in str(gen_tech).lower() else "wind-ons"
+    return None
+
+
+def reinforcement_shares(gen_info: pd.DataFrame, shares: pd.DataFrame | None = None) -> pd.Series:
+    """Reinforcement share of interconnection cost for each gen_info row (NaN if not wind/solar).
+
+    Looked up by (gen_load_zone, ReEDS tech) in reinforcement_share.csv, falling back to the
+    tech's "_national" row for zones without one.
+    """
+    if shares is None:
+        shares = pd.read_csv(REINFORCEMENT_SHARE)
+    s = shares.set_index(["zone", "tech"])["reinforcement_share"]
+    nat = shares[shares["zone"] == "_national"].set_index("tech")["reinforcement_share"]
+    es = gen_info["gen_energy_source"] if "gen_energy_source" in gen_info else pd.Series("", index=gen_info.index)
+    out = []
+    for zone, t, e in zip(gen_info["gen_load_zone"], gen_info["gen_tech"], es):
+        rt = reeds_tech(t, e)
+        out.append(None if rt is None else s.get((zone, rt), nat.get(rt)))
+    return pd.Series(out, index=gen_info.index, dtype=float)
+
+
+def strip_network_reinforcement(gen_info: pd.DataFrame, source: pd.DataFrame,
+                                shares: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Remove network reinforcement from gen_info.gen_connect_cost_per_mw.
+
+    PowerGenome-native costs carry it as tx_capex, which is subtracted. ReEDS-CPA site data carry
+    one bundled interconnect_capex_mw (tx_capex all zero or absent); then the reinforcement part
+    of it, interconnect_capex_mw x share (data/reference/reinforcement_share.csv, by load zone x
+    ReEDS tech, national fallback), is subtracted for wind and solar clusters.
 
     `source` is the PowerGenome generator frame gen_info was built from, row-aligned with it
     (gen_info_table resets the index, so pass `gens.reset_index(drop=True)`). Modifies gen_info in
@@ -91,15 +143,30 @@ def strip_network_reinforcement(gen_info: pd.DataFrame, source: pd.DataFrame) ->
     diag = pd.concat([gen_info[["GENERATION_PROJECT", "gen_tech", "gen_load_zone"]].reset_index(drop=True),
                       source[cols]], axis=1)
     diag["gen_connect_cost_per_mw_before"] = gen_info["gen_connect_cost_per_mw"].values
-    if "tx_capex" in source:
-        tx = source["tx_capex"].fillna(0).values
+    tx = source["tx_capex"].fillna(0).values if "tx_capex" in source else None
+    ic = source["interconnect_capex_mw"].fillna(0).values if "interconnect_capex_mw" in source else None
+    if tx is not None and (tx > 0).any():
         gen_info["gen_connect_cost_per_mw"] = (gen_info["gen_connect_cost_per_mw"] - tx).clip(lower=0)
+        diag["removal_method"] = "tx_capex"
         logger.info("interconnection_headroom: removed tx_capex from gen_connect_cost_per_mw for %d "
                     "resources", int((tx > 0).sum()))
+    elif ic is not None and (ic > 0).any():
+        share = reinforcement_shares(gen_info.reset_index(drop=True), shares).values
+        removed = pd.Series(ic * share).fillna(0).values
+        gen_info["gen_connect_cost_per_mw"] = (gen_info["gen_connect_cost_per_mw"] - removed).clip(lower=0)
+        diag["reinforcement_share"] = share
+        diag["removal_method"] = "interconnect_capex_mw x reinforcement_share"
+        n = int((removed > 0).sum())
+        logger.info("interconnection_headroom: tx_capex is zero or absent; removed the reinforcement "
+                    "share of interconnect_capex_mw (reinforcement_share.csv) for %d wind/solar "
+                    "resources, mean %.1f $/kW", n, removed[removed > 0].mean() / 1000 if n else 0.0)
     else:
-        logger.warning("interconnection_headroom: no tx_capex column; gen_connect_cost_per_mw unchanged. "
-                       "Check that network reinforcement is not still counted.")
+        diag["removal_method"] = "none"
+        logger.warning("interconnection_headroom: no tx_capex or interconnect_capex_mw cost; "
+                       "gen_connect_cost_per_mw unchanged. Check that network reinforcement is not "
+                       "still counted.")
     diag["gen_connect_cost_per_mw_after"] = gen_info["gen_connect_cost_per_mw"].values
+    diag["removed_per_mw"] = diag["gen_connect_cost_per_mw_before"] - diag["gen_connect_cost_per_mw_after"]
     return diag
 
 

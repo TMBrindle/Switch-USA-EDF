@@ -177,7 +177,7 @@ Changed the transmission constraints source from REFS2009 to NARIS:
 
 ### 7b. `patch_pg_resource_groups.py`
 The last section (lines 291–323) was replaced to regenerate
-`pg/extra_inputs/reeds_ba_tx_NARIS_avg.csv` from local source files instead of
+`pg/extra_inputs/transmission/reeds_ba_tx_NARIS_avg.csv` from local source files instead of
 downloading REFS2009 from GitHub:
 
 - AC lines: averages `(MW_f0 + MW_r0) / 2` from
@@ -375,17 +375,17 @@ Key flags:
 | `--coverage-adjustment FACTOR` | Override the default 1.30× upward correction |
 | `--output-dir PATH` | Write output files directly into a scenario inputs directory |
 
-**Reference data files committed to the repo root** (pre-computed for two aggregation levels):
+**Reference data files committed under `pg/extra_inputs/gen_zone/`** (pre-computed for two aggregation levels):
 
 | File | Description |
 |---|---|
 | `gen_zone_load_ratio.csv` | BA-level reference ratios for all 134 ReEDS zones |
-| `gen_zone_load_ratio_BA.csv` | Alternative BA-level variant |
+| `gen_zone_load_ratio_ba.csv` | Alternative BA-level variant |
 | `gen_zone_load_ratio_hurdlereg.csv` | Aggregated to hurdling regions |
-| `gen_zone_load_ratio_hurdlereg_check.csv` | Diagnostic check file for hurdlereg aggregation |
-| `gen_zone_groups_hurdlereg.csv` | Zone → hurdlereg group membership mapping |
+| `archive/gen_zone_load_ratio_hurdlereg_check.csv` | Diagnostic check file for hurdlereg aggregation (stale; not read by any code) |
+| `archive/gen_zone_groups_hurdlereg.csv` | Zone → hurdlereg group membership mapping (stale; groups are now derived live from `hierarchy.csv`) |
 
-Full usage examples and worked scenario designs are in `gen_zone_ratio_instructions.txt`.
+Full usage examples and worked scenario designs are in `pg/extra_inputs/gen_zone/gen_zone_ratio_instructions.txt`.
 
 ---
 
@@ -799,7 +799,131 @@ calibration runs where future policy targets should not apply.
 
 ---
 
-## 25. Interconnection Headroom (Zonal Network-Upgrade Supply Curves)
+## 25. Federal-Policy Scenario Axes (`s4x1_fedpol_*`)
+
+**Date:** 2026-07-17 to 2026-07-19 · **Branch:** `project/Aug26_fed_policy`
+**See also:** `Guides and documentation/pg_to_switch_bugfixes_fedpol.md` for the
+bugs found while building these scenarios (see §26 below).
+
+Six new `scenario_management.yml` axes and the `s4x1_fedpol_*` scenario family
+in `pg/extra_inputs/scenario_inputs.csv`, built to model a range of federal
+policy postures (current law, reinstated IRA credits, Biden-era baseline, plus
+`_constraintremoval` and `_highdemand` sensitivity variants):
+
+- **`tax_credits`** — opex-style ($/MWh dispatch credit) PTC tracking, distinct
+  from the blanket capex ITC in `resources.yml`'s `atb_modifiers`. New Switch
+  module `switch/study_modules/gen_tax_credits.py`; values set via the
+  `tax_credit_values` settings key (technology-substring → $/MWh).
+- **`clean_power_regs`** — implements the EPA GHG rule (`caa_2024_rule`, 89 FR
+  39798) via real CCS technology options (not a retirement-only proxy). New
+  Switch module `switch/study_modules/clean_power_regs.py`.
+- **`retirement_policy`** — `blocked_2030_coal_gas` overrides EIA-860m
+  predetermined-retirement dates for coal/gas.
+- **`offshore_wind_policy`** — `capped_2025` bans new-build `OffShoreWind` via
+  `MaxCapTag_Ban`, sourced from a BOEM project list
+  (`pg/extra_inputs/offshore_wind/boem_projects_jan2025.csv`). Deliberately lets
+  state offshore-wind procurement mandates go unmet under this config (zeroes
+  `MinCapReq.MinCapTag_*_offshorewind` per year) rather than leaving the
+  scenario infeasible — see the `offshore_wind_policy` axis comment in
+  `scenario_management.yml` for the full root-cause/decision writeup.
+- **`barrier_reduction`** — placeholder interconnection/permitting-reform proxy
+  (partial `MaxCapTag_WindGrowth`/`SolarGrowth` exemption + capex reduction on
+  new wind/solar/storage).
+- **`ccs_capture_rate`** — standalone axis for CCS capture-rate sensitivity,
+  split out from `clean_power_regs`.
+
+Also: `load_growth.edf_epri_med`/`epri_high` (new high-demand sensitivity),
+`tariffs`/`hist5_high_gas` wiring (dropped an earlier `aeo2025_high_gas`
+proposal in favor of these), and a settings-merge collision fix (verified via
+a real `build_scenario_settings()` simulation rather than static key
+comparison).
+
+---
+
+## 26. ATB2024 / AEO2026 Data Fixes Found Building Federal-Policy Scenarios
+
+**Date:** 2026-07-17 to 2026-07-19 · **Branch:** `project/Aug26_fed_policy`
+**See also:** `Guides and documentation/pg_to_switch_bugfixes_fedpol.md`
+
+- **NaN capex crash** — `clean_power_regs.caa_2024_rule`'s CCS `atb_new_gen`
+  entries crashed with a NaN capex; root cause was a NaN regional cost
+  multiplier in 4 regions, not bad ATB data (took 4 rounds to isolate: an
+  initial CCS-removal workaround was reverted once the real cause was found).
+- **ATB2024 CCS technology names** — NREL restructured CCS category names
+  around ATB2023; the old names referenced in this repo were simply dead.
+  Updated to the real ATB2024 names, plus a generic `Coal_` THERM tag match to
+  catch them.
+- **AEO2026 regional cost multipliers** — replaced the AEO2020 (Table 8.2,
+  5+ years stale) regional cost multiplier source with AEO2026 EMM
+  Assumptions Table 4; bumped the `PowerGenome` submodule to pick up the
+  correction data.
+- **`nerc_growth` trans_expansion gap-year bug** — silently zeroed out the
+  transmission-expansion limit for a gap year, found while investigating
+  `s4x1_fedpol_reform`'s numerical divergence from other cases.
+- **Per-period tax-credit bug** — `gen_tax_credits_file()` read a single flat
+  `tax_credit_values` dict (from first/final-year settings) and applied it to
+  every period, silently giving `s4x1_fedpol_reinstate` (credits repealed
+  2028, reinstated 2030+) zero credits in the periods where they should have
+  applied. Fixed to iterate settings per period.
+
+---
+
+## 27. Deployment-Cap Release Fix — `constraint_removal` Axis Retired
+
+**Date:** 2026-07-26/27 · **Branch:** `project/Aug26_fed_policy`
+**See also:** `Guides and documentation/deployment_cap_axis_redesign_plan.md`
+for the full root-cause writeup and verification detail.
+
+`s4x1_fedpol_cost_optimal`'s national wind/solar growth-cap release (designed
+to take effect at 2030) silently never worked: `make_emission_policies.py`
+writes `MaxCapTag_WindGrowth`/`SolarGrowth` into a per-year `all_cases` block,
+and `all_cases` merges apply unconditionally and aren't tracked by
+PowerGenome's merge conflict-checker, so they clobbered the `constraint_removal`
+axis's override every time. The regional `MaxCapTag_WindGrowth_<transreg>`
+sub-cap release only "worked" by coincidence (`make_emission_policies.py`
+just doesn't populate those tags past 2030).
+
+**Fix:** moved national + regional growth caps from inline `all_cases` dicts
+to external CSVs (`pg/extra_inputs/growth_caps/{current,uncapped,
+release_2035}.csv`) selected via a new `max_cap_req_fn` settings key, read by
+`cap_req_files()` in `pg_to_switch.py`. A file path is scalar/last-write-wins,
+so it can't collide with a year-specific merge the way a deep-merged dict
+can. `constraint_removal` also bundled an unrelated second concern
+(`MaxCapTag_Ban` release for offshore wind); that moved to a new
+`offshore_wind_policy: capped_2025_released` level. The `constraint_removal`
+axis is deleted from `scenario_management.yml` entirely; the now-inert column
+is left in `scenario_inputs.csv` (all `none`) since PowerGenome just logs a
+harmless warning for an unreferenced column.
+
+Also added `check_min_max_cap_conflicts()` in `pg_to_switch.py` — a build-time
+guard against a `MinCapTag_*` minimum exceeding an overlapping `MaxCapTag_*`
+ceiling in the same period (genuinely infeasible; two `MaxCapTag_*` ceilings
+can never conflict with each other, since building 0 always satisfies any
+number of upper bounds).
+
+---
+
+## 28. Predetermined-Floor Triple-Counting Fix (Foresight Cases)
+
+**Date:** 2026-07-27/28 · **Branch:** `project/Aug26_fed_policy`
+
+The predetermined-capacity floor logic added in §17 merged
+`max_cap_generators.csv` against `mcr[MAX_CAP_PROGRAM]` directly, but `mcr`
+has one row per `(program, period)` — for any foresight (multi-period) case,
+this duplicated every generator once per period its program was active in
+(3x for programs present at all 3 of e.g. 2028/2030/2035, 2x for tags only
+present at 2 of those periods). This corrupted both the generator list
+written to `max_cap_generators.csv` and the predetermined-capacity floor sum
+that uses it — e.g. it inflated `s4x1_fedpol_current`'s national
+`MaxCapTag_WindGrowth` floor at 2028 to 520,916 MW (3x the correct
+173,639 MW predetermined total). **Applies to every `MaxCapTag_*` program in
+any foresight build**, not just the new growth-cap files from §27. Fixed by
+merging against the deduplicated program list
+(`mcr[[...]].drop_duplicates()`) instead of the raw per-period column.
+
+---
+
+## 29. Interconnection Headroom (Zonal Network-Upgrade Supply Curves)
 
 **Date:** 2026-10-01 · **Branch:** `tom/interconnection-headroom` · **Status:** draft, not yet run on a full case
 
@@ -845,7 +969,7 @@ includes `tx_capex`, and whether `spur_capex` is counted twice in the existing
 
 ---
 
-## 26. Interconnection Headroom — LBNL Cost Data Ingest
+## 30. Interconnection Headroom — LBNL Cost Data Ingest
 
 **Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest` (into `tom/interconnection-headroom`)
 
@@ -876,7 +1000,7 @@ review: the ISO-NE codebook defines it only as "Network Resource", in contrast t
 
 ---
 
-## 27. Interconnection Headroom — Locating LBNL Projects (Queued Up Linkage)
+## 31. Interconnection Headroom — Locating LBNL Projects (Queued Up Linkage)
 
 **Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest` (into `tom/interconnection-headroom`)
 
@@ -922,7 +1046,7 @@ and drop out of the sample.
 
 ---
 
-## 28. Interconnection Headroom — Headroom Proxies (in progress)
+## 32. Interconnection Headroom — Headroom Proxies (in progress)
 
 **Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
 
@@ -956,7 +1080,7 @@ and drop out of the sample.
   transfer 0.129, boundary+peak 0.243, boundary+median 0.313, boundary+p10 0.329, boundary 0.505,
   generation 0.634.
 
-## 29. Interconnection Headroom — Estimation: Utility Regimes, PPML, Status Term
+## 33. Interconnection Headroom — Estimation: Utility Regimes, PPML, Status Term
 
 **Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
 
@@ -972,7 +1096,7 @@ and drop out of the sample.
 - fit-weights grid: proxies from `weight_search.proxies`; wind 0.25-1, storage 0.5, gas 0/0.5/1,
   reuse 0/0.1/0.25/0.5.
 
-## 30. Interconnection Headroom — Curve Support and Backstop
+## 34. Interconnection Headroom — Curve Support and Backstop
 
 **Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
 
@@ -988,7 +1112,7 @@ and drop out of the sample.
   dispersion of the best model. PPML's Poisson likelihood on continuous $/kW is a quasi-likelihood,
   so raw AIC differences scale with the cost level (c = 485 on the Oct 2026 sample).
 
-## 31. Interconnection Headroom — Status x Regime, Chosen Defaults, Sensitivities
+## 35. Interconnection Headroom — Status x Regime, Chosen Defaults, Sensitivities
 
 **Date:** 2026-10-01 · **Branch:** `tom/lbnl-ingest`
 
@@ -1005,6 +1129,82 @@ and drop out of the sample.
 - `tranches.edge_step_width: 0.05`; `uprate_options.new_line.available_year: 2030` (placeholder).
 - `sensitivities/{wind_050,boundary_p10,price_active}.yaml` extend config.yaml (`extends:`, deep
   merge; paths resolve against the base) and write to `outputs/sens_*`.
+
+---
+
+## 36. Interconnection Headroom — Reinforcement Share for ReEDS-CPA Costs, DG Weight, Case Patching
+
+**Date:** 2026-10-01 · **Branch:** `tom/ic-test-fedpol`
+
+**Why.** With ReEDS-CPA site data (`pg_data/resource_groups/ReEDS-cpas-patched`), PowerGenome
+carries one bundled `interconnect_capex_mw` per site and `tx_capex = spur_capex = 0`, so the
+`tx_capex` strip removed nothing ("0 resources") and "on" cases would have counted network
+reinforcement twice (curve + bundled cost). The CPA `Site` ids are not ReEDS `sc_point_gid`s
+(<1% land in the CPA's own zone via `sc_point_gid_old2new`), so the split is applied by zone.
+Interconnection cost is only in `gen_connect_cost_per_mw` (not in `gen_overnight_cost` or
+`gen_fixed_om`: both constant across clusters of a tech in a zone while the bundled cost varies).
+
+- `interconnection_headroom/data/reference/interconnection_{land,offshore}.h5`: ReEDS
+  `inputs/supply_curve` at `REEDS_COMMIT.txt` (LFS objects, sha256 checked); dollar year 2023,
+  index `sc_point_gid`; cost_spur / cost_poi / cost_reinforcement / cost_total_trans usd_per_mw.
+- new `scripts/reinforcement_share.py` -> `data/reference/reinforcement_share.csv`:
+  reinforcement / total interconnection cost, capacity-weighted over ReEDS reference-siting supply
+  curve points, by zone (county2zone) x tech (upv, wind-ons, wind-ofs radial) plus `_national`
+  fallback rows. National: upv 0.850, wind-ons 0.846, wind-ofs 0.197.
+- `icsc/switch_case.strip_network_reinforcement`: tx_capex path unchanged; if tx_capex is zero or
+  absent and `interconnect_capex_mw > 0`, subtracts `interconnect_capex_mw x share` for wind/solar
+  (by `gen_load_zone` x ReEDS tech, national fallback). The check file adds `reinforcement_share`,
+  `removal_method`, `removed_per_mw`.
+- `icsc/switch_case.weights_by_tech`: weight 0 for `gen_is_distributed == 1` or a gen_tech named as
+  distributed (`distributed_generation` was 1.0 via its `sun` energy source).
+- new `scripts/patch_case_inputs.py`: writes `gen_info.<tag>.csv`, `ic_weights.<tag>.csv`,
+  `ic_connect_cost_check.<tag>.csv` and `patch_log.<tag>.txt` next to an existing case's inputs
+  (never overwriting) for use with `--input-alias`.
+- `switch/modules.txt` comment: the module is inert without `ic_zones.csv`.
+- Tests: distributed weight, bundled-cost strip with zone share and national fallback, share file.
+
+---
+
+## 37. Interconnection Headroom — Diagnostic Slack on the Headroom Limit
+
+**Date:** 2026-10-01 · **Branch:** `tom/ic-test-fedpol`
+
+**Why.** The first headroom-on S0 2035 solves failed (B infeasible, D numerical trouble). A slack
+shows where, if anywhere, the headroom limit itself cannot be met.
+
+- `switch/study_modules/interconnection_headroom.py`: optional `ic_slack_cost_per_mw` in
+  `ic_params.csv` ($/MW overnight). Set (>= 0): `ICHeadroomSlack[z, p] >= 0` is added to the
+  right-hand side of `IC_Headroom_Limit` and costed as slack x cost x crf inside `ICAnnualCost`.
+  Absent, `.` or negative: the slack is fixed at 0, i.e. the hard constraint as before (existing
+  runs unchanged). `.` reaches this scalar param as a literal string, so the module parses it
+  explicitly. `ic_headroom.csv` gains `headroom_slack_mw`; a warning is logged and printed when
+  any slack is used.
+- `scripts/patch_case_inputs.py --slack-cost <$/MW> [--params-only]` writes
+  `ic_params.<tag>.csv` next to an existing case (never overwriting) and appends to the patch log.
+- Tests (Switch 3-zone toy with HiGHS): a forced 200 MW gas build larger than North's curve solves
+  with slack > 0 and fails as infeasible with the slack off (`.`).
+
+---
+
+## 38. `rps_regional.py` — Opt-in RPS Buyout (Alternative Compliance Payment)
+
+**Date:** 2026-10-01 · **Branch:** `tom/ic-test-fedpol` · **Shared fedpol module; opt-in**
+
+**Why.** With interconnection headroom on, NY's local-only RPS (`ESR_NY_rps`, 70%, no bundled or
+unbundled RECs) has almost no feasible margin (pre-check: 65.5 TWh/yr of new NY generation needed
+vs at most 68.0 TWh/yr deliverable within NY's headroom), which made the S0 2035 headroom case
+infeasible. Real programs cap compliance cost with an alternative compliance payment (ACP).
+
+- New optional column `rps_acp_per_mwh` in `rps_requirements.csv` ($/MWh). Set for a
+  (program, period): `RPSShortfall[pr, pe] >= 0` (MWh over the period) is added to the left-hand
+  side of `Enforce_RPS_Share`, and `RPSShortfallCost[p]` = sum of ACP x shortfall / period length
+  joins `Cost_Components_Per_Period`. Every zone row of a program/period must carry the same value.
+- Absent column, blank or `.`: no buyout, the hard requirement as before (existing runs unchanged).
+- Post-solve `rps_shortfall.csv` (only when some program has an ACP): target and shortfall MWh/yr,
+  share of target, cost per year; a line is printed when any buyout is used.
+- Tests `switch/tests/test_rps_acp.py` (Switch 3-zone toy, HiGHS): an unmeetable 95% target is
+  bought out at the ACP; with the column blank it is infeasible; a blank column and no column give
+  the same total cost.
 
 ---
 
@@ -1078,6 +1278,24 @@ limited, not siting limited. Setting in `pg/settings/build_rate.yml`; `patch-cas
 and ramp respond to its own deployment in earlier periods (exact in myopic chaining, additive linear
 approximation under perfect foresight; national ceiling stays exogenous). See "Future development"
 in `Guides and documentation/build_rate.md`.
+
+---
+
+## 40. Interconnection Headroom — Trend and Status Pricing Sensitivities
+
+**Date:** 2026-10-02 · **Branch:** `tom/ic-test-fedpol` · **Sensitivity configs only; defaults unchanged**
+
+**Why.** The reference curves evaluate the queue-year trend (+0.115 log points/yr) at
+`tranches.reference_year` 2024, past the estimation sample (last queue year 2023 overall; 2020 for
+MISO, PJM, SPP and NYISO), and price at completed status. A diagnostic on the S0 2035 test runs found
+the trend alone moves completed-project costs ×2.9 (mean queue year 2013 → 2024).
+
+- `interconnection_headroom/sensitivities/trend_last_sample.yaml`: `tranches.reference_year: 2023`
+  (median first step $177 → $158/kW).
+- `interconnection_headroom/sensitivities/trend_last_sample_active.yaml`: 2023 and
+  `reference_status: active` ($204/kW). The existing `price_active.yaml` alone gives $229/kW.
+- Per-regime trend freezing (each regime's last sample year; median $119/kW) is not expressible as a
+  single config value; it was computed analytically for the diagnostic only.
 
 ---
 

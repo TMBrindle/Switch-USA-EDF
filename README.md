@@ -430,8 +430,8 @@ development based on near-term market conditions, as documented near the top of
 the script. These are the files and sections created by
 `make_emission_policies.py`:
 
-  - `emission_policies_current.csv`: current CO2 policies
-  - `emission_policies_decarb.csv`: national cap / carbon tax case
+  - `pg/extra_inputs/rggi_carbon/emission_policies_current.csv`: current CO2 policies
+  - `pg/extra_inputs/rggi_carbon/emission_policies_decarb.csv`: national cap / carbon tax case
   - `model_definition.yml/generator_columns` and `resource_tags.yml/model_tag_names`: RPS, CES and minimum-capacity tags that should be attached to generators (just defines the tags, doesn't assign values)
   - `scenario_management.yml/settings_management/[various years]/all_cases`: levels for minimum and maximum capacity requirements
   - `regional_resource_tags.yml`: generator eligibility for state RPS, CES and minimum-capacity programs

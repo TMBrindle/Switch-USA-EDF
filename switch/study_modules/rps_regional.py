@@ -61,6 +61,12 @@ def define_components(m: AbstractModel):
         m.RPS_RULES, within=PercentFraction, default=1
     )
 
+    # optional alternative compliance payment ($/MWh) for each (program, zone, period);
+    # blank / "." (default -1) means no buyout, i.e. a hard requirement. Opt-in: when set,
+    # RPSShortfall lets the program buy out part of its target at this price. All zones of a
+    # program must give the same value for a period.
+    m.rps_acp_per_mwh = Param(m.RPS_RULES, within=Reals, default=-1.0)
+
     if not hasattr(m, "gen_is_vpp"):
         m.gen_is_vpp = Param(m.GENERATION_PROJECTS, within=Binary, default=0)
         m.gen_is_vpp.added_by = __name__
@@ -622,13 +628,87 @@ def define_components(m: AbstractModel):
     # weird units and would introduce a small coefficient (the scale factor
     # itself) in the constraint matrix, which may not be helpful)
     # scale = 1.0 / (m.period_length_hours[pe] * len(m.ZONES_IN_RPS_PROGRAM_PERIOD[pr, pe]))
+    m.RPS_PROGRAM_PERIODS_WITH_ACP = Set(
+        dimen=2,
+        within=m.RPS_PROGRAM_PERIODS,
+        initialize=lambda m: [
+            (pr, pe) for (pr, pe) in m.RPS_PROGRAM_PERIODS if rps_acp(m, pr, pe) is not None
+        ],
+    )
+    # MWh of the period's target bought out at the ACP instead of met with RECs
+    m.RPSShortfall = Var(m.RPS_PROGRAM_PERIODS_WITH_ACP, within=NonNegativeReals)
+
     m.Enforce_RPS_Share = Constraint(
         m.RPS_PROGRAM_PERIODS,
         rule=lambda m, pr, pe: m.ImportBRECs[pr, pe]
         + m.ImportURECs[pr, pe]
         + m.ConsumeLocalRECs[pr, pe]
+        + (m.RPSShortfall[pr, pe] if (pr, pe) in m.RPS_PROGRAM_PERIODS_WITH_ACP else 0)
         >= m.RPSProgramTargetMWh[pr, pe],
     )
+
+    # annual cost of buyouts (targets and shortfalls are MWh over the whole period)
+    m.RPSShortfallCost = Expression(
+        m.PERIODS,
+        rule=lambda m, pe: sum(
+            rps_acp(m, pr, _pe) * m.RPSShortfall[pr, _pe]
+            for (pr, _pe) in m.RPS_PROGRAM_PERIODS_WITH_ACP
+            if _pe == pe
+        )
+        / m.period_length_years[pe],
+    )
+    m.Cost_Components_Per_Period.append("RPSShortfallCost")
+
+
+def rps_acp(m, pr, pe):
+    """ACP ($/MWh) for an RPS program/period, or None if it has none (hard requirement)."""
+    vals = {
+        float(value(m.rps_acp_per_mwh[pr, z, pe]))
+        for z in m.ZONES_IN_RPS_PROGRAM_PERIOD[pr, pe]
+    }
+    if len(vals) > 1:
+        raise ValueError(
+            f"rps_acp_per_mwh differs between zones of {pr} in {pe}: {sorted(vals)}; "
+            "give every zone row of a program/period the same value (or leave all blank)."
+        )
+    v = vals.pop()
+    return v if v >= 0 else None
+
+
+def post_solve(m, outdir):
+    """rps_shortfall.csv: buyouts per program/period (only when some program has an ACP)."""
+    if not len(m.RPS_PROGRAM_PERIODS_WITH_ACP):
+        return
+    import pandas as pd
+
+    rows = []
+    for pr, pe in m.RPS_PROGRAM_PERIODS_WITH_ACP:
+        acp = rps_acp(m, pr, pe)
+        short = value(m.RPSShortfall[pr, pe])
+        target = value(m.RPSProgramTargetMWh[pr, pe])
+        years = value(m.period_length_years[pe])
+        rows.append(
+            {
+                "RPS_PROGRAM": pr,
+                "PERIOD": pe,
+                "rps_acp_per_mwh": acp,
+                "target_mwh_per_yr": target / years,
+                "shortfall_mwh_per_yr": short / years,
+                "shortfall_share_of_target": short / target if target else None,
+                "shortfall_cost_per_yr": acp * short / years,
+            }
+        )
+    pd.DataFrame(rows).to_csv(os.path.join(outdir, "rps_shortfall.csv"), index=False)
+    used = [r for r in rows if r["shortfall_mwh_per_yr"] > 1e-3]
+    if used:
+        print(
+            "rps_regional: RPS buyout used: "
+            + ", ".join(
+                f"{r['RPS_PROGRAM']}/{r['PERIOD']} {r['shortfall_mwh_per_yr']:,.0f} MWh/yr "
+                f"(${r['shortfall_cost_per_yr']:,.0f}/yr)"
+                for r in used
+            )
+        )
 
 
 def populate_zones_on_brec_routes(m):
@@ -789,7 +869,8 @@ def load_inputs(m, switch_data, inputs_dir):
             RPS_PROGRAM, RPS_GEN, send_bundled_recs*, send_unbundled_recs*
 
         rps_requirements.csv:
-           RPS_PROGRAM, LOAD_ZONE, PERIOD, rps_share, unbundled_rec_limit_fraction*
+           RPS_PROGRAM, LOAD_ZONE, PERIOD, rps_share, unbundled_rec_limit_fraction*,
+           rps_acp_per_mwh* (alternative compliance payment, $/MWh; blank = hard target)
 
     Optional input files:
         gen_info.csv
@@ -807,7 +888,7 @@ def load_inputs(m, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, "rps_requirements.csv"),
         optional=True,  # also enables empty files
         index=m.RPS_RULES,
-        param=(m.rps_share, m.unbundled_rec_limit_fraction),
+        param=(m.rps_share, m.unbundled_rec_limit_fraction, m.rps_acp_per_mwh),
     )
 
     # load gen_is_vpp if it was created by this module

@@ -1,0 +1,9 @@
+# Sensitivity: evaluate the queue-year trend at the last queue year in the estimation sample (2023 on
+# the Oct 2026 sample) instead of tranches.reference_year 2024, so reference curves do not extrapolate
+# the trend (+0.115 log points per year) past the data. Note the ISO workbooks (MISO, PJM, SPP, NYISO)
+# end in queue year 2020 and ISO-NE in 2021; only the non-ISO release reaches 2023.
+# Run: python -m icsc.cli --config sensitivities/trend_last_sample.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_trend_last_sample}
+tranches:
+  reference_year: 2023

@@ -9,3 +9,5 @@ data/raw/reeds/
 # LBNL workbooks are committed (public, ~12 MB; the site blocks scripted downloads)
 data/raw/lbnl/SYNTHETIC_*
 .pytest_cache/
+# ReEDS supply curves downloaded by scripts/reinforcement_share.py
+data/raw/reeds/

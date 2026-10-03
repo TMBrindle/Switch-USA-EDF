@@ -1,0 +1,14 @@
+# QAIC comparison of fixed wind weights 0.25 (default), 0.5 and 1.0 at the default proxy, storage,
+# gas and reuse settings: every row fitted on the same LBNL sample; QAIC uses the dispersion of the
+# best of these three fits.
+# Run: python -m icsc.cli --config sensitivities/wind_qaic_grid.yaml fit-weights
+extends: ../config.yaml
+paths: {outputs: outputs/sens_wind_qaic_grid}
+weight_search:
+  proxies: [boundary]
+  solar: [1.0]
+  wind: [0.25, 0.5, 1.0]
+  storage: [0.5]
+  gas: [1.0]
+  other: [1.0]
+  reuse_share: [0.1]
