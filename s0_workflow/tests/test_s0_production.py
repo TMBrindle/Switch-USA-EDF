@@ -357,7 +357,10 @@ def test_scenario_lines_modes(tmp_path):
         lines = (tmp_path / f"scenarios_{case}.txt").read_text().splitlines()
         assert len(lines) == len(stages)
         for i, (st, ln) in enumerate(zip(stages, lines)):
-            assert f"--inputs-dir {tmp_path}/{st['name']}/{case}" in ln
+            # parse the line rather than match text: pg_to_switch shlex-quotes the folders, and on
+            # Windows str(Path) has backslashes, so the quoted form differs from "{tmp_path}/..."
+            args = shlex.split(ln)
+            assert Path(args[args.index("--inputs-dir") + 1]) == tmp_path / st["name"] / case
             assert "--include-module study_modules.gen_amortization_period" in ln
             assert "--include-module study_modules.retirement_rules" in ln
             assert ("study_modules.prepare_next_stage" in ln) == (st["next"] is not None)
@@ -395,6 +398,11 @@ def _record(days=120, seed=1):
 
 
 def test_day_selection_targets_and_tails(tmp_path):
+    try:
+        import sklearn  # noqa: F401  (day_selection.select_days uses sklearn's KMeans)
+    except ImportError:
+        pytest.skip("scikit-learn is not installed in this env; the fleet-independent day selector needs it. "
+                    "Run this test in an env with both scikit-learn and pytest.")
     L, R, gens = _record()
     s = _case_settings()
     ts = day_selection.ts_settings(s)

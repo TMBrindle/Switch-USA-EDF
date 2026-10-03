@@ -37,6 +37,21 @@ grep -n "path\|folder\|_DB\|dir" pg_data.yml | head                  # PowerGeno
 Environment checks. The headroom pipeline needs `h5py` (VM env `ic-pipeline`). `pg_to_switch` needs
 PowerGenome, `typer`, `scipy` and `sklearn` (VM env `switch-pg-reeds-fedpol`). Check each import in its
 own env; do not install anything.
+
+**Which env runs each step** (all recipes). `switch-pg-reeds-fedpol` has an old pandas, so only the
+case build and the solve run there:
+
+| Step | Env | Why |
+|---|---|---|
+| git, `cp`, `ls`, `grep` (worktree and data) | Git Bash, no Python | |
+| `icsc.cli run` (headroom tables) | `ic-pipeline` | needs `h5py` |
+| `brc.cli run` (build-rate tables) | `ic-pipeline` | fails in `switch-pg-reeds-fedpol` (old pandas) |
+| `pytest` (all three suites) | the env with `pytest` | no VM env has both `pytest` and `scikit-learn`: the day-selection test skips with a message where `sklearn` is missing |
+| `build_reeds_state_policies.py --check` (C step 1) | `ic-pipeline` | pandas and PyYAML only; writes with `lineterminator=` (pandas ≥ 1.5) |
+| `pg_to_switch.py` (case builds: A, B, C) | `switch-pg-reeds-fedpol` | PowerGenome, `scipy`, `sklearn` |
+| `"<SWITCH_EXE>" solve` | `switch-pg-reeds-fedpol` (its `switch`) | Pyomo, Switch, Gurobi |
+| `compare_s0_runs.py` (input and output checks) | `ic-pipeline` | pandas and numpy only |
+| `measure_run.py` (B) | `switch-pg-reeds-fedpol` | wraps the solve; `psutil` for peak memory if present |
 ```bash
 "<ic-pipeline python>" -c "import h5py, pandas, yaml; print('ok')"
 "<switch-pg-reeds-fedpol python>" -c "import powergenome, typer, scipy, sklearn, pyomo, switch_model; print('ok')"
@@ -45,15 +60,17 @@ own env; do not install anything.
 Pipeline tables:
 ```bash
 cd "$WT/interconnection_headroom" && "<ic-pipeline python>" -m icsc.cli run --start-year 2026
-cd "$WT/build_rate" && "<switch-pg-reeds-fedpol python>" -m brc.cli run
+cd "$WT/build_rate" && "<ic-pipeline python>" -m brc.cli run       # not switch-pg-reeds-fedpol: old pandas
 cd "$WT"
 ```
 
-Tests (expect all to pass; the toy tests need a Switch source checkout for `SWITCH_SRC`):
+Tests, in the env with `pytest`. Expect all to pass except one skip:
+`test_day_selection_targets_and_tails` skips with "scikit-learn is not installed in this env" where
+`sklearn` is missing. The toy tests need a Switch source checkout for `SWITCH_SRC`.
 ```bash
-SWITCH_SRC="<switch checkout>" "<switch-pg-reeds-fedpol python>" -m pytest -q s0_workflow/tests
-(cd interconnection_headroom && SWITCH_SRC="<switch checkout>" "<python>" -m pytest -q)
-(cd build_rate && SWITCH_SRC="<switch checkout>" "<python>" -m pytest -q)
+SWITCH_SRC="<switch checkout>" "<pytest env python>" -m pytest -q -rs s0_workflow/tests
+(cd interconnection_headroom && SWITCH_SRC="<switch checkout>" "<pytest env python>" -m pytest -q)
+(cd build_rate && SWITCH_SRC="<switch checkout>" "<pytest env python>" -m pytest -q)
 ```
 
 ## A. Regression: s4x1 2035 new-stack base through the settings (legacy settings)
@@ -86,7 +103,7 @@ PowerGenome's s4x1 days and no chain.
    e.g. `switch/in_ictest/cases/2035_icv4/s4x1_S0unc_2035_icon`.
    ```bash
    NEW=switch/in/s0prod_regression/2035/s4x1_S0prod_2035
-   "<python>" s0_workflow/scripts/compare_s0_runs.py inputs $NEW $OLD \
+   "<ic-pipeline python>" s0_workflow/scripts/compare_s0_runs.py inputs $NEW $OLD \
      --alias rps_requirements.csv=rps_requirements.ic_v2.csv --alias ic_zones.csv=ic_zones.ic_v4.csv \
      --alias ic_tranches.csv=ic_tranches.ic_v4.csv --alias ic_uprates.csv=ic_uprates.ic_v4.csv \
      --alias ic_weights.csv=ic_weights.ic_v4.csv --alias ic_params.csv=ic_params.ic_v2.csv \
@@ -122,7 +139,7 @@ PowerGenome's s4x1 days and no chain.
 
 4. Output check:
    ```bash
-   "<python>" s0_workflow/scripts/compare_s0_runs.py outputs switch/out/s0prod_regression/2035/s4x1_S0prod_2035 \
+   "<ic-pipeline python>" s0_workflow/scripts/compare_s0_runs.py outputs switch/out/s0prod_regression/2035/s4x1_S0prod_2035 \
      <old outputs folder>/icv4B68_s4x1_S0unc_2035_icon_aw2_icv4_br_central_v2_B6B8 --period 2035
    ```
    **Tolerances.** A metric passes within either bound:
@@ -160,7 +177,8 @@ the October 2026 defaults:
    memory from the pinned ReEDS copies and compares them with the committed ones. It must print nothing
    and exit 0. If it reports a difference, stop and report it; don't overwrite the files.
    ```bash
-   "<switch-pg-reeds-fedpol python>" s0_workflow/scripts/build_reeds_state_policies.py --check && \
+   "<ic-pipeline python>" s0_workflow/scripts/build_reeds_state_policies.py --check; echo "check exit $?"
+   # only if the check printed "check exit 0":
    test -e switch/in/s0prod_A && echo "exists: pick another name" || \
    "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_A --case-id S0prod_A
    ```

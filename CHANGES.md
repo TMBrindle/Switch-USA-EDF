@@ -1756,3 +1756,13 @@ Build rate 22 and headroom 31 unchanged.
 - 54 programs;
 - turbine weights 0.682 / 1.090 for planned and new;
 - the 2045 allowance marked as an estimate.
+
+**VM follow-up (no effect on case builds):**
+- **`test_scenario_lines_modes`** now parses `--inputs-dir` with `shlex` and compares paths. It used to
+  match text, which failed on Windows, where the quoted folder has backslashes.
+- **`test_day_selection_targets_and_tails`** skips with a clear message when scikit-learn is missing.
+  No VM env has both scikit-learn and pytest.
+- **`VM_RECIPES.md`** gains a table of which env runs each step. `brc.cli`, `compare_s0_runs.py` and
+  `build_reeds_state_policies.py --check` run in `ic-pipeline`, because `switch-pg-reeds-fedpol` has an
+  old pandas. Recipe C step 1 now runs the `--check` on its own line: in the old one-line form a
+  failed check still ran the build.
