@@ -1,0 +1,338 @@
+kn,Plant ID,Plant Name,Generator ID,Plant State,County,zone,Technology,Energy Source Code,Status,Planned Retirement Year,winter MW (860M),max annual CF 2021-24,years
+3|4,3.0,Barry,4,AL,Mobile,p90,Conventional Steam Coal,BIT,(OP) Operating,,362.0,0.2271,4.0
+3|5,3.0,Barry,5,AL,Mobile,p90,Conventional Steam Coal,BIT,(OP) Operating,,756.5,0.5175,4.0
+26|5,26.0,E C Gaston,5,AL,Shelby,p89,Conventional Steam Coal,BIT,(OP) Operating,,832.0,0.4699,4.0
+59|1,59.0,Platte,1,NE,Hall,p40,Conventional Steam Coal,SUB,(OP) Operating,,100.0,0.5034,4.0
+60|1,60.0,Whelan Energy Center,1,NE,Adams,p40,Conventional Steam Coal,SUB,(OP) Operating,,76.0,0.6625,4.0
+60|2,60.0,Whelan Energy Center,2,NE,Adams,p40,Conventional Steam Coal,SUB,(OP) Operating,,220.0,0.5847,4.0
+79|1,79.0,Chena Power Plant,1,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,4.3,0.9113,4.0
+79|2,79.0,Chena Power Plant,2,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,2.0,0.2213,4.0
+79|5,79.0,Chena Power Plant,5,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,18.8,0.8435,4.0
+108|1,108.0,Holcomb,1,KS,Finney,p52,Conventional Steam Coal,SUB,(OP) Operating,,358.9,0.5287,4.0
+130|1,130.0,Cross,1,SC,Berkeley,p96,Conventional Steam Coal,BIT,(OP) Operating,,585.0,0.3911,4.0
+130|2,130.0,Cross,2,SC,Berkeley,p96,Conventional Steam Coal,BIT,(OP) Operating,,570.0,0.1326,4.0
+130|3,130.0,Cross,3,SC,Berkeley,p96,Conventional Steam Coal,BIT,(OP) Operating,,580.0,0.6432,4.0
+130|4,130.0,Cross,4,SC,Berkeley,p96,Conventional Steam Coal,BIT,(OP) Operating,,595.0,0.6501,4.0
+136|2,136.0,Seminole (FL),2,FL,Putnam,p101,Conventional Steam Coal,BIT,(OP) Operating,,640.0,0.6055,4.0
+160|ST3,160.0,Apache Station,ST3,AZ,Cochise,p28,Conventional Steam Coal,SUB,(OP) Operating,,175.0,0.7977,4.0
+165|2,165.0,GREC,2,OK,Mayes,p51,Conventional Steam Coal,SUB,(OP) Operating,,487.0,0.3178,4.0
+298|1,298.0,Limestone,1,TX,Limestone,p63,Conventional Steam Coal,SUB,(OP) Operating,,831.0,0.4411,4.0
+298|2,298.0,Limestone,2,TX,Limestone,p63,Conventional Steam Coal,SUB,(OP) Operating,,857.0,0.5382,4.0
+564|1,564.0,Stanton Energy Center,1,FL,Orange,p101,Conventional Steam Coal,BIT,(OP) Operating,,453.4,0.5118,4.0
+564|2,564.0,Stanton Energy Center,2,FL,Orange,p101,Conventional Steam Coal,BIT,(OP) Operating,,469.3,0.6194,4.0
+667|1,667.0,Northside Generating Station,1,FL,Duval,p101,Conventional Steam Coal,BIT,(OP) Operating,,293.0,0.2326,4.0
+667|2,667.0,Northside Generating Station,2,FL,Duval,p101,Conventional Steam Coal,BIT,(OP) Operating,,293.0,0.5712,4.0
+703|1,703.0,Bowen,1,GA,Bartow,p94,Conventional Steam Coal,BIT,(OP) Operating,,714.0,0.5357,4.0
+703|2,703.0,Bowen,2,GA,Bartow,p94,Conventional Steam Coal,BIT,(OP) Operating,,718.0,0.436,4.0
+703|3,703.0,Bowen,3,GA,Bartow,p94,Conventional Steam Coal,BIT,(OP) Operating,,883.0,0.4212,4.0
+703|4,703.0,Bowen,4,GA,Bartow,p94,Conventional Steam Coal,BIT,(OP) Operating,,885.0,0.3677,4.0
+879|5,879.0,Powerton,5,IL,Tazewell,p82,Conventional Steam Coal,SUB,(OP) Operating,,769.0,0.3685,4.0
+879|6,879.0,Powerton,6,IL,Tazewell,p82,Conventional Steam Coal,SUB,(OP) Operating,,769.0,0.3878,4.0
+963|4,963.0,Dallman,4,IL,Sangamon,p82,Conventional Steam Coal,BIT,(OP) Operating,,209.3,0.6839,4.0
+976|1,976.0,Marion,1,IL,Williamson,p81,Conventional Steam Coal,BIT,(OP) Operating,,40.0,0.6096,4.0
+976|2,976.0,Marion,2,IL,Williamson,p81,Conventional Steam Coal,BIT,(OP) Operating,,40.0,0.6493,4.0
+976|3,976.0,Marion,3,IL,Williamson,p81,Conventional Steam Coal,BIT,(OP) Operating,,40.0,0.7032,4.0
+983|1,983.0,Clifty Creek,1,IN,Jefferson,p107,Conventional Steam Coal,BIT,(OP) Operating,,199.7,0.547,4.0
+983|2,983.0,Clifty Creek,2,IN,Jefferson,p107,Conventional Steam Coal,BIT,(OP) Operating,,199.7,0.6745,4.0
+983|3,983.0,Clifty Creek,3,IN,Jefferson,p107,Conventional Steam Coal,BIT,(OP) Operating,,199.7,0.5532,4.0
+983|4,983.0,Clifty Creek,4,IN,Jefferson,p107,Conventional Steam Coal,BIT,(OP) Operating,,199.7,0.5871,4.0
+983|5,983.0,Clifty Creek,5,IN,Jefferson,p107,Conventional Steam Coal,BIT,(OP) Operating,,199.7,0.7461,4.0
+983|6,983.0,Clifty Creek,6,IN,Jefferson,p107,Conventional Steam Coal,BIT,(OP) Operating,,199.7,0.3048,4.0
+994|4,994.0,AES Petersburg,4,IN,Pike,p107,Conventional Steam Coal,BIT,(OP) Operating,,534.6,0.6263,4.0
+994|ST3,994.0,AES Petersburg,ST3,IN,Pike,p107,Conventional Steam Coal,BIT,(OP) Operating,,540.3,0.6045,4.0
+1001|1,1001.0,Cayuga,1,IN,Vermillion,p105,Conventional Steam Coal,BIT,(OP) Operating,,505.0,0.5414,3.0
+1001|2,1001.0,Cayuga,2,IN,Vermillion,p105,Conventional Steam Coal,BIT,(OP) Operating,,500.0,0.6094,3.0
+1012|3,1012.0,F B Culley,3,IN,Warrick,p107,Conventional Steam Coal,BIT,(OP) Operating,,270.0,0.8018,4.0
+1040|1,1040.0,Whitewater Valley,1,IN,Wayne,p107,Conventional Steam Coal,BIT,(OP) Operating,,34.7,0.049,4.0
+1040|2,1040.0,Whitewater Valley,2,IN,Wayne,p107,Conventional Steam Coal,BIT,(OP) Operating,,65.0,0.0623,4.0
+1073|3,1073.0,Prairie Creek,3,IA,Linn,p70,Conventional Steam Coal,SUB,(OP) Operating,,32.5,0.1737,4.0
+1082|3,1082.0,Walter Scott Jr Energy Center,3,IA,Pottawattamie,p45,Conventional Steam Coal,SUB,(OP) Operating,,705.9,0.6056,4.0
+1082|4,1082.0,Walter Scott Jr Energy Center,4,IA,Pottawattamie,p45,Conventional Steam Coal,SUB,(OP) Operating,,805.8,0.4702,4.0
+1091|3,1091.0,George Neal North,3,IA,Woodbury,p45,Conventional Steam Coal,SUB,(OP) Operating,,514.0,0.3782,4.0
+1167|7,1167.0,Muscatine Plant #1,7,IA,Muscatine,p70,Conventional Steam Coal,SUB,(OP) Operating,,20.1,0.3123,3.0
+1167|8,1167.0,Muscatine Plant #1,8,IA,Muscatine,p70,Conventional Steam Coal,SUB,(OP) Operating,,68.0,0.1793,3.0
+1167|9,1167.0,Muscatine Plant #1,9,IA,Muscatine,p70,Conventional Steam Coal,SUB,(OP) Operating,,160.8,0.5595,3.0
+1241|2,1241.0,La Cygne,2,KS,Linn,p53,Conventional Steam Coal,SUB,(OP) Operating,2039.0,666.5,0.605,4.0
+1355|3,1355.0,E W Brown,3,KY,Mercer,p109,Conventional Steam Coal,BIT,(OP) Operating,,416.0,0.3614,4.0
+1356|1,1356.0,Ghent,1,KY,Carroll,p109,Conventional Steam Coal,BIT,(OP) Operating,,479.0,0.6866,4.0
+1356|2,1356.0,Ghent,2,KY,Carroll,p109,Conventional Steam Coal,BIT,(OP) Operating,,486.0,0.608,4.0
+1356|3,1356.0,Ghent,3,KY,Carroll,p109,Conventional Steam Coal,BIT,(OP) Operating,,481.0,0.6756,4.0
+1356|4,1356.0,Ghent,4,KY,Carroll,p109,Conventional Steam Coal,BIT,(OP) Operating,,478.0,0.5983,4.0
+1364|2,1364.0,Mill Creek (KY),2,KY,Jefferson,p109,Conventional Steam Coal,BIT,(OP) Operating,,297.0,0.631,4.0
+1364|3,1364.0,Mill Creek (KY),3,KY,Jefferson,p109,Conventional Steam Coal,BIT,(OP) Operating,,394.0,0.6712,4.0
+1364|4,1364.0,Mill Creek (KY),4,KY,Jefferson,p109,Conventional Steam Coal,BIT,(OP) Operating,,486.0,0.6655,4.0
+1379|3,1379.0,Shawnee,3,KY,McCracken,p93,Conventional Steam Coal,SUB,(OP) Operating,,138.0,0.5899,4.0
+1384|1,1384.0,Cooper,1,KY,Pulaski,p93,Conventional Steam Coal,BIT,(OP) Operating,,116.0,0.1433,4.0
+1384|2,1384.0,Cooper,2,KY,Pulaski,p93,Conventional Steam Coal,BIT,(OP) Operating,,225.0,0.209,4.0
+1393|6,1393.0,R S Nelson,6,LA,Calcasieu,p58,Conventional Steam Coal,SUB,(OP) Operating,,531.9,0.4412,4.0
+1893|3,1893.0,Clay Boswell,3,MN,Itasca,p43,Conventional Steam Coal,SUB,(OP) Operating,,352.0,0.6938,4.0
+1893|4,1893.0,Clay Boswell,4,MN,Itasca,p43,Conventional Steam Coal,SUB,(OP) Operating,,585.0,0.5844,4.0
+2079|5,2079.0,Hawthorn,5,MO,Jackson,p54,Conventional Steam Coal,SUB,(OP) Operating,,561.1,0.6417,4.0
+2103|1,2103.0,Labadie,1,MO,Franklin,p72,Conventional Steam Coal,SUB,(OP) Operating,,616.0,0.7904,4.0
+2103|2,2103.0,Labadie,2,MO,Franklin,p72,Conventional Steam Coal,SUB,(OP) Operating,,616.0,0.8269,4.0
+2103|3,2103.0,Labadie,3,MO,Franklin,p72,Conventional Steam Coal,SUB,(OP) Operating,,616.0,0.8001,4.0
+2103|4,2103.0,Labadie,4,MO,Franklin,p72,Conventional Steam Coal,SUB,(OP) Operating,,616.0,0.7542,4.0
+2167|1,2167.0,New Madrid,1,MO,New Madrid,p84,Conventional Steam Coal,SUB,(OP) Operating,,607.0,0.7436,4.0
+2167|2,2167.0,New Madrid,2,MO,New Madrid,p84,Conventional Steam Coal,SUB,(OP) Operating,,615.0,0.7384,4.0
+2168|1,2168.0,Thomas Hill,1,MO,Randolph,p72,Conventional Steam Coal,SUB,(OP) Operating,,167.0,0.8529,4.0
+2168|2,2168.0,Thomas Hill,2,MO,Randolph,p72,Conventional Steam Coal,SUB,(OP) Operating,,272.0,0.8428,4.0
+2168|3,2168.0,Thomas Hill,3,MO,Randolph,p72,Conventional Steam Coal,SUB,(OP) Operating,,714.0,0.8883,4.0
+2240|6,2240.0,Lon Wright,6,NE,Dodge,p41,Conventional Steam Coal,SUB,(OP) Operating,,15.5,0.5072,4.0
+2240|7,2240.0,Lon Wright,7,NE,Dodge,p41,Conventional Steam Coal,SUB,(OP) Operating,,21.0,0.4618,4.0
+2240|8,2240.0,Lon Wright,8,NE,Dodge,p41,Conventional Steam Coal,SUB,(OP) Operating,,82.0,0.5323,4.0
+2277|1,2277.0,Sheldon,1,NE,Lancaster,p41,Conventional Steam Coal,SUB,(OP) Operating,,102.0,0.5063,4.0
+2277|2,2277.0,Sheldon,2,NE,Lancaster,p41,Conventional Steam Coal,SUB,(OP) Operating,,112.0,0.5523,4.0
+2291|4,2291.0,North Omaha,4,NE,Douglas,p41,Conventional Steam Coal,SUB,(OP) Operating,,101.8,0.7399,4.0
+2291|5,2291.0,North Omaha,5,NE,Douglas,p41,Conventional Steam Coal,SUB,(OP) Operating,,174.9,0.6974,4.0
+2712|1,2712.0,Roxboro,1,NC,Person,p98,Conventional Steam Coal,BIT,(OP) Operating,,380.0,0.3096,4.0
+2712|2,2712.0,Roxboro,2,NC,Person,p98,Conventional Steam Coal,BIT,(OP) Operating,,673.0,0.3914,4.0
+2712|3,2712.0,Roxboro,3,NC,Person,p98,Conventional Steam Coal,BIT,(OP) Operating,,698.0,0.363,4.0
+2712|4,2712.0,Roxboro,4,NC,Person,p98,Conventional Steam Coal,BIT,(OP) Operating,,711.0,0.2491,4.0
+2817|1,2817.0,Leland Olds,1,ND,Mercer,p36,Conventional Steam Coal,LIG,(OP) Operating,,220.0,0.642,4.0
+2817|2,2817.0,Leland Olds,2,ND,Mercer,p36,Conventional Steam Coal,LIG,(OP) Operating,,440.0,0.6598,4.0
+2823|1,2823.0,Milton R Young,1,ND,Oliver,p36,Conventional Steam Coal,LIG,(OP) Operating,,237.0,0.854,4.0
+2823|2,2823.0,Milton R Young,2,ND,Oliver,p36,Conventional Steam Coal,LIG,(OP) Operating,,455.0,0.7548,4.0
+2828|1,2828.0,Cardinal,1,OH,Jefferson,p112,Conventional Steam Coal,BIT,(OP) Operating,,595.0,0.7234,4.0
+2828|2,2828.0,Cardinal,2,OH,Jefferson,p112,Conventional Steam Coal,BIT,(OP) Operating,,595.0,0.7342,4.0
+2832|7,2832.0,Miami Fort,7,OH,Hamilton,p114,Conventional Steam Coal,BIT,(OP) Operating,,510.0,0.728,4.0
+2832|8,2832.0,Miami Fort,8,OH,Hamilton,p114,Conventional Steam Coal,BIT,(OP) Operating,,510.0,0.7983,4.0
+2876|1,2876.0,Kyger Creek,1,OH,Gallia,p112,Conventional Steam Coal,BIT,(OP) Operating,,198.7,0.6139,4.0
+2876|2,2876.0,Kyger Creek,2,OH,Gallia,p112,Conventional Steam Coal,BIT,(OP) Operating,,198.0,0.7346,4.0
+2876|3,2876.0,Kyger Creek,3,OH,Gallia,p112,Conventional Steam Coal,BIT,(OP) Operating,,198.0,0.6375,4.0
+2876|4,2876.0,Kyger Creek,4,OH,Gallia,p112,Conventional Steam Coal,BIT,(OP) Operating,,198.0,0.618,4.0
+2876|5,2876.0,Kyger Creek,5,OH,Gallia,p112,Conventional Steam Coal,BIT,(OP) Operating,,198.0,0.5937,4.0
+2914|3,2914.0,Dover (OH),3,OH,Tuscarawas,p112,Conventional Steam Coal,BIT,(SB) Standby/Backup: available for service but not normally used,,8.0,0.0,3.0
+2914|4,2914.0,Dover (OH),4,OH,Tuscarawas,p112,Conventional Steam Coal,BIT,(OP) Operating,,15.2,0.5838,3.0
+2935|10,2935.0,Orrville,10,OH,Wayne,p112,Conventional Steam Coal,BIT,(OP) Operating,,23.0,0.0439,4.0
+2935|9,2935.0,Orrville,9,OH,Wayne,p112,Conventional Steam Coal,BIT,(OP) Operating,,20.0,0.0466,4.0
+2936|3,2936.0,Painesville,3,OH,Lake,p111,Conventional Steam Coal,BIT,(SB) Standby/Backup: available for service but not normally used,,7.0,0.0,4.0
+2936|5,2936.0,Painesville,5,OH,Lake,p111,Conventional Steam Coal,BIT,(OP) Operating,,15.5,0.0007,4.0
+2936|7,2936.0,Painesville,7,OH,Lake,p111,Conventional Steam Coal,BIT,(OP) Operating,,17.5,0.0062,4.0
+2936|ST2,2936.0,Painesville,ST2,OH,Lake,p111,Conventional Steam Coal,BIT,(SB) Standby/Backup: available for service but not normally used,,7.0,0.0,4.0
+2952|6,2952.0,Muskogee,6,OK,Muskogee,p51,Conventional Steam Coal,SUB,(OP) Operating,,531.0,0.6305,4.0
+2963|3,2963.0,Northeastern,3,OK,Rogers,p51,Conventional Steam Coal,SUB,(OP) Operating,,420.0,0.6148,3.0
+3118|1,3118.0,Conemaugh,1,PA,Indiana,p122,Conventional Steam Coal,BIT,(OP) Operating,,850.0,0.4736,4.0
+3118|2,3118.0,Conemaugh,2,PA,Indiana,p122,Conventional Steam Coal,BIT,(OP) Operating,,850.0,0.5018,4.0
+3130|FB1,3130.0,Seward (PA),FB1,PA,Indiana,p122,Conventional Steam Coal,WC,(OP) Operating,,521.0,0.6264,4.0
+3136|1,3136.0,Keystone,1,PA,Armstrong,p115,Conventional Steam Coal,BIT,(OP) Operating,,850.0,0.5484,4.0
+3136|2,3136.0,Keystone,2,PA,Armstrong,p115,Conventional Steam Coal,BIT,(OP) Operating,,850.0,0.4475,4.0
+3297|1,3297.0,Wateree,1,SC,Richland,p96,Conventional Steam Coal,BIT,(OP) Operating,,342.0,0.5036,4.0
+3297|2,3297.0,Wateree,2,SC,Richland,p96,Conventional Steam Coal,BIT,(OP) Operating,,342.0,0.4369,4.0
+3298|ST1,3298.0,Williams,ST1,SC,Berkeley,p96,Conventional Steam Coal,BIT,(OP) Operating,,610.0,0.4553,4.0
+3470|5,3470.0,W A Parish,5,TX,Fort Bend,p67,Conventional Steam Coal,SUB,(OP) Operating,,664.0,0.6734,4.0
+3470|6,3470.0,W A Parish,6,TX,Fort Bend,p67,Conventional Steam Coal,SUB,(OP) Operating,,663.0,0.6103,4.0
+3470|7,3470.0,W A Parish,7,TX,Fort Bend,p67,Conventional Steam Coal,SUB,(OP) Operating,,577.0,0.6959,4.0
+3470|8,3470.0,W A Parish,8,TX,Fort Bend,p67,Conventional Steam Coal,SUB,(OP) Operating,,610.0,0.5622,4.0
+3845|2,3845.0,Transalta Centralia Generation,2,WA,Lewis,p2,Conventional Steam Coal,SUB,(OP) Operating,,670.0,0.706,4.0
+3935|1,3935.0,John E Amos,1,WV,Putnam,p117,Conventional Steam Coal,BIT,(OP) Operating,,800.0,0.5022,4.0
+3935|2,3935.0,John E Amos,2,WV,Putnam,p117,Conventional Steam Coal,BIT,(OP) Operating,,800.0,0.4185,4.0
+3935|3,3935.0,John E Amos,3,WV,Putnam,p117,Conventional Steam Coal,BIT,(OP) Operating,,1299.0,0.4885,4.0
+3943|1,3943.0,FirstEnergy Fort Martin Power Station,1,WV,Monongalia,p116,Conventional Steam Coal,BIT,(OP) Operating,,552.0,0.6018,4.0
+3943|2,3943.0,FirstEnergy Fort Martin Power Station,2,WV,Monongalia,p116,Conventional Steam Coal,BIT,(OP) Operating,,546.0,0.56,4.0
+3944|1,3944.0,FirstEnergy Harrison Power Station,1,WV,Harrison,p116,Conventional Steam Coal,BIT,(OP) Operating,,662.0,0.7899,4.0
+3944|2,3944.0,FirstEnergy Harrison Power Station,2,WV,Harrison,p116,Conventional Steam Coal,BIT,(OP) Operating,,661.0,0.7434,4.0
+3944|3,3944.0,FirstEnergy Harrison Power Station,3,WV,Harrison,p116,Conventional Steam Coal,BIT,(OP) Operating,,661.0,0.7816,4.0
+3948|1,3948.0,Mitchell (WV),1,WV,Marshall,p116,Conventional Steam Coal,BIT,(OP) Operating,,770.0,0.3146,4.0
+3948|2,3948.0,Mitchell (WV),2,WV,Marshall,p116,Conventional Steam Coal,BIT,(OP) Operating,,790.0,0.4319,4.0
+3954|1,3954.0,Mt Storm,1,WV,Grant,p116,Conventional Steam Coal,BIT,(OP) Operating,,548.1,0.3354,4.0
+3954|2,3954.0,Mt Storm,2,WV,Grant,p116,Conventional Steam Coal,BIT,(OP) Operating,,560.4,0.3692,4.0
+3954|3,3954.0,Mt Storm,3,WV,Grant,p116,Conventional Steam Coal,BIT,(OP) Operating,,522.0,0.4238,4.0
+4050|5,4050.0,Edgewater,5,WI,Sheboygan,p79,Conventional Steam Coal,SUB,(OP) Operating,,402.7,0.6485,4.0
+4078|3,4078.0,Weston,3,WI,Marathon,p75,Conventional Steam Coal,SUB,(OP) Operating,,339.8,0.4178,4.0
+4078|4,4078.0,Weston,4,WI,Marathon,p75,Conventional Steam Coal,SUB,(OP) Operating,,558.5,0.7155,4.0
+4158|1,4158.0,Dave Johnston,1,WY,Converse,p24,Conventional Steam Coal,SUB,(OP) Operating,,99.0,0.6965,4.0
+4158|2,4158.0,Dave Johnston,2,WY,Converse,p24,Conventional Steam Coal,SUB,(OP) Operating,,106.0,0.7811,4.0
+4158|4,4158.0,Dave Johnston,4,WY,Converse,p24,Conventional Steam Coal,SUB,(OP) Operating,,330.0,0.5771,4.0
+4162|1,4162.0,Naughton,1,WY,Lincoln,p21,Conventional Steam Coal,SUB,(OP) Operating,,156.0,0.8943,4.0
+4162|2,4162.0,Naughton,2,WY,Lincoln,p21,Conventional Steam Coal,SUB,(OP) Operating,,201.0,0.5967,4.0
+4271|1,4271.0,John P Madgett,1,WI,Buffalo,p46,Conventional Steam Coal,SUB,(OP) Operating,,392.5,0.6112,4.0
+6002|1,6002.0,James H Miller Jr,1,AL,Jefferson,p89,Conventional Steam Coal,SUB,(OP) Operating,,687.8,0.9266,4.0
+6002|2,6002.0,James H Miller Jr,2,AL,Jefferson,p89,Conventional Steam Coal,SUB,(OP) Operating,,692.7,0.9337,4.0
+6002|3,6002.0,James H Miller Jr,3,AL,Jefferson,p89,Conventional Steam Coal,SUB,(OP) Operating,,693.0,0.907,4.0
+6002|4,6002.0,James H Miller Jr,4,AL,Jefferson,p89,Conventional Steam Coal,SUB,(OP) Operating,,704.0,0.9035,4.0
+6004|1,6004.0,Pleasants Power Station,1,WV,Pleasants,p116,Conventional Steam Coal,BIT,(OP) Operating,,650.0,0.7204,4.0
+6004|2,6004.0,Pleasants Power Station,2,WV,Pleasants,p116,Conventional Steam Coal,BIT,(OP) Operating,,650.0,0.7095,4.0
+6009|1,6009.0,White Bluff,1,AR,Jefferson,p85,Conventional Steam Coal,SUB,(OP) Operating,,425.3,0.4293,4.0
+6009|2,6009.0,White Bluff,2,AR,Jefferson,p85,Conventional Steam Coal,SUB,(OP) Operating,,835.9,0.553,4.0
+6018|2,6018.0,East Bend,2,KY,Boone,p109,Conventional Steam Coal,BIT,(OP) Operating,,600.0,0.5285,4.0
+6030|1,6030.0,Coal Creek,1,ND,McLean,p37,Conventional Steam Coal,RC,(OP) Operating,,568.3,0.9172,4.0
+6030|2,6030.0,Coal Creek,2,ND,McLean,p37,Conventional Steam Coal,RC,(OP) Operating,,573.9,0.8722,4.0
+6041|1,6041.0,H L Spurlock,1,KY,Mason,p109,Conventional Steam Coal,BIT,(OP) Operating,,300.0,0.7496,4.0
+6041|2,6041.0,H L Spurlock,2,KY,Mason,p109,Conventional Steam Coal,BIT,(OP) Operating,,510.0,0.7281,4.0
+6041|3,6041.0,H L Spurlock,3,KY,Mason,p109,Conventional Steam Coal,BIT,(OP) Operating,,268.0,0.8008,4.0
+6041|4,6041.0,H L Spurlock,4,KY,Mason,p109,Conventional Steam Coal,BIT,(OP) Operating,,268.0,0.832,4.0
+6055|3,6055.0,Big Cajun 2,3,LA,Pointe Coupee,p58,Conventional Steam Coal,SUB,(OP) Operating,,563.0,0.5844,4.0
+6064|1,6064.0,Nearman Creek,1,KS,Wyandotte,p53,Conventional Steam Coal,SUB,(OP) Operating,,243.0,0.5976,4.0
+6065|1,6065.0,Iatan,1,MO,Platte,p54,Conventional Steam Coal,SUB,(OP) Operating,2039.0,716.7,0.5035,4.0
+6065|2,6065.0,Iatan,2,MO,Platte,p54,Conventional Steam Coal,SUB,(OP) Operating,,899.7,0.6184,4.0
+6068|1,6068.0,Jeffrey Energy Center,1,KS,Pottawatomie,p53,Conventional Steam Coal,SUB,(OP) Operating,2039.0,725.2,0.6262,4.0
+6068|2,6068.0,Jeffrey Energy Center,2,KS,Pottawatomie,p53,Conventional Steam Coal,SUB,(OP) Operating,,721.8,0.5436,4.0
+6071|1,6071.0,Trimble County,1,KY,Trimble,p109,Conventional Steam Coal,BIT,(OP) Operating,,493.0,0.8063,3.0
+6071|2,6071.0,Trimble County,2,KY,Trimble,p109,Conventional Steam Coal,BIT,(OP) Operating,,760.0,0.7981,3.0
+6076|3,6076.0,Colstrip,3,MT,Rosebud,p20,Conventional Steam Coal,SUB,(OP) Operating,,740.0,0.8398,4.0
+6076|4,6076.0,Colstrip,4,MT,Rosebud,p20,Conventional Steam Coal,SUB,(OP) Operating,,740.0,0.8574,4.0
+6077|1,6077.0,Gerald Gentleman,1,NE,Lincoln,p40,Conventional Steam Coal,SUB,(OP) Operating,,665.0,0.6524,4.0
+6077|2,6077.0,Gerald Gentleman,2,NE,Lincoln,p40,Conventional Steam Coal,SUB,(OP) Operating,,700.0,0.6375,4.0
+6095|1,6095.0,Sooner,1,OK,Noble,p50,Conventional Steam Coal,SUB,(OP) Operating,,523.0,0.2981,4.0
+6095|2,6095.0,Sooner,2,OK,Noble,p50,Conventional Steam Coal,SUB,(OP) Operating,,525.0,0.4095,4.0
+6096|1,6096.0,Nebraska City,1,NE,Otoe,p41,Conventional Steam Coal,SUB,(OP) Operating,,650.3,0.6005,4.0
+6096|2,6096.0,Nebraska City,2,NE,Otoe,p41,Conventional Steam Coal,SUB,(OP) Operating,,687.2,0.6389,4.0
+6098|1,6098.0,Big Stone,1,SD,Grant,p38,Conventional Steam Coal,SUB,(OP) Operating,,491.2,0.451,4.0
+6101|1,6101.0,Wyodak,1,WY,Campbell,p23,Conventional Steam Coal,SUB,(OP) Operating,,335.0,0.6696,3.0
+6113|1,6113.0,Gibson,1,IN,Gibson,p107,Conventional Steam Coal,BIT,(OP) Operating,,635.0,0.4975,4.0
+6113|2,6113.0,Gibson,2,IN,Gibson,p107,Conventional Steam Coal,BIT,(OP) Operating,,635.0,0.3608,4.0
+6113|3,6113.0,Gibson,3,IN,Gibson,p107,Conventional Steam Coal,BIT,(OP) Operating,,635.0,0.3625,4.0
+6113|4,6113.0,Gibson,4,IN,Gibson,p107,Conventional Steam Coal,BIT,(OP) Operating,,627.0,0.3673,4.0
+6113|5,6113.0,Gibson,5,IN,Gibson,p107,Conventional Steam Coal,BIT,(OP) Operating,,625.0,0.3901,4.0
+6138|1,6138.0,Flint Creek,1,AR,Benton,p56,Conventional Steam Coal,SUB,(OP) Operating,,494.0,0.6483,4.0
+6139|1,6139.0,Welsh,1,TX,Titus,p57,Conventional Steam Coal,SUB,(OP) Operating,,500.0,0.5816,4.0
+6139|3,6139.0,Welsh,3,TX,Titus,p57,Conventional Steam Coal,SUB,(OP) Operating,,500.0,0.4514,4.0
+6146|1,6146.0,Martin Lake,1,TX,Rusk,p63,Conventional Steam Coal,SUB,(OP) Operating,,815.0,0.6184,3.0
+6146|2,6146.0,Martin Lake,2,TX,Rusk,p63,Conventional Steam Coal,SUB,(OP) Operating,,820.0,0.603,3.0
+6146|3,6146.0,Martin Lake,3,TX,Rusk,p63,Conventional Steam Coal,SUB,(OP) Operating,,820.0,0.6864,3.0
+6165|1,6165.0,Hunter,1,UT,Emery,p25,Conventional Steam Coal,BIT,(OP) Operating,,446.0,0.7611,3.0
+6165|2,6165.0,Hunter,2,UT,Emery,p25,Conventional Steam Coal,BIT,(OP) Operating,,446.0,0.7707,3.0
+6165|3,6165.0,Hunter,3,UT,Emery,p25,Conventional Steam Coal,BIT,(OP) Operating,,471.0,0.7911,3.0
+6178|1,6178.0,Coleto Creek,1,TX,Goliad,p65,Conventional Steam Coal,SUB,(OP) Operating,,655.0,0.5948,4.0
+6179|1,6179.0,Fayette Power Project,1,TX,Fayette,p64,Conventional Steam Coal,SUB,(OP) Operating,,598.0,0.7293,4.0
+6179|2,6179.0,Fayette Power Project,2,TX,Fayette,p64,Conventional Steam Coal,SUB,(OP) Operating,,598.0,0.7344,4.0
+6179|3,6179.0,Fayette Power Project,3,TX,Fayette,p64,Conventional Steam Coal,SUB,(OP) Operating,,440.0,0.8462,4.0
+6180|OG1,6180.0,Oak Grove (TX),OG1,TX,Robertson,p63,Conventional Steam Coal,LIG,(OP) Operating,,855.0,0.8688,4.0
+6180|OG2,6180.0,Oak Grove (TX),OG2,TX,Robertson,p63,Conventional Steam Coal,LIG,(OP) Operating,,855.0,0.8748,4.0
+6183|1,6183.0,San Miguel,1,TX,Atascosa,p65,Conventional Steam Coal,LIG,(OP) Operating,,391.0,0.6129,4.0
+6190|2,6190.0,Brame Energy Center,2,LA,Rapides,p58,Conventional Steam Coal,SUB,(OP) Operating,,493.0,0.5559,4.0
+6195|ST1,6195.0,John Twitty Energy Center,ST1,MO,Greene,p55,Conventional Steam Coal,SUB,(OP) Operating,,184.0,0.6749,4.0
+6195|ST2,6195.0,John Twitty Energy Center,ST2,MO,Greene,p55,Conventional Steam Coal,SUB,(OP) Operating,,275.0,0.7053,4.0
+6204|1,6204.0,Laramie River Station,1,WY,Platte,p24,Conventional Steam Coal,SUB,(OP) Operating,,560.0,0.4827,4.0
+6204|2,6204.0,Laramie River Station,2,WY,Platte,p24,Conventional Steam Coal,SUB,(OP) Operating,,570.0,0.754,4.0
+6204|3,6204.0,Laramie River Station,3,WY,Platte,p24,Conventional Steam Coal,SUB,(OP) Operating,,570.0,0.8361,4.0
+6213|1,6213.0,Merom,1,IN,Sullivan,p107,Conventional Steam Coal,BIT,(OP) Operating,,494.0,0.5754,4.0
+6213|2,6213.0,Merom,2,IN,Sullivan,p107,Conventional Steam Coal,BIT,(OP) Operating,,496.0,0.644,4.0
+6254|1,6254.0,Ottumwa,1,IA,Wapello,p70,Conventional Steam Coal,SUB,(OP) Operating,,726.8,0.6577,4.0
+6257|1,6257.0,Scherer,1,GA,Monroe,p94,Conventional Steam Coal,SUB,(OP) Operating,,860.0,0.4542,4.0
+6257|2,6257.0,Scherer,2,GA,Monroe,p94,Conventional Steam Coal,SUB,(OP) Operating,,860.0,0.2932,4.0
+6257|3,6257.0,Scherer,3,GA,Monroe,p94,Conventional Steam Coal,SUB,(OP) Operating,,860.0,0.3763,4.0
+6264|1,6264.0,Mountaineer,1,WV,Mason,p117,Conventional Steam Coal,BIT,(OP) Operating,,1299.0,0.6268,4.0
+6288|1,6288.0,Healy,1,AK,Denali,,Conventional Steam Coal,LIG,(OP) Operating,,25.0,0.7778,4.0
+6288|2,6288.0,Healy,2,AK,Denali,,Conventional Steam Coal,LIG,(OP) Operating,,50.0,0.5811,4.0
+6469|1,6469.0,Antelope Valley,1,ND,Mercer,p36,Conventional Steam Coal,LIG,(OP) Operating,,450.0,0.7827,4.0
+6469|2,6469.0,Antelope Valley,2,ND,Mercer,p36,Conventional Steam Coal,LIG,(OP) Operating,,450.0,0.7394,4.0
+6641|1,6641.0,Independence Steam Electric Station,1,AR,Independence,p85,Conventional Steam Coal,SUB,(OP) Operating,,836.0,0.4082,4.0
+6641|2,6641.0,Independence Steam Electric Station,2,AR,Independence,p85,Conventional Steam Coal,SUB,(OP) Operating,,842.1,0.4012,4.0
+6664|1,6664.0,Louisa,1,IA,Louisa,p70,Conventional Steam Coal,SUB,(OP) Operating,,755.0,0.666,4.0
+6705|1,6705.0,Warrick,1,IN,Warrick,p107,Conventional Steam Coal,BIT,(OP) Operating,,157.8,0.7372,4.0
+6705|3,6705.0,Warrick,3,IN,Warrick,p107,Conventional Steam Coal,BIT,(OP) Operating,,152.3,0.7465,4.0
+6705|4,6705.0,Warrick,4,IN,Warrick,p107,Conventional Steam Coal,BIT,(OP) Operating,,288.8,0.6741,4.0
+6768|1,6768.0,Sikeston Power Station,1,MO,Scott,p72,Conventional Steam Coal,SUB,(OP) Operating,,240.0,0.8148,4.0
+6772|1,6772.0,Hugo,1,OK,Choctaw,p50,Conventional Steam Coal,SUB,(OP) Operating,,440.0,0.3638,4.0
+6823|1,6823.0,D B Wilson,1,KY,Ohio,p108,Conventional Steam Coal,BIT,(OP) Operating,,417.0,0.8359,4.0
+7030|1,7030.0,Major Oak Power,1,TX,Robertson,p63,Conventional Steam Coal,LIG,(OP) Operating,,153.0,0.9459,4.0
+7030|2,7030.0,Major Oak Power,2,TX,Robertson,p63,Conventional Steam Coal,LIG,(OP) Operating,,154.0,0.9459,4.0
+7097|2,7097.0,J K Spruce,2,TX,Bexar,p65,Conventional Steam Coal,SUB,(OP) Operating,,785.0,0.7178,4.0
+7213|1,7213.0,Clover,1,VA,Halifax,p99,Conventional Steam Coal,BIT,(OP) Operating,,442.9,0.1226,4.0
+7213|2,7213.0,Clover,2,VA,Halifax,p99,Conventional Steam Coal,BIT,(OP) Operating,,439.0,0.1232,4.0
+7343|4,7343.0,George Neal South,4,IA,Woodbury,p45,Conventional Steam Coal,SUB,(OP) Operating,,651.0,0.2542,3.0
+7504|2,7504.0,Neil Simpson II,2,WY,Campbell,p23,Conventional Steam Coal,SUB,(OP) Operating,,82.0,0.8778,4.0
+7790|1,7790.0,Bonanza,1,UT,Uintah,p26,Conventional Steam Coal,BIT,(OP) Operating,,458.0,0.8601,3.0
+8066|3,8066.0,Jim Bridger,3,WY,Sweetwater,p21,Conventional Steam Coal,SUB,(OP) Operating,,523.0,0.5649,4.0
+8066|4,8066.0,Jim Bridger,4,WY,Sweetwater,p21,Conventional Steam Coal,SUB,(OP) Operating,,526.0,0.6106,4.0
+8069|1,8069.0,Huntington,1,UT,Emery,p25,Conventional Steam Coal,BIT,(OP) Operating,,459.0,0.7751,4.0
+8069|2,8069.0,Huntington,2,UT,Emery,p25,Conventional Steam Coal,BIT,(OP) Operating,,450.0,0.7984,4.0
+8102|1,8102.0,"Gavin Power, LLC",1,OH,Gallia,p112,Conventional Steam Coal,BIT,(OP) Operating,,1361.0,0.6488,4.0
+8102|2,8102.0,"Gavin Power, LLC",2,OH,Gallia,p112,Conventional Steam Coal,BIT,(OP) Operating,,1361.0,0.5584,4.0
+8222|1,8222.0,Coyote,1,ND,Mercer,p36,Conventional Steam Coal,LIG,(OP) Operating,,431.5,0.6893,4.0
+8223|3,8223.0,Springerville,3,AZ,Apache,p29,Conventional Steam Coal,SUB,(OP) Operating,,417.0,0.6617,4.0
+8223|4,8223.0,Springerville,4,AZ,Apache,p29,Conventional Steam Coal,SUB,(OP) Operating,,415.0,0.5572,4.0
+10113|GEN1,10113.0,John B Rich Memorial Power Station,GEN1,PA,Schuylkill,p122,Conventional Steam Coal,WC,(OP) Operating,,80.0,0.9097,4.0
+10143|COLV,10143.0,Colver Green Energy,COLV,PA,Cambria,p122,Conventional Steam Coal,WC,(OP) Operating,,110.0,0.7434,4.0
+10151|GEN1,10151.0,Grant Town Power Plant,GEN1,WV,Marion,p116,Conventional Steam Coal,WC,(OP) Operating,,80.0,0.901,4.0
+10343|TG1,10343.0,Foster Wheeler Mt Carmel Cogen,TG1,PA,Northumberland,p122,Conventional Steam Coal,WC,(OP) Operating,,40.0,0.3026,4.0
+10603|GEN1,10603.0,Ebensburg Power,GEN1,PA,Cambria,p122,Conventional Steam Coal,WC,(OP) Operating,,50.0,0.836,4.0
+10671|GEN1,10671.0,River Valley,GEN1,OK,Le Flore,p50,Conventional Steam Coal,SUB,(OP) Operating,,160.6,0.3487,4.0
+10671|GEN2,10671.0,River Valley,GEN2,OK,Le Flore,p50,Conventional Steam Coal,SUB,(OP) Operating,,160.4,0.4738,4.0
+10684|TG8,10684.0,Argus Cogen Plant,TG8,CA,San Bernardino,p10,Conventional Steam Coal,BIT,(OP) Operating,,25.0,0.6896,4.0
+10684|TG9,10684.0,Argus Cogen Plant,TG9,CA,San Bernardino,p10,Conventional Steam Coal,BIT,(OP) Operating,,25.0,0.7128,4.0
+10784|GEN1,10784.0,Colstrip Energy LP,GEN1,MT,Rosebud,p20,Conventional Steam Coal,WC,(OP) Operating,,40.5,0.9076,4.0
+10860|1A,10860.0,Archer Daniels Midland Clinton,1A,IA,Clinton,p70,Conventional Steam Coal,SUB,(OP) Operating,,75.0,0.5278,4.0
+10860|2A,10860.0,Archer Daniels Midland Clinton,2A,IA,Clinton,p70,Conventional Steam Coal,SUB,(OP) Operating,,105.0,0.5037,4.0
+10864|GEN1,10864.0,Archer Daniels Midland Cedar Rapids,GEN1,IA,Linn,p70,Conventional Steam Coal,SUB,(OP) Operating,,31.0,0.2779,4.0
+10864|GEN2,10864.0,Archer Daniels Midland Cedar Rapids,GEN2,IA,Linn,p70,Conventional Steam Coal,SUB,(OP) Operating,,31.0,0.4084,4.0
+10864|GEN3,10864.0,Archer Daniels Midland Cedar Rapids,GEN3,IA,Linn,p70,Conventional Steam Coal,SUB,(OP) Operating,,31.0,0.356,4.0
+10864|GEN4,10864.0,Archer Daniels Midland Cedar Rapids,GEN4,IA,Linn,p70,Conventional Steam Coal,SUB,(OP) Operating,,31.0,0.4865,4.0
+10864|GEN5,10864.0,Archer Daniels Midland Cedar Rapids,GEN5,IA,Linn,p70,Conventional Steam Coal,SUB,(OP) Operating,,31.0,0.5417,4.0
+10864|GEN6,10864.0,Archer Daniels Midland Cedar Rapids,GEN6,IA,Linn,p70,Conventional Steam Coal,SUB,(OP) Operating,,105.0,0.3047,4.0
+10865|GEN2,10865.0,Archer Daniels Midland Decatur,GEN2,IL,Macon,p83,Conventional Steam Coal,BIT,(OP) Operating,,31.0,0.2575,4.0
+10865|GEN3,10865.0,Archer Daniels Midland Decatur,GEN3,IL,Macon,p83,Conventional Steam Coal,BIT,(OP) Operating,,31.0,0.2632,4.0
+10865|GEN4,10865.0,Archer Daniels Midland Decatur,GEN4,IL,Macon,p83,Conventional Steam Coal,BIT,(OP) Operating,,31.0,0.24,4.0
+10865|GEN5,10865.0,Archer Daniels Midland Decatur,GEN5,IL,Macon,p83,Conventional Steam Coal,BIT,(OP) Operating,,31.0,0.2695,4.0
+10865|GEN6,10865.0,Archer Daniels Midland Decatur,GEN6,IL,Macon,p83,Conventional Steam Coal,BIT,(OP) Operating,,31.0,0.1867,4.0
+10865|GEN7,10865.0,Archer Daniels Midland Decatur,GEN7,IL,Macon,p83,Conventional Steam Coal,BIT,(OP) Operating,,75.0,0.6192,4.0
+10865|GEN8,10865.0,Archer Daniels Midland Decatur,GEN8,IL,Macon,p83,Conventional Steam Coal,BIT,(OP) Operating,,105.0,0.5123,4.0
+50308|GEN1,50308.0,FWA Central Heat and Power Plant,GEN1,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,4.3,0.3884,4.0
+50308|GEN3,50308.0,FWA Central Heat and Power Plant,GEN3,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,6.2,0.3792,4.0
+50308|GEN4,50308.0,FWA Central Heat and Power Plant,GEN4,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,6.2,0.4075,4.0
+50308|GEN5,50308.0,FWA Central Heat and Power Plant,GEN5,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,6.2,0.3667,4.0
+50392|TG3,50392.0,Eielson AFB Central Heat & Power Plant,TG3,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,5.0,0.3283,4.0
+50392|TG4,50392.0,Eielson AFB Central Heat & Power Plant,TG4,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,5.0,0.4264,4.0
+50392|TG5,50392.0,Eielson AFB Central Heat & Power Plant,TG5,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,9.5,0.6621,4.0
+50392|TG6,50392.0,Eielson AFB Central Heat & Power Plant,TG6,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,9.5,,
+50397|GEN5,50397.0,Pixelle Specialty Solutions LLC - Spring,GEN5,PA,York,p122,Conventional Steam Coal,BIT,(OP) Operating,,36.1,0.5177,4.0
+50481|TG10,50481.0,Tennessee Eastman Operations,TG10,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,6.0,0.7652,4.0
+50481|TG11,50481.0,Tennessee Eastman Operations,TG11,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,6.0,0.8374,4.0
+50481|TG12,50481.0,Tennessee Eastman Operations,TG12,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,6.0,0.8314,4.0
+50481|TG13,50481.0,Tennessee Eastman Operations,TG13,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,7.0,0.4032,4.0
+50481|TG14,50481.0,Tennessee Eastman Operations,TG14,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,10.0,0.7823,4.0
+50481|TG15,50481.0,Tennessee Eastman Operations,TG15,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,7.5,0.4768,4.0
+50481|TG22,50481.0,Tennessee Eastman Operations,TG22,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,15.4,0.573,4.0
+50481|TG25,50481.0,Tennessee Eastman Operations,TG25,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,18.0,0.8559,4.0
+50481|TG26,50481.0,Tennessee Eastman Operations,TG26,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,16.6,0.5913,4.0
+50481|TGO7,50481.0,Tennessee Eastman Operations,TGO7,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,6.0,0.7508,4.0
+50481|TGO8,50481.0,Tennessee Eastman Operations,TGO8,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,6.0,0.7845,4.0
+50481|TGO9,50481.0,Tennessee Eastman Operations,TGO9,TN,Sullivan,p92,Conventional Steam Coal,BIT,(OP) Operating,,6.0,0.7666,4.0
+50611|GEN1,50611.0,Westwood Generation LLC,GEN1,PA,Schuylkill,p122,Conventional Steam Coal,WC,(OP) Operating,,30.0,0.6595,4.0
+50711|GEN5,50711.0,University of Alaska Fairbanks,GEN5,AK,Fairbanks North Star,,Conventional Steam Coal,SUB,(OP) Operating,,17.0,0.4907,4.0
+50776|GEN1,50776.0,Panther Creek Energy Facility,GEN1,PA,Carbon,p122,Conventional Steam Coal,WC,(OP) Operating,,80.0,0.7255,4.0
+50835|GEN1,50835.0,TES Filer City Station,GEN1,MI,Manistee,p103,Conventional Steam Coal,BIT,(OP) Operating,,60.0,0.9484,4.0
+50888|GEN1,50888.0,Northampton Generating Company LP,GEN1,PA,Northampton,p122,Conventional Steam Coal,WC,(OP) Operating,,112.0,0.5187,3.0
+50900|GEN3,50900.0,Covington Facility,GEN3,VA,Alleghany,p99,Conventional Steam Coal,BIT,(OP) Operating,,10.5,0.7988,4.0
+50900|GEN5,50900.0,Covington Facility,GEN5,VA,Alleghany,p99,Conventional Steam Coal,BIT,(OP) Operating,,32.5,0.612,4.0
+50951|GEN1,50951.0,Sunnyside Cogen Associates,GEN1,UT,Carbon,p25,Conventional Steam Coal,WC,(OP) Operating,,51.0,0.9061,3.0
+50974|GEN1,50974.0,Scrubgrass Reclamation CO. LP.,GEN1,PA,Venango,p122,Conventional Steam Coal,WC,(OP) Operating,,80.7,0.5049,4.0
+54210|G1,54210.0,American Crystal Sugar Hillsboro,G1,ND,Traill,p37,Conventional Steam Coal,SUB,(OP) Operating,,13.3,0.7923,4.0
+54211|G1,54211.0,American Crystal Sugar Moorhead,G1,MN,Clay,p42,Conventional Steam Coal,SUB,(OP) Operating,,3.0,,
+54211|G2,54211.0,American Crystal Sugar Moorhead,G2,MN,Clay,p42,Conventional Steam Coal,SUB,(OP) Operating,,2.0,,
+54212|G1,54212.0,American Crystal Sugar Crookston,G1,MN,Polk,p42,Conventional Steam Coal,SUB,(OP) Operating,,3.5,,
+54212|G2,54212.0,American Crystal Sugar Crookston,G2,MN,Polk,p42,Conventional Steam Coal,SUB,(OP) Operating,,3.0,,
+54213|G1,54213.0,American Crystal Sugar Drayton,G1,ND,Pembina,p37,Conventional Steam Coal,SUB,(OP) Operating,,6.0,,
+54214|G1,54214.0,American Crystal Sugar East Grand Forks,G1,MN,Polk,p42,Conventional Steam Coal,SUB,(OP) Operating,,2.5,,
+54214|G2,54214.0,American Crystal Sugar East Grand Forks,G2,MN,Polk,p42,Conventional Steam Coal,SUB,(OP) Operating,,5.0,,
+54276|TG3,54276.0,Univ of NC Chapel Hill Cogen Facility,TG3,NC,Orange,p98,Conventional Steam Coal,BIT,(OP) Operating,,28.7,0.2158,3.0
+54318|TG1,54318.0,General Chemical,TG1,WY,Sweetwater,p21,Conventional Steam Coal,BIT,(OP) Operating,,15.0,0.8544,4.0
+54318|TG2,54318.0,General Chemical,TG2,WY,Sweetwater,p21,Conventional Steam Coal,BIT,(OP) Operating,,15.0,0.9194,4.0
+54533|1,54533.0,Southern Minnesota Beet Sugar,0001,MN,Renville,p44,Conventional Steam Coal,SUB,(OP) Operating,,7.5,0.4576,4.0
+54634|SNCP,54634.0,St Nicholas Cogen Project,SNCP,PA,Schuylkill,p122,Conventional Steam Coal,WC,(OP) Operating,,86.0,0.8757,4.0
+54867|M387,54867.0,Neenah Paper Munising Mill,M387,MI,Alger,p74,Conventional Steam Coal,BIT,(SB) Standby/Backup: available for service but not normally used,,5.8,,
+55076|RHGF,55076.0,Red Hills Generating Facility,RHGF,MS,Choctaw,p88,Conventional Steam Coal,LIG,(OP) Operating,,440.0,0.7569,3.0
+55479|1,55479.0,Wygen 1,0001,WY,Campbell,p23,Conventional Steam Coal,SUB,(OP) Operating,,86.0,0.9141,4.0
+55749|UNT1,55749.0,Hardin Generator Project,UNT1,MT,Big Horn,p18,Conventional Steam Coal,SUB,(OP) Operating,,107.0,0.5269,4.0
+55856|PC1,55856.0,Prairie State Generating Station,PC1,IL,St Clair,p81,Conventional Steam Coal,BIT,(OP) Operating,,815.0,0.8571,4.0
+55856|PC2,55856.0,Prairie State Generating Station,PC2,IL,St Clair,p81,Conventional Steam Coal,BIT,(OP) Operating,,815.0,0.9285,4.0
+56068|1,56068.0,Elm Road Generating Station,1,WI,Milwaukee,p79,Conventional Steam Coal,SUB,(OP) Operating,,637.3,0.7593,4.0
+56068|2,56068.0,Elm Road Generating Station,2,WI,Milwaukee,p79,Conventional Steam Coal,SUB,(OP) Operating,,638.1,0.7558,4.0
+56224|1,56224.0,TS Power Plant,001,NV,Eureka,p12,Conventional Steam Coal,SUB,(OP) Operating,,219.2,0.6991,4.0
+56319|1,56319.0,Wygen 2,0001,WY,Campbell,p23,Conventional Steam Coal,SUB,(OP) Operating,,91.0,0.9039,4.0
+56456|STG1,56456.0,Plum Point Energy Station,STG1,AR,Mississippi,p85,Conventional Steam Coal,SUB,(OP) Operating,,680.0,0.7309,4.0
+56564|1,56564.0,John W Turk Jr Power Plant,1,AR,Hempstead,p85,Conventional Steam Coal,SUB,(OP) Operating,,650.0,0.6465,4.0
+56596|5,56596.0,Wygen III,5,WY,Campbell,p23,Conventional Steam Coal,SUB,(OP) Operating,,103.0,0.922,4.0
+56609|1,56609.0,Dry Fork Station,01,WY,Campbell,p23,Conventional Steam Coal,SUB,(OP) Operating,,405.0,0.8298,4.0
+56671|MKA01,56671.0,Longview Power Plant,MKA01,WV,Monongalia,p116,Conventional Steam Coal,BIT,(OP) Operating,,710.0,0.8926,4.0
+56808|1,56808.0,Virginia City Hybrid Energy Center,1,VA,Wise,p118,Conventional Steam Coal,BIT,(OP) Operating,,621.5,0.2494,4.0
+57046|GEN1,57046.0,Archer Daniels Midland Columbus,GEN1,NE,Platte,p40,Conventional Steam Coal,SUB,(OP) Operating,,61.0,0.5638,4.0
+57915|1,57915.0,WE Soda Alkalai LLC,1,WY,Sweetwater,p21,Conventional Steam Coal,SUB,(OP) Operating,,3.5,0.8077,4.0
+57915|2,57915.0,WE Soda Alkalai LLC,2,WY,Sweetwater,p21,Conventional Steam Coal,SUB,(OP) Operating,,3.5,0.7915,4.0
+57915|3,57915.0,WE Soda Alkalai LLC,3,WY,Sweetwater,p21,Conventional Steam Coal,SUB,(OP) Operating,,4.0,0.7599,4.0
+57915|4,57915.0,WE Soda Alkalai LLC,4,WY,Sweetwater,p21,Conventional Steam Coal,SUB,(OP) Operating,,10.0,0.7787,4.0
+57915|6,57915.0,WE Soda Alkalai LLC,6,WY,Sweetwater,p21,Conventional Steam Coal,SUB,(OP) Operating,,10.0,0.7858,4.0
+57928|GEN5,57928.0,SIUC,GEN5,IL,Jackson,p81,Conventional Steam Coal,BIT,(OP) Operating,,2.8,0.2959,4.0
+57949|1,57949.0,MSC Sebewaing,1,MI,Huron,p103,Conventional Steam Coal,BIT,(OP) Operating,,1.4,0.1089,4.0
+62319|1,62319.0,Western Sugar Cooperative - Billings,1,MT,Yellowstone,p20,Conventional Steam Coal,SUB,(OP) Operating,,1.5,,
