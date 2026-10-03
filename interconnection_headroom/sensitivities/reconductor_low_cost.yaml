@@ -2,7 +2,7 @@
 # (GridLab/UC Berkeley 2035 Report technical report, p. 31: "less than half—if not a third or even a
 # fourth"; GridLab/Energy Innovation policy report, p. 8: "50 to 75 percent cheaper"). New build =
 # ReEDS reinforcement / 0.5, so a fourth = 0.5 x the zone's ReEDS reinforcement cost. Central (config.yaml):
-# a half, 1.0 x.
+# a third, 0.67 x; high (a half, 1.0 x): reconductor_high_cost.yaml.
 # Run: python -m icsc.cli --config sensitivities/reconductor_low_cost.yaml run --start-year 2026
 extends: ../config.yaml
 paths: {outputs: outputs/sens_reconductor_low_cost}

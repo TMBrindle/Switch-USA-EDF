@@ -1,0 +1,9 @@
+# Sensitivity: GETs at the PJM study's cost everywhere, $15.2 per kW of generation enabled (RMI 2024:
+# $0.1 billion for 6.6 GW, p. 6 and 21). Central (config.yaml): $15.2 in PJM, $33.7 (Brattle SPP)
+# elsewhere. The GETs costs rest on these two regional studies; run this and gets_cost_spp.yaml before
+# quoting planned or reform results.
+# Run: python -m icsc.cli --config sensitivities/gets_cost_pjm.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_gets_cost_pjm}
+uprate_options:
+  gets: {cost_per_kw: {per_kw_gen: 15.2, per_kw_gen_by_transreg: {PJM: 15.2, SPP: 15.2}}}

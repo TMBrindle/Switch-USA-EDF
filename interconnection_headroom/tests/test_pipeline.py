@@ -134,7 +134,10 @@ def test_synthetic_recovery(cfg, built, tmp_path):
     assert len(up) == 3 * len(zr)  # plus the conventional-reinforcement backstop
     g = up[up.uprate == "gets"].merge(zr, on="ba")
     gets_cap = c["uprate_levels"][c["uprate_level"]]["gets"]["share_of_capacity"]
-    assert np.allclose(g["max_mw"], gets_cap * g["base_capacity_mw"])
+    assert np.allclose(g["max_mw_network"], gets_cap * g["base_capacity_mw"])
+    # host mode (default): hosted MW = cap on H x the zone's curve-end saturation
+    end = tr.groupby("ba")["sat_to"].max().reindex(g["ba"]).values
+    assert (g["mode"] == "host").all() and np.allclose(g["max_mw"], gets_cap * g["base_capacity_mw"] * end)
     _, _, ref = tranches.apply_scenario(zr, tr, c, {})
     assert set(ref["uprate"]) == set(c["backstop_uprates"]) | set(c["baseline_uprates"])   # every scenario
     assert len(ref) == len(zr) * len(set(ref["uprate"]))
@@ -161,7 +164,14 @@ def test_sensitivity_configs_extend_base(cfg):
                         ("new_line_s0", ("reinforcement", "per_mw_h"), "s0"),
                         ("new_line_stretch", ("reinforcement_mode",), "stretch"),
                         ("new_line_full_build", ("uprate_options", "conv_reinforcement", "cost_per_kw"),
-                         {"reeds_reinforcement_x": 2.0})]:
+                         {"reeds_reinforcement_x": 2.0}),
+                        ("atts_stretch", ("atts_mode",), "stretch"),
+                        ("reconductor_low_cost", ("uprate_options", "reconductor", "cost_per_kw"),
+                         {"reeds_reinforcement_x": 0.5}),
+                        ("reconductor_high_cost", ("uprate_options", "reconductor", "cost_per_kw"),
+                         {"reeds_reinforcement_x": 1.0}),
+                        ("gets_cost_pjm", ("uprate_options", "gets", "cost_per_kw", "per_kw_gen"), 15.2),
+                        ("gets_cost_spp", ("uprate_options", "gets", "cost_per_kw", "per_kw_gen"), 33.7)]:
         c = cli.load_cfg(str(ROOT / "sensitivities" / f"{f}.yaml"))
         v = c
         for k in key:
@@ -263,7 +273,8 @@ def test_reinforcement_zone_costs_and_pricing():
 
 def test_reinforcement_table_and_backstop(cfg):
     """The committed zone table covers every zone in the pipeline dollar year; the conventional-reinforcement
-    backstop uses it at 1.0 x (host mode); full new build (2.0 x) is a sensitivity."""
+    backstop uses it at 1.0 x (host mode) from the first model period; full new build (2.0 x) is a
+    sensitivity."""
     t = pd.read_csv(Path(cfg["_root"]) / cfg["reinforcement"]["zone_table"])
     hier = geo.load_hierarchy(cfg["paths"]["hierarchy"])
     assert set(t["ba"]) == set(hier["ba"]) and (t["dollar_year"] == cfg["dollar_year"]).all()
@@ -281,17 +292,26 @@ def test_reinforcement_table_and_backstop(cfg):
     assert cfg["backstop_uprates"] == ["conv_reinforcement"] and "new_line" not in opts
     assert opts["conv_reinforcement"]["cost_per_kw"] == {"reeds_reinforcement_x": 1.0}
     assert opts["conv_reinforcement"]["label"] == "conventional reinforcement (ReEDS)"
+    assert opts["conv_reinforcement"]["available_year"] == 0                          # first model period
     _, _, up = tranches.apply_scenario(zones, tr, cfg, {})
     cr = up[up["uprate"] == "conv_reinforcement"].set_index("ba")
     assert cfg["reinforcement_mode"] == "host" and (cr["mode"] == "host").all()
     assert (cr["label"] == "conventional reinforcement (ReEDS)").all()
     assert np.allclose(cr["cost_per_kw"], want[cr.index]) and cr["gen_mw_per_mw_h"].isna().all()
+    assert (cr["available_year"] == 0).all()
+    # its cap is a numerical bound on hosted MW, not an adoption cap: not converted in host mode
+    assert np.allclose(cr["max_mw"], cr["max_mw_network"])
     full = cli.load_cfg(str(ROOT / "sensitivities" / "new_line_full_build.yaml"))
     _, _, uf = tranches.apply_scenario(zones, tr, full, {})
     uf = uf[uf["uprate"] == "conv_reinforcement"].set_index("ba")
     assert (uf["mode"] == "host").all() and np.allclose(uf["cost_per_kw"], 2.0 * want[uf.index])
     _, _, ug = tranches.apply_scenario(zones, tr, cfg, {"uprates": ["gets"]})
-    assert (ug.loc[ug["uprate"] == "gets", "mode"] == "stretch").all()                  # GETs always stretch
+    assert cfg["atts_mode"] == "host"
+    assert (ug.loc[ug["uprate"].isin(["gets", "reconductor"]), "mode"] == "host").all()   # host by default
+    st = cli.load_cfg(str(ROOT / "sensitivities" / "atts_stretch.yaml"))
+    _, _, us = tranches.apply_scenario(zones, tr, st, {})
+    assert (us.loc[us["uprate"].isin(["gets", "reconductor"]), "mode"] == "stretch").all()  # option
+    assert (us.loc[us["uprate"] == "conv_reinforcement", "mode"] == "host").all()
     # stretch mode: $ per MW of H = ReEDS $/MW-gen x gen MW hosted per MW of H
     factors = {"curve_end": {"p1": 0.67, "p80": 0.95}, "s0": {"p1": 0.1, "p80": 0.9}, "gen": {"p1": 1.0, "p80": 1.0}}
     for how, f in factors.items():
@@ -309,12 +329,16 @@ def test_reinforcement_table_and_backstop(cfg):
     assert cfg["reinforcement"]["per_mw_h"] == "curve_end"
     with pytest.raises(ValueError, match="reinforcement_mode"):
         tranches.apply_scenario(zones, tr, dict(cfg, reinforcement_mode="nope"), {})
+    with pytest.raises(ValueError, match="atts_mode"):
+        tranches.apply_scenario(zones, tr, dict(cfg, atts_mode="nope"), {})
 
 
 def test_uprate_levels_and_sourced_costs(cfg):
     """GETs and advanced-conductor reconductoring caps and first years come from the adoption level; costs
-    from the sourced forms (GETs $ per kW of generation enabled; advanced reconductoring = 0.5 x greenfield
-    = 1.0 x ReEDS reinforcement), converted to $ per kW of H with the curve-end saturation. Conventional
+    from the sourced forms (GETs $ per kW of generation enabled; advanced reconductoring = a third of
+    greenfield = 0.67 x ReEDS reinforcement). Host mode (default): costs per kW of generation hosted,
+    unconverted; caps defined on H (share of H0) and converted to hosted MW with the curve-end saturation.
+    Stretch mode (atts_mode: stretch): caps in MW of H, costs converted to $ per kW of H. Conventional
     reinforcement keeps host mode and its own cap in every level."""
     t = pd.read_csv(Path(cfg["_root"]) / cfg["reinforcement"]["zone_table"]).set_index("ba")["reinforcement_median_per_kw"]
     zones = pd.DataFrame({"ba": ["p1", "p80"], "base_capacity_mw": [1000.0, 2000.0], "start_saturation": [0.1, 0.9]})
@@ -342,24 +366,38 @@ def test_uprate_levels_and_sourced_costs(cfg):
         assert (cfg["scenarios"][name] or {}).get("uprate_level", cfg["uprate_level"]) == "s0", name
     _, _, ref = tranches.apply_scenario(zones, tr, cfg, cfg["scenarios"]["reference"])
     r = ref.set_index(["uprate", "ba"])
-    assert r.loc[("gets", "p1"), "max_mw"] == pytest.approx(0.0025 * 1000) and r.loc[("gets", "p1"), "level"] == "s0"
+    assert r.loc[("gets", "p1"), "max_mw_network"] == pytest.approx(0.0025 * 1000) and r.loc[("gets", "p1"), "level"] == "s0"
+    assert r.loc[("gets", "p1"), "max_mw"] == pytest.approx(0.0025 * 1000 * end["p1"])   # hosted MW
+    # advanced conductors: a third of greenfield = 0.67 x ReEDS ([GL24T] p. 31), inside the sourced 0.5-1.0 x
+    assert cfg["uprate_options"]["reconductor"]["cost_per_kw"] == {"reeds_reinforcement_x": 0.67}
+    stretch = cli.load_cfg(str(ROOT / "sensitivities" / "atts_stretch.yaml"))
     assert cfg["scenarios"]["atts_reform_techmax"]["uprate_level"] == "reform_techmax"
     for lv in order:
-        _, _, up = tranches.apply_scenario(zones, tr, cfg, {"uprates": ["gets", "reconductor"], "uprate_level": lv})
-        u = up.set_index(["uprate", "ba"])
-        for name in ("gets", "reconductor"):
-            for ba, h0 in (("p1", 1000.0), ("p80", 2000.0)):
-                row = u.loc[(name, ba)]
-                assert row["max_mw"] == pytest.approx(levels[lv][name]["share_of_capacity"] * h0)
-                assert row["available_year"] == levels[lv][name]["available_year"]
-                assert row["mode"] == "stretch" and row["level"] == lv
-                gen_cost = (gets_cost["per_kw_gen_by_transreg"].get(hier[ba], gets_cost["per_kw_gen"])
-                            if name == "gets" else 1.0 * t[ba])
-                assert row["cost_per_kw_gen"] == pytest.approx(gen_cost)
-                assert row["cost_per_kw"] == pytest.approx(gen_cost * end[ba])
-        cr = u.loc["conv_reinforcement"]
-        assert (cr["mode"] == "host").all() and np.allclose(cr["cost_per_kw"], t[cr.index])
-        assert cr["level"].isna().all()                                               # not capped by level
+        for c, mode in ((cfg, "host"), (stretch, "stretch")):
+            _, _, up = tranches.apply_scenario(zones, tr, c, {"uprates": ["gets", "reconductor"], "uprate_level": lv})
+            u = up.set_index(["uprate", "ba"])
+            for name in ("gets", "reconductor"):
+                for ba, h0 in (("p1", 1000.0), ("p80", 2000.0)):
+                    row = u.loc[(name, ba)]
+                    cap_h = levels[lv][name]["share_of_capacity"] * h0
+                    assert row["max_mw_network"] == pytest.approx(cap_h)                # cap defined on H
+                    assert row["available_year"] == levels[lv][name]["available_year"]
+                    assert row["mode"] == mode and row["level"] == lv
+                    gen_cost = (gets_cost["per_kw_gen_by_transreg"].get(hier[ba], gets_cost["per_kw_gen"])
+                                if name == "gets" else 0.67 * t[ba])
+                    assert row["cost_per_kw_gen"] == pytest.approx(gen_cost)
+                    assert row["gen_mw_per_mw_h"] == pytest.approx(end[ba])
+                    if mode == "host":   # hosted MW = MW of H x curve-end saturation; $/kW-gen unconverted
+                        assert row["max_mw"] == pytest.approx(cap_h * end[ba])
+                        assert row["cost_per_kw"] == pytest.approx(gen_cost)
+                    else:                # MW of H; $ per kW of H = $/kW-gen x curve-end saturation
+                        assert row["max_mw"] == pytest.approx(cap_h)
+                        assert row["cost_per_kw"] == pytest.approx(gen_cost * end[ba])
+                    # same total spend at the cap either way (MW x $/kW)
+                    assert row["max_mw"] * row["cost_per_kw"] == pytest.approx(cap_h * gen_cost * end[ba])
+            cr = u.loc["conv_reinforcement"]
+            assert (cr["mode"] == "host").all() and np.allclose(cr["cost_per_kw"], t[cr.index])
+            assert cr["level"].isna().all()                                           # not capped by level
     # GETs cost by study region: PJM (RMI) $15.2, SPP (Brattle) $33.7, elsewhere the SPP value
     assert hier["p80"] == "PJM" and gets_cost["per_kw_gen_by_transreg"]["PJM"] == pytest.approx(0.1e9 / 6.6e6, abs=0.1)
     assert gets_cost["per_kw_gen_by_transreg"]["SPP"] == pytest.approx(90e6 / 2.670e6, abs=0.1)
@@ -374,8 +412,43 @@ def test_uprate_levels_and_sourced_costs(cfg):
     assert u.loc[("conv_reinforcement", "p1"), "cost_per_kw"] == 250 and u.loc[("conv_reinforcement", "p1"), "mode"] == "stretch"
     assert u.loc[("gets", "p1"), "cost_per_kw"] == 20 and u.loc[("reconductor", "p1"), "max_mw"] == 300
     low = cli.load_cfg(str(ROOT / "sensitivities" / "reconductor_low_cost.yaml"))
-    _, _, up = tranches.apply_scenario(zones, tr, low, {"uprates": ["reconductor"]})
-    assert up.set_index(["uprate", "ba"]).loc[("reconductor", "p1"), "cost_per_kw_gen"] == pytest.approx(0.5 * t["p1"])
+    high = cli.load_cfg(str(ROOT / "sensitivities" / "reconductor_high_cost.yaml"))
+    for c, f in ((low, 0.5), (cfg, 0.67), (high, 1.0)):
+        _, _, up = tranches.apply_scenario(zones, tr, c, {"uprates": ["reconductor"], "uprate_level": "planned"})
+        row = up.set_index(["uprate", "ba"]).loc[("reconductor", "p1")]
+        assert row["cost_per_kw_gen"] == pytest.approx(f * t["p1"]) and row["mode"] == "host"
+        assert row["cost_per_kw"] == pytest.approx(f * t["p1"])                       # host: unconverted
+
+
+def test_gets_cost_sensitivity(cfg):
+    """GETs-cost sensitivity: one study's cost everywhere (PJM RMI $15.2, SPP Brattle $33.7 per kW of
+    generation) vs the central split (PJM $15.2, elsewhere $33.7); host mode prices hosted MW at that cost
+    unconverted, and only the cost changes, not the cap."""
+    hier = geo.load_hierarchy(cfg["paths"]["hierarchy"]).set_index("ba")["transreg"]
+    pjm = next(b for b in hier.index if hier[b] == "PJM")
+    other = next(b for b in hier.index if hier[b] not in ("PJM", "SPP"))
+    zones = pd.DataFrame({"ba": [pjm, other], "base_capacity_mw": [1000.0, 2000.0], "start_saturation": [0.1, 0.9]})
+    tr = pd.DataFrame({"ba": [pjm, pjm, other], "sat_from": [0.1, 0.4, 0.9], "sat_to": [0.4, 0.67, 0.95],
+                       "cost_per_kw": [50.0, 60.0, 90.0]})
+    want = {"config": {pjm: 15.2, other: 33.7},
+            "gets_cost_pjm": {pjm: 15.2, other: 15.2},
+            "gets_cost_spp": {pjm: 33.7, other: 33.7}}
+    caps = None
+    for name, w in want.items():
+        path = ROOT / ("config.yaml" if name == "config" else f"sensitivities/{name}.yaml")
+        c = cli.load_cfg(str(path))
+        _, _, up = tranches.apply_scenario(zones, tr, c, {"uprate_level": "planned"})
+        g = up[up["uprate"] == "gets"].set_index("ba")
+        assert (g["mode"] == "host").all(), name
+        for ba, v in w.items():
+            assert g.at[ba, "cost_per_kw_gen"] == pytest.approx(v), (name, ba)
+            assert g.at[ba, "cost_per_kw"] == pytest.approx(v), (name, ba)             # unconverted
+        caps = g["max_mw"] if caps is None else caps
+        assert np.allclose(g["max_mw"], caps)                                         # cap unchanged
+        # the other options are untouched
+        r = up[up["uprate"] != "gets"]
+        assert set(r["uprate"]) == {"reconductor", "conv_reinforcement"}
+    assert c["paths"]["outputs"].endswith("sens_gets_cost_spp")
 
 
 def test_zone_regimes_utilities(cfg):
@@ -541,8 +614,8 @@ def test_switch_toy_conv_reinforcement_hosts_at_reeds_cost(tmp_path):
 
 @pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
 def test_switch_toy_no_double_counting(tmp_path):
-    """Advanced-conductor reconductoring (stretch) and conventional reinforcement (host) in the same
-    zone: reconductoring raises H (and generation using the stretched steps and the release pays their
+    """Advanced-conductor reconductoring in stretch mode (atts_mode: stretch, a sensitivity) and
+    conventional reinforcement (host) in the same zone: reconductoring raises H (and generation using the stretched steps and the release pays their
     empirical costs); hosted MW pay only the conventional-reinforcement cost, with no step or release
     cost on top, and add nothing to H."""
     zones = pd.DataFrame({"IC_ZONE": ["N", "C", "S"], "ic_zone_load_zone": ["North", "Central", "South"],
@@ -578,6 +651,52 @@ def test_switch_toy_no_double_counting(tmp_path):
     total = sp["overnight_cost"].sum()
     assert total == pytest.approx(rc_cost + n.hosted_mw * conv_cost
                                   + (n.headroom_from_curve_mw + n.headroom_released_mw) * 50000.0)
+
+
+@pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
+def test_switch_toy_atts_host_mode(tmp_path):
+    """GETs and advanced-conductor reconductoring in host mode (the default), with conventional
+    reinforcement, in a zone past the data edge: each hosts generation directly at its own $ per MW of
+    generation, none changes H or releases headroom, hosted MW pay no step or release cost, and the LP
+    takes them in merit order (GETs, then advanced conductors at 0.67 x the conventional cost, then
+    conventional reinforcement), so advanced conductors are no longer dominated."""
+    zones = pd.DataFrame({"IC_ZONE": ["N", "C", "S"], "ic_zone_load_zone": ["North", "Central", "South"],
+                          "ic_base_capacity_mw": [10.0, 10.0, 10.0], "ic_start_saturation": [0.8, 0.3, 0.3],
+                          "ic_release_cost_per_mw": [50000.0, 50000.0, 100000.0]})
+    steps = pd.DataFrame({"IC_TRANCHE": ["N_nu1", "C_nu1", "C_nu2", "S_nu1", "S_nu2"],
+                          "ic_tranche_zone": ["N", "C", "C", "S", "S"],
+                          "ic_tranche_width": [0.05, 0.3, 5, 0.1, 5],
+                          "ic_tranche_cost_per_mw": [50000.0, 50000.0, 5e6, 100000.0, 5e6],
+                          "ic_tranche_available_year": [0] * 5})
+    conv_cost = 200000.0
+    cost = {"gets": 33700.0, "reconductor": 0.67 * conv_cost, "conv_reinforcement": conv_cost}
+    cap = {"gets": 0.2, "reconductor": 0.4, "conv_reinforcement": 100.0}       # hosted MW
+    ups = pd.DataFrame({"IC_UPRATE": [f"N_{k}" for k in cost], "ic_uprate_zone": ["N"] * 3,
+                        "ic_uprate_type": list(cost), "ic_uprate_max_mw": list(cap.values()),
+                        "ic_uprate_cost_per_mw": list(cost.values()), "ic_uprate_available_year": [0] * 3,
+                        "ic_uprate_mode": ["host"] * 3})
+    run = _toy_run(tmp_path, zones, steps, ups)
+    n = pd.read_csv(run / "outputs/ic_network.csv").set_index(["ic_zone", "period"]).loc[("N", 2030)]
+    spend = pd.read_csv(run / "outputs/ic_spend.csv")
+    sp = spend[(spend.ic_zone == "N") & (spend.period == 2030)].set_index("type")
+    # H unchanged, nothing released: host uprates don't stretch
+    assert n.deliberate_mw_added == pytest.approx(0, abs=1e-6) and n.headroom_released_mw == pytest.approx(0, abs=1e-6)
+    # merit order: GETs and advanced conductors at their caps before conventional reinforcement
+    assert n.hosted_mw > cap["gets"] + cap["reconductor"] + 1e-3
+    for k in ("gets", "reconductor"):
+        assert sp.loc[k, "generation_mw_enabled"] == pytest.approx(cap[k], rel=1e-6), k
+    assert sp.loc["conv_reinforcement", "generation_mw_enabled"] == pytest.approx(
+        n.hosted_mw - cap["gets"] - cap["reconductor"], rel=1e-6)
+    # each pays its own $/MW of generation hosted, once
+    for k in cost:
+        assert sp.loc[k, "overnight_cost"] == pytest.approx(sp.loc[k, "generation_mw_enabled"] * cost[k]), k
+        # implied network MW at the curve-end saturation (0.8 + 0.05)
+        assert sp.loc[k, "network_mw_added"] == pytest.approx(sp.loc[k, "generation_mw_enabled"] / 0.85), k
+    # reactive spend is only the edge step; none of it is on hosted MW
+    assert sp.loc["reactive_upgrades", "generation_mw_enabled"] == pytest.approx(n.headroom_from_curve_mw)
+    assert sp.loc["reactive_upgrades", "overnight_cost"] == pytest.approx(n.headroom_from_curve_mw * 50000.0)
+    assert sp["overnight_cost"].sum() == pytest.approx(
+        sum(sp.loc[k, "generation_mw_enabled"] * cost[k] for k in cost) + n.headroom_from_curve_mw * 50000.0)
 
 
 # ---------------------------------------------------------------------------

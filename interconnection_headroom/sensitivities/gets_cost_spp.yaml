@@ -1,0 +1,8 @@
+# Sensitivity: GETs at the SPP study's cost everywhere, $33.7 per kW of generation enabled (Brattle 2021:
+# $90 million for 2,670 MW). Central (config.yaml): $15.2 (RMI PJM) in PJM, $33.7 elsewhere, so this
+# changes only PJM zones. See gets_cost_pjm.yaml.
+# Run: python -m icsc.cli --config sensitivities/gets_cost_spp.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_gets_cost_spp}
+uprate_options:
+  gets: {cost_per_kw: {per_kw_gen: 33.7, per_kw_gen_by_transreg: {PJM: 33.7, SPP: 33.7}}}

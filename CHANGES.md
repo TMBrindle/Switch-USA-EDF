@@ -1182,3 +1182,49 @@ pseudo-R² 0.34): across 1,356 GW of H0, GETs 3.4 GW (s0, also reference), 145 G
 13,562 GW (10 × H0, a numerical bound) in every scenario. Median cost: GETs $23/kW of H ($10 in PJM;
 was $20); advanced conductors $237/kW of H (was $80); conventional reinforcement $319/kW of generation.
 `previous_defaults.yaml` restores the placeholders and the backstop-only reference. Tests: 23.
+
+## 43. Interconnection Headroom — GETs and Advanced Conductors in Host Mode, Conventional Reinforcement from the First Period
+
+**Date:** 2026-10-03 · **Branch:** `tom/ic-atts` (on top of §42)
+
+Resolves the dominance issue in §42: in stretch mode advanced reconductoring cost 1.0 × ReEDS plus the
+empirical steps it enabled, so it was never chosen once conventional reinforcement opened. All three
+uprate options now host generation directly and compete on one basis, $ per kW of generation hosted.
+
+- **GETs and advanced conductors in host mode by default** (new key `atts_mode: host`, alongside
+  `reinforcement_mode` for conventional reinforcement). Each MW hosts one weighted MW of generation at the
+  option's cost, adds nothing to H, releases nothing, and pays no step or release cost on top. Stretch mode
+  stays as a config option: `atts_mode: stretch`, `sensitivities/atts_stretch.yaml` (and in
+  `previous_defaults.yaml`).
+- **Adoption caps stay on network capacity.** `uprate_levels` still give a share of H0; host mode alone
+  converts it to hosted MW: `max_mw` = share × H0 × the zone's curve-end saturation
+  (`reinforcement.per_mw_h: curve_end`, the same factor stretch mode uses for costs). `uprates_*.csv` gains
+  `max_mw_network` (share × H0, before conversion). Conventional reinforcement's 10 × H0 is a numerical
+  bound on hosted MW, not an adoption cap, and is not converted.
+- **GETs keep their $ per kW of generation, unconverted** in host mode: $15.2 (RMI, PJM), $33.7 (Brattle,
+  SPP; also elsewhere).
+- **Advanced conductors at 0.67 × ReEDS** (was 1.0 ×): a third of greenfield (GridLab/UC Berkeley 2035
+  Report technical report, p. 31, "a third"), = (1/3) / 0.5 ReEDS, inside the sourced 0.5–1.0 × range.
+  Sensitivities: 0.5 × `reconductor_low_cost.yaml`, 1.0 × `reconductor_high_cost.yaml` (new).
+- **Conventional reinforcement from the first model period** (`available_year: 0`; replaces the 2030
+  placeholder). Full new build (2.0 ×) stays sensitivity-only (`new_line_full_build.yaml`).
+- **GETs-cost sensitivity configs** (new): `gets_cost_pjm.yaml` ($15.2 everywhere) and
+  `gets_cost_spp.yaml` ($33.7 everywhere), to run before quoting planned or reform results.
+- Code: `icsc/tranches.py` (`MODE_KEYS`, `ADOPTION_TYPES`, `uprate_max_mw`); Switch module and
+  `prepare_next_stage.py` docstrings only (the module already handled any host uprate; caps chain in
+  hosted MW).
+
+**Results** (curves unchanged: PPML n = 2,787, pseudo-R² 0.34, median first step $129.0/kW, 20 zones
+past the edge). Hosted-MW caps across zones (MW of H in brackets): GETs 2.4 GW (3.4) in s0 / reference,
+104 GW (145) planned, 182 GW (255) reform; advanced conductors 0, 146 GW (203), 291 GW (407), 761 GW
+(1,063) reform_techmax; curve-end saturation median 0.67 (0.67–1.60). Cost per kW of generation hosted:
+GETs $33.7 (112 zones) / $15.2 (22 PJM zones); advanced conductors p10 / p25 / median / p75 / p90 $119 /
+159 / 214 / 293 / 435; conventional reinforcement median $319. Per kW of generation advanced conductors
+are now cheaper than conventional reinforcement in every zone, so the LP takes GETs, then advanced
+conductors, then conventional reinforcement (toy check `test_switch_toy_atts_host_mode`).
+
+**Tests:** 25 (23 + `test_gets_cost_sensitivity`, `test_switch_toy_atts_host_mode`); host-mode checks for
+GETs and advanced conductors added to `test_uprate_levels_and_sourced_costs`,
+`test_reinforcement_table_and_backstop` and `test_synthetic_recovery`;
+`test_switch_toy_no_double_counting` now documents the stretch sensitivity. No full Switch-USA-PG run
+(VM only).

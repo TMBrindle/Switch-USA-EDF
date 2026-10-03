@@ -1,0 +1,9 @@
+# Sensitivity: GETs and advanced-conductor reconductoring stretch the curve (atts_mode: stretch, the
+# behaviour before Oct 2026's host mode): they raise network capacity H (release s0 x MW, stretch the
+# steps), priced per MW of H with reinforcement.per_mw_h: curve_end, and capped at share x H0 MW of H.
+# Generation using the stretched steps also pays their empirical costs. Conventional reinforcement stays
+# host (reinforcement_mode; new_line_stretch.yaml stretches it).
+# Run: python -m icsc.cli --config sensitivities/atts_stretch.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_atts_stretch}
+atts_mode: stretch

@@ -290,10 +290,12 @@ def post_solve(m, outdir):
 def chain_ic_inputs(in_path, out_path, next_in_path, case_name):
     """
     Write ic_zones/ic_tranches/ic_uprates.chained.<case>.csv for the next stage:
-    network capacity grows by the stretch-mode uprates built (GETs, reconductoring),
-    each step keeps only its unused width at the new capacity, uprate caps shrink by
-    what was built, and the starting saturation includes the headroom bought this
-    stage on the existing network. Host-mode uprates (new lines) don't change H: the
+    network capacity grows by the stretch-mode uprates built (if any; GETs and
+    reconductoring stretch only in the atts_stretch sensitivity), each step keeps only
+    its unused width at the new capacity, uprate caps shrink by what was built, and the
+    starting saturation includes the headroom bought this stage on the existing network.
+    Host-mode uprates (the default for GETs, advanced conductors and conventional
+    reinforcement; caps in hosted MW) don't change H: the
     headroom they host and this stage left unused carries forward as
     ic_hosted_headroom_mw (free next stage). Builds from this stage become
     predetermined next stage, so they no longer count against headroom. Does nothing

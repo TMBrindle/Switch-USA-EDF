@@ -4,12 +4,15 @@ Outputs per scenario (see cli.cmd_run):
   zones_<scenario>.csv     ba, base_capacity_mw (H0), start_saturation (s0), release_cost_per_kw
   tranches_<scenario>.csv  ba, tranche, width (saturation units), cost_per_kw, sat_from, sat_to,
                            extrapolated, available_year
-  uprates_<scenario>.csv   ba, uprate, type, max_mw, cost_per_kw, available_year, mode. mode stretch:
-                           MW and $/kW of network capacity H; mode host (new lines by default): MW
-                           and $/kW of weighted generation hosted directly
+  uprates_<scenario>.csv   ba, uprate, type, max_mw, max_mw_network, cost_per_kw, available_year, mode.
+                           mode stretch: MW and $/kW of network capacity H; mode host (the default for
+                           GETs, advanced conductors and conventional reinforcement): MW and $/kW of
+                           weighted generation hosted directly. max_mw_network is the cap on H
+                           (share_of_capacity x H0) before conversion to hosted MW
 
-In Switch, step k provides width x H MW of generation headroom, where H = H0 + uprates built, so
-uprates stretch the curve; and up to s0 x (uprate MW) of headroom is released at release_cost.
+In Switch, step k provides width x H MW of generation headroom, where H = H0 + stretch uprates built, so
+they stretch the curve; and up to s0 x (uprate MW) of headroom is released at release_cost. Host uprates
+add hosted headroom directly and leave H, the steps and the release unchanged.
 """
 from __future__ import annotations
 
@@ -178,19 +181,22 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
         for _, r in z.iterrows():
             rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name), "label": o.get("label", name),
                          "level": o.get("level"),
-                         "max_mw": o["share_of_capacity"] * r["base_capacity_mw"],
+                         "max_mw": uprate_max_mw(o, r["base_capacity_mw"], mode, gen_per_h[r["ba"]]),
+                         # the cap on network capacity H (share_of_capacity x H0), before any conversion
+                         "max_mw_network": o["share_of_capacity"] * r["base_capacity_mw"],
                          "cost_per_kw": uprate_cost(o, r["ba"], zone_cost, gen_per_h if mode == "stretch" else None,
                                                     transreg.get(r["ba"])),
                          "mode": mode,
                          "available_year": int(o.get("available_year", 0)),
-                         # ReEDS basis ($ per kW of generation) and the MW of weighted generation one MW
-                         # of H hosts, for options priced from ReEDS (blank otherwise)
+                         # ReEDS basis ($ per kW of generation), and the MW of weighted generation one MW
+                         # of H hosts where it converts a cost (stretch) or an adoption cap (host)
                          "cost_per_kw_gen": cost_per_kw_gen(o, r["ba"], zone_cost, transreg.get(r["ba"])),
                          "reeds_cost_per_kw_gen": (float(zone_cost[r["ba"]]) if _uses_reeds(o) else np.nan),
                          "gen_mw_per_mw_h": (float(gen_per_h[r["ba"]])
-                                             if mode == "stretch" and not _is_number(o["cost_per_kw"])
+                                             if (mode == "stretch" and not _is_number(o["cost_per_kw"]))
+                                             or (mode == "host" and o.get("type") in ADOPTION_TYPES)
                                              else np.nan)})
-    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "label", "level", "max_mw", "cost_per_kw", "available_year", "mode",
+    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "label", "level", "max_mw", "max_mw_network", "cost_per_kw", "available_year", "mode",
                                     "cost_per_kw_gen", "reeds_cost_per_kw_gen", "gen_mw_per_mw_h"])
     return z, t.sort_values(["ba", "sat_from"]).reset_index(drop=True), u
 
@@ -254,19 +260,35 @@ def cost_per_kw_gen(option: dict, ba: str, zone_cost: pd.Series | None, transreg
     return np.nan
 
 
-# uprate types that host generation directly in host mode (reinforcement_mode)
-HOST_TYPES = ("conv_reinforcement",)
+# config key that sets each uprate type's mode (host or stretch; both default host): conventional
+# reinforcement follows reinforcement_mode, GETs and advanced-conductor reconductoring atts_mode
+MODE_KEYS = {"conv_reinforcement": "reinforcement_mode", "gets": "atts_mode", "reconductor": "atts_mode"}
+# uprate types whose cap (uprate_levels share_of_capacity) is an adoption limit on network capacity H;
+# in host mode it becomes a cap on hosted generation MW (x gen_mw_per_mw_h)
+ADOPTION_TYPES = ("gets", "reconductor")
 
 
 def uprate_mode(option: dict, cfg: dict) -> str:
-    """host or stretch: conventional reinforcement follows reinforcement_mode (default host); every other
-    option (GETs, advanced-conductor reconductoring) stretches."""
-    if option.get("type") in HOST_TYPES:
-        mode = cfg.get("reinforcement_mode", "host")
-        if mode not in ("host", "stretch"):
-            raise ValueError(f"reinforcement_mode must be host or stretch, not {mode!r}")
-        return mode
-    return "stretch"
+    """host or stretch, from the config key for the option's type (MODE_KEYS, default host); other
+    types stretch."""
+    key = MODE_KEYS.get(option.get("type"))
+    if key is None:
+        return "stretch"
+    mode = cfg.get(key, "host")
+    if mode not in ("host", "stretch"):
+        raise ValueError(f"{key} must be host or stretch, not {mode!r}")
+    return mode
+
+
+def uprate_max_mw(option: dict, h0: float, mode: str, gen_per_h: float) -> float:
+    """MW cap: share_of_capacity x H0. Adoption caps (GETs, advanced conductors) are defined on network
+    capacity; in host mode they are converted to hosted generation MW with the MW of weighted generation
+    one MW of H hosts (gen_mw_per_mw_h). Conventional reinforcement's cap is a numerical bound on hosted
+    MW in host mode and is not converted."""
+    mw = float(option["share_of_capacity"]) * float(h0)
+    if mode == "host" and option.get("type") in ADOPTION_TYPES:
+        mw *= float(gen_per_h)
+    return mw
 
 
 def gen_mw_per_mw_h(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict) -> pd.Series:
