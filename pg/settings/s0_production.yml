@@ -5,8 +5,10 @@
 #   off          (default for every existing row)
 #   on           everything below; fleet-independent days; mode A (myopic chain of single years)
 #   on_windows   as `on`, mode B (rolling two-period windows)
-#   on_pgdays    as `on` with PowerGenome's k-means days and no chain (one case, all its years
-#                together): the s4x1 2035 regression case against the ic_v4 B6+B8 + NY buyout run
+#   on_pgdays    LEGACY settings (ATB-only gas capex, the legacy gas-turbine cap, NY RPS buyout only)
+#                with PowerGenome's k-means days and no chain: the s4x1 2035 regression case
+#                (s4x1_S0prod_2035) against the ic_v4 B6+B8 + NY buyout run; builds as before Oct 2026
+#   on_pgdays_new  as on_pgdays with the new defaults below (s4x1_S0prod_2035_new)
 # Changes to shared code and defaults made for this are listed in SHARED_CHANGES.md.
 s0_production:
   enabled: false
@@ -54,19 +56,40 @@ s0_production:
 
   # item 2: new CC/CT capex
   gas_capex:
-    # atb_moderate: ATB 2024 Moderate (the GridLab absolute override in resources.yml atb_modifiers is
-    #   neutralised; PowerGenome averages ATB over each period's span, as test step B6 did)
-    # gridlab_fade: ATB Moderate x (1 + w(year) x (ratio - 1)), w = 1 to full_until, falling linearly
-    #   to 0 at zero_by
+    # premium (S0 default): ATB 2024 Moderate x (1 + premium fraction by in-service year), with the
+    #   resources.yml GridLab override neutralised. Paired paths low / central / high (the gas-turbine
+    #   cap below uses the same path).
+    # atb_moderate (legacy; the regression case): ATB 2024 Moderate alone (as test step B6)
     # gridlab: the resources.yml override as is (pre-S0-production behaviour)
-    mode: atb_moderate
-    gridlab_fade:
-      full_until: 2030             # GridLab's figures are a 2030 read
-      zero_by: 2033
-      # GridLab 2030 / ATB 2024 Moderate (2031-35 mean, 2022$), the inverse of the B6 factors
-      ratios:
-        "NaturalGas_1-on-1 Combined Cycle (H-Frame)": 1.353953  # 2,061,000 / 1,522,209
-        "NaturalGas_Combustion Turbine (F-Frame)": 1.421715     # 1,606,000 / 1,129,622
+    # Sources for the premium (Tom's review, Oct 2026): the resources.yml override values (and the
+    # $1,972 / $1,547 per kW figures attributed to it) are not in the GridLab gas turbine cost report
+    # (Sep 2025). Current cost evidence: BNEF, $2,157/kW for CC (2025); E3 RECOST Q1 2026, about
+    # $2,500/kW CC and $1,700/kW CT for 2030 in-service; Enverus, about $2,000/kW (Sep 2026).
+    mode: premium
+    path: central                  # low | central | high
+    # premium for capacity built in a period: mean over the period's in-service years (span_mean, the
+    # averaging PowerGenome applies to ATB capex) or the value at the period's label year (period_label)
+    year_basis: span_mean
+    # fraction over ATB Moderate by in-service year; each key holds until the next ("0.37 to 2031"),
+    # the first key also covers earlier years; applies to new-build ATB CC and CT (not CCS)
+    premium_paths:
+      central:
+        cc: {2031: 0.37, 2032: 0.28, 2033: 0.18, 2034: 0.09, 2035: 0.0}
+        ct: {2031: 0.45, 2032: 0.34, 2033: 0.23, 2034: 0.11, 2035: 0.0}
+      low:
+        cc: {2033: 0.50, 2034: 0.40, 2035: 0.30, 2036: 0.20, 2037: 0.10, 2038: 0.0}
+        ct: {2033: 0.45, 2034: 0.36, 2035: 0.27, 2036: 0.18, 2037: 0.09, 2038: 0.0}
+      high:
+        cc: {2029: 0.37, 2030: 0.25, 2031: 0.12, 2032: 0.0}
+        ct: {2029: 0.45, 2030: 0.30, 2031: 0.15, 2032: 0.0}
+
+  # gas-turbine supply cap (build_rate.gas_turbine_cap in pg/settings/build_rate.yml)
+  # allowance (S0 default): cumulative new CC + CT additions since 2025, turbine-weighted, against the
+  #   allowance path (paired with gas_capex.path); legacy (the regression case): the cap as moved from
+  #   make_emission_policies.py (451.4 GW + 9.67 GW/yr in service)
+  gas_turbine_cap:
+    form: allowance
+    path: central
 
   # item 3: zonal coal CF caps (s0_workflow/data/README.md)
   coal_cf_caps:
@@ -82,12 +105,19 @@ s0_production:
     onshore: true                  # LandbasedWind_* and existing "Onshore Wind Turbine"
     offshore: true                 # OffShoreWind_* and existing "Offshore Wind Turbine" (windloss2)
 
-  # item 4: NY RPS buyout: NYSERDA's 2024 Tier 1 ACP, the last published (from 2025 Tier 1 is a
-  # load-share charge with no ACP). ESR_NY_ces and every other program stay hard requirements.
-  # https://www.nyserda.ny.gov/All-Programs/Clean-Energy-Standard/LSE-Obligations/2024-Compliance-Year
+  # state policy buyouts (rps_acp_per_mwh, study_modules.rps_regional; output rps_buyout_by_state_year.csv)
+  # flat (S0 default): one buyout price on every state RPS and CES program (ESR_*; 55 programs in 2035,
+  #   carve-outs included), NY's RPS and CES among them
+  # programs (legacy; the regression case): only the programs listed: NY RPS at NYSERDA's 2024 Tier 1
+  #   ACP, $45.39/MWh, the last published (from 2025 Tier 1 is a load-share charge with no ACP);
+  #   every other program a hard requirement
+  #   https://www.nyserda.ny.gov/All-Programs/Clean-Energy-Standard/LSE-Obligations/2024-Compliance-Year
   rps_acp:
     enabled: true
-    programs: {ESR_NY_rps: 45.39}
+    mode: flat
+    price: 100.0                   # $/MWh
+    program_prefix: ESR_
+    programs: {ESR_NY_rps: 45.39}  # used by mode: programs
 
   # item 6: extra Switch modules on the case's scenario line (not switch/modules.txt)
   extra_modules: [study_modules.gen_amortization_period]

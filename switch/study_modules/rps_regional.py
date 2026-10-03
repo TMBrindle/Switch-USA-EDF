@@ -676,7 +676,9 @@ def rps_acp(m, pr, pe):
 
 
 def post_solve(m, outdir):
-    """rps_shortfall.csv: buyouts per program/period (only when some program has an ACP)."""
+    """rps_shortfall.csv: buyouts per program/period, and rps_buyout_by_state_year.csv: buyout MWh and $
+    by state and calendar year (per-year values, equal across a period's span); only when some program
+    has an ACP."""
     if not len(m.RPS_PROGRAM_PERIODS_WITH_ACP):
         return
     import pandas as pd
@@ -699,6 +701,9 @@ def post_solve(m, outdir):
             }
         )
     pd.DataFrame(rows).to_csv(os.path.join(outdir, "rps_shortfall.csv"), index=False)
+    spans = {pe: (int(value(m.period_start[pe])), int(value(m.period_end[pe]))) for pe in m.PERIODS}
+    buyouts_by_state_year(pd.DataFrame(rows), spans).to_csv(
+        os.path.join(outdir, "rps_buyout_by_state_year.csv"), index=False)
     used = [r for r in rows if r["shortfall_mwh_per_yr"] > 1e-3]
     if used:
         print(
@@ -709,6 +714,29 @@ def post_solve(m, outdir):
                 for r in used
             )
         )
+
+
+def buyouts_by_state_year(rows, spans):
+    """Buyout MWh and $ by state and calendar year from rps_shortfall rows. Programs named
+    ESR_<state>_<type> go to <state>; others keep their own name. Values are per year, the same in
+    every year of a period's span (spans: {period: (first year, last year)})."""
+    import pandas as pd
+
+    cols = ["state", "year", "PERIOD", "period_start", "period_end", "programs",
+            "target_mwh_per_yr", "buyout_mwh_per_yr", "buyout_cost_per_yr"]
+    if not len(rows):
+        return pd.DataFrame(columns=cols)
+    df = rows.assign(state=rows["RPS_PROGRAM"].map(
+        lambda p: p.split("_")[1] if p.startswith("ESR_") and len(p.split("_")) > 2 else p))
+    g = (df.groupby(["state", "PERIOD"])
+         .agg(programs=("RPS_PROGRAM", "nunique"), target_mwh_per_yr=("target_mwh_per_yr", "sum"),
+              buyout_mwh_per_yr=("shortfall_mwh_per_yr", "sum"),
+              buyout_cost_per_yr=("shortfall_cost_per_yr", "sum"))
+         .reset_index())
+    out = [dict(r, year=y, period_start=spans[r["PERIOD"]][0], period_end=spans[r["PERIOD"]][1])
+           for r in g.to_dict("records")
+           for y in range(spans[r["PERIOD"]][0], spans[r["PERIOD"]][1] + 1)]
+    return pd.DataFrame(out, columns=cols)
 
 
 def populate_zones_on_brec_routes(m):

@@ -148,3 +148,91 @@ def test_toy_same_solution_as_maxcaptag(tmp_path):
     m = bo.merge(bn, on=["gen", "build_year"], suffixes=("_old", "_new"))
     assert (m.mw_old - m.mw_new).abs().max() < 1e-4
     assert gas_free.sum() > 0
+
+
+# ------------------------------------------------------------------ cumulative_additions (Oct 2026)
+ALLOW = {  # "Gas-turbine supply constraint for S0" (3 Oct 2026), GW turbine-equivalent, 2025-2040
+    "central": [3.5, 8.1, 15.0, 24.2, 35.7, 49.5, 66.3, 86.3, 109.2, 132.2, 155.2, 178.2, 201.2, 224.1, 247.1, 270.1],
+    "low": [3.5, 8.1, 13.5, 20.4, 28.8, 38.8, 50.2, 63.3, 77.8, 93.1, 108.5, 123.8, 139.1, 154.4, 169.7, 185.1],
+    "high": [3.5, 8.1, 17.3, 30.3, 45.7, 64.8, 87.8, 114.6, 145.2, 175.9, 206.5, 237.2, 267.8, 298.4, 329.1, 359.7]}
+
+
+def allowance_cfg(path="central"):
+    c = settings()["build_rate"]["gas_turbine_cap"]
+    return {**gtc.DEFAULTS, **c, "enabled": True, "form": "cumulative_additions", "allowance_path": path}
+
+
+def test_allowance_paths_and_extension():
+    for path, vals in ALLOW.items():
+        cfg = allowance_cfg(path)
+        for y, v in zip(range(2025, 2041), vals):
+            assert gtc.allowance_mw(cfg, y) == pytest.approx(v * 1000), (path, y)
+        rate = (vals[15] - vals[10]) / 5                         # the 2035-40 rate
+        assert gtc.allowance_mw(cfg, 2045) == pytest.approx((vals[15] + 5 * rate) * 1000)
+        assert gtc.allowance_mw(cfg, 2024) == 0
+        # cap for a period = allowance at its end year (2035 period = 2031-35)
+        assert gtc.cap_mw(cfg, 2035, 2031, 2035) == pytest.approx(vals[10] * 1000)
+    assert gtc.allowance_mw(allowance_cfg(), 2045) == pytest.approx(385.0e3, abs=1)
+    cfg = allowance_cfg()
+    assert cfg["class_weights"] == {"combined_cycle": 0.65, "combustion_turbine": 1.0, "aeroderivative": 1.0}
+    assert cfg["since_year"] == 2025
+    # the file's own default stays the legacy cap (non-S0 cases unchanged)
+    assert settings()["build_rate"]["gas_turbine_cap"]["form"] == "cumulative_in_service"
+    with pytest.raises(ValueError, match="allowance_path"):
+        gtc.gtc_settings({"build_rate": {"gas_turbine_cap": {**settings()["build_rate"]["gas_turbine_cap"],
+                                                             "form": "cumulative_additions", "allowance_path": "x"}}})
+
+
+def test_allowance_writer_weights_basis_floor(tmp_path):
+    pd.DataFrame({"GENERATION_PROJECT": ["cc_plan", "ct_plan", "cc_new", "aero_new", "rice_plan", "cc_old"],
+                  "gen_tech": ["Natural Gas Fired Combined Cycle", "Natural Gas Fired Combustion Turbine",
+                               "NaturalGas_1-on-1 Combined Cycle (H-Frame)_Moderate",
+                               "NaturalGas_Combustion Turbine (Aeroderivative)_Moderate",
+                               "Natural Gas Internal Combustion Engine", "Natural Gas Fired Combined Cycle"],
+                  "gen_energy_source": ["naturalgas"] * 6}).to_csv(tmp_path / "gen_info.csv", index=False)
+    pd.DataFrame({"INVESTMENT_PERIOD": [2028, 2030], "period_start": [2026, 2029],
+                  "period_end": [2028, 2030]}).to_csv(tmp_path / "periods.csv", index=False)
+    pd.DataFrame({"GENERATION_PROJECT": ["cc_plan", "ct_plan", "rice_plan", "cc_old"], "build_year": [2026, 2029, 2026, 2001],
+                  "build_gen_predetermined": [20000.0, 30000.0, 500.0, 900.0]}).to_csv(
+        tmp_path / "gen_build_predetermined.csv", index=False)
+    s = {"build_rate": {"gas_turbine_cap": {**allowance_cfg()}}}
+    gtc.write_case_inputs(tmp_path, s)
+    g = pd.read_csv(tmp_path / "gas_turbine_cap_gens.csv").set_index("GENERATION_PROJECT")["gtc_weight"]
+    assert set(g.index) == {"cc_plan", "ct_plan", "cc_new", "aero_new", "cc_old"}       # recips excluded
+    assert g["cc_plan"] == pytest.approx(0.65 * 1.049) and g["ct_plan"] == pytest.approx(1.0 * 1.090)
+    assert g["cc_new"] == pytest.approx(0.65) and g["aero_new"] == pytest.approx(1.0)
+    cap = pd.read_csv(tmp_path / "gas_turbine_cap.csv").set_index("PERIOD")["gtc_max_mw"]
+    # 2028: planned additions since 2025 to 2028 = 20 GW CC x 0.65 x 1.049 = 13.6 GW < 24.2 GW allowance
+    assert cap[2028] == pytest.approx(24200.0)
+    # 2030: planned 13.64 + 30 GW CT x 1.09 = 46.34 GW < 49.5 GW allowance
+    assert cap[2030] == pytest.approx(49500.0)
+    p = pd.read_csv(tmp_path / "gas_turbine_cap_params.csv").iloc[0]
+    assert p.gtc_form == "cumulative_additions" and p.gtc_since_year == 2025
+    # floor: planned additions above the allowance raise the cap (with a warning)
+    pd.DataFrame({"GENERATION_PROJECT": ["ct_plan"], "build_year": [2027], "build_gen_predetermined": [40000.0]}).to_csv(
+        tmp_path / "gen_build_predetermined.csv", index=False)
+    gtc.write_case_inputs(tmp_path, s)
+    cap = pd.read_csv(tmp_path / "gas_turbine_cap.csv").set_index("PERIOD")["gtc_max_mw"]
+    assert cap[2028] == pytest.approx(40000 * 1.090)
+
+
+def test_toy_cumulative_additions(tmp_path):
+    """New form on the toy: weighted cumulative additions since since_year to each period's end year
+    <= the allowance; existing (pre-since_year) gas doesn't count, and the cap binds."""
+    def edit(inp):
+        s = {"build_rate": {"gas_turbine_cap": {
+            **allowance_cfg(), "since_year": 2017, "allowance_path": "toy",
+            "allowance_paths": {"toy": {2026: 0.002, 2036: 0.003}},
+            "capacity_basis": {"predetermined_to_allowance": {}, "new_build_to_allowance": 1.0}}}}
+        gtc.write_case_inputs(inp, s)
+    n = toy_run(tmp_path, "add", ["build_rate"], edit) / "outputs"
+    res = pd.read_csv(n / "gas_turbine_cap_results.csv").set_index("period")
+    cap = pd.read_csv(n.parent / "inputs/gas_turbine_cap.csv").set_index("PERIOD")["gtc_max_mw"]
+    assert cap[2020] == pytest.approx(2.0) and cap[2030] == pytest.approx(3.0)
+    b = build(n)
+    w = pd.read_csv(n.parent / "inputs/gas_turbine_cap_gens.csv").set_index("GENERATION_PROJECT")["gtc_weight"]
+    assert w["N-NG_CC"] == pytest.approx(0.65) and w["N-NG_GT"] == pytest.approx(1.0)
+    for p, end in ((2020, 2026), (2030, 2036)):
+        x = b[b.gen.isin(w.index) & (b.build_year >= 2017) & (b.build_year <= end)]
+        assert res.at[p, "covered_mw"] == pytest.approx((x.mw * x.gen.map(w)).sum(), abs=1e-6)
+    assert res.at[2030, "covered_mw"] == pytest.approx(3.0, abs=1e-6)          # binds

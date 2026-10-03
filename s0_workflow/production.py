@@ -73,13 +73,22 @@ def apply_settings(case_settings: dict) -> None:
             s.update(merged)
             gc = s0.get("gas_capex") or {}
             mode = gc.get("mode", "atb_moderate")
-            if mode in ("atb_moderate", "gridlab_fade"):
+            if mode in ("atb_moderate", "premium"):
                 changed = neutralise_gas_capex_override(s)
                 logger.info("s0_production %s/%s: gas capex basis ATB Moderate (override %s neutralised)",
                             case, year, changed)
             elif mode != "gridlab":
-                raise ValueError(f"s0_production.gas_capex.mode must be atb_moderate, gridlab_fade or gridlab, "
+                raise ValueError(f"s0_production.gas_capex.mode must be premium, atb_moderate or gridlab, "
                                  f"not {mode!r}")
+            gtc = s0.get("gas_turbine_cap") or {}
+            form = gtc.get("form", "legacy")
+            if form == "allowance":
+                br = s.setdefault("build_rate", {})
+                br["gas_turbine_cap"] = deep_merge(br.get("gas_turbine_cap") or {}, {
+                    "enabled": True, "form": "cumulative_additions",
+                    "allowance_path": gtc.get("path", "central")})
+            elif form != "legacy":
+                raise ValueError(f"s0_production.gas_turbine_cap.form must be allowance or legacy, not {form!r}")
             spans = s0.get("period_spans") or {}
             if int(year) in {int(k) for k in spans}:
                 first = int({int(k): v for k, v in spans.items()}[int(year)][0])
@@ -159,42 +168,65 @@ def _read(folder: Path, name: str, **kw) -> pd.DataFrame:
     return pd.read_csv(Path(folder) / name, **kw)
 
 
-def gas_fade_weight(year: int, full_until: int, zero_by: int) -> float:
-    """1 up to full_until, falling linearly to 0 at zero_by."""
-    if year <= full_until:
-        return 1.0
-    if year >= zero_by:
-        return 0.0
-    return (zero_by - year) / (zero_by - full_until)
+def premium_fraction(table: dict, year: int) -> float:
+    """Premium over ATB for an in-service year: the value of the latest key <= year (the first key's
+    value for earlier years; keys are 'to year' breakpoints)."""
+    t = {int(k): float(v) for k, v in table.items()}
+    ks = [k for k in sorted(t) if k <= int(year)]
+    return t[ks[-1]] if ks else t[min(t)]
+
+
+def premium_for_period(table: dict, start: int, end: int, basis: str = "span_mean") -> float:
+    """Premium for capacity built in a period: the mean over its in-service years (span_mean, the same
+    averaging PowerGenome applies to ATB capex) or the value at the period's label year (period_label)."""
+    if basis == "period_label":
+        return premium_fraction(table, end)
+    if basis != "span_mean":
+        raise ValueError(f"s0_production.gas_capex.year_basis must be span_mean or period_label, not {basis!r}")
+    return float(np.mean([premium_fraction(table, y) for y in range(int(start), int(end) + 1)]))
+
+
+def gas_capex_class(gen_tech: str) -> str | None:
+    """cc / ct for new-build ATB gas (CCS plants excluded), else None."""
+    t = str(gen_tech)
+    if not t.startswith("NaturalGas_") or "CCS" in t.upper():
+        return None
+    if "Combined Cycle" in t:
+        return "cc"
+    if "Combustion Turbine" in t:
+        return "ct"
+    return None
 
 
 def apply_gas_capex(folder: Path, s0: dict, log: Log) -> None:
-    """gridlab_fade: new CC/CT overnight cost x (1 + w(build year) x (GridLab/ATB - 1)); ATB Moderate
-    otherwise (set in apply_settings)."""
+    """premium: new CC/CT overnight cost x (1 + premium) by in-service year (premium_paths[path]); ATB
+    Moderate alone with atb_moderate (set in apply_settings); the resources.yml override with gridlab."""
     gc = s0.get("gas_capex") or {}
     mode = gc.get("mode", "atb_moderate")
-    if mode != "gridlab_fade":
+    if mode != "premium":
         log(f"gas capex: {mode} (new CC/CT at {'ATB 2024 Moderate' if mode == 'atb_moderate' else 'the GridLab override'})")
         return
-    fade = gc.get("gridlab_fade") or {}
-    ratios = fade.get("ratios") or {}
-    full_until, zero_by = int(fade.get("full_until", 2030)), int(fade.get("zero_by", 2033))
+    path, basis = gc.get("path", "central"), gc.get("year_basis", "span_mean")
+    tables = (gc.get("premium_paths") or {}).get(path)
+    if not tables:
+        raise ValueError(f"s0_production.gas_capex.premium_paths has no path {path!r}")
+    per = _read(folder, "periods.csv").set_index("INVESTMENT_PERIOD")
     bc = _read(folder, "gen_build_costs.csv", dtype=str, keep_default_na=False)
     tech = _read(folder, "gen_info.csv", usecols=["GENERATION_PROJECT", "gen_tech"]).set_index("GENERATION_PROJECT")["gen_tech"]
     pre = _read(folder, "gen_build_predetermined.csv")
     pre_keys = set(zip(pre.iloc[:, 0].astype(str), pre.iloc[:, 1].astype(float).astype(int)))
     by = bc.iloc[:, 1].astype(float).astype(int)
-    n = 0
-    for prefix, r in ratios.items():
-        m = bc["GENERATION_PROJECT"].map(tech).astype(str).str.startswith(prefix)
-        m &= ~pd.Series([(g, y) in pre_keys for g, y in zip(bc["GENERATION_PROJECT"], by)], index=bc.index)
-        w = by[m].map(lambda y: gas_fade_weight(y, full_until, zero_by))
-        f = 1 + w * (float(r) - 1)
-        bc.loc[m, "gen_overnight_cost"] = (bc.loc[m, "gen_overnight_cost"].astype(float) * f).map(repr)
-        n += int(m.sum())
+    cls = bc["GENERATION_PROJECT"].map(tech).map(gas_capex_class)
+    new = ~pd.Series([(g, y) in pre_keys for g, y in zip(bc["GENERATION_PROJECT"], by)], index=bc.index)
+    applied = {}
+    for i in bc.index[cls.notna() & new & by.isin(per.index)]:
+        y = int(by[i])
+        f = premium_for_period(tables[cls[i]], per.at[y, "period_start"], per.at[y, "period_end"], basis)
+        bc.at[i, "gen_overnight_cost"] = repr(float(bc.at[i, "gen_overnight_cost"]) * (1 + f))
+        applied[(cls[i], y)] = f
     bc.to_csv(Path(folder) / "gen_build_costs.csv", index=False)
-    log(f"gas capex: ATB Moderate + GridLab premium (ratios {ratios}) at full weight to {full_until}, "
-        f"zero by {zero_by}; {n} new-build rows")
+    log(f"gas capex: ATB Moderate + {path} premium ({basis}): "
+        + ", ".join(f"{c.upper()} {y} +{f:.1%}" for (c, y), f in sorted(applied.items())))
 
 
 def apply_coal_cf_caps(folder: Path, s0: dict, settings: dict, log: Log) -> None:
@@ -256,16 +288,35 @@ def apply_wind_loss(folder: Path, s0: dict, log: Log) -> None:
 
 
 def apply_rps_acp(folder: Path, s0: dict, log: Log) -> None:
+    """State policy buyouts (rps_acp_per_mwh in rps_requirements.csv, study_modules.rps_regional).
+
+    mode flat (S0 default): `price` ($/MWh) on every state RPS and CES program (RPS_PROGRAM starting
+      with `program_prefix`, ESR_ by default; carve-outs included), replacing any per-program value
+    mode programs (legacy): only the programs listed in `programs` ({program: $/MWh}); others keep
+      what the case had ('.' = hard requirement)
+    """
     ra = s0.get("rps_acp") or {}
     if not ra.get("enabled"):
         return
-    acp = {k: float(v) for k, v in (ra.get("programs") or {}).items()}
     p = Path(folder) / "rps_requirements.csv"
     if not p.exists():
         log("rps acp: no rps_requirements.csv; skipped")
         return
     raw = pd.read_csv(p, dtype=str, keep_default_na=False)
     have = raw["rps_acp_per_mwh"] if "rps_acp_per_mwh" in raw else pd.Series(".", index=raw.index)
+    mode = ra.get("mode", "programs")
+    if mode == "flat":
+        price = float(ra.get("price", 100.0))
+        prefix = ra.get("program_prefix", "ESR_")
+        m = raw["RPS_PROGRAM"].str.startswith(prefix)
+        raw["rps_acp_per_mwh"] = [repr(price) if x else h for x, h in zip(m, have)]
+        raw.to_csv(p, index=False)
+        log(f"rps acp: flat ${price:g}/MWh on {raw.loc[m, 'RPS_PROGRAM'].nunique()} state programs "
+            f"({int(m.sum())} rows); other programs unchanged")
+        return
+    if mode != "programs":
+        raise ValueError(f"s0_production.rps_acp.mode must be flat or programs, not {mode!r}")
+    acp = {k: float(v) for k, v in (ra.get("programs") or {}).items()}
     raw["rps_acp_per_mwh"] = [repr(acp[pr]) if pr in acp else h for pr, h in zip(raw["RPS_PROGRAM"], have)]
     raw.to_csv(p, index=False)
     missing = set(acp) - set(raw["RPS_PROGRAM"])

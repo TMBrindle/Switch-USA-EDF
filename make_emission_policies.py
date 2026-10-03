@@ -25,6 +25,21 @@ print("Loaded libraries")
 
 settings_path = Path("pg/settings")
 
+# ReEDS inputs pinned to one release (pg/extra_inputs/reeds_state_policies/REEDS_RELEASE.yml); local
+# copies are read when present, otherwise the same files at the pinned commit (never main).
+REEDS_PIN_DIR = Path(__file__).resolve().parent / "pg" / "extra_inputs" / "reeds_state_policies"
+REEDS_RELEASE = read_yaml(REEDS_PIN_DIR / "REEDS_RELEASE.yml")
+
+
+def reeds_input(rel_path):
+    """Path (or URL) of ReEDS inputs/<rel_path> at the pinned release."""
+    local = REEDS_PIN_DIR / rel_path
+    if local.exists():
+        return str(local)
+    return (f"https://raw.githubusercontent.com/ReEDS-Model/ReEDS/{REEDS_RELEASE['commit']}/"
+            f"inputs/{rel_path}")
+
+
 settings = load_settings(settings_path)
 
 region_info = gpd.read_file(
@@ -224,7 +239,7 @@ for prog in ["ces", "rps"]:
     # prog = 'rps'
 
     frac = pd.read_csv(
-        f"https://raw.githubusercontent.com/NREL/ReEDS-2.0/refs/heads/main/inputs/state_policies/{prog}_fraction.csv"
+        reeds_input(f"state_policies/{prog}_fraction.csv")
     )
     # do various possible renames
     frac = frac.rename(
@@ -242,7 +257,7 @@ for prog in ["ces", "rps"]:
     # add limits on out-of-state fractions for URECs as if they were a different
     # ESR (starting with "UREC_Limit_")
     oos_limit = pd.read_csv(
-        "https://raw.githubusercontent.com/NREL/ReEDS-2.0/refs/heads/main/inputs/state_policies/oosfrac.csv"
+        reeds_input("state_policies/oosfrac.csv")
     ).set_index("*st")["value"]
     oos = (
         frac.assign(program="UREC_Limit_" + frac["program"])
@@ -270,7 +285,7 @@ esr_wide = esr_wide[sorted(esr_wide.columns)]
 # to generate the eligibility flags (as a .yml file)
 # TODO: finer-scale CES rules later in the file, based on emission rates of technologies
 techs = pd.read_csv(
-    "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/tech-subset-table.csv"
+    reeds_input("tech-subset-table.csv")
 )
 techs = techs.rename(columns={techs.columns[0]: "reeds_tech"})
 
@@ -302,10 +317,10 @@ ce_techs = techs.loc[
     techs[["RE", "NUCLEAR", "HYDRO", "CCS", "CANADA"]].notna().any(axis=1), "reeds_tech"
 ]
 techs_banned_ces = pd.read_csv(
-    "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/state_policies/techs_banned_ces.csv"
+    reeds_input("state_policies/techs_banned_ces.csv")
 )
 techs_banned_rps = pd.read_csv(
-    "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/state_policies/techs_banned_rps.csv"
+    reeds_input("state_policies/techs_banned_rps.csv")
 )
 # virtual ban on can-imports in states bordering Mexico, because Canadian and
 # Mexican imports will both be interpreted as generic imports but imports from
@@ -338,7 +353,7 @@ prog_rules = {
 # see https://github.com/NREL/ReEDS-2.0/blob/92e8fa7cc9f870006ca2df52d98fd11f1db68dbe/b_inputs.gms#L3034)
 # note: the table allows trade from each state to itself, but we treat that as local, so ignore
 trade_table = pd.read_csv(
-    "https://raw.githubusercontent.com/NREL/ReEDS-2.0/refs/heads/main/inputs/state_policies/rectable.csv",
+    reeds_input("state_policies/rectable.csv"),
 )
 trade_partners = trade_table.melt(
     id_vars="st", var_name="ast", value_name="trade"
@@ -435,7 +450,7 @@ tax_states = ["CA", "WA"]
 _rggicon_local = os.path.join(
     os.path.dirname(__file__), "pg", "extra_inputs", "rggi_carbon", "rggicon_3pr.csv"
 )
-_rggicon_url = "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/emission_constraints/rggicon.csv"
+_rggicon_url = reeds_input("emission_constraints/rggicon.csv")
 rggi_cap = pd.read_csv(
     _rggicon_local if os.path.isfile(_rggicon_local) else _rggicon_url,
     names=["year", "cap"],
@@ -445,7 +460,7 @@ rggi_cap = pd.read_csv(
 # short ton base caps). Divide by 1e6 to get million metric tonnes.
 rggi_cap["cap"] *= 0.000001
 rggi_states = pd.read_csv(
-    "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/emission_constraints/rggi_states.csv"
+    reeds_input("emission_constraints/rggi_states.csv")
 ).rename(columns={"*st": "st"})
 
 co2 = (
@@ -529,7 +544,7 @@ decarb_co2_wide = pd.concat(
 # "st", "2019", "2020", ...
 # CA, 0, 0, 100, ...
 osw_req = pd.read_csv(
-    "https://github.com/NREL/ReEDS-2.0/raw/refs/heads/main/inputs/state_policies/offshore_req_default.csv"
+    reeds_input("state_policies/offshore_req_default.csv")
 )
 osw_req["program"] = "MinCapTag_" + osw_req["st"] + "_offshorewind"
 

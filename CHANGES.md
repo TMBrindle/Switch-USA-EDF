@@ -1602,3 +1602,80 @@ scripts in `s0_workflow/` stay for reference.
 
 **Not run in the cloud:** pg_to_switch end to end (no PowerGenome data). The regression and the
 mode-B window are VM recipes.
+
+---
+
+## 45. S0 Production: Gas Capex Premium Paths, Gas-Turbine Allowance, State Policy Buyouts, Pinned ReEDS Policy Inputs
+
+**Date:** 2026-10-03 · **Branch:** `tom/s0-prod-scripts`
+**See also:**
+- `Guides and documentation/s0_production.md`
+- `s0_workflow/VM_RECIPES.md`
+- `SHARED_CHANGES.md` (#16-20)
+
+Tom's decisions after §44. Each change has a legacy setting that reproduces §44:
+- `s4x1_S0prod_2035` (axis value `on_pgdays`) stays on the legacy settings. A test rebuilds its case
+  files byte for byte with the §44 code.
+- `s4x1_S0prod_2035_new` (`on_pgdays_new`), `S0prod_A` and `S0prod_B` take the new defaults.
+
+1. **Gas capex premium** (`s0_production.gas_capex`). New default `mode: premium`, `path: central`:
+   new-build ATB CC/CT (not CCS) at ATB 2024 Moderate x (1 + premium by in-service year).
+
+   | Path | CC | CT |
+   |---|---|---|
+   | central | 0.37 to 2031, 0.28, 0.18, 0.09, 0 from 2035 | 0.45 to 2031, 0.34, 0.23, 0.11, 0 from 2035 |
+   | low | 0.50 to 2033, 0.40, 0.30, 0.20, 0.10, 0 from 2038 | 0.45 to 2033, 0.36, 0.27, 0.18, 0.09, 0 from 2038 |
+   | high | 0.37 to 2029, 0.25, 0.12, 0 from 2032 | 0.45 to 2029, 0.30, 0.15, 0 from 2032 |
+
+   - A period's premium is the mean over its in-service years (`year_basis: span_mean`, as
+     PowerGenome averages ATB): central 2035 = CC +18.4%, CT +22.6%. `period_label` is an option.
+   - Options kept: ATB only (`atb_moderate`, the legacy) and the `resources.yml` override (`gridlab`).
+     §44's `gridlab_fade` is replaced by the premium paths.
+   - Re-cited: the override's values are not in the GridLab report (Sep 2025). Sources: BNEF
+     $2,157/kW CC (2025); E3 RECOST Q1 2026 ~$2,500/kW CC, ~$1,700/kW CT (2030 in-service); Enverus
+     ~$2,000/kW (Sep 2026). There is a source note in `resources.yml` (values unchanged).
+2. **Gas-turbine cap, new form** `cumulative_additions` (`s0_production.gas_turbine_cap: {form:
+   allowance, path: central}`, paired with the premium path; legacy: `form: legacy`).
+   - **What counts:** cumulative NEW CC + CT additions since 1 Jan 2025. Planned units count;
+     retirements are irrelevant; there is no 451.4 GW offset.
+   - **Weights:** CC 0.65, frame CT and aeroderivative 1.0; reciprocating engines excluded.
+   - **Constraint:** per period, weighted cumulative additions to the period's end year ≤ the
+     allowance.
+   - **Allowances:** low / central / high paths, 2025-2040, from Claude Doc "Gas-turbine supply
+     constraint for S0" (3 Oct 2026). They are extended to 2045 linearly at each path's 2035-40 rate:
+     central +22.98 GW/yr (2045: 385.0 GW), low +15.32 (261.7), high +30.64 (512.9).
+   - **Capacity basis:** the allowance is EIA-860M nameplate. Planned units (Switch: winter capacity)
+     are converted with EIA-860 2024 Proposed nameplate/winter ratios (CC 1.049, CT 1.090); new
+     builds (ATB) count as is.
+   - **Floor:** planned additions above an allowance raise it, with a warning.
+3. **State policy buyouts** (`s0_production.rps_acp`).
+   - New default `mode: flat`: $100/MWh on every state RPS and CES program (`ESR_*`; 55 in 2035;
+     NY's RPS replacing $45.39, and NY's CES).
+   - Legacy `mode: programs`: NY RPS $45.39 only.
+   - `rps_regional.py` writes `rps_buyout_by_state_year.csv` (buyout MWh and $ by state and year).
+4. **ReEDS state-policy inputs pinned** to release 2026.09.21 (ReEDS-Model/ReEDS, commit
+   8a1572331da8): copies in `pg/extra_inputs/reeds_state_policies/` with `REEDS_RELEASE.yml`.
+   `make_emission_policies.py` no longer downloads from main. The VM's policy files
+   (`emission_policies_current.csv`, 2025-12-14 / 2026-05-12) are not regenerated.
+   `scripts/compare_reeds_state_policies.py` → `s0_workflow/data/reeds_state_policy_diff_2026.09.21.csv`:
+   - 489 program-years change (121 by > 0.005). NY is unchanged.
+   - Largest changes, 2035:
+
+     | Program | VM file | Release |
+     |---|---|---|
+     | NC CES | 0.574 | 0.392 |
+     | CT RPS | 0.44 | 0.33 |
+     | ME CES | 0.805 | 0.867 |
+     | CT CES | 0.762 | 0.794 |
+     | ME RPS | 0.789 | 0.816 |
+     | VA CES | 0.495 | 0.474 |
+
+   - AZ RPS ends after 2025. Nova Scotia and "voluntary" programs appear, with no US model region.
+
+**Tests:** `s0_workflow/tests` 27 (was 19): premium paths and year basis, legacy byte-for-byte rebuild,
+new defaults on a case, allowance paths/extension/weights/basis/floor, a toy solve of the new cap form,
+the buyout output, the ReEDS pin and diff. Headroom 31 and build rate 22 unchanged.
+**VM recipes:**
+- the regression (A) stays on the legacy settings;
+- new recipe C, the full `S0prod_A` mode-A chain 2028-2045 on the new defaults;
+- the mode-B window (B) is deferred.

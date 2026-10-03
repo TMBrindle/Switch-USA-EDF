@@ -32,10 +32,16 @@ def test_settings_file_axis_and_rows():
     s0 = s0_yaml()
     assert s0["enabled"] is False                                   # inert unless a case turns it on
     ax = axis()
-    assert set(ax) == {"off", "on", "on_windows", "on_pgdays"}
+    assert set(ax) == {"off", "on", "on_windows", "on_pgdays", "on_pgdays_new"}
     assert ax["on"]["s0_production"] == {"enabled": True}
     assert ax["on_windows"]["s0_production"]["foresight"]["mode"] == "windows"
     assert ax["on_pgdays"]["s0_production"]["time_sampling"]["method"] == "powergenome"
+    # the regression case keeps the legacy settings; its _new twin takes the new defaults
+    leg = ax["on_pgdays"]["s0_production"]
+    assert leg["gas_capex"] == {"mode": "atb_moderate"} and leg["gas_turbine_cap"] == {"form": "legacy"}
+    assert leg["rps_acp"] == {"mode": "programs"}
+    assert ax["on_pgdays_new"]["s0_production"] == {"enabled": True, "time_sampling": {"method": "powergenome"},
+                                                    "foresight": {"mode": "single"}}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
     old = si[~si.case_id.str.contains("S0prod")]
     assert (old.s0_production == "off").all() and (old.build_rate == "off").all()   # existing rows unchanged
@@ -46,6 +52,8 @@ def test_settings_file_axis_and_rows():
     base = si[si.case_id == "s4x1_S0unc_2035_icon"].iloc[0]
     diff = [c for c in si.columns if reg[c] != base[c]]
     assert set(diff) == {"case_id", "build_rate", "s0_production"} and reg.s0_production == "on_pgdays"
+    new = si[si.case_id == "s4x1_S0prod_2035_new"].iloc[0]
+    assert [c for c in si.columns if new[c] != reg[c]] == ["case_id", "s0_production"] and new.s0_production == "on_pgdays_new"
     md = yaml.safe_load(open(REPO / "pg/settings/model_definition.yml"))
     spans = {int(k): v for k, v in s0["period_spans"].items()}
     for y, (first, last) in spans.items():
@@ -54,9 +62,19 @@ def test_settings_file_axis_and_rows():
     assert s0["settings"]["build_rate"]["level"] == "central" and s0["settings"]["build_rate"]["regional_groups"] == [
         "wind_onshore", "solar"]
     assert s0["settings"]["interconnection_headroom"]["scenario"] == "atts_s0"
-    assert s0["gas_capex"]["mode"] == "atb_moderate" and s0["gas_capex"]["gridlab_fade"]["zero_by"] == 2033
-    assert s0["coal_cf_caps"]["enabled"] and s0["wind_loss"]["enabled"] and s0["rps_acp"]["programs"] == {
-        "ESR_NY_rps": 45.39}
+    # new defaults: central premium paired with the central turbine allowance; flat $100 buyouts
+    assert s0["gas_capex"]["mode"] == "premium" and s0["gas_capex"]["path"] == "central"
+    assert s0["gas_turbine_cap"] == {"form": "allowance", "path": "central"}
+    assert s0["rps_acp"]["mode"] == "flat" and s0["rps_acp"]["price"] == 100.0
+    assert s0["rps_acp"]["programs"] == {"ESR_NY_rps": 45.39}                       # legacy option kept
+    assert s0["coal_cf_caps"]["enabled"] and s0["wind_loss"]["enabled"]
+    pp = s0["gas_capex"]["premium_paths"]
+    assert pp["central"]["cc"] == {2031: 0.37, 2032: 0.28, 2033: 0.18, 2034: 0.09, 2035: 0.0}
+    assert pp["central"]["ct"] == {2031: 0.45, 2032: 0.34, 2033: 0.23, 2034: 0.11, 2035: 0.0}
+    assert pp["low"]["cc"] == {2033: 0.5, 2034: 0.4, 2035: 0.3, 2036: 0.2, 2037: 0.1, 2038: 0.0}
+    assert pp["low"]["ct"] == {2033: 0.45, 2034: 0.36, 2035: 0.27, 2036: 0.18, 2037: 0.09, 2038: 0.0}
+    assert pp["high"]["cc"] == {2029: 0.37, 2030: 0.25, 2031: 0.12, 2032: 0.0}
+    assert pp["high"]["ct"] == {2029: 0.45, 2030: 0.30, 2031: 0.15, 2032: 0.0}
     assert s0["wind_loss"]["factor"] == pytest.approx((1 - 0.134) / (1 - 0.017))
     assert s0["extra_modules"] == ["study_modules.gen_amortization_period"]          # item 6, case only
     assert "gen_amortization_period" not in open(REPO / "switch/modules.txt").read()
@@ -79,7 +97,9 @@ def test_apply_settings_merges_and_sets_atb_moderate():
     s0prod.apply_settings(cs)
     s = cs["c"][2035]
     assert s["build_rate"] == {"enabled": True, "level": "central", "groups": ["wind_onshore", "solar", "storage"],
-                               "regional": True, "regional_groups": ["wind_onshore", "solar"]}
+                               "regional": True, "regional_groups": ["wind_onshore", "solar"],
+                               "gas_turbine_cap": {"enabled": True, "form": "cumulative_additions",
+                                                   "allowance_path": "central"}}
     assert s["interconnection_headroom"] == {"enabled": True, "scenario": "atts_s0"}
     assert s["atb_modifiers"]["ngcc"]["capex_mw"] == ["mul", 1.0] and s["atb_modifiers"]["ngct"]["capex_mw"] == ["mul", 1.0]
     assert s["atb_modifiers"]["batteries"]["capex_mw"] == ["mul", 0.7]                  # untouched
@@ -127,8 +147,9 @@ def _case(folder: Path):
 
 
 def test_case_steps(tmp_path):
+    """The regression case's legacy settings (on_pgdays): ATB-only gas capex, NY RPS buyout only."""
     _case(tmp_path)
-    s = _case_settings()
+    s = _case_settings(axis_value="on_pgdays")
     s["_zone_map"] = {"p101": "AGG", "p103": "AGG"}
     s0prod.apply_settings({"c": {2035: s}})
     lines = s0prod.write_case_inputs(tmp_path, {2028: s, 2030: s, 2035: s})
@@ -160,25 +181,83 @@ def test_case_steps(tmp_path):
     assert len(lines) >= 6
 
 
-def test_gridlab_fade(tmp_path):
+def test_new_defaults_premium_buyouts_and_cap(tmp_path):
     _case(tmp_path)
-    s = _case_settings()
-    s["s0_production"]["gas_capex"]["mode"] = "gridlab_fade"
+    s = _case_settings(axis_value="on")
+    s["build_rate"] = {"gas_turbine_cap": {"enabled": True, "form": "cumulative_in_service"}}
     s0prod.apply_settings({"c": {2035: s}})
-    assert s["atb_modifiers"]["ngcc"]["capex_mw"] == ["mul", 1.0]
-    s0prod.write_case_inputs(tmp_path, {2028: s})
+    assert s["atb_modifiers"]["ngcc"]["capex_mw"] == ["mul", 1.0]                 # ATB Moderate basis
+    assert s["build_rate"]["gas_turbine_cap"]["form"] == "cumulative_additions"
+    assert s["build_rate"]["gas_turbine_cap"]["allowance_path"] == "central"
+    s0prod.write_case_inputs(tmp_path, {2028: s, 2030: s, 2035: s})
     bc = pd.read_csv(tmp_path / "gen_build_costs.csv").set_index(["GENERATION_PROJECT", "build_year"])["gen_overnight_cost"]
-    assert bc[("p1_cc_new", 2028)] == pytest.approx(1000 * 1.353953)        # full premium up to 2030
-    assert bc[("p1_cc_new", 2030)] == pytest.approx(1000 * 1.353953)
-    assert bc[("p1_cc_new", 2035)] == pytest.approx(1000.0)                 # zero by 2033
-    assert bc[("p1_ct_new", 2028)] == pytest.approx(1000 * 1.421715)
-    assert bc[("p1_gas_old", 2005)] == 0.0                                 # predetermined untouched
-    assert s0prod.gas_fade_weight(2032, 2030, 2033) == pytest.approx(1 / 3)
-    s["s0_production"]["gas_capex"]["mode"] = "gridlab"
-    keep = {"c": {2035: _case_settings()}}
-    keep["c"][2035]["s0_production"]["gas_capex"]["mode"] = "gridlab"
-    s0prod.apply_settings(keep)
-    assert keep["c"][2035]["atb_modifiers"]["ngcc"]["capex_mw"] == 2061000
+    # periods 2028 = 2026-28, 2030 = 2029-30, 2035 = 2031-35; premium = mean over the in-service years
+    assert bc[("p1_cc_new", 2028)] == pytest.approx(1000 * 1.37)
+    assert bc[("p1_cc_new", 2030)] == pytest.approx(1000 * 1.37)
+    assert bc[("p1_cc_new", 2035)] == pytest.approx(1000 * (1 + (0.37 + 0.28 + 0.18 + 0.09 + 0) / 5))
+    assert bc[("p1_ct_new", 2035)] == pytest.approx(1000 * (1 + (0.45 + 0.34 + 0.23 + 0.11 + 0) / 5))
+    assert bc[("p1_gas_old", 2005)] == 0.0                                       # predetermined untouched
+    r = pd.read_csv(tmp_path / "rps_requirements.csv", dtype=str).set_index("RPS_PROGRAM")["rps_acp_per_mwh"]
+    assert (r == "100.0").all()                                                  # NY RPS and CES included
+    assert "flat $100/MWh on 3 state programs" in (tmp_path / "s0_production_log.txt").read_text()
+
+
+def test_gas_premium_paths():
+    pp = s0_yaml()["gas_capex"]["premium_paths"]
+    f = s0prod.premium_fraction
+    assert [f(pp["central"]["cc"], y) for y in (2025, 2031, 2032, 2033, 2034, 2035, 2045)] == [
+        0.37, 0.37, 0.28, 0.18, 0.09, 0.0, 0.0]
+    assert [f(pp["low"]["cc"], y) for y in (2033, 2034, 2035, 2036, 2037, 2038)] == [0.5, 0.4, 0.3, 0.2, 0.1, 0.0]
+    assert [f(pp["low"]["ct"], y) for y in (2033, 2034, 2037, 2038)] == [0.45, 0.36, 0.09, 0.0]
+    assert [f(pp["high"]["cc"], y) for y in (2029, 2030, 2031, 2032)] == [0.37, 0.25, 0.12, 0.0]
+    assert [f(pp["high"]["ct"], y) for y in (2029, 2030, 2031, 2032)] == [0.45, 0.30, 0.15, 0.0]
+    assert s0prod.premium_for_period(pp["central"]["cc"], 2031, 2035, "period_label") == 0.0
+    assert s0prod.gas_capex_class("NaturalGas_CCCCSAvgCF_Moderate") is None       # CCS excluded
+    assert s0prod.gas_capex_class("NaturalGas_Combustion Turbine (F-Frame)_Moderate") == "ct"
+    # ATB-only and the GridLab override stay available
+    for mode, capex in (("atb_moderate", ["mul", 1.0]), ("gridlab", 2061000)):
+        cs = {"c": {2035: _case_settings()}}
+        cs["c"][2035]["s0_production"]["gas_capex"]["mode"] = mode
+        s0prod.apply_settings(cs)
+        assert cs["c"][2035]["atb_modifiers"]["ngcc"]["capex_mw"] == capex
+
+
+def test_legacy_settings_build_as_before(tmp_path):
+    """The regression case (on_pgdays) produces the same case files as the code and settings before the
+    Oct 2026 changes (commit e03736e)."""
+    import importlib.util
+    import subprocess
+    old_dir = tmp_path / "old_code"
+    old_dir.mkdir()
+    for f, dst in (("s0_workflow/production.py", "production_old.py"), ("pg/settings/s0_production.yml", "s0_old.yml"),
+                   ("pg/settings/scenario_management.yml", "sm_old.yml")):
+        (old_dir / dst).write_text(subprocess.run(["git", "show", f"e03736e:{f}"], cwd=REPO, capture_output=True,
+                                                  text=True, check=True).stdout)
+    spec = importlib.util.spec_from_file_location("production_old", old_dir / "production_old.py")
+    old = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(old)
+    old.REPO = REPO                       # the old module resolves data paths from its own location
+    res = yaml.safe_load(open(REPO / "pg/settings/resources.yml"))
+
+    def settings(s0, ax):
+        s = {"s0_production": copy.deepcopy(s0), "atb_modifiers": copy.deepcopy(res["atb_modifiers"]),
+             "model_first_planning_year": 2031, "case_id": "c"}
+        return s0prod.deep_merge(s, ax)
+    old_s = settings(yaml.safe_load(open(old_dir / "s0_old.yml"))["s0_production"],
+                     yaml.safe_load(open(old_dir / "sm_old.yml"))["settings_management"]["all_years"]["s0_production"]["on_pgdays"])
+    new_s = settings(s0_yaml(), axis()["on_pgdays"])
+    (tmp_path / "old").mkdir()
+    (tmp_path / "new").mkdir()
+    _case(tmp_path / "old")
+    _case(tmp_path / "new")
+    old.apply_settings({"c": {2035: old_s}})
+    s0prod.apply_settings({"c": {2035: new_s}})
+    assert old_s["atb_modifiers"] == new_s["atb_modifiers"]
+    assert old_s.get("build_rate") == new_s.get("build_rate")            # no gas-turbine cap override
+    old.write_case_inputs(tmp_path / "old", {2035: old_s})
+    s0prod.write_case_inputs(tmp_path / "new", {2035: new_s})
+    for f in sorted(p.name for p in (tmp_path / "old").glob("*.csv")):
+        assert (tmp_path / "old" / f).read_text() == (tmp_path / "new" / f).read_text(), f
 
 
 def test_coal_table_and_method():

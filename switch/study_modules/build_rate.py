@@ -44,10 +44,12 @@ groups above):
                              gtc_retirements_free_room = 1)
   new_additions_per_period:  sum over covered g of weight_g x (MW with a build year in p's window)
                              <= gtc_max_mw[p]
+  cumulative_additions:      sum over covered g of weight_g x (MW with a build year from
+                             gtc_since_year to p's end year) <= gtc_max_mw[p]  (retirements irrelevant)
 
 gas_turbine_cap_gens.csv    GENERATION_PROJECT, gtc_class, gtc_weight                    [optional]
 gas_turbine_cap.csv         PERIOD, gtc_max_mw                                           [optional]
-gas_turbine_cap_params.csv  gtc_form, gtc_retirements_free_room                          [optional]
+gas_turbine_cap_params.csv  gtc_form, gtc_retirements_free_room, gtc_since_year          [optional]
 Output: gas_turbine_cap_results.csv (covered MW, cap and dual per period).
 """
 import os
@@ -167,8 +169,13 @@ def define_components(m):
     m.gtc_max_mw = Param(m.GTC_PERIODS, within=NonNegativeReals)
     m.gtc_form = Param(within=Any, default="cumulative_in_service")
     m.gtc_retirements_free_room = Param(within=Any, default=0)
+    m.gtc_since_year = Param(within=Any, default=2025)
 
     def gtc_mw(m, p):
+        if value(m.gtc_form) == "cumulative_additions":
+            first, last = int(value(m.gtc_since_year)), value(m.period_end[p])
+            return sum(m.gtc_weight[g] * m.BuildGen[g, y] for g in m.GTC_GENS
+                       for y in m.BLD_YRS_FOR_GEN[g] if first <= y <= last)
         if value(m.gtc_form) == "new_additions_per_period":
             return sum(m.gtc_weight[g] * m.BuildGen[g, y] for g in m.GTC_GENS
                        for y in m.BLD_YRS_FOR_GEN[g] if build_period(m, y) == p)
@@ -205,7 +212,8 @@ def load_inputs(m, switch_data, inputs_dir):
         param=(m.gtc_max_mw,))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "gas_turbine_cap_params.csv"), optional=True,
-        param=(m.gtc_form, m.gtc_retirements_free_room))
+        optional_params=["gtc_retirements_free_room", "gtc_since_year"],
+        param=(m.gtc_form, m.gtc_retirements_free_room, m.gtc_since_year))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "build_rate_groups.csv"), optional=True, index=m.BR_GROUPS,
         optional_params=["br_growth", "br_ramp_floor_mw", "br_life_years", "br_ceiling_slack_cost_per_mw"],

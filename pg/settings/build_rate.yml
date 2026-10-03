@@ -50,4 +50,30 @@ build_rate:
     # cumulative form only: false (default) = economic retirements don't free room (BuildGen, not net
     # of SuspendGen); true = net of SuspendGen
     retirements_free_room: false
+    # ---- form cumulative_additions (the S0 production default from Oct 2026, s0_production.gas_turbine_cap;
+    # this file's default stays the legacy cap above) -------------------------------------------------
+    # Source: Claude Doc "Gas-turbine supply constraint for S0" (3 Oct 2026). Cumulative NEW CC + CT
+    # additions since 1 Jan 2025 (planned units count, retirements irrelevant, no 451.4 GW installed-base
+    # offset), turbine-weighted (CC 0.65, CT and aeroderivative 1.0; reciprocating engines excluded);
+    # in each period, cumulative weighted additions to the period's end year <= the allowance at that year.
+    since_year: 2025
+    allowance_path: central             # low | central | high (paired with the gas capex premium path)
+    # cumulative allowance, GW turbine-equivalent, EIA-860M nameplate basis, by calendar year (end of year)
+    allowance_paths:
+      central: {2025: 3.5, 2026: 8.1, 2027: 15.0, 2028: 24.2, 2029: 35.7, 2030: 49.5, 2031: 66.3, 2032: 86.3, 2033: 109.2, 2034: 132.2, 2035: 155.2, 2036: 178.2, 2037: 201.2, 2038: 224.1, 2039: 247.1, 2040: 270.1}
+      low:     {2025: 3.5, 2026: 8.1, 2027: 13.5, 2028: 20.4, 2029: 28.8, 2030: 38.8, 2031: 50.2, 2032: 63.3, 2033: 77.8, 2034: 93.1, 2035: 108.5, 2036: 123.8, 2037: 139.1, 2038: 154.4, 2039: 169.7, 2040: 185.1}
+      high:    {2025: 3.5, 2026: 8.1, 2027: 17.3, 2028: 30.3, 2029: 45.7, 2030: 64.8, 2031: 87.8, 2032: 114.6, 2033: 145.2, 2034: 175.9, 2035: 206.5, 2036: 237.2, 2037: 267.8, 2038: 298.4, 2039: 329.1, 2040: 359.7}
+    # after 2040: linear at each path's 2035-40 rate (central +22.98, low +15.32, high +30.64 GW/yr, so
+    # 2045 = 385.0 / 261.7 / 512.9 GW); the source stops at 2040
+    extend_slope_years: [2035, 2040]
+    # frame and aeroderivative turbines count, reciprocating engines don't (replaces `coverage` in this form)
+    allowance_coverage: [combined_cycle, combustion_turbine, aeroderivative]
+    class_weights: {combined_cycle: 0.65, combustion_turbine: 1.0, aeroderivative: 1.0}
+    # Capacity basis. The allowance is EIA-860M nameplate. Switch carries existing and planned units at
+    # winter capacity (resources.yml capacity_col: winter_capacity_mw) and new builds at ATB capacity
+    # (taken as nameplate). Planned units are converted to nameplate with the nameplate / winter ratio of
+    # EIA-860 2024 "Proposed" gas units: CC 24.0 GW, 1.049; CT 15.2 GW, 1.090.
+    capacity_basis:
+      predetermined_to_allowance: {combined_cycle: 1.049, combustion_turbine: 1.090, aeroderivative: 1.090}
+      new_build_to_allowance: 1.0
 

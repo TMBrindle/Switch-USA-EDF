@@ -11,11 +11,23 @@ Changes to shared code are listed in `SHARED_CHANGES.md`; history in CHANGES §4
 | `off` | the case as before (every row that predates this) |
 | `on` | all S0 production settings; fleet-independent days; mode A (myopic chain of single years) |
 | `on_windows` | as `on`, mode B (rolling two-period windows) |
-| `on_pgdays` | as `on` with PowerGenome's k-means days and one case for all its years (the s4x1 2035 regression case) |
+| `on_pgdays` | **legacy settings** (ATB-only gas capex, the legacy gas-turbine cap, NY RPS buyout only) with PowerGenome's k-means days and one case for all its years: the s4x1 2035 regression case, built exactly as before Oct 2026 |
+| `on_pgdays_new` | as `on_pgdays` with the new defaults |
 
-Cases: `S0prod_A` (on), `S0prod_B` (on_windows), each with rows for 2028, 2030, 2035, 2040 and 2045;
-`s4x1_S0prod_2035` (on_pgdays): the s4x1 2035 new-stack base for the regression against the ic_v4
-B6+B8 + NY buyout run.
+Cases:
+- `S0prod_A` (on) and `S0prod_B` (on_windows), each with rows for 2028, 2030, 2035, 2040 and 2045. Both
+  use the new defaults.
+- `s4x1_S0prod_2035` (on_pgdays): the s4x1 2035 new-stack base for the regression against the ic_v4
+  B6+B8 + NY buyout run, on the legacy settings.
+- `s4x1_S0prod_2035_new` (on_pgdays_new): the same case with the new defaults.
+
+**Defaults since Oct 2026 (CHANGES §45), with the legacy setting for each:**
+
+| Setting | S0 default | Legacy (`on_pgdays`) |
+|---|---|---|
+| `gas_capex` | `mode: premium`, `path: central` | `mode: atb_moderate` (ATB only) |
+| `gas_turbine_cap` | `form: allowance`, `path: central` | `form: legacy` (451.4 GW + 9.67 GW/yr in service) |
+| `rps_acp` | `mode: flat`, $100/MWh on every state RPS and CES | `mode: programs`, NY RPS $45.39 only |
 
 ```bash
 python pg_to_switch.py pg/settings switch/in/s0prod --case-id S0prod_A      # mode A: 5 stage folders
@@ -29,10 +41,10 @@ The `--myopic` flag is not needed; the case's `foresight.mode` decides. Solve th
 | Hand step in the test workflow (s0_workflow/README.md) | Setting (`s0_production.*`) | Where it happens |
 |---|---|---|
 | `pg_to_switch_netload.py` + `NL_DAYS_CFG` (nl24_fi) | `time_sampling` (method `fleet_independent`) | `operational_files`, per model year |
-| `make_partb.py --only B6` (gas capex alias) | `gas_capex.mode: atb_moderate` (GridLab override neutralised); `gridlab_fade` keeps a premium fading to 0 by `zero_by` (2033) | settings before PowerGenome; premium on `gen_build_costs.csv` |
+| `make_partb.py --only B6` (gas capex alias) | `gas_capex.mode: atb_moderate` (GridLab override neutralised); `premium` adds a fraction over ATB by in-service year (default central) | settings before PowerGenome; premium on `gen_build_costs.csv` |
 | `b8_coalcf.py` (PUDL) | `coal_cf_caps` from `s0_workflow/data/coal_cf_caps_eia923_2021_2024.csv` (public EIA-923/860, `scripts/fetch_coal_cf_eia923.py`) | `gen_info.csv` `gen_max_annual_availability` |
 | `make_windloss_case.py` + `make_windloss2_case.py` | `wind_loss` (onshore and offshore x 0.88098) | `variable_capacity_factors.csv` |
-| `make_rps_acp_alias.py` | `rps_acp.programs: {ESR_NY_rps: 45.39}` | `rps_requirements.csv` |
+| `make_rps_acp_alias.py` | `rps_acp` (`programs: {ESR_NY_rps: 45.39}` legacy; `flat` $100 on all state programs, the default) | `rps_requirements.csv` |
 | `make_build_rate_alias.py` (central v2) | `settings.build_rate` (central, regional groups wind and solar) | build-rate case writer |
 | `patch_case_inputs.py --tag ic_v4`, `--slack-cost 5e7` | `settings.interconnection_headroom` (atts_s0) and `interconnection_slack_cost_per_mw` | headroom case writer; `ic_params.csv` |
 | `--include-module study_modules.gen_amortization_period` on every solve | `extra_modules` | the case's scenario line |
@@ -59,6 +71,39 @@ runs in `low_net_load_fleets` instead; listing the two C1 fleets should reproduc
 If a tolerance can't be met, tolerances relax x1.5, at most twice, and the factor is recorded. If
 they still can't be met, the build stops. Diagnostics are in `<case>/time_sampling/<year>/`.
 
+## Gas capex premium
+
+New-build ATB CC and CT (not CCS) cost ATB 2024 Moderate x (1 + premium). The premium is a fraction by
+in-service year. Each value holds to the year shown and falls to zero after it:
+
+| Path | CC | CT |
+|---|---|---|
+| central (default) | 0.37 to 2031, 0.28 (2032), 0.18 (2033), 0.09 (2034), 0 from 2035 | 0.45 to 2031, 0.34, 0.23, 0.11, 0 from 2035 |
+| low | 0.50 to 2033, 0.40, 0.30, 0.20, 0.10 (2034-37), 0 from 2038 | 0.45 to 2033, 0.36, 0.27, 0.18, 0.09 (2034-37), 0 from 2038 |
+| high | 0.37 to 2029, 0.25 (2030), 0.12 (2031), 0 from 2032 | 0.45 to 2029, 0.30, 0.15, 0 from 2032 |
+
+Capacity built in a period is in service across the period's span. The premium is therefore the
+mean over the span's years (`year_basis: span_mean`), the same averaging PowerGenome applies to ATB
+capex. For example, central CC is +37% for 2028 and 2030 and +18.4% for 2035 (2031-35).
+`year_basis: period_label` uses the label year instead (2035: 0).
+
+**Sources.** The `resources.yml` GridLab override values are not in the GridLab gas turbine cost report
+(Sep 2025). The premium rests on BNEF ($2,157/kW CC, 2025), E3 RECOST Q1 2026 (about $2,500/kW CC and
+$1,700/kW CT, 2030 in-service) and Enverus (about $2,000/kW, Sep 2026). The override stays in
+`resources.yml` for other cases, with a source note.
+
+## State policy buyouts
+
+`rps_acp.mode: flat` (S0 default) sets one buyout price, $100/MWh, on every state RPS and CES program in
+the case (`ESR_*`: 55 programs in 2035, carve-outs included, NY's RPS and CES among them). With a
+buyout, a shortfall is bought at that price instead of making the case infeasible.
+`study_modules.rps_regional` writes two outputs:
+- `rps_shortfall.csv`, by program and period;
+- `rps_buyout_by_state_year.csv`: buyout MWh and $ by state and calendar year. Values are per year and
+  the same in every year of a period's span.
+
+The legacy mode (`programs`) prices NY's RPS at $45.39 only.
+
 ## Gas-turbine supply cap
 
 `build_rate.gas_turbine_cap` (on by default, independent of `build_rate.enabled`):
@@ -72,8 +117,66 @@ they still can't be met, the build stops. Diagnostics are in `<case>/time_sampli
 | `form` | cumulative_in_service | new_additions_per_period (window sum of annual additions) |
 | `retirements_free_room` | false | true: in-service MW net of economic retirements |
 
-The defaults reproduce the old MaxCapTag cap exactly. A research task will supply the new trajectory.
-Output: `gas_turbine_cap_results.csv` (covered MW, cap, dual by period).
+The file's defaults are the legacy cap. They reproduce the old MaxCapTag cap exactly, and non-S0 cases
+keep them. Output: `gas_turbine_cap_results.csv` (covered MW, cap, dual by period).
+
+**S0 default: `form: cumulative_additions` (s0_production `gas_turbine_cap.form: allowance`).** Source:
+Claude Doc "Gas-turbine supply constraint for S0" (3 Oct 2026). The rules:
+- Counts cumulative NEW CC + CT additions since 1 January 2025. Planned (predetermined) units count;
+  retirements are irrelevant; there is no 451.4 GW installed-base offset.
+- Weighted by turbine content: CC 0.65, frame CT and aeroderivative 1.0. Reciprocating engines are
+  excluded.
+- In each period, weighted cumulative additions to the period's end year must be ≤ the allowance at
+  that year.
+
+Allowance paths (GW turbine-equivalent, cumulative; `build_rate.yml allowance_paths`):
+
+| Year | 2025 | 2028 | 2030 | 2035 | 2040 | 2045* |
+|---|---|---|---|---|---|---|
+| low | 3.5 | 20.4 | 38.8 | 108.5 | 185.1 | 261.7 |
+| central (default) | 3.5 | 24.2 | 49.5 | 155.2 | 270.1 | 385.0 |
+| high | 3.5 | 30.3 | 64.8 | 206.5 | 359.7 | 512.9 |
+
+\*The source stops at 2040. 2041-45 continue linearly at each path's 2035-40 rate: central +22.98,
+low +15.32, high +30.64 GW/yr.
+
+The S0 default pairs the central allowance with the central capex premium.
+
+**Capacity basis.** The allowance is EIA-860M nameplate. Switch carries existing and planned units at
+winter capacity (`resources.yml capacity_col: winter_capacity_mw`) and new builds at ATB capacity
+(taken as nameplate). Planned units are converted to nameplate with the nameplate / winter ratio of
+EIA-860 2024 "Proposed" gas units: CC 1.049, CT 1.090 (`capacity_basis`). If planned additions alone
+exceed a period's allowance, the cap is raised to them, with a warning.
+
+## ReEDS state-policy inputs (pinned)
+
+`make_emission_policies.py` reads its ReEDS inputs from `pg/extra_inputs/reeds_state_policies/`: verbatim
+copies of ReEDS release 2026.09.21 (ReEDS-Model/ReEDS, commit 8a15723). The release and commit are in
+`REEDS_RELEASE.yml`; the script no longer downloads from main. The inputs are the RPS and CES fractions,
+out-of-state limits, REC table, technology eligibility, offshore mandates and RGGI states/cap.
+
+The policy files the VM uses (`rggi_carbon/emission_policies_current.csv`, created 2025-12-14 from
+ReEDS main, regenerated 2026-05-12) were **not** regenerated. Cases build exactly as before. If they
+were regenerated from the pin, `s0_workflow/data/reeds_state_policy_diff_2026.09.21.csv` lists what
+would change (from `scripts/compare_reeds_state_policies.py`):
+- **Program-years.** 489 change; 121 by more than 0.005. NY's RPS and CES are unchanged.
+- **Largest changes, 2035:**
+
+  | Program | VM file | Release |
+  |---|---|---|
+  | NC CES | 0.574 | 0.392 |
+  | CT RPS (2030 on) | 0.440 | 0.330 |
+  | ME CES | 0.805 | 0.867 |
+  | CT CES | 0.762 | 0.794 |
+  | ME RPS | 0.789 | 0.816 |
+  | VA CES | 0.495 | 0.474 |
+  | OR CES | 0.582 | 0.571 |
+  | MD solar | 0.113 | 0.124 |
+
+  Most others change by under 0.005.
+- **Programs dropped:** AZ RPS after 2025.
+- **Programs added:** `ESR_NS_rps` (Nova Scotia) and `ESR_voluntary_rps`. Neither maps to a US model
+  region.
 
 ## Bounded foresight
 
@@ -125,7 +228,13 @@ Covers:
 - the case steps;
 - the day selector's targets, tails and fleet independence;
 - the scenario lines for modes A and B;
-- the gas-turbine cap (defaults = the old values; toy solve identical to MaxCapTag);
+- the gas-turbine cap: the legacy defaults equal the old values, with a toy solve identical to
+  MaxCapTag; the allowance form's paths, extension, weights, capacity basis and floor, with a toy
+  solve;
+- the gas capex premium paths and year basis;
+- that the legacy settings rebuild the regression case byte for byte as before;
+- the flat and legacy buyouts and the by-state output;
+- the ReEDS pin and its diff report;
 - the retirement rule on the toy;
 - toy chains for modes A and B;
 - committed handoff of headroom and build-rate state;

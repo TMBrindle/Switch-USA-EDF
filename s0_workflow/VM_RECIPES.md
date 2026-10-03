@@ -56,7 +56,14 @@ SWITCH_SRC="<switch checkout>" "<switch-pg-reeds-fedpol python>" -m pytest -q s0
 (cd build_rate && SWITCH_SRC="<switch checkout>" "<python>" -m pytest -q)
 ```
 
-## A. Regression: s4x1 2035 new-stack base through the settings
+## A. Regression: s4x1 2035 new-stack base through the settings (legacy settings)
+
+The regression case stays on the **legacy** settings: ATB-only gas capex, the legacy gas-turbine cap
+(451.4 GW + 9.67 GW/yr in service) and the NY RPS buyout at $45.39 only. The `on_pgdays` axis value
+pins them, so the October 2026 defaults (CHANGES §45) don't touch it. A test checks that these
+settings rebuild the case files byte for byte as before. In `s0_production_log.txt`, expect
+`gas capex: atb_moderate` and `rps acp: {'ESR_NY_rps': 45.39}`. Expect no `cumulative_additions` in
+`gas_turbine_cap_params.csv`.
 
 **Compare against:** the hand-built run `icv4B68_s4x1_S0unc_2035_icon_aw2_icv4_br_central_v2_B6B8`
 (ic_v4 + B6 + B8 + NY buyout; solve template `s0_workflow/solve/solve_newstack_base_s4x1.bat`).
@@ -133,7 +140,74 @@ PowerGenome's s4x1 days and no chain.
    - `gas_turbine_cap_results.csv` (cap 557,777.5 MW; binding as before);
    - `ic_headroom.csv` (slack).
 
-## B. One mode-B window (2028-2030, s4x1): memory and run time
+## C. Full S0prod_A chain (mode A, 2028-2045, new defaults)
+
+**Case:** `S0prod_A` (`s0_production = on`). Five single-year stages (2028, 2030, 2035, 2040, 2045) on
+the October 2026 defaults:
+- fleet-independent days;
+- central gas capex premium;
+- central gas-turbine allowance (cumulative additions since 2025);
+- $100/MWh buyouts on every state RPS and CES;
+- the retirement rule;
+- coal caps, wind loss, build rate central, headroom atts_s0.
+
+1. Build into a fresh folder. This writes all five stage folders and `scenarios_S0prod_A.txt`.
+   ```bash
+   test -e switch/in/s0prod_A && echo "exists: pick another name" || \
+   "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_A --case-id S0prod_A
+   ```
+2. Check each stage folder `switch/in/s0prod_A/<year>/S0prod_A/` before solving:
+   - `stage_info.csv`: `commit_period` = the year; `next_stage` = the next year (`.` for 2045).
+   - `periods.csv`: one period with the span in `s0_production.yml period_spans`.
+   - `s0_production_log.txt`: the gas capex premium line. For central with span means:
+
+     | Year | CC | CT |
+     |---|---|---|
+     | 2028 | +37% | +45% |
+     | 2030 | +37% | +45% |
+     | 2035 (2031-35) | +18.4% | +22.6% |
+     | 2040 | 0 | 0 |
+     | 2045 | 0 | 0 |
+
+   - `s0_production_log.txt`: `rps acp: flat $100/MWh on <n> state programs` (55 in 2035).
+   - `gas_turbine_cap_params.csv`: `gtc_form cumulative_additions`, `gtc_since_year 2025`.
+   - `gas_turbine_cap.csv`, the allowance at the stage's year, or the planned additions if those are
+     higher (logged):
+
+     | Year | 2028 | 2030 | 2035 | 2040 | 2045 |
+     |---|---|---|---|---|---|
+     | Allowance (MW) | 24,200 | 49,500 | 155,200 | 270,100 | 385,000 |
+
+   - `gas_turbine_cap_gens.csv`: CC weight 0.65 (× 1.049 for planned units), CT and aeroderivative
+     1.0 (× 1.090 for planned); no reciprocating engines.
+   - `time_sampling/<year>/fi_target_errors.csv`: every row within tolerance.
+   - `retirement_rules.csv`: coal and naturalgas, 2030.
+3. Solve the lines of `scenarios_S0prod_A.txt` in order, each with the solver options of recipe A,
+   into fresh output folders. Stages 2-5 read the `*.chained.S0prod_A.csv` files that the previous
+   stage's `prepare_next_stage` wrote. Check they exist before starting each stage.
+   ```bash
+   cd switch
+   while read -r line; do "<SWITCH_EXE>" solve $line \
+       --solver-options-string "method=2 crossover=0 BarConvTol=1e-6 ScaleFlag=2 Threads=8" --tempdir /d/tmp || break
+   done < in/s0prod_A/scenarios_S0prod_A.txt
+   cd ..
+   ```
+4. Report, by stage:
+   - CO2, coal GW and TWh, new CC/CT/wind/solar/storage. Use `compare_s0_runs.py outputs` with
+     `--period <year>`; the second folder can be the same run, since only the metrics are needed.
+   - `gas_turbine_cap_results.csv`: covered MW, cap, dual.
+   - `rps_buyout_by_state_year.csv`: buyout MWh and $ by state.
+   - `retirement_rules_check.csv`: no coal or gas retirement in 2028; retirements from 2030.
+   - `ic_headroom.csv` slack.
+   - Wall time and peak memory per stage (`measure_run.py`).
+
+Optional: build and solve `s4x1_S0prod_2035_new` (the regression case with the new defaults). Compare
+it with recipe A's run to see what the new defaults change in 2035 on the same days.
+
+## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
+
+**Deferred** (Oct 2026): mode A is the production route for now. Keep this recipe for when mode B is
+taken up; it builds with the new defaults like `S0prod_A`.
 
 **Case:** `S0prod_B` (`s0_production = on_windows`). Build only 2028 and 2030. That gives one
 window, `2028_2030`, with both periods and no next stage. It is the size of every production window:
@@ -174,8 +248,7 @@ two periods of 24 fleet-independent days plus the peak day each, about 1,200 tim
    625 timepoints needed about 120 GB). Two windows' worth of timepoints should need roughly 80 GB;
    compare the measured peak with that.
 
-**Full production chain** (after A and B): build `S0prod_A` (mode A) or `S0prod_B` (mode B) for all
-five years into a fresh folder. Solve the lines of `scenarios_<case>.txt` in order. Each stage's
+**Full mode-B chain** (deferred, after B): build `S0prod_B` for all five years into a fresh folder. Solve the lines of `scenarios_<case>.txt` in order. Each stage's
 `prepare_next_stage` writes the next stage's `*.chained.<case>.csv` from what the stage committed.
 
 ## Renames to carry into VM scripts

@@ -1,0 +1,24 @@
+# ReEDS inputs that make_emission_policies.py reads (state RPS/CES fractions, out-of-state REC limits,
+# REC trading table, technology eligibility, offshore wind mandates, RGGI states and cap), pinned to
+# one ReEDS release instead of downloading live from the main branch (Oct 2026; CHANGES §45).
+# The files in this folder are verbatim copies of inputs/<path> at the commit below.
+repository: https://github.com/ReEDS-Model/ReEDS     # formerly NREL/ReEDS-2.0
+release: "2026.09.21"
+tag_object: 9a034b4bd9af291219145b0d7bd98556bf3cc6ff
+commit: 8a1572331da89b15ad3c0f74db448911f715266c
+commit_date: "2026-09-17 16:26:43 -0600"
+copied: "2026-10-03"
+files:
+  - state_policies/rps_fraction.csv
+  - state_policies/ces_fraction.csv
+  - state_policies/oosfrac.csv
+  - state_policies/techs_banned_rps.csv
+  - state_policies/techs_banned_ces.csv
+  - state_policies/rectable.csv
+  - state_policies/offshore_req_default.csv
+  - tech-subset-table.csv
+  - emission_constraints/rggi_states.csv
+  - emission_constraints/rggicon.csv     # fallback only: rggi_carbon/rggicon_3pr.csv is used when present
+# Differences against the files the VM uses (pg/extra_inputs/rggi_carbon/emission_policies_current.csv,
+# created 2025-12-14 from ReEDS main, regenerated 2026-05-12):
+# s0_workflow/data/reeds_state_policy_diff_2026.09.21.csv (scripts/compare_reeds_state_policies.py).

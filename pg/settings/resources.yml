@@ -462,6 +462,12 @@ atb_modifiers:
     # 30% federal ITC applies to batteries and geothermal
     capex_mw: [mul, 0.7]
 
+  # Source note (Oct 2026 review): the values below are not in the GridLab gas
+  # turbine cost report (Sep 2025), so the attribution that follows is unverified.
+  # S0 production cases neutralise this override and apply a sourced premium over
+  # ATB Moderate instead (pg/settings/s0_production.yml gas_capex: BNEF $2,157/kW CC
+  # 2025; E3 RECOST Q1 2026 ~$2,500/kW CC, ~$1,700/kW CT for 2030 in-service;
+  # Enverus ~$2,000/kW, Sep 2026). Values unchanged here, so other cases build as before.
   # Change CC and CT baseline costs from ATB to GridLab regression for 2030 read
   # from Figures 2-3 of
   # https://gridlab.org/portfolio-item/gas-tubine-cost-report/ We use absolute
