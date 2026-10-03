@@ -28,6 +28,8 @@ switch_model.balancing.operating_reserves.spinning_reserves
 study_modules.carbon_policies_regional
 study_modules.min_capacity_constraint
 study_modules.max_capacity_constraint
+# build-rate supply curves; no-op without build_rate_*.csv (pg settings build_rate.enabled)
+study_modules.build_rate
 study_modules.rps_regional
 study_modules.trans_path_expansion_limit
 study_modules.trans_build_minimum
