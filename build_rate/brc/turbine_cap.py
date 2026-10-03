@@ -117,7 +117,10 @@ def allowance_mw(cfg: dict, year: int) -> float:
     if y in tab:
         return tab[y]
     if y > years[-1]:
+        # beyond the source table (2040 in build_rate.yml): a coordinator estimate, not sourced
         a, b = (int(x) for x in cfg["extend_slope_years"])
+        logger.info("gas_turbine_cap: %s allowance for %d extended past %d at the %d-%d rate "
+                    "(coordinator estimate)", cfg["allowance_path"], y, years[-1], a, b)
         return tab[years[-1]] + (tab[b] - tab[a]) / (b - a) * (y - years[-1])
     lo = max(k for k in years if k < y)
     hi = min(k for k in years if k > y)
@@ -148,14 +151,19 @@ def write_case_inputs(out_folder: Path, settings: dict) -> list[str]:
     pred = pd.read_csv(pred_path, na_values=["."]) if pred_path.exists() else None
     if cfg["form"] == "cumulative_additions":
         # turbine-equivalent class weights x the factor converting Switch MW to the allowance's basis
-        # (EIA-860M nameplate): predetermined (existing/planned) units are in winter capacity
-        # (resources.yml capacity_col), new builds in ATB capacity
+        # (EIA-860M nameplate), by class: predetermined (existing/planned) units and new builds each
+        # take a per-class factor (a number applies to every class)
         cw = {k: float(v) for k, v in (cfg["class_weights"] or {}).items()}
         basis = cfg["capacity_basis"] or {}
-        pre_f = {k: float(v) for k, v in (basis.get("predetermined_to_allowance") or {}).items()}
-        new_f = float(basis.get("new_build_to_allowance", 1.0))
+
+        def factors(v):
+            if isinstance(v, dict):
+                return lambda c: float(v.get(c, 1.0))
+            return lambda c: float(1.0 if v is None else v)
+        pre_f = factors(basis.get("predetermined_to_allowance"))
+        new_f = factors(basis.get("new_build_to_allowance"))
         existing = set(pred["GENERATION_PROJECT"]) if pred is not None else set()
-        w = [cw.get(c, 1.0) * (pre_f.get(c, 1.0) if g in existing else new_f)
+        w = [cw.get(c, 1.0) * (pre_f(c) if g in existing else new_f(c))
              for g, c in zip(gens["GENERATION_PROJECT"], gens["gtc_class"])]
     else:
         w = np.where((gens["gtc_class"] == "combined_cycle") & (cfg["cc_accounting"] == "turbine_share"),

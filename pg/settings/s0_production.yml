@@ -5,7 +5,8 @@
 #   off          (default for every existing row)
 #   on           everything below; fleet-independent days; mode A (myopic chain of single years)
 #   on_windows   as `on`, mode B (rolling two-period windows)
-#   on_pgdays    LEGACY settings (ATB-only gas capex, the legacy gas-turbine cap, NY RPS buyout only)
+#   on_pgdays    LEGACY settings (ATB-only gas capex, the legacy gas-turbine cap, NY RPS buyout only,
+#                the current state-policy files)
 #                with PowerGenome's k-means days and no chain: the s4x1 2035 regression case
 #                (s4x1_S0prod_2035) against the ic_v4 B6+B8 + NY buyout run; builds as before Oct 2026
 #   on_pgdays_new  as on_pgdays with the new defaults below (s4x1_S0prod_2035_new)
@@ -106,8 +107,9 @@ s0_production:
     offshore: true                 # OffShoreWind_* and existing "Offshore Wind Turbine" (windloss2)
 
   # state policy buyouts (rps_acp_per_mwh, study_modules.rps_regional; output rps_buyout_by_state_year.csv)
-  # flat (S0 default): one buyout price on every state RPS and CES program (ESR_*; 55 programs in 2035,
-  #   carve-outs included), NY's RPS and CES among them
+  # flat (S0 default): one buyout price on every state RPS and CES program (ESR_*, carve-outs included;
+  #   54 programs in 2035 with the pinned ReEDS release, 55 with the current file), NY's RPS and CES
+  #   among them
   # programs (legacy; the regression case): only the programs listed: NY RPS at NYSERDA's 2024 Tier 1
   #   ACP, $45.39/MWh, the last published (from 2025 Tier 1 is a load-share charge with no ACP);
   #   every other program a hard requirement
@@ -118,6 +120,15 @@ s0_production:
     price: 100.0                   # $/MWh
     program_prefix: ESR_
     programs: {ESR_NY_rps: 45.39}  # used by mode: programs
+
+  # state RPS/CES targets and eligibility (Oct 2026). A ReEDS release (S0 default): the policy files
+  #   built from the pinned copies of that release (pg/extra_inputs/reeds_state_policies/REEDS_RELEASE.yml)
+  #   by s0_workflow/scripts/build_reeds_state_policies.py: rggi_carbon/emission_policies_reeds_<release>.csv
+  #   and reeds_state_policies/s0_state_policies_<release>.yml (production.apply_state_policies)
+  # legacy (the regression case): rggi_carbon/emission_policies_current.csv and the ESR tags of
+  #   regional_resource_tags.yml, as every other case
+  state_policies:
+    release: "2026.09.21"          # ReEDS-Model/ReEDS tag 2026.09.21, commit 8a1572331da8 | legacy
 
   # item 6: extra Switch modules on the case's scenario line (not switch/modules.txt)
   extra_modules: [study_modules.gen_amortization_period]

@@ -173,6 +173,8 @@ def test_allowance_paths_and_extension():
         # cap for a period = allowance at its end year (2035 period = 2031-35)
         assert gtc.cap_mw(cfg, 2035, 2031, 2035) == pytest.approx(vals[10] * 1000)
     assert gtc.allowance_mw(allowance_cfg(), 2045) == pytest.approx(385.0e3, abs=1)
+    # the 2041-45 extension is labelled as a coordinator estimate in the config
+    assert "COORDINATOR ESTIMATE, not from the research doc" in (REPO / "pg/settings/build_rate.yml").read_text()
     cfg = allowance_cfg()
     assert cfg["class_weights"] == {"combined_cycle": 0.65, "combustion_turbine": 1.0, "aeroderivative": 1.0}
     assert cfg["since_year"] == 2025
@@ -200,7 +202,8 @@ def test_allowance_writer_weights_basis_floor(tmp_path):
     g = pd.read_csv(tmp_path / "gas_turbine_cap_gens.csv").set_index("GENERATION_PROJECT")["gtc_weight"]
     assert set(g.index) == {"cc_plan", "ct_plan", "cc_new", "aero_new", "cc_old"}       # recips excluded
     assert g["cc_plan"] == pytest.approx(0.65 * 1.049) and g["ct_plan"] == pytest.approx(1.0 * 1.090)
-    assert g["cc_new"] == pytest.approx(0.65) and g["aero_new"] == pytest.approx(1.0)
+    # new builds converted to nameplate with the same ratios as planned units (one basis)
+    assert g["cc_new"] == pytest.approx(0.65 * 1.049) and g["aero_new"] == pytest.approx(1.0 * 1.090)
     cap = pd.read_csv(tmp_path / "gas_turbine_cap.csv").set_index("PERIOD")["gtc_max_mw"]
     # 2028: planned additions since 2025 to 2028 = 20 GW CC x 0.65 x 1.049 = 13.6 GW < 24.2 GW allowance
     assert cap[2028] == pytest.approx(24200.0)
@@ -214,6 +217,22 @@ def test_allowance_writer_weights_basis_floor(tmp_path):
     gtc.write_case_inputs(tmp_path, s)
     cap = pd.read_csv(tmp_path / "gas_turbine_cap.csv").set_index("PERIOD")["gtc_max_mw"]
     assert cap[2028] == pytest.approx(40000 * 1.090)
+
+
+def test_capacity_basis_number_or_map(tmp_path):
+    """capacity_basis factors may be one number (every class) or a per-class map."""
+    pd.DataFrame({"GENERATION_PROJECT": ["cc_new", "ct_new"],
+                  "gen_tech": ["NaturalGas_1-on-1 Combined Cycle (H-Frame)_Moderate",
+                               "NaturalGas_Combustion Turbine (F-Frame)_Moderate"],
+                  "gen_energy_source": ["naturalgas"] * 2}).to_csv(tmp_path / "gen_info.csv", index=False)
+    pd.DataFrame({"INVESTMENT_PERIOD": [2030], "period_start": [2026], "period_end": [2030]}).to_csv(
+        tmp_path / "periods.csv", index=False)
+    for basis, cc, ct in ((1.2, 0.65 * 1.2, 1.2), ({"combined_cycle": 1.049}, 0.65 * 1.049, 1.0)):
+        s = {"build_rate": {"gas_turbine_cap": {**allowance_cfg(), "capacity_basis": {
+            "predetermined_to_allowance": {}, "new_build_to_allowance": basis}}}}
+        gtc.write_case_inputs(tmp_path, s)
+        g = pd.read_csv(tmp_path / "gas_turbine_cap_gens.csv").set_index("GENERATION_PROJECT")["gtc_weight"]
+        assert g["cc_new"] == pytest.approx(cc) and g["ct_new"] == pytest.approx(ct)
 
 
 def test_toy_cumulative_additions(tmp_path):

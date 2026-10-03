@@ -41,6 +41,14 @@ its case files and checks them byte for byte against the previous code.
 | 19 | `make_emission_policies.py`, new `pg/extra_inputs/reeds_state_policies/` | Every ReEDS input the script reads now comes from verbatim copies of ReEDS release 2026.09.21 (commit 8a15723), recorded in `REEDS_RELEASE.yml`, instead of live downloads from main (`reeds_input()`). | S0 item 4 (§45): reproducible state-policy inputs. | none until the script is rerun. Rerunning would change the state RPS/CES targets as listed in `s0_workflow/data/reeds_state_policy_diff_2026.09.21.csv` (largest: NC CES, CT RPS, ME CES; NY unchanged). The committed policy files are not regenerated. |
 | 20 | `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv` | The `on_pgdays` axis value pins the legacy settings; new value `on_pgdays_new`; new row `s4x1_S0prod_2035_new`. | Keep the regression case as built; add its new-defaults twin. | none |
 
+### Added in §46 (Oct 2026: policy files from the pinned ReEDS release, nameplate basis for new builds)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 21 | `pg_to_switch.py` | One call, `s0prod.apply_state_policies(case_settings)`, after the case settings are built and before the region scope. | §46 item 4: S0 new-defaults cases take the state-policy files of the pinned ReEDS release; before the region scope so aggregated zones take their tags. | none: a no-op unless `s0_production.enabled` and `state_policies.release` is a release (not `legacy`). It builds new dicts, so settings objects shared with other cases are not modified (tested). |
+| 22 | new files: `pg/extra_inputs/rggi_carbon/emission_policies_reeds_2026.09.21.csv`, `pg/extra_inputs/reeds_state_policies/s0_state_policies_2026.09.21.yml` (from `s0_workflow/scripts/build_reeds_state_policies.py`) | State RPS/CES targets, UREC limits, carbon columns, and ESR eligibility built from the pinned release with `make_emission_policies.py`'s rules. `emission_policies_current.csv`, `regional_resource_tags.yml` and the tag lists are not touched. | §46 item 4. | none: read only by S0 cases on the release. The release's eligibility, carbon columns and offshore mandates equal the current ones. Only targets differ (diff report). |
+| 23 | `build_rate/brc/turbine_cap.py`, `pg/settings/build_rate.yml` | `capacity_basis` factors may be a number or a per-class map. `new_build_to_allowance` is now CC 1.049, CT/aero 1.090 (was 1.0). The 2041-45 extension is labelled and logged as a coordinator estimate. | §46 items 2-3. | none: used only by the `cumulative_additions` form (S0 cases); the file's default form is unchanged. |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -56,3 +64,7 @@ its case files and checks them byte for byte against the previous code.
    merge. They are additive: one axis, two columns, rows.
 4. `prepare_next_stage.py` now ends `post_solve` through `chain_stage()`; the legacy logic is
    unchanged inside it.
+5. (§46) `build_reeds_state_policies.py` duplicates the ESR-target, eligibility and carbon rules of
+   `make_emission_policies.py` rather than refactoring that script. A change to those rules there
+   should be mirrored. The test that the release's eligibility equals `regional_resource_tags.yml`
+   catches a drift in the eligibility rules, but only while the two inputs agree.

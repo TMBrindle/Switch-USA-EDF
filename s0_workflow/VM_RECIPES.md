@@ -61,7 +61,9 @@ SWITCH_SRC="<switch checkout>" "<switch-pg-reeds-fedpol python>" -m pytest -q s0
 The regression case stays on the **legacy** settings: ATB-only gas capex, the legacy gas-turbine cap
 (451.4 GW + 9.67 GW/yr in service) and the NY RPS buyout at $45.39 only. The `on_pgdays` axis value
 pins them, so the October 2026 defaults (CHANGES §45) don't touch it. A test checks that these
-settings rebuild the case files byte for byte as before. In `s0_production_log.txt`, expect
+settings rebuild the case files byte for byte as before. It also keeps the current state-policy files
+(`state_policies.release: legacy`): `emission_policies_fn` stays
+`rggi_carbon/emission_policies_current.csv`. In `s0_production_log.txt`, expect
 `gas capex: atb_moderate` and `rps acp: {'ESR_NY_rps': 45.39}`. Expect no `cumulative_additions` in
 `gas_turbine_cap_params.csv`.
 
@@ -148,11 +150,17 @@ the October 2026 defaults:
 - central gas capex premium;
 - central gas-turbine allowance (cumulative additions since 2025);
 - $100/MWh buyouts on every state RPS and CES;
+- state RPS/CES targets from ReEDS release 2026.09.21
+  (`rggi_carbon/emission_policies_reeds_2026.09.21.csv`; committed, built from the pinned copies);
 - the retirement rule;
 - coal caps, wind loss, build rate central, headroom atts_s0.
 
-1. Build into a fresh folder. This writes all five stage folders and `scenarios_S0prod_A.txt`.
+1. Check the pinned state-policy files, then build into a fresh folder. The build writes all five stage
+   folders and `scenarios_S0prod_A.txt`. The check needs no VM data: it rebuilds the policy files in
+   memory from the pinned ReEDS copies and compares them with the committed ones. It must print nothing
+   and exit 0. If it reports a difference, stop and report it; don't overwrite the files.
    ```bash
+   "<switch-pg-reeds-fedpol python>" s0_workflow/scripts/build_reeds_state_policies.py --check && \
    test -e switch/in/s0prod_A && echo "exists: pick another name" || \
    "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_A --case-id S0prod_A
    ```
@@ -169,17 +177,25 @@ the October 2026 defaults:
      | 2040 | 0 | 0 |
      | 2045 | 0 | 0 |
 
-   - `s0_production_log.txt`: `rps acp: flat $100/MWh on <n> state programs` (55 in 2035).
+   - `s0_production_log.txt`: `rps acp: flat $100/MWh on <n> state programs` (54 in 2035: the release ends AZ's RPS after 2025;
+     55 with the current file).
+   - The build's console log: `state policies from ReEDS 2026.09.21
+     (rggi_carbon/emission_policies_reeds_2026.09.21.csv)` for every year.
+   - `rps_requirements.csv`, 2035: NC CES 0.392 (0.574 in the current file) and CT RPS 0.33 (0.44).
+     NY's RPS and CES are as before. No AZ RPS from 2028 on.
    - `gas_turbine_cap_params.csv`: `gtc_form cumulative_additions`, `gtc_since_year 2025`.
    - `gas_turbine_cap.csv`, the allowance at the stage's year, or the planned additions if those are
      higher (logged):
 
      | Year | 2028 | 2030 | 2035 | 2040 | 2045 |
      |---|---|---|---|---|---|
-     | Allowance (MW) | 24,200 | 49,500 | 155,200 | 270,100 | 385,000 |
+     | Allowance (MW) | 24,200 | 49,500 | 155,200 | 270,100 | 385,000* |
 
-   - `gas_turbine_cap_gens.csv`: CC weight 0.65 (× 1.049 for planned units), CT and aeroderivative
-     1.0 (× 1.090 for planned); no reciprocating engines.
+     \*2045 is the coordinator estimate (the 2035-40 rate extended), not from the research doc. The
+     console log says so.
+
+   - `gas_turbine_cap_gens.csv`: CC weight 0.65 × 1.049 = 0.682, CT and aeroderivative 1.0 × 1.090 =
+     1.090, for planned units and new builds alike (nameplate basis); no reciprocating engines.
    - `time_sampling/<year>/fi_target_errors.csv`: every row within tolerance.
    - `retirement_rules.csv`: coal and naturalgas, 2030.
 3. Solve the lines of `scenarios_S0prod_A.txt` in order, each with the solver options of recipe A,

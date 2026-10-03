@@ -4,6 +4,8 @@ pg_to_switch.py calls this module when a case's settings have `s0_production.ena
 case by the `s0_production` column of scenario_inputs.csv). It replaces the hand steps of the S0 test
 workflow (s0_workflow/README.md) with tracked settings:
 
+  apply_state_policies(case_settings)  before the region scope: state RPS/CES files of the pinned
+                                       ReEDS release (s0_production.state_policies.release)
   apply_settings(case_settings)        before PowerGenome builds anything: deep-merge
                                        s0_production.settings (build rate central, headroom atts_s0)
                                        and set the gas capex basis (ATB Moderate)
@@ -96,6 +98,58 @@ def apply_settings(case_settings: dict) -> None:
                     raise ValueError(
                         f"s0_production.period_spans gives {year} a first year of {first} but the settings give "
                         f"model_first_planning_year {s.get('model_first_planning_year')} (model_definition.yml)")
+
+
+CURRENT_POLICIES_FN = "rggi_carbon/emission_policies_current.csv"
+
+
+def state_policy_doc(release: str) -> dict:
+    """The S0 state-policy file for a pinned ReEDS release (s0_workflow/scripts/build_reeds_state_policies.py)."""
+    import yaml
+    path = REPO / "pg/extra_inputs/reeds_state_policies" / f"s0_state_policies_{release}.yml"
+    if not path.exists():
+        raise FileNotFoundError(f"s0_production.state_policies.release {release!r}: {path} not found; build it "
+                                f"with s0_workflow/scripts/build_reeds_state_policies.py")
+    return yaml.safe_load(open(path))
+
+
+def apply_state_policies(case_settings: dict) -> None:
+    """In place, for every S0 case/year whose s0_production.state_policies.release is a ReEDS release (not
+    legacy): state RPS/CES targets from emission_policies_reeds_<release>.csv, and ESR eligibility
+    (ESR_* regional tags and the ESR_* entries of model_tag_names / generator_columns) from
+    s0_state_policies_<release>.yml. Called before the region scope is applied, so aggregated zones
+    take these tags. Other cases, and legacy, keep the current policy files."""
+    docs = {}
+    for case, years in case_settings.items():
+        for year, s in years.items():
+            s0 = s0_settings(s)
+            if s0 is None:
+                continue
+            release = str((s0.get("state_policies") or {}).get("release", "legacy"))
+            if release == "legacy":
+                continue
+            doc = docs.get(release) or docs.setdefault(release, state_policy_doc(release))
+            fn = s.get("emission_policies_fn")
+            if fn != CURRENT_POLICIES_FN:
+                raise ValueError(f"{case}/{year}: s0_production.state_policies.release {release} replaces "
+                                 f"{CURRENT_POLICIES_FN}, but the case uses {fn!r}")
+            s["emission_policies_fn"] = doc["emission_policies_fn"]
+            # new dicts throughout: cases and years may share nested settings objects
+            rtv = {r: {p: v for p, v in (progs or {}).items() if not str(p).startswith("ESR_")}
+                   for r, progs in (s.get("regional_tag_values") or {}).items()}
+            for r, progs in doc["regional_tag_values"].items():
+                rtv[r] = {**rtv.get(r, {}), **copy.deepcopy(progs)}
+            s["regional_tag_values"] = rtv
+            for key in ("model_tag_names", "generator_columns"):
+                tags = s.get(key)
+                if not isinstance(tags, list) or {t for t in tags if str(t).startswith("ESR_")} == \
+                        set(doc["esr_tags"]):
+                    continue
+                at = next((i for i, t in enumerate(tags) if str(t).startswith("ESR_")), len(tags))
+                rest = [t for t in tags if not str(t).startswith("ESR_")]
+                s[key] = rest[:at] + list(doc["esr_tags"]) + rest[at:]
+            logger.info("s0_production %s/%s: state policies from ReEDS %s (%s)", case, year, release,
+                        doc["emission_policies_fn"])
 
 
 # ---------------------------------------------------------------------------------------------------

@@ -1298,7 +1298,8 @@ settings_management:
       on_windows:
         s0_production: {enabled: true, foresight: {mode: windows}}
       # regression case (s4x1_S0prod_2035): the settings as of the first S0 production build
-      # (legacy gas capex, gas-turbine cap and buyout), so it builds exactly as before Oct 2026
+      # (legacy gas capex, gas-turbine cap, buyout and state-policy files), so it builds exactly as
+      # before Oct 2026
       on_pgdays:
         s0_production:
           enabled: true
@@ -1307,6 +1308,7 @@ settings_management:
           gas_capex: {mode: atb_moderate}
           gas_turbine_cap: {form: legacy}
           rps_acp: {mode: programs}
+          state_policies: {release: legacy}
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}

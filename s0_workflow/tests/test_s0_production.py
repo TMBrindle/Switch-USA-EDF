@@ -39,7 +39,7 @@ def test_settings_file_axis_and_rows():
     # the regression case keeps the legacy settings; its _new twin takes the new defaults
     leg = ax["on_pgdays"]["s0_production"]
     assert leg["gas_capex"] == {"mode": "atb_moderate"} and leg["gas_turbine_cap"] == {"form": "legacy"}
-    assert leg["rps_acp"] == {"mode": "programs"}
+    assert leg["rps_acp"] == {"mode": "programs"} and leg["state_policies"] == {"release": "legacy"}
     assert ax["on_pgdays_new"]["s0_production"] == {"enabled": True, "time_sampling": {"method": "powergenome"},
                                                     "foresight": {"mode": "single"}}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
@@ -67,6 +67,7 @@ def test_settings_file_axis_and_rows():
     assert s0["gas_turbine_cap"] == {"form": "allowance", "path": "central"}
     assert s0["rps_acp"]["mode"] == "flat" and s0["rps_acp"]["price"] == 100.0
     assert s0["rps_acp"]["programs"] == {"ESR_NY_rps": 45.39}                       # legacy option kept
+    assert s0["state_policies"] == {"release": "2026.09.21"}                         # pinned ReEDS release
     assert s0["coal_cf_caps"]["enabled"] and s0["wind_loss"]["enabled"]
     pp = s0["gas_capex"]["premium_paths"]
     assert pp["central"]["cc"] == {2031: 0.37, 2032: 0.28, 2033: 0.18, 2034: 0.09, 2035: 0.0}
@@ -222,6 +223,51 @@ def test_gas_premium_paths():
         assert cs["c"][2035]["atb_modifiers"]["ngcc"]["capex_mw"] == capex
 
 
+def _policy_settings():
+    """The state-policy settings of a case as PowerGenome loads them from pg/settings."""
+    rrt = yaml.safe_load(open(REPO / "pg/settings/regional_resource_tags.yml"))["regional_tag_values"]
+    tags = yaml.safe_load(open(REPO / "pg/settings/resource_tags.yml"))["model_tag_names"]
+    cols = yaml.safe_load(open(REPO / "pg/settings/model_definition.yml"))["generator_columns"]
+    return {"emission_policies_fn": s0prod.CURRENT_POLICIES_FN, "regional_tag_values": rrt,
+            "model_tag_names": tags, "generator_columns": cols}
+
+
+def test_apply_state_policies():
+    """New defaults take the policy files built from the pinned ReEDS release; legacy and other cases keep
+    the current ones."""
+    shared = _policy_settings()
+    new = {**_case_settings(axis_value="on_pgdays_new"), **shared}
+    leg = {**_case_settings(axis_value="on_pgdays"), **shared}
+    other = dict(shared)
+    snap = copy.deepcopy(shared)
+    cs = {"new": {2035: new}, "leg": {2035: leg}, "other": {2035: other}}
+    s0prod.apply_state_policies(cs)
+    assert new["emission_policies_fn"] == "rggi_carbon/emission_policies_reeds_2026.09.21.csv"
+    assert (REPO / "pg/extra_inputs" / new["emission_policies_fn"]).exists()
+    assert leg == {**_case_settings(axis_value="on_pgdays"), **snap} and other == snap
+    assert shared == snap                                         # nested settings shared by cases untouched
+    doc = s0prod.state_policy_doc("2026.09.21")
+    for r, progs in doc["regional_tag_values"].items():
+        assert {p: v for p, v in new["regional_tag_values"][r].items() if p.startswith("ESR_")} == progs
+    # non-ESR tags (offshore mandates, growth caps) are kept
+    keep = {(r, p) for r, d in snap["regional_tag_values"].items() for p in (d or {}) if not p.startswith("ESR_")}
+    assert keep and all(p in new["regional_tag_values"][r] for r, p in keep)
+    assert sorted(t for t in new["model_tag_names"] if t.startswith("ESR_")) == doc["esr_tags"]
+    # S0prod_A / S0prod_B (on, on_windows) take the release too
+    for ax in ("on", "on_windows"):
+        s = {**_case_settings(axis_value=ax), **_policy_settings()}
+        s0prod.apply_state_policies({"c": {2035: s}})
+        assert s["emission_policies_fn"].endswith("reeds_2026.09.21.csv")
+    # a case on another policy file (e.g. the decarb policies) is not silently replaced
+    with pytest.raises(ValueError, match="emission_policies_decarb"):
+        s0prod.apply_state_policies({"c": {2035: {**_case_settings(axis_value="on"), **_policy_settings(),
+                                                  "emission_policies_fn": "rggi_carbon/emission_policies_decarb.csv"}}})
+    with pytest.raises(FileNotFoundError, match="build_reeds_state_policies"):
+        s0prod.state_policy_doc("1999.01.01")
+    src = (REPO / "pg_to_switch.py").read_text()
+    assert src.index("s0prod.apply_state_policies(case_settings)") < src.index("_any_scope = any(")
+
+
 def test_legacy_settings_build_as_before(tmp_path):
     """The regression case (on_pgdays) produces the same case files as the code and settings before the
     Oct 2026 changes (commit e03736e)."""
@@ -241,7 +287,7 @@ def test_legacy_settings_build_as_before(tmp_path):
 
     def settings(s0, ax):
         s = {"s0_production": copy.deepcopy(s0), "atb_modifiers": copy.deepcopy(res["atb_modifiers"]),
-             "model_first_planning_year": 2031, "case_id": "c"}
+             "model_first_planning_year": 2031, "case_id": "c", **_policy_settings()}
         return s0prod.deep_merge(s, ax)
     old_s = settings(yaml.safe_load(open(old_dir / "s0_old.yml"))["s0_production"],
                      yaml.safe_load(open(old_dir / "sm_old.yml"))["settings_management"]["all_years"]["s0_production"]["on_pgdays"])
@@ -251,6 +297,9 @@ def test_legacy_settings_build_as_before(tmp_path):
     _case(tmp_path / "old")
     _case(tmp_path / "new")
     old.apply_settings({"c": {2035: old_s}})
+    before = copy.deepcopy(new_s)
+    s0prod.apply_state_policies({"c": {2035: new_s}})
+    assert new_s == before                                       # legacy: current state-policy files
     s0prod.apply_settings({"c": {2035: new_s}})
     assert old_s["atb_modifiers"] == new_s["atb_modifiers"]
     assert old_s.get("build_rate") == new_s.get("build_rate")            # no gas-turbine cap override

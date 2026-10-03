@@ -1679,3 +1679,80 @@ the buyout output, the ReEDS pin and diff. Headroom 31 and build rate 22 unchang
 - the regression (A) stays on the legacy settings;
 - new recipe C, the full `S0prod_A` mode-A chain 2028-2045 on the new defaults;
 - the mode-B window (B) is deferred.
+
+---
+
+## 46. S0 Production: Policy Files From the Pinned ReEDS Release, New Builds on the Nameplate Basis
+
+**Date:** 2026-10-03 · **Branch:** `tom/s0-prod-scripts`
+**See also:**
+- `Guides and documentation/s0_production.md`
+- `s0_workflow/VM_RECIPES.md`
+- `SHARED_CHANGES.md` (#21-23)
+
+Tom's decisions on §45. The regression case
+`s4x1_S0prod_2035` keeps the legacy setting for each change; a test still rebuilds its case files
+byte for byte against the pre-§45 code.
+
+1. **Gas capex premium per stage:** unchanged. The default stays the mean of the yearly premiums over
+   the stage's years (`year_basis: span_mean`), now confirmed.
+2. **Turbine cap: new builds on the nameplate basis.** `capacity_basis.new_build_to_allowance` is now
+   per class and uses the planned-unit ratios: CC 1.049, CT and aeroderivative 1.090. Planned and new
+   capacity count on one basis, so a new CC MW counts 0.65 x 1.049 = 0.682 and a new CT MW 1.090.
+   - `turbine_cap.py` accepts each factor as a number (every class) or a per-class map.
+   - Legacy forms are unaffected; the factors apply only to `cumulative_additions`.
+3. **2041-45 allowances** are kept (each path's 2035-40 rate). `build_rate.yml`, the docs and the
+   build log label them a coordinator estimate, not from the research doc.
+4. **State-policy files from the pinned release (2026.09.21, commit 8a15723), for the new-defaults
+   cases only** (`s4x1_S0prod_2035_new`, `S0prod_A`, `S0prod_B`).
+   - **Files.** `s0_workflow/scripts/build_reeds_state_policies.py` applies
+     `make_emission_policies.py`'s ESR target, eligibility and carbon rules to the pinned copies. It
+     writes two new files and overwrites nothing:
+     - `pg/extra_inputs/rggi_carbon/emission_policies_reeds_2026.09.21.csv` (targets, UREC limits,
+       carbon columns);
+     - `pg/extra_inputs/reeds_state_policies/s0_state_policies_2026.09.21.yml` (ESR eligibility by
+       region, tag list).
+
+     It needs only repo data, so the files are built here and committed. `--check` compares them with
+     a fresh build.
+   - **Setting.** `s0_production.state_policies.release: "2026.09.21"` is the default; `legacy` keeps
+     `emission_policies_current.csv` and is set by `on_pgdays`.
+   - **Case build.** `production.apply_state_policies` swaps in `emission_policies_fn`, the ESR
+     regional tags and the ESR tag list. `pg_to_switch.py` calls it before the region scope, so
+     aggregated zones take the tags. A case on another policy file (e.g. decarb) stops with an error.
+   - **What changes:** only the targets. These are the changes listed in §45 item 4, including NC CES
+     2035 0.574 → 0.392 and CT RPS 0.44 → 0.33, with AZ RPS ending after 2025.
+   - **What doesn't:**
+     - The release's ESR eligibility equals `regional_resource_tags.yml` (1,932 region-program
+       entries).
+     - The RGGI states and carbon columns are unchanged.
+     - The offshore wind mandates equal `scenario_management.yml`'s MinCapReq in every year, so they
+       aren't rebuilt.
+   - **Program count:** with the release, 2035 has 54 state programs under the $100 buyout (55 with
+     the current file, AZ RPS included).
+   - **Rounding in the current file:** it holds NY's targets rounded to 6 digits in p127 and p128;
+     the release file has full precision.
+
+**Tests:** `s0_workflow/tests` 32 (was 27):
+- new-build basis, with the factor as a number or a per-class map;
+- the estimate label;
+- the policy files current with a fresh build, with:
+  - targets equal to the release;
+  - NY unchanged;
+  - eligibility and carbon unchanged;
+  - offshore mandates equal;
+- `apply_state_policies`, covering:
+  - new defaults switched;
+  - legacy, non-S0 and shared nested settings untouched;
+  - the decarb guard;
+  - the call before the region scope;
+- the legacy byte-for-byte rebuild, now also through `apply_state_policies`.
+
+Build rate 22 and headroom 31 unchanged.
+
+**Recipe C:**
+- `build_reeds_state_policies.py --check` before the build;
+- expected console line and 2035 targets (NC CES 0.392, CT RPS 0.33);
+- 54 programs;
+- turbine weights 0.682 / 1.090 for planned and new;
+- the 2045 allowance marked as an estimate.

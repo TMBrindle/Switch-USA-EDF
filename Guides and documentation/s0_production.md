@@ -4,14 +4,14 @@ The S0 production case is built by `pg_to_switch.py` from tracked settings, with
 settings file, `pg/settings/s0_production.yml`, holds everything; the `s0_production` column of
 `pg/extra_inputs/scenario_inputs.csv` turns it on per case. Code: `s0_workflow/production.py`,
 `s0_workflow/day_selection.py`, `build_rate/brc/turbine_cap.py`, `switch/study_modules/retirement_rules.py`.
-Changes to shared code are listed in `SHARED_CHANGES.md`; history in CHANGES §44.
+Changes to shared code are listed in `SHARED_CHANGES.md`; history in CHANGES §44-46.
 
 | `s0_production` | What it builds |
 |---|---|
 | `off` | the case as before (every row that predates this) |
 | `on` | all S0 production settings; fleet-independent days; mode A (myopic chain of single years) |
 | `on_windows` | as `on`, mode B (rolling two-period windows) |
-| `on_pgdays` | **legacy settings** (ATB-only gas capex, the legacy gas-turbine cap, NY RPS buyout only) with PowerGenome's k-means days and one case for all its years: the s4x1 2035 regression case, built exactly as before Oct 2026 |
+| `on_pgdays` | **legacy settings** (ATB-only gas capex, the legacy gas-turbine cap, NY RPS buyout only, the current state-policy files) with PowerGenome's k-means days and one case for all its years: the s4x1 2035 regression case, built exactly as before Oct 2026 |
 | `on_pgdays_new` | as `on_pgdays` with the new defaults |
 
 Cases:
@@ -21,13 +21,14 @@ Cases:
   B6+B8 + NY buyout run, on the legacy settings.
 - `s4x1_S0prod_2035_new` (on_pgdays_new): the same case with the new defaults.
 
-**Defaults since Oct 2026 (CHANGES §45), with the legacy setting for each:**
+**Defaults since Oct 2026 (CHANGES §45-46), with the legacy setting for each:**
 
 | Setting | S0 default | Legacy (`on_pgdays`) |
 |---|---|---|
 | `gas_capex` | `mode: premium`, `path: central` | `mode: atb_moderate` (ATB only) |
 | `gas_turbine_cap` | `form: allowance`, `path: central` | `form: legacy` (451.4 GW + 9.67 GW/yr in service) |
 | `rps_acp` | `mode: flat`, $100/MWh on every state RPS and CES | `mode: programs`, NY RPS $45.39 only |
+| `state_policies` | `release: "2026.09.21"`: state RPS/CES files built from the pinned ReEDS release | `release: legacy`: `emission_policies_current.csv` and `regional_resource_tags.yml` |
 
 ```bash
 python pg_to_switch.py pg/settings switch/in/s0prod --case-id S0prod_A      # mode A: 5 stage folders
@@ -83,8 +84,8 @@ in-service year. Each value holds to the year shown and falls to zero after it:
 | high | 0.37 to 2029, 0.25 (2030), 0.12 (2031), 0 from 2032 | 0.45 to 2029, 0.30, 0.15, 0 from 2032 |
 
 Capacity built in a period is in service across the period's span. The premium is therefore the
-mean over the span's years (`year_basis: span_mean`), the same averaging PowerGenome applies to ATB
-capex. For example, central CC is +37% for 2028 and 2030 and +18.4% for 2035 (2031-35).
+mean of the yearly premiums over the span's years (`year_basis: span_mean`, the default, confirmed by
+Tom in Oct 2026), the same averaging PowerGenome applies to ATB capex. For example, central CC is +37% for 2028 and 2030 and +18.4% for 2035 (2031-35).
 `year_basis: period_label` uses the label year instead (2035: 0).
 
 **Sources.** The `resources.yml` GridLab override values are not in the GridLab gas turbine cost report
@@ -95,8 +96,8 @@ $1,700/kW CT, 2030 in-service) and Enverus (about $2,000/kW, Sep 2026). The over
 ## State policy buyouts
 
 `rps_acp.mode: flat` (S0 default) sets one buyout price, $100/MWh, on every state RPS and CES program in
-the case (`ESR_*`: 55 programs in 2035, carve-outs included, NY's RPS and CES among them). With a
-buyout, a shortfall is bought at that price instead of making the case infeasible.
+the case (`ESR_*`, carve-outs included, NY's RPS and CES among them). That is 54 programs in 2035 with
+the pinned ReEDS release, 55 with the current file. With a buyout, a shortfall is bought at that price instead of making the case infeasible.
 `study_modules.rps_regional` writes two outputs:
 - `rps_shortfall.csv`, by program and period;
 - `rps_buyout_by_state_year.csv`: buyout MWh and $ by state and calendar year. Values are per year and
@@ -137,32 +138,69 @@ Allowance paths (GW turbine-equivalent, cumulative; `build_rate.yml allowance_pa
 | central (default) | 3.5 | 24.2 | 49.5 | 155.2 | 270.1 | 385.0 |
 | high | 3.5 | 30.3 | 64.8 | 206.5 | 359.7 | 512.9 |
 
-\*The source stops at 2040. 2041-45 continue linearly at each path's 2035-40 rate: central +22.98,
-low +15.32, high +30.64 GW/yr.
+\*2041-45 is a **coordinator estimate, not from the research doc**, which stops at 2040. Each path
+continues linearly at its 2035-40 rate: central +22.98, low +15.32, high +30.64 GW/yr. The config
+(`build_rate.yml`, above `extend_slope_years`) carries the same label, and the case build logs each
+extended year as a coordinator estimate.
 
 The S0 default pairs the central allowance with the central capex premium.
 
 **Capacity basis.** The allowance is EIA-860M nameplate. Switch carries existing and planned units at
-winter capacity (`resources.yml capacity_col: winter_capacity_mw`) and new builds at ATB capacity
-(taken as nameplate). Planned units are converted to nameplate with the nameplate / winter ratio of
-EIA-860 2024 "Proposed" gas units: CC 1.049, CT 1.090 (`capacity_basis`). If planned additions alone
-exceed a period's allowance, the cap is raised to them, with a warning.
+winter capacity (`resources.yml capacity_col: winter_capacity_mw`). Planned units **and new builds**
+are converted to nameplate with the same nameplate / winter ratios, from EIA-860 2024 "Proposed" gas
+units: CC 1.049 (24.0 GW), CT and aeroderivative 1.090 (15.2 GW). Planned and new capacity therefore
+count on one basis (Tom, Oct 2026). These are `capacity_basis.predetermined_to_allowance` and
+`new_build_to_allowance`; each is a number or a per-class map. A new CC MW counts 0.65 x 1.049 =
+0.682 against the allowance, and a new CT MW 1.090. If planned additions alone exceed a period's
+allowance, the cap is raised to them, with a warning.
 
 ## ReEDS state-policy inputs (pinned)
 
-`make_emission_policies.py` reads its ReEDS inputs from `pg/extra_inputs/reeds_state_policies/`: verbatim
-copies of ReEDS release 2026.09.21 (ReEDS-Model/ReEDS, commit 8a15723). The release and commit are in
-`REEDS_RELEASE.yml`; the script no longer downloads from main. The inputs are the RPS and CES fractions,
-out-of-state limits, REC table, technology eligibility, offshore mandates and RGGI states/cap.
+**Pinned release: ReEDS-Model/ReEDS 2026.09.21** (tag object 9a034b4b, commit
+`8a1572331da89b15ad3c0f74db448911f715266c`, 2026-09-17). Recorded in
+`pg/extra_inputs/reeds_state_policies/REEDS_RELEASE.yml`, beside verbatim copies of the inputs:
+- the RPS and CES fractions;
+- out-of-state limits;
+- the REC table;
+- technology eligibility;
+- offshore mandates;
+- RGGI states and cap.
 
-The policy files the VM uses (`rggi_carbon/emission_policies_current.csv`, created 2025-12-14 from
-ReEDS main, regenerated 2026-05-12) were **not** regenerated. Cases build exactly as before. If they
-were regenerated from the pin, `s0_workflow/data/reeds_state_policy_diff_2026.09.21.csv` lists what
-would change (from `scripts/compare_reeds_state_policies.py`):
+`make_emission_policies.py` reads these copies and no longer downloads from main.
+
+**Policy files by case.** The new-defaults cases (`s4x1_S0prod_2035_new`, `S0prod_A`, `S0prod_B`) use
+policy files built from the release, under new names. The legacy regression case and every non-S0 case
+keep the current files.
+
+| | New defaults (`state_policies.release: "2026.09.21"`) | Legacy and other cases |
+|---|---|---|
+| Targets | `rggi_carbon/emission_policies_reeds_2026.09.21.csv` | `rggi_carbon/emission_policies_current.csv` (2025-12-14 from ReEDS main, regenerated 2026-05-12) |
+| ESR eligibility and tag list | `reeds_state_policies/s0_state_policies_2026.09.21.yml` | `regional_resource_tags.yml`, `resource_tags.yml` |
+
+How the files are built and used:
+- **Builder.** `s0_workflow/scripts/build_reeds_state_policies.py` writes both files. It applies
+  `make_emission_policies.py`'s rules for ESR targets, eligibility and carbon to the pinned copies, and
+  writes only new files. It needs only repo data (the region shapefile's attribute table and
+  `pg_reeds_tech_map.csv`), so the files are built and committed. `--check` confirms the committed
+  files match a fresh build.
+- **Case build.** `production.apply_state_policies` swaps in `emission_policies_fn`, the ESR regional
+  tags and the ESR tag list. It runs in `pg_to_switch.py` before the region scope, so aggregated zones
+  take the new tags. A case on another policy file (e.g. `policies: decarb`) stops with an error rather
+  than being replaced silently.
+- **Not rebuilt.**
+  - Offshore wind mandates: the release gives the same `MinCapReq` values as `scenario_management.yml`
+    in every model year (tested).
+  - Growth caps: they don't come from ReEDS.
+
+What changes with the release (`s0_workflow/data/reeds_state_policy_diff_2026.09.21.csv`, from
+`scripts/compare_reeds_state_policies.py`):
+- **Only targets change.** The release's ESR eligibility equals `regional_resource_tags.yml` (1,932
+  region-program entries) and its tag list equals `resource_tags.yml`. The RGGI states and carbon
+  columns are unchanged.
 - **Program-years.** 489 change; 121 by more than 0.005. NY's RPS and CES are unchanged.
 - **Largest changes, 2035:**
 
-  | Program | VM file | Release |
+  | Program | Current file | Release |
   |---|---|---|
   | NC CES | 0.574 | 0.392 |
   | CT RPS (2030 on) | 0.440 | 0.330 |
@@ -174,9 +212,9 @@ would change (from `scripts/compare_reeds_state_policies.py`):
   | MD solar | 0.113 | 0.124 |
 
   Most others change by under 0.005.
-- **Programs dropped:** AZ RPS after 2025.
+- **Programs dropped:** AZ RPS after 2025, so the AZ regions (p27-p30) have no rows from 2026.
 - **Programs added:** `ESR_NS_rps` (Nova Scotia) and `ESR_voluntary_rps`. Neither maps to a US model
-  region.
+  region, so neither appears in the case files.
 
 ## Bounded foresight
 
@@ -234,7 +272,10 @@ Covers:
 - the gas capex premium paths and year basis;
 - that the legacy settings rebuild the regression case byte for byte as before;
 - the flat and legacy buyouts and the by-state output;
-- the ReEDS pin and its diff report;
+- the ReEDS pin and its diff report; the policy files built from the release (current with a fresh
+  build, targets equal to the release, eligibility and carbon unchanged, offshore mandates equal), and
+  their use by the new-defaults cases only (legacy and non-S0 cases unchanged, applied before the
+  region scope);
 - the retirement rule on the toy;
 - toy chains for modes A and B;
 - committed handoff of headroom and build-rate state;

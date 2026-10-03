@@ -22,3 +22,6 @@ files:
 # Differences against the files the VM uses (pg/extra_inputs/rggi_carbon/emission_policies_current.csv,
 # created 2025-12-14 from ReEDS main, regenerated 2026-05-12):
 # s0_workflow/data/reeds_state_policy_diff_2026.09.21.csv (scripts/compare_reeds_state_policies.py).
+# Policy files built from this release for the S0 new-defaults cases (s0_production.state_policies.release):
+# rggi_carbon/emission_policies_reeds_2026.09.21.csv and s0_state_policies_2026.09.21.yml, by
+# s0_workflow/scripts/build_reeds_state_policies.py (CHANGES §46). The current policy files are unchanged.

@@ -3692,6 +3692,11 @@ def main(
         for c in sorted(case_settings.keys(), key=filter_cases.index)
     }
 
+    # S0 production cases on a pinned ReEDS release: state RPS/CES targets and eligibility from
+    # s0_state_policies_<release>.yml (before the region scope, so aggregated zones take its tags);
+    # no effect on other cases
+    s0prod.apply_state_policies(case_settings)
+
     # ── Region scope: optionally aggregate model regions ──────────────────────
     _any_scope = any(
         s.get("region_scope") and s.get("region_scope") != "full"
