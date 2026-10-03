@@ -20,6 +20,8 @@ switch/out/
 !build_rate/**
 build_rate/data/raw/
 build_rate/outputs/
+!s0_workflow/
+!s0_workflow/**
 
 # include growth_rates/*.csv
 !growth_rates/
@@ -75,6 +77,7 @@ comparison_s4x5_vs_s20x1_2035.csv
 
 # local run scripts
 *.bat
+!s0_workflow/**/*.bat
 
 # large data files
 pg/extra_inputs/load_adjustments_caelp.csv

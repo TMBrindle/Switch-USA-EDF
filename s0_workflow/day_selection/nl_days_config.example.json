@@ -1,0 +1,14 @@
+{
+  "_comment": "Config for netload_days_fi.py, passed as the NL_DAYS_CFG environment variable (JSON). Paths are repo-relative; run from the repo root.",
+  "n_days": 24, "n_top": 3, "n_low": 3,
+  "tol_load_rel": 0.01, "tol_wind": 0.010, "tol_solar": 0.005,
+  "top_share": [0.75, 1.25], "low_share": [0.5, 1.5],
+  "w_min": 1.0, "seed": 0,
+  "tail_fleets": ["switch/out_ictest/2035/C1B68_s4x1_S0unc_2035_icon_aw2_icv3_br_central_v2_B6B8",
+                  "switch/out_ictest/2035/nl24_C1B68_S0unc_2035_icon_aw2_icv3_br_central_v2_B6B8"],
+  "report_fleets": ["switch/out_ictest/2035/C1B68_s4x1_S0unc_2035_icon_aw2_icv3_br_central_v2_B6B8",
+                    "switch/out_ictest/2035/nl24_C1B68_S0unc_2035_icon_aw2_icv3_br_central_v2_B6B8"],
+  "gen_info": "switch/in_ictest/cases/2035/s4x1_S0unc_2035_icon/gen_info.csv",
+  "diag_dir": "s0_workflow_runs/nl24_fi_diag",
+  "hierarchy": "hierarchy.csv"
+}
