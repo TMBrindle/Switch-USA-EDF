@@ -49,6 +49,12 @@ its case files and checks them byte for byte against the previous code.
 | 22 | new files: `pg/extra_inputs/rggi_carbon/emission_policies_reeds_2026.09.21.csv`, `pg/extra_inputs/reeds_state_policies/s0_state_policies_2026.09.21.yml` (from `s0_workflow/scripts/build_reeds_state_policies.py`) | State RPS/CES targets, UREC limits, carbon columns, and ESR eligibility built from the pinned release with `make_emission_policies.py`'s rules. `emission_policies_current.csv`, `regional_resource_tags.yml` and the tag lists are not touched. | §46 item 4. | none: read only by S0 cases on the release. The release's eligibility, carbon columns and offshore mandates equal the current ones. Only targets differ (diff report). |
 | 23 | `build_rate/brc/turbine_cap.py`, `pg/settings/build_rate.yml` | `capacity_basis` factors may be a number or a per-class map. `new_build_to_allowance` is now CC 1.049, CT/aero 1.090 (was 1.0). The 2041-45 extension is labelled and logged as a coordinator estimate. | §46 items 2-3. | none: used only by the `cumulative_additions` form (S0 cases); the file's default form is unchanged. |
 
+### Added in §47 (Oct 2026: no new nuclear before the 2035 stage)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 24 | `switch/study_modules/build_rules.py` (new), `s0_workflow/production.py` (`write_build_rules`, `scenario_options`) | For S0 new-defaults cases only: `build_rules.csv` and the module, which forbid new nuclear (`BuildGen` of new builds of its energy source) in periods before 2035. | An explicit rule, independent of the nuclear growth cap, which counts existing nuclear and can leave room in 2028/2030 if plants retire. | none (module not in modules.txt; file written only for S0 cases with `new_build_rule.enabled`; off for the legacy regression case) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

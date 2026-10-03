@@ -140,6 +140,17 @@ s0_production:
     no_retirement_before: 2030
     energy_sources: [coal, naturalgas]
 
+  # no NEW capacity of these technologies (gen_tech containing the text, case-insensitive: nuclear
+  # large and SMR) in periods before no_new_build_before: periods 2028 and 2030 blocked, 2035 open
+  # (study_modules.build_rules, added to the scenario line). Separate from the nuclear growth cap
+  # (MaxCapTag_NuclearGrowth), which counts existing nuclear too and so can leave room for new units in
+  # 2028/2030 if existing plants retire. Existing and planned units are unaffected. Off for the legacy
+  # regression case (on_pgdays).
+  new_build_rule:
+    enabled: true
+    no_new_build_before: 2035
+    technologies: [nuclear]
+
   # item 8: bounded foresight
   foresight:
     mode: myopic                   # single | myopic (mode A) | windows (mode B)

@@ -40,6 +40,7 @@ def test_settings_file_axis_and_rows():
     leg = ax["on_pgdays"]["s0_production"]
     assert leg["gas_capex"] == {"mode": "atb_moderate"} and leg["gas_turbine_cap"] == {"form": "legacy"}
     assert leg["rps_acp"] == {"mode": "programs"} and leg["state_policies"] == {"release": "legacy"}
+    assert leg["new_build_rule"] == {"enabled": False}
     assert ax["on_pgdays_new"]["s0_production"] == {"enabled": True, "time_sampling": {"method": "powergenome"},
                                                     "foresight": {"mode": "single"}}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
@@ -68,6 +69,8 @@ def test_settings_file_axis_and_rows():
     assert s0["rps_acp"]["mode"] == "flat" and s0["rps_acp"]["price"] == 100.0
     assert s0["rps_acp"]["programs"] == {"ESR_NY_rps": 45.39}                       # legacy option kept
     assert s0["state_policies"] == {"release": "2026.09.21"}                         # pinned ReEDS release
+    # no new nuclear before the 2035 stage (separate from the nuclear growth cap)
+    assert s0["new_build_rule"] == {"enabled": True, "no_new_build_before": 2035, "technologies": ["nuclear"]}
     assert s0["coal_cf_caps"]["enabled"] and s0["wind_loss"]["enabled"]
     pp = s0["gas_capex"]["premium_paths"]
     assert pp["central"]["cc"] == {2031: 0.37, 2032: 0.28, 2033: 0.18, 2034: 0.09, 2035: 0.0}
@@ -112,6 +115,10 @@ def test_apply_settings_merges_and_sets_atb_moderate():
     assert s0prod.foresight_mode(_case_settings(axis_value="on_windows")) == "windows"
     assert "--include-module study_modules.gen_amortization_period" in s0prod.scenario_options(s)
     assert "--include-module study_modules.retirement_rules" in s0prod.scenario_options(s)
+    assert "--include-module study_modules.build_rules" in s0prod.scenario_options(s)
+    for ax in ("on_windows", "on_pgdays_new"):
+        assert "study_modules.build_rules" in s0prod.scenario_options(_case_settings(axis_value=ax))
+    assert "build_rules" not in s0prod.scenario_options(_case_settings(axis_value="on_pgdays"))   # legacy
     assert s0prod.scenario_options({}) == ""
 
 
@@ -201,6 +208,7 @@ def test_new_defaults_premium_buyouts_and_cap(tmp_path):
     r = pd.read_csv(tmp_path / "rps_requirements.csv", dtype=str).set_index("RPS_PROGRAM")["rps_acp_per_mwh"]
     assert (r == "100.0").all()                                                  # NY RPS and CES included
     assert "flat $100/MWh on 3 state programs" in (tmp_path / "s0_production_log.txt").read_text()
+    assert (tmp_path / "build_rules.csv").exists()                              # new-build rule on
 
 
 def test_gas_premium_paths():
@@ -307,6 +315,10 @@ def test_legacy_settings_build_as_before(tmp_path):
     s0prod.write_case_inputs(tmp_path / "new", {2035: new_s})
     for f in sorted(p.name for p in (tmp_path / "old").glob("*.csv")):
         assert (tmp_path / "old" / f).read_text() == (tmp_path / "new" / f).read_text(), f
+    # and no new files: no build_rules.csv (no new-build rule), so the same set of case files
+    assert sorted(p.name for p in (tmp_path / "new").glob("*.csv")) == \
+        sorted(p.name for p in (tmp_path / "old").glob("*.csv"))
+    assert "build_rules" not in s0prod.scenario_options(new_s)
 
 
 def test_coal_table_and_method():

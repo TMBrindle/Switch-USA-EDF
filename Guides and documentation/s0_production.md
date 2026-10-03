@@ -3,7 +3,8 @@
 The S0 production case is built by `pg_to_switch.py` from tracked settings, with no hand steps. One
 settings file, `pg/settings/s0_production.yml`, holds everything; the `s0_production` column of
 `pg/extra_inputs/scenario_inputs.csv` turns it on per case. Code: `s0_workflow/production.py`,
-`s0_workflow/day_selection.py`, `build_rate/brc/turbine_cap.py`, `switch/study_modules/retirement_rules.py`.
+`s0_workflow/day_selection.py`, `build_rate/brc/turbine_cap.py`, `switch/study_modules/retirement_rules.py`,
+`switch/study_modules/build_rules.py`.
 Changes to shared code are listed in `SHARED_CHANGES.md`; history in CHANGES §44-46.
 
 | `s0_production` | What it builds |
@@ -21,7 +22,7 @@ Cases:
   B6+B8 + NY buyout run, on the legacy settings.
 - `s4x1_S0prod_2035_new` (on_pgdays_new): the same case with the new defaults.
 
-**Defaults since Oct 2026 (CHANGES §45-46), with the legacy setting for each:**
+**Defaults since Oct 2026 (CHANGES §45-47), with the legacy setting for each:**
 
 | Setting | S0 default | Legacy (`on_pgdays`) |
 |---|---|---|
@@ -29,6 +30,7 @@ Cases:
 | `gas_turbine_cap` | `form: allowance`, `path: central` | `form: legacy` (451.4 GW + 9.67 GW/yr in service) |
 | `rps_acp` | `mode: flat`, $100/MWh on every state RPS and CES | `mode: programs`, NY RPS $45.39 only |
 | `state_policies` | `release: "2026.09.21"`: state RPS/CES files built from the pinned ReEDS release | `release: legacy`: `emission_policies_current.csv` and `regional_resource_tags.yml` |
+| `new_build_rule` | `enabled: true`: no new nuclear before the 2035 stage | `enabled: false` (no rule) |
 
 ```bash
 python pg_to_switch.py pg/settings switch/in/s0prod --case-id S0prod_A      # mode A: 5 stage folders
@@ -256,6 +258,21 @@ from 2030 (`study_modules.retirement_rules`). The single Can_Retire flag held th
 so any case or window starting before 2030 locked coal in for every period. The
 `blocked_2030_coal_gas` predetermined override still moves planned 2026-29 retirements to 2030.
 
+**No new nuclear before 2035** (`new_build_rule`, `study_modules.build_rules`). In the new-defaults
+cases (`s4x1_S0prod_2035_new`, `S0prod_A`, `S0prod_B`), no new nuclear can be built in periods before
+2035. Periods 2028 and 2030 are blocked and 2035 is open, in a single-year stage and in a window
+alike.
+- **Why it's needed:** the nuclear growth cap (`MaxCapTag_NuclearGrowth`) counts existing nuclear too.
+  If existing plants retire, it can leave room for new units in 2028 or 2030. The rule doesn't depend
+  on the cap.
+- **What it covers:**
+  - Generators whose `gen_tech` contains "nuclear" (large and SMR). The rule is keyed on their energy
+    source (`uranium`); the case build stops if another technology uses that source.
+  - Existing and planned (predetermined) units are not affected.
+- **Files:** `build_rules.csv` (`gen_energy_source`, `br_no_new_build_before`) in the case, the module
+  on the scenario line, and `build_rules_check.csv` (new MW by source and period) in the outputs.
+- **Legacy:** off for the regression case (`on_pgdays`), which builds exactly as before.
+
 ## Tests
 
 ```bash
@@ -277,6 +294,8 @@ Covers:
   their use by the new-defaults cases only (legacy and non-S0 cases unchanged, applied before the
   region scope);
 - the retirement rule on the toy;
+- the new-build rule on the toy (no new nuclear before the rule's period, planned units untouched),
+  its case writer, and that it is off for the legacy case;
 - toy chains for modes A and B;
 - committed handoff of headroom and build-rate state;
 - the regression comparison script.

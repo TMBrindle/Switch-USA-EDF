@@ -206,3 +206,64 @@ def test_committed_handoff_headroom_and_build_rate(tmp_path):
     p.chain_build_rate_inputs(m, inp, nxt, chained, possibly, lambda q: pd.read_csv(q),
                               lambda df, q: df.to_csv(q, index=False), 2028)
     assert pd.read_csv(nxt / "build_rate_prev_build.chained.c.csv").br_prev_rate_mw_per_yr.iat[0] == 10.0
+
+
+# ------------------------------------------------------------------------------------- new-build rule
+def cheap_nuclear(inp, rule=True):
+    """New nuclear made cheap and available from 2020, so the model builds it as early as it may; a
+    planned (predetermined) unit in 2015 that the rule must leave alone."""
+    bc = pd.read_csv(inp / "gen_build_costs.csv")
+    nuc = bc[bc.GENERATION_PROJECT == "N-Nuclear"].copy()
+    early = nuc.assign(build_year=2020)
+    planned = bc[bc.GENERATION_PROJECT == "C-Nuclear"].assign(build_year=2015)
+    bc = pd.concat([bc, early, planned], ignore_index=True)
+    bc.loc[bc.GENERATION_PROJECT == "N-Nuclear", ["gen_overnight_cost", "gen_fixed_om"]] = [300000.0, 1000.0]
+    bc.to_csv(inp / "gen_build_costs.csv", index=False)
+    pre = pd.read_csv(inp / "gen_build_predetermined.csv")
+    pd.concat([pre, pd.DataFrame({"GENERATION_PROJECT": ["C-Nuclear"], "build_year": [2015],
+                                  "build_gen_predetermined": [1.0]})]).to_csv(
+        inp / "gen_build_predetermined.csv", index=False)
+    if rule:
+        pd.DataFrame({"gen_energy_source": ["Uranium"], "br_no_new_build_before": [2030]}).to_csv(
+            inp / "build_rules.csv", index=False)
+
+
+def test_new_build_rule_per_period(tmp_path):
+    """No new nuclear before the rule's period (here 2030 on the toy's 2020/2030 periods; 2035 in S0);
+    without the rule the model builds it in the first period. Predetermined units are untouched."""
+    rule = toy_inputs(tmp_path, "rule", ["build_rules"], lambda i: cheap_nuclear(i))
+    solve(rule)
+    free = toy_inputs(tmp_path, "free", ["build_rules"], lambda i: cheap_nuclear(i, rule=False))
+    solve(free)
+    br, bf = build(rule / "outputs"), build(free / "outputs")
+    nuc = lambda b, y: b[(b.gen == "N-Nuclear") & (b.build_year == y)].mw.sum()
+    assert nuc(bf, 2020) > 1                                      # unconstrained: built in the first period
+    assert nuc(br, 2020) == pytest.approx(0, abs=1e-6)             # rule: none before 2030
+    assert nuc(br, 2030) > 1                                       # and allowed from 2030
+    assert br[(br.gen == "C-Nuclear") & (br.build_year == 2015)].mw.sum() == pytest.approx(1.0)
+    chk = pd.read_csv(rule / "outputs/build_rules_check.csv")
+    assert chk[chk.blocked].new_mw.abs().max() < 1e-6 and set(chk.period) == {2020, 2030}
+    assert total_cost(free / "outputs") <= total_cost(rule / "outputs")
+
+
+def test_new_build_rule_case_writer(tmp_path):
+    pd.DataFrame({"GENERATION_PROJECT": ["nuc_old", "nuc_new", "smr_new", "gas_new"],
+                  "gen_tech": ["Nuclear", "Nuclear_Nuclear - Large_Moderate", "Nuclear - small modular reactor",
+                               "NaturalGas_1-on-1 Combined Cycle (H-Frame)_Moderate"],
+                  "gen_energy_source": ["uranium", "uranium", "uranium", "naturalgas"]}).to_csv(
+        tmp_path / "gen_info.csv", index=False)
+    log = s0prod.Log(tmp_path)
+    s0prod.write_build_rules(tmp_path, {"new_build_rule": {"enabled": True, "no_new_build_before": 2035,
+                                                           "technologies": ["nuclear"]}}, log)
+    br = pd.read_csv(tmp_path / "build_rules.csv")
+    assert list(br.gen_energy_source) == ["uranium"] and list(br.br_no_new_build_before) == [2035]
+    assert any("no new ['nuclear']" in ln for ln in log.lines)
+    # off: no file
+    (tmp_path / "build_rules.csv").unlink()
+    s0prod.write_build_rules(tmp_path, {"new_build_rule": {"enabled": False}}, log)
+    assert not (tmp_path / "build_rules.csv").exists()
+    # an energy source shared with another technology would block that too: refuse
+    pd.DataFrame({"GENERATION_PROJECT": ["nuc", "other"], "gen_tech": ["Nuclear", "Fusion"],
+                  "gen_energy_source": ["uranium", "uranium"]}).to_csv(tmp_path / "gen_info.csv", index=False)
+    with pytest.raises(ValueError, match="Fusion"):
+        s0prod.write_build_rules(tmp_path, {"new_build_rule": {"enabled": True}}, log)

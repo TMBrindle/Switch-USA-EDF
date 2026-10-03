@@ -1766,3 +1766,42 @@ Build rate 22 and headroom 31 unchanged.
   `build_reeds_state_policies.py --check` run in `ic-pipeline`, because `switch-pg-reeds-fedpol` has an
   old pandas. Recipe C step 1 now runs the `--check` on its own line: in the old one-line form a
   failed check still ran the build.
+
+---
+
+## 47. S0 Production: No New Nuclear Before the 2035 Stage
+
+**Date:** 2026-10-03 · **Branch:** `tom/s0-prod-scripts`
+**See also:**
+- `Guides and documentation/s0_production.md` (Bounded foresight)
+- `SHARED_CHANGES.md` (#24)
+
+The new-defaults cases (`s4x1_S0prod_2035_new`, `S0prod_A`, `S0prod_B`) get an explicit rule: no new
+nuclear in periods before 2035. Periods 2028 and 2030 are blocked and 2035 is open.
+
+**Why.** The rule doesn't depend on the nuclear growth cap (`MaxCapTag_NuclearGrowth`). That cap counts
+existing nuclear too, so it can leave room for new units in 2028 or 2030 if existing plants retire.
+
+**Changes:**
+- **New module `study_modules.build_rules`:** `BuildGen[g, p] = 0` for new builds (`NEW_GEN_BLD_YRS`)
+  of the listed energy sources with period label < `br_no_new_build_before`.
+  - Input: `build_rules.csv`.
+  - Output: `build_rules_check.csv`.
+  - Predetermined units are not affected.
+- **Setting `s0_production.new_build_rule`:** `{enabled: true, no_new_build_before: 2035,
+  technologies: [nuclear]}`.
+  - `production.write_build_rules` writes `build_rules.csv` from the energy sources of generators
+    whose `gen_tech` contains the text (case-insensitive). It stops if another technology shares the
+    source.
+  - `scenario_options` adds the module.
+- **Legacy:** `on_pgdays` sets `new_build_rule: {enabled: false}`. The regression case writes no
+  `build_rules.csv` and its scenario line is unchanged; the byte-for-byte test now also checks the
+  file set.
+
+**Tests:** `s0_workflow/tests` 34 (was 32):
+- a toy solve: cheap nuclear is built in the first period without the rule; with it, none before the
+  rule's period, and a planned unit is kept;
+- the case writer;
+- settings, scenario lines and the legacy checks.
+
+Build rate 22 and headroom 31 unchanged.

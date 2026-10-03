@@ -11,9 +11,10 @@ workflow (s0_workflow/README.md) with tracked settings:
                                        and set the gas capex basis (ATB Moderate)
   write_case_inputs(folder, settings)  after the case is written: GridLab gas premium (optional),
                                        zonal coal CF caps, wind loss, the NY RPS buyout (ACP),
-                                       headroom slack, the per-period retirement rule, period spans
+                                       headroom slack, the per-period retirement rule, the new-build
+                                       rule (no new nuclear before 2035), period spans
   scenario_options(settings)           extra Switch modules for the case's scenario line
-                                       (gen_amortization_period, retirement_rules)
+                                       (gen_amortization_period, retirement_rules, build_rules)
   plan_stages(years, settings)         stages of a myopic chain (mode A) or of two-period windows
                                        (mode B), with the period each stage commits
 
@@ -412,6 +413,28 @@ def write_retirement_rules(folder: Path, s0: dict, log: Log) -> None:
         f"gen_can_retire_early = 1 on {int(m.sum())} existing generators ({before} already had it)")
 
 
+def write_build_rules(folder: Path, s0: dict, log: Log) -> None:
+    """build_rules.csv for study_modules.build_rules: no NEW capacity of the rule's technologies (gen_tech
+    containing one of `technologies`, case-insensitive; e.g. nuclear, large and SMR) in periods before
+    `no_new_build_before`. Rows are by gen_energy_source, taken from the matching generators."""
+    br = s0.get("new_build_rule") or {}
+    if not br.get("enabled"):
+        return
+    year = int(br.get("no_new_build_before", 2035))
+    techs = [str(x).lower() for x in br.get("technologies", ["nuclear"])]
+    gi = _read(folder, "gen_info.csv", dtype=str, keep_default_na=False)
+    m = gi["gen_tech"].str.lower().apply(lambda t: any(x in t for x in techs))
+    sources = sorted(set(gi.loc[m, "gen_energy_source"]))
+    other = gi[~m & gi["gen_energy_source"].isin(sources)]
+    if len(other):
+        raise ValueError(f"new_build_rule: energy source(s) {sources} of {techs} are also used by "
+                         f"{sorted(set(other['gen_tech']))[:5]}; the rule would block those too")
+    pd.DataFrame({"gen_energy_source": sources, "br_no_new_build_before": year}).to_csv(
+        Path(folder) / "build_rules.csv", index=False)
+    log(f"new-build rule: no new {techs} (energy sources {sources}, {int(m.sum())} generators) in periods "
+        f"before {year}; existing and planned units unaffected")
+
+
 def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     """Run the case-input steps for one case folder (all its model years). Returns the log lines."""
     first = next(iter(scen_settings_dict.values()))
@@ -426,6 +449,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     apply_rps_acp(out_folder, s0, log)
     apply_ic_slack(out_folder, s0, log)
     write_retirement_rules(out_folder, s0, log)
+    write_build_rules(out_folder, s0, log)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))
@@ -440,4 +464,6 @@ def scenario_options(settings: dict) -> str:
     mods = list(s0.get("extra_modules") or [])
     if (s0.get("retirement_rule") or {}).get("enabled") and "study_modules.retirement_rules" not in mods:
         mods.append("study_modules.retirement_rules")
+    if (s0.get("new_build_rule") or {}).get("enabled") and "study_modules.build_rules" not in mods:
+        mods.append("study_modules.build_rules")
     return "".join(f"--include-module {m} " for m in mods)
