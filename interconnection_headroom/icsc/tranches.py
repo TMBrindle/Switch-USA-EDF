@@ -99,7 +99,7 @@ def build_reference(model: CostModel, panel: pd.DataFrame, regimes: pd.DataFrame
     The empirical curve runs from the zone's start saturation s0 to the sample's support edge
     (model.sat_support, the support_quantile of sample saturation) in equal steps of about
     tranches.step_width. A zone already at or beyond the edge gets one step of edge_step_width
-    priced at the edge. Beyond that, headroom comes only from uprates (new_line is the backstop in
+    priced at the edge. Beyond that, headroom comes only from uprates (conventional reinforcement is the backstop in
     every scenario). Costs are made non-decreasing (cumulative max) so the LP fills them in order.
     """
     tc = cfg["tranches"]
@@ -146,7 +146,10 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
       cost_multiplier: x        height: scale every step's cost (and the release cost)
       slope_multiplier: m       steepness: c_k -> c_1 * (c_k / c_1) ** m within each zone
       uprates: [names]          network capacity options from `uprate_options`, which Switch may build
-                                (plus `backstop_uprates`, available in every scenario)
+                                (plus `baseline_uprates` and `backstop_uprates`, in every scenario)
+      uprate_level: name        adoption level (`uprate_levels`; default `uprate_level`) setting the
+                                caps and first years of the options it lists (GETs, advanced-conductor
+                                reconductoring)
     """
     if scen.get("regime_override") == "best" and best is not None:
         zones, tranches = best
@@ -162,33 +165,46 @@ def apply_scenario(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict, scen:
         z["release_cost_per_kw"] *= scen["cost_multiplier"]
     opts = cfg.get("uprate_options", {})
     gen_per_h = gen_mw_per_mw_h(z, t, cfg)
+    names = list(dict.fromkeys(list(scen.get("uprates", [])) + list(cfg.get("baseline_uprates", []))
+                               + list(cfg.get("backstop_uprates", []))))
     zone_cost = reinforcement_costs(cfg) if any(
-        isinstance(opts[n].get("cost_per_kw"), str) for n in list(scen.get("uprates", [])) + list(cfg.get("backstop_uprates", []))) else None
+        isinstance(opts[n].get("cost_per_kw"), (str, dict)) for n in names) else None
+    level = scen.get("uprate_level", cfg.get("uprate_level"))
+    transreg = zone_transregs(cfg)
     rows = []
-    names = list(dict.fromkeys(list(scen.get("uprates", [])) + list(cfg.get("backstop_uprates", []))))
     for name in names:
-        o = opts[name]
+        o = uprate_option(cfg, name, level)
         mode = uprate_mode(o, cfg)
         for _, r in z.iterrows():
-            rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name),
+            rows.append({"ba": r["ba"], "uprate": name, "type": o.get("type", name), "label": o.get("label", name),
+                         "level": o.get("level"),
                          "max_mw": o["share_of_capacity"] * r["base_capacity_mw"],
-                         "cost_per_kw": uprate_cost(o, r["ba"], zone_cost, gen_per_h if mode == "stretch" else None),
+                         "cost_per_kw": uprate_cost(o, r["ba"], zone_cost, gen_per_h if mode == "stretch" else None,
+                                                    transreg.get(r["ba"])),
                          "mode": mode,
                          "available_year": int(o.get("available_year", 0)),
                          # ReEDS basis ($ per kW of generation) and the MW of weighted generation one MW
                          # of H hosts, for options priced from ReEDS (blank otherwise)
-                         "reeds_cost_per_kw_gen": (float(zone_cost[r["ba"]]) if o["cost_per_kw"] == "reeds_reinforcement"
-                                                   else np.nan),
+                         "cost_per_kw_gen": cost_per_kw_gen(o, r["ba"], zone_cost, transreg.get(r["ba"])),
+                         "reeds_cost_per_kw_gen": (float(zone_cost[r["ba"]]) if _uses_reeds(o) else np.nan),
                          "gen_mw_per_mw_h": (float(gen_per_h[r["ba"]])
-                                             if o["cost_per_kw"] == "reeds_reinforcement" and mode == "stretch"
+                                             if mode == "stretch" and not _is_number(o["cost_per_kw"])
                                              else np.nan)})
-    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "max_mw", "cost_per_kw", "available_year", "mode",
-                                    "reeds_cost_per_kw_gen", "gen_mw_per_mw_h"])
+    u = pd.DataFrame(rows, columns=["ba", "uprate", "type", "label", "level", "max_mw", "cost_per_kw", "available_year", "mode",
+                                    "cost_per_kw_gen", "reeds_cost_per_kw_gen", "gen_mw_per_mw_h"])
     return z, t.sort_values(["ba", "sat_from"]).reset_index(drop=True), u
 
 
+def zone_transregs(cfg: dict) -> dict:
+    """ReEDS zone -> transreg (hierarchy.csv), for costs given by transreg; empty if unavailable."""
+    path = (cfg.get("paths") or {}).get("hierarchy")
+    if not path or not Path(path).exists():
+        return {}
+    return pd.read_csv(path).set_index("ba")["transreg"].to_dict()
+
+
 def reinforcement_costs(cfg: dict) -> pd.Series:
-    """Zone -> new_line $/kW from the ReEDS reinforcement table (reinforcement.zone_table, statistic
+    """Zone -> ReEDS reinforcement $/kW of generation from the ReEDS reinforcement table (reinforcement.zone_table, statistic
     reinforcement.quantile), in the pipeline dollar year."""
     rc = cfg["reinforcement"]
     t = pd.read_csv(Path(cfg["_root"]) / rc["zone_table"])
@@ -198,12 +214,57 @@ def reinforcement_costs(cfg: dict) -> pd.Series:
     return t.set_index("ba")[f"reinforcement_{rc.get('quantile', 'median')}_per_kw"]
 
 
+def uprate_option(cfg: dict, name: str, level: str | None) -> dict:
+    """An uprate option with its cap and first year from the adoption level (uprate_levels[level][name])
+    when the level lists it; options a level does not list (conv_reinforcement) keep their own."""
+    o = dict(cfg["uprate_options"][name])
+    lv = (cfg.get("uprate_levels") or {})
+    if level is not None and lv and level not in lv:
+        raise ValueError(f"uprate_level {level!r} not in uprate_levels ({sorted(lv)})")
+    if level is not None and name in lv.get(level, {}):
+        o.update(lv[level][name])
+        o["level"] = level
+    missing = [k for k in ("share_of_capacity", "available_year", "cost_per_kw") if k not in o]
+    if missing:
+        raise ValueError(f"uprate option {name!r} has no {missing} (set them in uprate_levels.{level})")
+    return o
+
+
+def _is_number(c) -> bool:
+    return isinstance(c, (int, float)) and not isinstance(c, bool)
+
+
+def _uses_reeds(option: dict) -> bool:
+    c = option["cost_per_kw"]
+    return c == "reeds_reinforcement" or (isinstance(c, dict) and "reeds_reinforcement_x" in c)
+
+
+def cost_per_kw_gen(option: dict, ba: str, zone_cost: pd.Series | None, transreg: str | None = None) -> float:
+    """The option's cost per kW of generation enabled, before any conversion to $ per kW of H
+    (NaN for options priced directly per kW of network). {per_kw_gen: x, per_kw_gen_by_transreg: {...}}
+    uses the zone's transreg value where one is given, else x."""
+    c = option["cost_per_kw"]
+    if c == "reeds_reinforcement":
+        return float(zone_cost[ba])
+    if isinstance(c, dict):
+        if "per_kw_gen" in c:
+            return float((c.get("per_kw_gen_by_transreg") or {}).get(transreg, c["per_kw_gen"]))
+        if "reeds_reinforcement_x" in c:
+            return float(c["reeds_reinforcement_x"]) * float(zone_cost[ba])
+    return np.nan
+
+
+# uprate types that host generation directly in host mode (reinforcement_mode)
+HOST_TYPES = ("conv_reinforcement",)
+
+
 def uprate_mode(option: dict, cfg: dict) -> str:
-    """host or stretch: new lines follow new_line_mode (default host); every other option stretches."""
-    if option.get("type") == "new_line":
-        mode = cfg.get("new_line_mode", "host")
+    """host or stretch: conventional reinforcement follows reinforcement_mode (default host); every other
+    option (GETs, advanced-conductor reconductoring) stretches."""
+    if option.get("type") in HOST_TYPES:
+        mode = cfg.get("reinforcement_mode", "host")
         if mode not in ("host", "stretch"):
-            raise ValueError(f"new_line_mode must be host or stretch, not {mode!r}")
+            raise ValueError(f"reinforcement_mode must be host or stretch, not {mode!r}")
         return mode
     return "stretch"
 
@@ -230,15 +291,19 @@ def gen_mw_per_mw_h(zones: pd.DataFrame, tranches: pd.DataFrame, cfg: dict) -> p
     raise ValueError(f"reinforcement.per_mw_h must be curve_end, s0 or gen, not {how!r}")
 
 
-def uprate_cost(option: dict, ba: str, zone_cost: pd.Series | None, gen_per_h: pd.Series | None = None) -> float:
+def uprate_cost(option: dict, ba: str, zone_cost: pd.Series | None, gen_per_h: pd.Series | None = None,
+                transreg: str | None = None) -> float:
     """$/kW of network capacity: a number from config, or 'reeds_reinforcement': the zone's ReEDS cost
     per kW of generation x the generation MW one MW of network hosts (gen_mw_per_mw_h; 1 if not given)."""
     c = option["cost_per_kw"]
-    if c == "reeds_reinforcement":
+    if c == "reeds_reinforcement" or (isinstance(c, dict) and "reeds_reinforcement_x" in c):
         if zone_cost is None or ba not in zone_cost.index:
             raise KeyError(f"no ReEDS reinforcement cost for zone {ba}")
+    if c == "reeds_reinforcement" or isinstance(c, dict):
+        if isinstance(c, dict) and not ({"per_kw_gen", "reeds_reinforcement_x"} & set(c)):
+            raise ValueError(f"unknown uprate cost form {c!r}")
         factor = 1.0 if gen_per_h is None else float(gen_per_h[ba])
-        return float(zone_cost[ba]) * factor
+        return cost_per_kw_gen(option, ba, zone_cost, transreg) * factor
     if isinstance(c, str):
         raise ValueError(f"unknown uprate cost source {c!r}")
     return float(c)

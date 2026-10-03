@@ -1,4 +1,5 @@
-"""Zone-level network reinforcement cost from ReEDS, the cost of the new_line uprate option.
+"""Zone-level network reinforcement cost from ReEDS, the cost of the conventional
+reinforcement uprate (conv_reinforcement) and the basis of advanced-conductor reconductoring's cost.
 
 Source (pinned ReEDS commit, data/reference/REEDS_COMMIT.txt; scripts/fetch_data.sh):
   inputs/supply_curve/interconnection_land.h5   cost_reinforcement_usd_per_mw per reV site

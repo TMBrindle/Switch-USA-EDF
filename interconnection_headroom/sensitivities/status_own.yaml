@@ -1,5 +1,5 @@
 # Sensitivity: each regime's own estimated completed effect, uncapped (the previous default), with
-# the trend freeze and the ReEDS new_line cost of config.yaml.
+# the trend freeze and the ReEDS conventional reinforcement cost of config.yaml.
 # Run: python -m icsc.cli --config sensitivities/status_own.yaml run --start-year 2026
 extends: ../config.yaml
 paths: {outputs: outputs/sens_status_own}

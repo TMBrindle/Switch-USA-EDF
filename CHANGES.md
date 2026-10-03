@@ -1084,3 +1084,101 @@ cost on top), and leaves H, the steps and the release unchanged; cap 10 × H0 as
   step $129.0/kW, 20 zones beyond the edge).
 - Toy (zone past the edge, s0 0.8, $50/kW edge step, $200/kW line): marginal headroom $200/kW in
   host mode vs $250/kW in stretch mode. Tests: 20.
+
+---
+
+## 42. Interconnection Headroom — GETs and Advanced Conductors from Sources, Adoption Levels, Conventional Reinforcement Backstop
+
+**Date:** 2026-10-02 · **Branch:** `tom/ic-atts` (off `tom/ic-curve-fixes`)
+
+Replaces the GETs (10% of H0 at $20/kW) and reconductoring (30% at $80/kW from 2028) placeholders
+with two layers, and renames the new-line backstop to conventional reinforcement. GETs and
+reconductoring with advanced conductors keep the stretch mechanism (raise H, release s0 × MW, stretch
+the steps); conventional reinforcement stays in host mode. Every value carries a source and PDF page
+in `config.yaml` and the project doc ("Uprate options"). Copies of DOE Liftoff (Innovative Grid
+Deployment, May 2024, Final_5.2-1; from `tom/ic-test-fedpol` @ 4d696df) and Brattle/WATT (SPP, Feb
+2021) are in `interconnection_headroom/data/reference/sources/`.
+
+**Conventional reinforcement (ReEDS)** (supersedes §41's new_line). ReEDS prices reinforcement routes
+"with capital expenditure (CAPEX) costs multiplied by 50% to approximate the lower cost for
+reconductoring compared to greenfield transmission construction" (ReEDS
+`docs/source/model_documentation.md`, "Network reinforcement", line 1809, commit 2f583ff5). That 50%
+is conventional reinforcement / reconductoring as standard practice, in ReEDS's reference case and
+partly in the LBNL network-upgrade costs. So the backstop, renamed `new_line` → `conv_reinforcement`
+(label "conventional reinforcement (ReEDS)"), is priced at 1.0 × the zone's ReEDS cost per kW of
+generation hosted, in every scenario including `atts_s0`, host mode, from 2030 (placeholder).
+- Renames: `new_line_mode` → `reinforcement_mode`; Switch `ic_network.csv` column
+  `new_line_network_mw_implied` → `hosted_network_mw_implied`; `ic_spend.csv` type `conv_reinforcement`;
+  `uprates_*.csv` gains a `label` column.
+- $/kW of generation across the 134 zones (unweighted), p10 / p25 / median / p75 / p90: 177 / 237 /
+  319 / 438 / 650; median past the support edge $265; transreg medians $200 (FRCC) to $464
+  (WestConnect).
+- Full new build (2.0 ×, median $639) is a sensitivity: `sensitivities/new_line_full_build.yaml`.
+
+**Layer 1, potential and cost.**
+- GETs: applicable share and increase from Liftoff Appendix F (p. 88): DLR 317 of 742 GW, +6 / 25 /
+  44%; APFC 50%, +10 / 17 / 25%; topology optimisation 90%, +3 / 8 / 12% (each individually;
+  combined not given). Cost per kW of generation enabled by study region: PJM $15.2 (RMI 2024: $0.1
+  billion / 6.6 GW), SPP $33.7 (Brattle 2021: $90 million / 2,670 MW); other regions take the SPP
+  value. Liftoff bounds: DLR < 5% of rebuilding (p. 10); DLR and APFC < 25% of traditional upgrades
+  (p. 25). Lead time: under three months (DLR, Liftoff p. 10) to 8–18 months (FACTS, GridLab).
+- Advanced-conductor reconductoring (`reconductor`, advanced conductors only): Liftoff ~15% of lines
+  (20% reconductorable × 80% with structure life), 1.7× / 2× / 3× (p. 88, "Advanced conductors");
+  GridLab 2× on ~98% of lines (< 50 miles). Lead time 18–36 months.
+- Advanced-conductor cost. No $/MW or $/kW figure in the documents (GridLab Fig. 8, p. 31, is a chart
+  in $M/mile; its $/MW-mile supply curve, p. 53, 55, is unpublished; Liftoff's $0.5–4M/mile, p. 25,
+  has no capacity). Relative to a new line for a similar capacity increase: "less than half—if not a
+  third or even a fourth" (GridLab technical report p. 31), "50 to 75 percent cheaper" (GridLab policy
+  report p. 8), "less than half the price of a new build" (Liftoff p. 25). With new build = ReEDS / 0.5,
+  that is 0.5–1.0 × ReEDS per kW of generation; central 1.0 × (the stated upper bound, no midpoint
+  estimated), low 0.5 × (`reconductor_low_cost.yaml`). Converted to $/kW of H with the curve-end
+  saturation: p10 / p25 / median / p75 / p90 126 / 173 / 237 / 316 / 463; transreg medians $156 (PJM)
+  to $359 (WestConnect). No placeholder needed.
+- New cost forms in `uprate_options`: `{per_kw_gen: x, per_kw_gen_by_transreg: {...}}` and
+  `{reeds_reinforcement_x: f}`, converted to $ per kW of H with the curve-end saturation.
+
+**Layer 2, adoption levels** (`uprate_levels`, chosen by `uprate_level`, default `s0`, the
+current-trajectory baseline; planned and reform only when a scenario selects them). GETs and advanced
+conductors are `baseline_uprates`, offered in every scenario at its level; conventional reinforcement
+is `backstop_uprates`, not capped by level. `reference` = `atts_s0`, and
+`pg/settings/interconnection_headroom.yml` and the case writer default to `atts_s0`, so S0 cases (the
+VM's `on` setting names `reference`) always get s0. Scenarios: `atts_s0`, `atts_s0_mandate_only`,
+`atts_planned`, `atts_reform`, `atts_reform_techmax`; the old `gets` and `reconductoring` scenarios are
+replaced by `atts_planned`.
+- `s0`: observed deployment. GETs 0.25% of H0 (Liftoff p. 88: DLR "not used today" on 99% of the
+  system, × 25%); advanced conductors 0 (deployed share not given). Why small: Order No. 1920 (89 FR
+  49280) requires consideration (P 1198), not deployment (P 1200); Order No. 881 (87 FR 2244) requires
+  ambient-adjusted ratings only for near-term service (P 4), seasonal ratings for longer-term service
+  (P 5, P 201), none in planning (P 203, P 347), no DLR mandate (P 8); implementation due 12 July 2025
+  (P 12, P 360–361).
+- `s0_mandate_only` (sensitivity): 0 and 0.
+- `planned`: GETs 10.7% (317/742 × 25%) from 2028; advanced conductors 15% (15% × 1) from 2029 (Order
+  1920 timeline P 12, P 1072, plus lead time).
+- `reform`: GETs 18.8% (317/742 × 44%) from 2027; advanced conductors 30% (Liftoff high case: 15% of
+  lines × (3× − 1), p. 88) from 2028.
+- `reform_techmax` (sensitivity, `atts_reform_techmax`): advanced conductors 78% (GridLab's 98% of
+  lines × Liftoff's 80% structure life × 1). The sources disagree on the reconductorable share: Liftoff
+  20% of lines (from INL), GridLab ~98% (all lines under 50 miles); reform uses Liftoff, the more
+  conservative and the one with a structure-life screen.
+- GETs costs rest on two regional studies (RMI PJM, Brattle SPP); planned and reform results are
+  sensitive to them (project doc note).
+
+**Double counting.** Hosted MW pay only the conventional-reinforcement cost, add nothing to H and pay
+no step or release cost; advanced reconductoring raises H, and the generation that fills the stretched
+steps and release pays their empirical costs, as for GETs. Checked by a toy solve with both in one zone
+(`test_switch_toy_no_double_counting`). Consequence: per MW of generation, advanced reconductoring costs
+1.0 × ReEDS plus those steps, conventional reinforcement 1.0 × ReEDS, so from 2030 advanced
+reconductoring is dominated on cost in every zone; its caps bind only in 2028–29 (planned, reform).
+Open issue in the project doc.
+
+**Missing from the documents (not estimated):** Order No. 1920-A; ISO Order 881 compliance pages;
+APFC and topology optimisation deployed today; advanced conductors deployed today; capacity of
+committed projects; combined GETs potential; GETs costs outside PJM and SPP; dollar years of the
+GETs costs; GETs O&M (not modelled); an advanced-conductor $/MW figure.
+
+**Results** (curves unchanged: median first step $129.0/kW, 20 zones past the edge; PPML n = 2,787,
+pseudo-R² 0.34): across 1,356 GW of H0, GETs 3.4 GW (s0, also reference), 145 GW (planned), 255 GW
+(reform); advanced conductors 0, 203 and 407 GW (1,063 GW reform_techmax); conventional reinforcement
+13,562 GW (10 × H0, a numerical bound) in every scenario. Median cost: GETs $23/kW of H ($10 in PJM;
+was $20); advanced conductors $237/kW of H (was $80); conventional reinforcement $319/kW of generation.
+`previous_defaults.yaml` restores the placeholders and the backstop-only reference. Tests: 23.

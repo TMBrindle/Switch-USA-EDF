@@ -7,7 +7,7 @@ Settings (pg/settings/interconnection_headroom.yml):
 
     interconnection_headroom:
       enabled: false
-      scenario: reference                 # zones/tranches/uprates_<scenario>.csv from the pipeline
+      scenario: atts_s0                   # zones/tranches/uprates_<scenario>.csv from the pipeline
       tranches_dir: interconnection_headroom/outputs
       exclude_network_reinforcement: true # drop PowerGenome tx_capex from gen_connect_cost_per_mw
 """
@@ -177,7 +177,7 @@ def write_case_inputs(gen_info: pd.DataFrame, settings: dict, out_folder: Path,
     cfg = pipeline_config()
     sat = cfg["saturation"]
     weights = {**sat["tech_weights"], **(ic.get("tech_weights") or {})}
-    scenario = ic.get("scenario", "reference")
+    scenario = ic.get("scenario", "atts_s0")
     zones, tranches, uprates = read_scenario(
         REPO_ROOT / ic.get("tranches_dir", "interconnection_headroom/outputs"), scenario)
     frames = switch_frames(zones, tranches, uprates, settings.get("_zone_map"),
