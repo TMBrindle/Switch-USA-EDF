@@ -283,6 +283,7 @@ in the stage folder. Don't patch around it: send Tom those files and
    - **Planning reserve (regional):** as recipe E steps 2-3. Per stage: `prm/<year>/stress_days.csv`; the
      `prm_*.csv` inputs; no `planning_reserve_margin.csv`; the scenario line excludes `planning_reserves` and
      `planning_reserves_extreme_days` and includes `prm_regional`.
+   - **RGGI (§62):** recipe H on each stage folder; the 3PR floor and both CCR tiers for the stage's year.
    - **Forced transmission (reeds_certain):** console log `forced transmission reeds_certain
      (pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv); forced-line expansion limit minimum`.
      - `trans_build_minimum.csv`: one row in the 2028 stage (the p28-p31 line, 3,000 MW) and one in the 2035 stage (the
@@ -610,6 +611,7 @@ Design: `Guides and documentation/transmission_bill_scenarios.md`.
      - atts_s0: S0_tx and txonly.
    - Build rate in 2035: reform for central, bronly, S1 and high; central for low, txonly and S0_tx.
 3. Solve with recipe A's solver options.
+   - RGGI: recipe H on the stage folder (3PR floor and CCR for 2035).
 4. **Report** for each case:
    - `tx_build_cap.csv`: intra-region and interregional TW-mi/yr against the cap, and the dual;
    - interregional builds by transreg pair;
@@ -621,6 +623,37 @@ Design: `Guides and documentation/transmission_bill_scenarios.md`.
 5. **Mode-A chains** (`S0_tx`, `BILL_*`): as recipe C. In bill central from the 2035 stage (low from 2040; high from
    2030 and again in 2035), the stage folder has `ic_scenario_switch.csv`. The previous stage's
    `prepare_next_stage` writes `ic_uprates.chained.<case>.csv` with the new scenario's caps less what was built.
+
+## H. RGGI check on a built S0 case (any stage folder)
+
+Every S0 case except the regression case should carry the 3PR floor and both CCR tiers for its model year (CHANGES
+§62). Before §62, cases on `S0_uncapped` (all S0 cases) had neither. Run it on each stage folder of S0prod_A
+(recipe C), on the recipe G cases, and on the regression case (which should have neither):
+```bash
+"<ic-pipeline python>" - "switch/in/<build>/<stage>/<case>" <<'PY'
+import sys, pandas as pd
+d = sys.argv[1]
+c = pd.read_csv(f"{d}/carbon_policies_regional.csv")
+e = c[c.CO2_PROGRAM == "ETS 1"]
+for p, g in e.groupby("PERIOD"):
+    print(p, "cap", round(g.carbon_cap_tco2_per_yr.sum()), "floor", sorted(set(g.carbon_floor_price_dollar_per_tco2)))
+print(pd.read_csv(f"{d}/carbon_policies_ccr.csv").to_string(index=False))
+PY
+```
+Expected (S0, RGGI10):
+
+| Period | ETS 1 cap (t) | Floor | CCR rows (tier: pool t, trigger $) |
+|---|---|---|---|
+| 2028 | 55,411,816 | 10.62 | 1: 10,656,120, 23.01; 2: 10,656,120, 34.50 |
+| 2030 | 39,579,868 | 12.15 | 1: 26.34; 2: 39.50 |
+| 2035 | 12,520,768 | 17.04 | 1: 36.93; 2: 55.39 |
+| 2040 | 8,191,313 | 23.90 | 1: 51.80; 2: 77.69 |
+| 2045 | 8,191,313 | 33.52 | 1: 72.65; 2: 108.96 |
+
+- **Floor and CCR:** every ETS 1 zone row has the same floor. Both CCR tiers are pooled at 10,656,120 t.
+- **Cap:** the sum of the zone caps equals the cap shown.
+- **Regression case (`s4x1_S0prod_2035`):** floor 0 and an empty `carbon_policies_ccr.csv`, as before.
+- **Cases built before §62:** a floor of 0 or no CCR rows on an S0 case means it was built before §62. Rebuild it.
 
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 

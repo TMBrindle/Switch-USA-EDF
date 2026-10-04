@@ -174,6 +174,13 @@ every other case build as before — tests check the legacy settings and that th
 | 58 | `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv`, `pg/extra_inputs/transmission/forced_tx_status_review.csv` (placeholder), `tx_transfer_floor_placeholder.csv` | `tx_policy`, `levels_by_period`, `level_overrides`, `prm.imports.new_tx_allowance`, `forced_tx_status_review`; axes `tx_bill`, `tx_sens`; `forced_tx` values `reeds_certain_plus_A` / `_AB`; columns `tx_bill`, `tx_sens` (legacy / none in every older row); 7 mode-A chains, 7 single-year 2035 versions, 5 sensitivity rows. | §60 item 6. | none (legacy / none set nothing) |
 | 59 | `pg_to_switch.py` (`transmission_tables`) | With a list of forced tables (S0 `_plus_A` / `_AB` only), a zone pair keeps all its rows from one table: each project in its own forced period, same-period MW summed, minimum cumulative, forced-period cap = the period's own projects (`_limit_mw`, internal). A single table (every other case) is read exactly as before. `s0_workflow/tx_policy.py` keeps that cap under the national cap. | §61: two class-A/B pairs in the status review. | none (single-table path unchanged; `_plus_A` byte-identical, tested) |
 
+### Added in §62 (Oct 2026: RGGI Third Program Review floor and CCR for S0 cases)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 60 | `s0_workflow/production.py` (`apply_rggi`, `rggi_3pr_values`), `pg/settings/s0_production.yml` (`rggi`), `pg/settings/scenario_management.yml` (`on_pgdays` pins `rggi: {mode: legacy}`) | Every S0 case (any policies preset) gets the 3PR floor (`carbon_floor_price_by_program`) and both CCR tiers (`carbon_ccr_prices`, `carbon_ccr` pools) for each model year from `rggi_3pr_parameters.csv`; after 2037 prices +7%/yr, volumes held. | VM rggi_check.md: only the `current` preset set them (2028/2030/2035 only), so every S0 case (on `S0_uncapped`) ran with no floor and no CCR. | none outside S0 cases; the regression case is pinned legacy (unchanged). S0 cases now carry floor and CCR. |
+| 61 | `pg/extra_inputs/reeds_state_policies/REEDS_RELEASE.yml`, docs | The ReEDS copy of `rggicon.csv` labelled superseded (unused; `rggicon_3pr.csv` is the cap). | Avoid using the older trajectory by mistake. | none |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -218,3 +225,10 @@ every other case build as before — tests check the legacy settings and that th
     too; nothing there changes unless a case opts in.
 13. (§60) `BILL_central_S1` takes only fedpol S1's `tax_credits`; fedpol's S1 also differs from its S0 in `policies`
     (growth caps S1.csv) and `trans_expansion` (nerc_growth), which these cases don't carry over (Tom's decision).
+14. (§62) **Not a preset edit.** The `S0`, `S0_uncapped` (and other) policies presets are unchanged: the 3PR floor and
+    CCR are applied in the S0 layer (`s0_production.rggi`), so non-S0 cases that use those presets (fedpol's S0 cases,
+    `s4x1_S0unc_*`) still run with no floor or CCR outside 2028/2030/2035 `current`. What S0_uncapped-derived S0 cases
+    do has changed (they now have floor and CCR). For fedpol to match, add the same year-specific
+    `carbon_floor_price_by_program` / `carbon_ccr_prices` entries under its presets for 2028-2045 (values in
+    s0_production.md "RGGI"), or call `rggi_3pr_values`. The `current` preset's 2028 tier-1 trigger is 23.00; the file
+    gives 23.01.

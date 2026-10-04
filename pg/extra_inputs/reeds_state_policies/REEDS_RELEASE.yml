@@ -18,7 +18,9 @@ files:
   - state_policies/offshore_req_default.csv
   - tech-subset-table.csv
   - emission_constraints/rggi_states.csv
-  - emission_constraints/rggicon.csv     # fallback only: rggi_carbon/rggicon_3pr.csv is used when present
+  - emission_constraints/rggicon.csv     # SUPERSEDED (CHANGES §62): an older, shallower RGGI trajectory, unused;
+                                        # the RGGI cap is rggi_carbon/rggicon_3pr.csv (3rd Program Review Model
+                                        # Rule) in every S0 and new case. Kept only as a verbatim release copy.
 # Differences against the files the VM uses (pg/extra_inputs/rggi_carbon/emission_policies_current.csv,
 # created 2025-12-14 from ReEDS main, regenerated 2026-05-12):
 # s0_workflow/data/reeds_state_policy_diff_2026.09.21.csv (scripts/compare_reeds_state_policies.py).

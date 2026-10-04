@@ -398,6 +398,46 @@ PowerGenome's files are not edited.
 - **Check:** the build writes `coal_holds_by_stage.csv` and compares it with `coal_spec_hold_by_stage.csv`
   (exact).
 
+## RGGI (§62)
+
+The cap, auction reserve price (floor) and Cost Containment Reserve all follow the RGGI Third Program Review (3PR)
+Model Rule in every S0 case. Setting: `s0_production.rggi`.
+
+- **Cap:** `pg/extra_inputs/rggi_carbon/rggicon_3pr.csv` (3PR Model Rule, May 2026), through the policy files. For S0
+  that is `emission_policies_reeds_2026.09.21.csv`, built by `build_reeds_state_policies.py`. It declines to 2037 and
+  is held at the 2037 level after.
+  - **Superseded:** the pinned ReEDS copy `reeds_state_policies/emission_constraints/rggicon.csv` has an older,
+    shallower trajectory. Nothing uses it; don't use it.
+- **Floor and CCR** (`rggi.mode: 3pr`, the S0 default): `rggi_3pr_parameters.csv` gives, for 2027–2037, the auction
+  reserve price and both CCR tiers (trigger prices and volumes). `production.apply_rggi` gives each S0 case its model
+  year's values through the existing mechanisms:
+  - `carbon_floor_price_by_program` → the `FloorAllowances` floor in `carbon_policies_regional.csv`;
+  - `carbon_ccr_prices` and the `carbon_ccr` pools → the `ETS 1_CCR1` / `_CCR2` tiers in `carbon_policies_ccr.csv`.
+
+  This applies whatever the policies preset. Before, only the `current` preset set a floor and CCR, and only for
+  2028, 2030 and 2035, so every S0 case (all on `S0_uncapped`) ran with neither.
+- **After 2037:**
+  - floor and trigger prices keep rising 7% a year: the Model Rule's rate, which is the file's own year-on-year growth
+    to the cent for 2027–2037. The escalation is applied to the short-ton prices and converted at / 0.907185 to the
+    cent, as the file does;
+  - CCR volumes are held at 2037's;
+  - the cap is held at 2037's.
+- **No emissions containment reserve (ECR):** the Third Program Review removed it, and the model has none.
+- **`legacy`:** the preset's own values. This is the regression case (`on_pgdays`, `S0_uncapped`: no floor or CCR), so
+  it stays byte-identical. Non-S0 cases (fedpol's included) are unchanged: this is an S0 setting, not a preset edit.
+
+Values ($ and tonnes per metric tonne; RGGI10, no Virginia):
+
+| Model year | Cap (t) | Floor | CCR tier 1 trigger | CCR tier 2 trigger | CCR volume per tier (t) |
+|---|---|---|---|---|---|
+| 2028 | 55,411,816 | 10.62 | 23.01 | 34.50 | 10,656,120 |
+| 2030 | 39,579,868 | 12.15 | 26.34 | 39.50 | 10,656,120 |
+| 2035 | 12,520,768 | 17.04 | 36.93 | 55.39 | 10,656,120 |
+| 2040 | 8,191,313 | 23.90 | 51.80 | 77.69 | 10,656,120 |
+| 2045 | 8,191,313 | 33.52 | 72.65 | 108.96 | 10,656,120 |
+
+The `current` preset's own 2028 tier-1 trigger is 23.00 (rounded); the S0 cases use the file's 23.01.
+
 ## Forced transmission (§54)
 
 - **Source:** `s0_production.forced_tx: reeds_certain` (S0 default). The forced lines are ReEDS 2026.09.21's certain

@@ -76,6 +76,12 @@ rggi:
 
 ## CCR Implementation
 
+> **S0 cases (CHANGES §62):** the floor and both CCR tiers come from `rggi_3pr_parameters.csv` for every model year
+> through 2045 (after 2037: prices +7%/yr, volumes held), whatever the policies preset. See `s0_production.md`
+> "RGGI". The Third Program Review removed the emissions containment reserve (ECR): there is none. The ReEDS copy of
+> `rggicon.csv` (`reeds_state_policies/emission_constraints/`) is superseded by `rggicon_3pr.csv`.
+
+
 The RGGI Cost Containment Reserve (CCR) is implemented as two additional CO₂ programs (`ETS 1_CCR1`, `ETS 1_CCR2`) with a hard pool cap:
 
 | Tier | Pool | 2028 price | 2030 price | 2035 price |

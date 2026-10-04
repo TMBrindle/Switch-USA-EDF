@@ -250,6 +250,20 @@ s0_production:
     penalty: central               # central ($300/kW-yr, 2028$) | low ($106/kW-yr, 2025$, PJM RTO Net CONE)
     inflation_after_cpi: 0.025     # dollar-year conversion past the last CPI-U year in the repo (2024)
 
+  # RGGI (CHANGES §62; Guides and documentation/s0_production.md "RGGI"): the cap is rggi_carbon/rggicon_3pr.csv
+  # (3rd Program Review Model Rule, May 2026) through the policy files; the ReEDS release's emission_constraints/
+  # rggicon.csv copy is superseded (older, shallower trajectory; fallback only, unused).
+  #   3pr     (S0 default) every S0 case gets the 3PR auction reserve price (floor) and both CCR tiers (trigger prices,
+  #           volumes) for each model year, whatever its policies preset: rggi_3pr_parameters.csv for 2027-2037; after
+  #           2037 floor and trigger prices +7%/yr (the Model Rule's rate), CCR volumes held at 2037's; cap held at
+  #           2037's (rggicon_3pr.csv). No emissions containment reserve (removed by the 3rd Program Review).
+  #   legacy  the policies preset's values (the regression case: S0_uncapped, no floor or CCR)
+  rggi:
+    mode: 3pr
+    parameters: pg/extra_inputs/rggi_carbon/rggi_3pr_parameters.csv
+    program: "ETS 1"
+    escalation_after_last_year: 0.07
+
   # transmission policy (axis tx_bill; scenario_inputs.csv column of that name; CHANGES §60; s0_workflow/tx_policy.py,
   # switch/study_modules/tx_build_cap.py, Guides and documentation/transmission_bill_scenarios.md):
   #   legacy        the case's trans_expansion policy as before (zero: no discretionary transmission); every

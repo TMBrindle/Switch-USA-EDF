@@ -2517,3 +2517,53 @@ keeps them valid):
 - the national-cap rewrite and the chain subtraction.
 
 **Results:** s0_workflow 118. pandas 3.0.6: 140 passed with build_rate; 1.4.4: 139 passed and 1 skipped.
+
+## 62. S0 Production: RGGI Third Program Review Floor and CCR in Every S0 Case
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("RGGI"), `rggi_scenario_framework.md`, `VM_RECIPES.md`
+(recipe H; C and G point to it), `SHARED_CHANGES.md` #60-#61, review point 14
+
+**Finding (VM rggi_check.md):**
+- The RGGI floor (`FloorAllowances`) and two-tier CCR (`ETS 1_CCR1` / `_CCR2`) in `carbon_policies_regional.py` got
+  values only from the `current` preset, and only for 2028, 2030 and 2035.
+- Every S0 case uses `S0_uncapped`, so all of them ran with no floor and no CCR, and nothing was set for 2036–2045.
+
+**Tom's decisions, as a setting (`s0_production.rggi`, mode `3pr` by default; `legacy` for the regression case):**
+1. **Files:** `rggicon_3pr.csv` and `rggi_3pr_parameters.csv` are tracked on the branch (checked first).
+2. **Cap:** `rggicon_3pr.csv` (3PR Model Rule, May 2026) stays the RGGI cap source for every S0 and new case. The S0
+   policy file carries it in every model year (tested). The ReEDS release's `emission_constraints/rggicon.csv` is
+   labelled superseded (older, shallower, unused).
+3. **Floor and CCR:** every S0 case, whatever its preset, gets the 3PR auction reserve price and both CCR tiers
+   (trigger prices and volumes) for each model year. They go through the existing mechanisms:
+   `carbon_floor_price_by_program`, `carbon_ccr_prices` and the `carbon_ccr` pools.
+4. **After 2037:**
+   - cap held at 2037's (8,191,313 t);
+   - floor and CCR trigger prices +7%/yr. That is the Model Rule's escalation, and the file's own year-on-year growth
+     to the cent for 2027–2037 (tested). It is applied to the short-ton prices and converted at / 0.907185;
+   - CCR volumes held at 2037's (10,656,120 t per tier).
+5. **No emissions containment reserve:** the Third Program Review removed it, and the model has none.
+
+**Values for S0** ($ and t per metric tonne):
+
+| Model year | Cap (t) | Floor | CCR1 trigger | CCR2 trigger | CCR volume per tier |
+|---|---|---|---|---|---|
+| 2028 | 55,411,816 | 10.62 | 23.01 | 34.50 | 10,656,120 |
+| 2030 | 39,579,868 | 12.15 | 26.34 | 39.50 | 10,656,120 |
+| 2035 | 12,520,768 | 17.04 | 36.93 | 55.39 | 10,656,120 |
+| 2040 | 8,191,313 | 23.90 | 51.80 | 77.69 | 10,656,120 |
+| 2045 | 8,191,313 | 33.52 | 72.65 | 108.96 | 10,656,120 |
+
+**Scope:** an S0 setting, not a preset edit, so non-S0 cases (fedpol's) are unchanged. The regression case
+(`on_pgdays`) pins `rggi: legacy` and keeps its inputs.
+
+**Tests:** `test_rggi.py` (5):
+- the files are tracked;
+- the 7% rate;
+- the values by model year and after 2037;
+- the S0 policy cap equals `rggicon_3pr.csv`;
+- every S0 case on every preset gets floor and CCR;
+- the regression case and non-S0 cases are untouched;
+- the writer reads these settings.
+
+**Results:** s0_workflow 123. pandas 3.0.6: 145 passed with build_rate; 1.4.4: 144 passed and 1 skipped.

@@ -1295,6 +1295,7 @@ settings_management:
           forced_tx: named_projects
           forced_tx_expansion_limit: legacy
           prm: {design: legacy}
+          rggi: {mode: legacy}
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}

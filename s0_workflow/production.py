@@ -89,6 +89,7 @@ def apply_settings(case_settings: dict) -> None:
                 raise ValueError(f"s0_production.gas_capex.mode must be premium, atb_moderate or gridlab, "
                                  f"not {mode!r}")
             apply_levels_by_period(s, s0, case, year)
+            apply_rggi(s, s0, case, year)
             apply_retirement_option(s, s0)
             apply_forced_tx(s, s0, case, year)
             if prm.apply_settings(s, s0):
@@ -252,6 +253,60 @@ def apply_forced_tx(s: dict, s0: dict, case=None, year=None) -> None:
         s["forced_tx_expansion_limit"] = "minimum"
     logger.info("s0_production %s/%s: forced transmission %s%s; forced-line expansion limit %s", case, year, o,
                 f" ({s['forced_tx_table']})" if o != "named_projects" else "", lim)
+
+
+RGGI_DEFAULTS = {"mode": "3pr", "parameters": "pg/extra_inputs/rggi_carbon/rggi_3pr_parameters.csv",
+                 "program": "ETS 1", "escalation_after_last_year": 0.07}
+SHORT_TON_PER_TONNE = 0.907185
+
+
+def rggi_settings(s0: dict) -> dict:
+    r = {**RGGI_DEFAULTS, **((s0 or {}).get("rggi") or {})}
+    if r["mode"] not in ("3pr", "legacy"):
+        raise ValueError(f"s0_production.rggi.mode must be 3pr or legacy, not {r['mode']!r}")
+    return r
+
+
+def rggi_3pr_values(year: int, r: dict | None = None) -> dict:
+    """RGGI Third Program Review values for a model year ($ and tonnes per metric tonne; CHANGES §62), from
+    rggi_3pr_parameters.csv (Model Rule, 2027-2037): auction reserve price (floor), CCR tier 1 and 2 trigger prices
+    and CCR volumes. After the file's last year the floor and trigger prices keep escalating at the Model Rule rate
+    (7%/yr: the file's own year-on-year growth, to the cent), applied to the short-ton prices and converted as the
+    file does (/ 0.907185, to the cent); CCR volumes are held at the last year's. Years before the first take it."""
+    r = r or RGGI_DEFAULTS
+    t = pd.read_csv(REPO / r["parameters"]).set_index("year")
+    first, last = int(t.index.min()), int(t.index.max())
+    y = max(int(year), first)
+    if y <= last:
+        row = t.loc[y]
+        return {"floor": float(row.min_reserve_price_per_metric_tonne),
+                "ccr_prices": [float(row.ccr_t1_trigger_per_metric_tonne), float(row.ccr_t2_trigger_per_metric_tonne)],
+                "ccr_volumes": [float(row.ccr_t1_volume_metric_tonnes), float(row.ccr_t2_volume_metric_tonnes)]}
+    row, g = t.loc[last], (1 + float(r["escalation_after_last_year"])) ** (y - last)
+    metric = lambda short: round(round(float(short) * g, 2) / SHORT_TON_PER_TONNE, 2)  # noqa: E731
+    return {"floor": metric(row.min_reserve_price_per_short_ton),
+            "ccr_prices": [metric(row.ccr_t1_trigger_per_short_ton), metric(row.ccr_t2_trigger_per_short_ton)],
+            "ccr_volumes": [float(row.ccr_t1_volume_metric_tonnes), float(row.ccr_t2_volume_metric_tonnes)]}
+
+
+def apply_rggi(s: dict, s0: dict, case=None, year=None) -> None:
+    """s0_production.rggi (CHANGES §62): with mode 3pr (S0 default) every S0 case gets the Third Program Review
+    auction reserve price (carbon_floor_price_by_program) and both CCR tiers (carbon_ccr_prices, carbon_ccr pools)
+    for its model year, whatever its policies preset (before, only the `current` preset set them, and only for
+    2028/2030/2035). The cap stays rggi_carbon/rggicon_3pr.csv's (through the policy files). legacy: the preset's
+    values (the regression case). There is no emissions containment reserve: the Third Program Review removed it."""
+    r = rggi_settings(s0)
+    if r["mode"] != "3pr":
+        return
+    v = rggi_3pr_values(int(year), r)
+    prog = r["program"]
+    s["carbon_floor_price_by_program"] = {**(s.get("carbon_floor_price_by_program") or {}), prog: v["floor"]}
+    s["carbon_ccr_prices"] = {**(s.get("carbon_ccr_prices") or {}), prog: list(v["ccr_prices"])}
+    ccr = dict(s.get("carbon_ccr") or {})
+    ccr[prog] = {**(ccr.get(prog) or {}), "ccr_pools_tco2_per_yr": list(v["ccr_volumes"])}
+    s["carbon_ccr"] = ccr
+    logger.info("s0_production %s/%s: RGGI 3PR floor %.2f, CCR triggers %s, volumes %s ($ and t per metric tonne)",
+                case, year, v["floor"], v["ccr_prices"], v["ccr_volumes"])
 
 
 LEVEL_KEYS = {"interconnection_headroom": "scenario", "build_rate": "level"}
