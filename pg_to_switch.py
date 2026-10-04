@@ -645,8 +645,10 @@ def operational_files(
                 if days_in_group != 1:
                     raise ValueError("fleet-independent day selection needs time_domain_days_per_period: 1")
                 logger.info(
-                    f"Fleet-independent day selection ({fi_days['n_days']} days, {model_year}); "
-                    f"time_domain_periods {num_clusters} is not used."
+                    "Fleet-independent day selection ("
+                    + (f"{fi_days['n_days']} x {fi_days['block_days']}-day blocks"
+                       if int(fi_days.get("block_days") or 1) > 1 else f"{fi_days['n_days']} days")
+                    + f", {model_year}); time_domain_periods {num_clusters} is not used."
                 )
                 results, representative_point, weights = s0days.select_days(
                     resource_profiles=period_variability,
@@ -701,13 +703,23 @@ def operational_files(
 
         # timeseries_df and timepoints_df
         if cluster_time:
-            timeseries_df, timepoints_df = ts_tp_pg_kmeans(
-                representative_point["slot"],
-                weights,
-                year_settings["time_domain_days_per_period"],
-                year_settings["model_year"],
-                year_settings["model_first_planning_year"],
-            )
+            if s0days.sample_is_blocks(representative_point):
+                # S0 chronological multi-day blocks (s0_production.time_sampling.sample NxL):
+                # slots of mixed length (blocks, the peak day, stress days)
+                timeseries_df, timepoints_df = s0days.ts_tp_blocks(
+                    representative_point,
+                    weights,
+                    year_settings["model_year"],
+                    year_settings["model_first_planning_year"],
+                )
+            else:
+                timeseries_df, timepoints_df = ts_tp_pg_kmeans(
+                    representative_point["slot"],
+                    weights,
+                    year_settings["time_domain_days_per_period"],
+                    year_settings["model_year"],
+                    year_settings["model_first_planning_year"],
+                )
             timeseries_df, timepoints_df = s0prm.rename_stress_rows(
                 timeseries_df, timepoints_df, n_stress
             )

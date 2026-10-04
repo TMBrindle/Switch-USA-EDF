@@ -2232,3 +2232,51 @@ inputs, and Switch toys for stress-hours-only enforcement, deliverability with l
 assertions in the regression test. Run on pandas 3.0.6 (85 passed) and 1.4.4 (84 passed, 1 skipped: h5py not in that
 env); build_rate 22 on both; headroom 31.
 
+
+## 56. S0 Production: Chronological Multi-Day Blocks in the Day Selector
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("Time sampling: multi-day blocks"), `s0_workflow/VM_RECIPES.md`
+(recipe F), `SHARED_CHANGES.md` (#45-#47, review point 10)
+
+Tom's item 11, as a setting: `s0_production.time_sampling.sample` is N (N single days; absent = `n_days`, today's 24)
+or NxL (N chronological L-day blocks, e.g. `4x3`). Each block is one timeseries, so storage, hydro and DR carry over its
+L days.
+
+- **Targets and tails:** the day mode's, unchanged: mean load (±1%), onshore-wind CF (±0.010) and utility solar CF
+  (±0.005) by transreg and nationally; top-1% load hours 0.75-1.25% and bottom-1% net-load hours 0.5-1.5% of sample
+  weight. Weights in days/yr; each block at least `w_min` times a year.
+- **Selection:** candidates are `block_pool` (16) k-means medoids of the record's aligned L-day blocks plus a block
+  centred on each top-load and low-net-load day (none overlaps the peak day). Every non-overlapping set of N gets the
+  day mode's weight LP; the feasible set with the smallest error objective wins (4x3: 7,315 sets, about 20 s a model
+  year on a 13-transreg, 7-year test record).
+- **Relaxation only if no set is feasible:** tolerances and bands widen by `relax.factor` (1.5) per step, at most
+  `block_relax_max_steps` (12), and a cheap lower bound skips sets that can't be feasible at a step. The factor is
+  logged as a warning and written to `fi_info.json` (`relax_factor`, `relaxed`) and `fi_target_errors.csv`
+  (`error / base tolerance`). If no set fits after the last step, the build stops.
+- **Peak day and stress days:** PowerGenome's peak-load day stays a single day at its usual weight. PRM stress days
+  (§55) stay single zero-weight days, added on top. `pg_to_switch.py` builds mixed-length timeseries with
+  `day_selection.ts_tp_blocks` (same id format as `ts_tp_pg_kmeans`; identical tables for single days, tested).
+- **Day mode unchanged:** its code is split into a shared `_prepare` step plus the existing day code. Outputs are
+  byte-identical to the previous version on a test record.
+
+**Cases (recipe F):** `s4x1_S0prod_2035_fi24` and `s4x1_S0prod_2035_fi4x3`, single year 2035 on the s4x1 stack, the
+fleet-independent selector, today's (legacy) reserve. They differ only in `time_sample` (new axis and column:
+`days24` sets nothing; `blocks4x3` sets `sample: 4x3`) and differ from `s4x1_S0prod_2035_txreeds` only in
+`s0_production` (`on_single`: the fleet-independent selector instead of PowerGenome's days).
+
+**Expected size (timepoints, 1-hour):**
+
+| Case | Sample | + legacy extreme-day copy | Total (legacy) | With the regional reserve instead: + 10-12 stress days |
+|---|---|---|---|---|
+| fi24 | 24 days + peak day = 600 (25 timeseries) | +24 | 624 | 840-888 |
+| fi4x3 | 4 x 72 + peak day = 312 (5 timeseries) | +24 | 336 | 552-600 |
+
+The legacy reserve copies the timeseries holding the system-peak hour at zero weight. That is the single peak day in
+both cases, since blocks never contain it. fi24 can come out under 600 if a tail day is also a medoid. The regional
+reserve drops the copy.
+
+**Tests:** `test_day_blocks.py` (6): the setting; targets, tails, weights, non-overlap and peak exclusion; relaxation
+only when infeasible (and the stop); ids for blocks, the peak day and stress days, and single days identical to
+`ts_tp_pg_kmeans`; the case pair and axis; the pg_to_switch hook. `s0_workflow` 91 (was 85); pandas 3.0.6 91 passed,
+1.4.4 90 passed and 1 skipped; build_rate 22 on both.

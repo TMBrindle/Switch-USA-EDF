@@ -77,6 +77,31 @@ runs in `low_net_load_fleets` instead; listing the two C1 fleets should reproduc
 If a tolerance can't be met, tolerances relax x1.5, at most twice, and the factor is recorded. If
 they still can't be met, the build stops. Diagnostics are in `<case>/time_sampling/<year>/`.
 
+### Time sampling: multi-day blocks (§56)
+
+`time_sampling.sample` chooses the sample's shape: `24` (24 single days; the default when absent) or `NxL`, N
+chronological L-day blocks (e.g. `4x3`, four 3-day blocks). Each block is one timeseries, so storage state of charge,
+hydro and DR carry over its L days instead of wrapping each day.
+
+The targets and tail bands are the same as above. Weights are in days/yr (summing to 365 with the peak day), and each
+block occurs at least `w_min` times a year. The selection:
+1. **Candidates:** `block_pool` (16) k-means medoids of the record's aligned L-day blocks (features: the standardised
+   daily load, wind and solar profiles, concatenated over the block's days), plus a block centred on each of the 3
+   top-load and 3 low-net-load days. No candidate contains the peak day.
+2. **Search:** every set of N non-overlapping candidates gets the weight LP. The feasible set with the smallest
+   error objective wins.
+3. **Relaxation only if no set is feasible:** tolerances and bands widen x1.5 per step, at most
+   `block_relax_max_steps` (12) steps. With four blocks against about 40 regional targets, real data may need some.
+   The factor is logged as a warning, written to `fi_info.json` (`relax_factor`, `relaxed`, and the lower bound
+   `min_relax_lower_bound`), and each target's `error / base tolerance` is in `fi_target_errors.csv`.
+
+PowerGenome's peak-load day stays a single day. The PRM stress days (§55) stay single zero-weight days, added on top.
+Timeseries are named `<year>_pNxL` for blocks (N = the block's first day in the record) and `<year>_pN` for single
+days. Timepoint ids have the usual format.
+
+Model size (1-hour timepoints), each with the peak day: 24 days = 600, 4x3 = 312. The legacy reserve copies
+the peak day (+24) and the regional reserve adds 10-12 stress days (+240-288). Recipe F compares the two samples.
+
 ## Gas capex premium
 
 New-build ATB CC and CT (not CCS) cost ATB 2024 Moderate x (1 + premium). The premium is a fraction by

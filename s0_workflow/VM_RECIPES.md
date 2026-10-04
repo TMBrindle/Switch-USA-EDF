@@ -456,6 +456,73 @@ requirement".
    cost; interregional transmission builds. txreeds's per-zone margins (8%) and its extreme-day block versus the
    regional margins and stress days explain most differences.
 
+## F. Time sample: 24 single days vs 4x3 blocks (2035 s4x1, today's reserve)
+
+**Cases:** `s4x1_S0prod_2035_fi24` (`time_sample = days24`) and `s4x1_S0prod_2035_fi4x3` (`time_sample = blocks4x3`).
+They are identical except `time_sample`, so the sample is the only difference. Both use:
+- the fleet-independent selector (`s0_production = on_single`);
+- single year 2035 on the s4x1 stack;
+- today's (legacy) reserve: the per-zone margin plus the extreme-day copy of the peak day.
+
+Each differs from `s4x1_S0prod_2035_txreeds` (recipe D) only in `s0_production`. Design: `Guides and
+documentation/s0_production.md`, "Time sampling: multi-day blocks".
+
+1. Build both into fresh folders:
+   ```bash
+   for c in fi24 fi4x3; do
+     test -e switch/in/s0prod_$c && { echo "exists: pick another name"; break; }
+     "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_$c --case-id s4x1_S0prod_2035_$c --year 2035
+   done
+   ```
+   The block search takes about 20-60 s more than the day selection.
+2. **Build log and stage folders** `switch/in/s0prod_<c>/2035/s4x1_S0prod_2035_<c>/`:
+   - **Console:** `Fleet-independent day selection (24 days, 2035)` for fi24 and `(4 x 3-day blocks, 2035)` for
+     fi4x3. If fi4x3 also logs `block sample 4x3: ... relaxed x<f>`, **report f**.
+   - **`time_sampling/2035/fi_info.json`:**
+     - fi4x3: `sample` 4x3; `relax_factor` (1.0 = no relaxation); `relaxed`; `min_relax_lower_bound`;
+       `n_candidate_sets` (about 7,000).
+     - fi24: `relax_factor`.
+     - **Report all of them.**
+   - **`fi_target_errors.csv`:** every row `within`. Report the largest `error / base tolerance` (fi4x3) and each
+     case's largest absolute error by target type.
+   - **`fi_tail_shares.csv`:** both tails inside their bands. Report the shares.
+   - **`fi_days_selected.csv`:** fi4x3 has 4 three-day blocks plus the peak day. **Report the dates and weights**
+     (`weight_days_per_yr`, `occurrences_per_yr`). Its column `start_day` is the block's first day in 2007-2013.
+   - **`timeseries.csv`:**
+
+     | | fi24 | fi4x3 |
+     |---|---|---|
+     | Sampled timeseries | 25 × 24 h (`2035_pN`) | 4 × 72 h (`2035_pNx3`) and 1 × 24 h |
+     | Extreme-day copy | 1 × 24 h, `_prm`, weight 0 | 1 × 24 h, `_prm`, weight 0 |
+     | Timepoints | 624 | 336 |
+
+     fi24 may be lower if a tail day is also a medoid. The copy is the timeseries holding the system-peak hour of
+     `loads.csv`, normally the single peak day. If fi4x3's copy is 72 h, that hour fell in a block: report it. The timepoints come from `wc -l timepoints.csv` minus 1;
+     **report both counts**. `sum(ts_scale_to_period × ts_num_tps / 24)` over the non-copy rows is 365 × 5 (the
+     stage's 5 years) in both.
+3. **Input check:**
+   ```bash
+   "<ic-pipeline python>" s0_workflow/scripts/compare_s0_runs.py inputs \
+     switch/in/s0prod_fi4x3/2035/s4x1_S0prod_2035_fi4x3 switch/in/s0prod_fi24/2035/s4x1_S0prod_2035_fi24 > s0prod_fi_inputs.txt
+   ```
+   Only the time files (as in recipe E step 3) and the `time_sampling/` diagnostics should differ. Anything else is
+   unexpected: report it.
+4. Solve both with recipe A's solver options, into fresh output folders (the same command as recipe D step 3).
+   **Report:**
+   - solve time and peak memory for each;
+   - the LP size from the Gurobi log (rows, columns, nonzeros).
+5. **Report, fi4x3 against fi24:**
+   - new gas CC/CT, storage (MW and MWh, and duration), wind and solar by transreg;
+   - coal and gas retirements;
+   - CO2;
+   - system cost;
+   - interregional transmission;
+   - storage cycling: annual discharge / energy capacity.
+
+   Chronology mostly affects storage duration and hydro. A large shift in long-duration storage or gas means 3-day
+   carry-over matters. A shift in wind or solar means the four blocks miss the targets (check `fi_target_errors.csv`
+   first).
+
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 
 **Deferred** (Oct 2026): mode A is the production route for now. Keep this recipe for when mode B is

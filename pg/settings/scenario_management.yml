@@ -1298,6 +1298,9 @@ settings_management:
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}
+      # single-year case with the fleet-independent selector (recipe F: s4x1_S0prod_2035_fi24 / _fi4x3)
+      on_single:
+        s0_production: {enabled: true, foresight: {mode: single}}
     # Units held open by orders, for S0 production cases with the coal spec (pg/settings/s0_production.yml
     # coal_holds; s0_workflow/specs/coal/coal_spec.md §3). Inert unless s0_production.enabled. Needs a
     # `coal_holds` column in scenario_inputs.csv (s0 in every row that predates it).
@@ -1336,6 +1339,13 @@ settings_management:
         s0_production: {prm: {design: regional}}
       legacy:
         s0_production: {prm: {design: legacy}}
+    # Fleet-independent sample shape for S0 production cases (pg/settings/s0_production.yml time_sampling.sample;
+    # CHANGES §56). Inert unless the fleet-independent selector runs. Column `time_sample` in scenario_inputs.csv:
+    # days24 (sets nothing: n_days single days) in every row but s4x1_S0prod_2035_fi4x3.
+    time_sample:
+      days24: ~
+      blocks4x3:
+        s0_production: {time_sampling: {sample: 4x3}}
     policies:
       current:
         # Per-program costs and hard RGGI cap; CCR prices are year-specific below.

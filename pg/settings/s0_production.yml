@@ -54,6 +54,17 @@ s0_production:
     kmeans_n_init: 20
     relax: {factor: 1.5, max_steps: 2}
     diag_dir: time_sampling        # diagnostics in <case>/time_sampling/<model year>/
+    # sample (optional; absent = n_days single days): N (N single days, = n_days) or NxL, N chronological
+    # L-day blocks (e.g. 4x3), each one timeseries (storage and hydro carry over its L days), against the
+    # same targets, tolerances and tail bands; weights in days/yr, each block at least w_min times a year.
+    # Candidates: block_pool k-means medoids of the record's aligned L-day blocks plus a block centred on
+    # each top-load and low-net-load day; every non-overlapping set of N is tried and the best feasible set
+    # wins. Tolerances and bands relax (relax.factor per step, at most block_relax_max_steps) only when no
+    # set is feasible; the factor is logged and in fi_info.json / fi_target_errors.csv. The peak-load day
+    # stays a single day; PRM stress days stay single zero-weight days (prm.stress_days).
+    # sample: 4x3
+    block_pool: 16
+    block_relax_max_steps: 12
 
   # item 2: new CC/CT capex
   gas_capex:

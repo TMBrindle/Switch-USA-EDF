@@ -32,7 +32,7 @@ def test_settings_file_axis_and_rows():
     s0 = s0_yaml()
     assert s0["enabled"] is False                                   # inert unless a case turns it on
     ax = axis()
-    assert set(ax) == {"off", "on", "on_windows", "on_pgdays", "on_pgdays_new"}
+    assert set(ax) == {"off", "on", "on_windows", "on_pgdays", "on_pgdays_new", "on_single"}
     assert ax["on"]["s0_production"] == {"enabled": True}
     assert ax["on_windows"]["s0_production"]["foresight"]["mode"] == "windows"
     assert ax["on_pgdays"]["s0_production"]["time_sampling"]["method"] == "powergenome"

@@ -144,6 +144,14 @@ every other case build as before — tests check the legacy settings and that th
 | 43 | `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv` | New `prm` block (design regional by default); `on_pgdays` pins `prm: {design: legacy}`; axis and column `prm_design` (regional for S0prod_A/B and the new `s4x1_S0prod_2035_prm`, legacy elsewhere). | §55. | none (inert unless `s0_production.enabled`; the regression row is legacy) |
 | 44 | `s0_workflow/tests/test_forced_tx.py` | Reads source files as UTF-8. | Windows default encoding. | none |
 
+### Added in §56 (Oct 2026: chronological multi-day blocks in the S0 day selector)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 45 | `pg_to_switch.py` (`operational_files`) | When the fleet-independent selector returns blocks (`s0days.sample_is_blocks`), builds `timeseries.csv` / `timepoints.csv` with `s0days.ts_tp_blocks` (mixed-length slots, same id format) instead of `ts_tp_pg_kmeans`; the log line names the sample. | §56. | none (only with `time_sampling.sample: NxL`, L > 1) |
+| 46 | `s0_workflow/day_selection.py` | `sample` setting (N or NxL); `_select_blocks` (block candidates, set search, relaxation only when no set is feasible); `ts_tp_blocks`. The day path is split into `_prepare` + the unchanged day code (outputs byte-identical, checked against the previous version). | §56. | none |
+| 47 | `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv` | `time_sampling.sample` (commented), `block_pool`, `block_relax_max_steps`; `s0_production` axis value `on_single`; axis and column `time_sample` (days24 sets nothing, in every row but `s4x1_S0prod_2035_fi4x3`); rows `s4x1_S0prod_2035_fi24` / `_fi4x3`. | §56, recipe F. | none (days24 sets nothing) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -176,4 +184,4 @@ every other case build as before — tests check the legacy settings and that th
    `Guides and documentation/s0_production.md`: one checked hour per zone (which can be a weighted hour), thermal and
    hydro at nameplate, imports capped only in that hour (storage can launder uncapped imports), no deliverability
    within multi-zone regions, and the CAISO 1e-6 workaround. `prm_regional` addresses each; consider it for fedpol.
-
+10. (§56) `scenario_inputs.csv` has one more column (`time_sample`); merging with `ollie/fedpol` adds `days24` to its rows.
