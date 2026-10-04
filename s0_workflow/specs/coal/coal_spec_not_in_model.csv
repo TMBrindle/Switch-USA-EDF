@@ -1,0 +1,82 @@
+kn,plant_id_eia,generator_id,technology_description,county_zone,winter_capacity_mw,status
+10167|GEN1,10167,GEN1,Petroleum Coke,p65,7.6,not in model: plant not in reeds_plant_map.csv
+10234|GEN1,10234,GEN1,Conventional Steam Coal,p76,15.3,not in model: plant not in reeds_plant_map.csv
+10234|GEN5,10234,GEN5,Conventional Steam Coal,p76,20.0,not in model: plant not in reeds_plant_map.csv
+10361|GEN3,10361,GEN3,Petroleum Coke,p94,42.3,not in model: plant not in reeds_plant_map.csv
+10361|GEN4,10361,GEN4,Petroleum Coke,p94,42.3,not in model: plant not in reeds_plant_map.csv
+10684|TG8,10684,TG8,Conventional Steam Coal,p10,25.0,not in model: plant not in reeds_plant_map.csv
+10684|TG9,10684,TG9,Conventional Steam Coal,p10,25.0,not in model: plant not in reeds_plant_map.csv
+10860|1A,10860,1A,Conventional Steam Coal,p70,75.0,not in model: plant not in reeds_plant_map.csv
+10860|2A,10860,2A,Conventional Steam Coal,p70,105.0,not in model: plant not in reeds_plant_map.csv
+10864|GEN1,10864,GEN1,Conventional Steam Coal,p70,31.0,not in model: plant not in reeds_plant_map.csv
+10864|GEN2,10864,GEN2,Conventional Steam Coal,p70,31.0,not in model: plant not in reeds_plant_map.csv
+10864|GEN3,10864,GEN3,Conventional Steam Coal,p70,31.0,not in model: plant not in reeds_plant_map.csv
+10864|GEN4,10864,GEN4,Conventional Steam Coal,p70,31.0,not in model: plant not in reeds_plant_map.csv
+10864|GEN5,10864,GEN5,Conventional Steam Coal,p70,31.0,not in model: plant not in reeds_plant_map.csv
+10864|GEN6,10864,GEN6,Conventional Steam Coal,p70,105.0,not in model: plant not in reeds_plant_map.csv
+10865|GEN2,10865,GEN2,Conventional Steam Coal,p83,31.0,not in model: plant not in reeds_plant_map.csv
+10865|GEN3,10865,GEN3,Conventional Steam Coal,p83,31.0,not in model: plant not in reeds_plant_map.csv
+10865|GEN4,10865,GEN4,Conventional Steam Coal,p83,31.0,not in model: plant not in reeds_plant_map.csv
+10865|GEN5,10865,GEN5,Conventional Steam Coal,p83,31.0,not in model: plant not in reeds_plant_map.csv
+10865|GEN6,10865,GEN6,Conventional Steam Coal,p83,31.0,not in model: plant not in reeds_plant_map.csv
+10865|GEN7,10865,GEN7,Conventional Steam Coal,p83,75.0,not in model: plant not in reeds_plant_map.csv
+10865|GEN8,10865,GEN8,Conventional Steam Coal,p83,105.0,not in model: plant not in reeds_plant_map.csv
+50121|TG1,50121,TG1,Petroleum Coke,p65,26.9,not in model: plant not in reeds_plant_map.csv
+50121|TG2,50121,TG2,Petroleum Coke,p65,26.9,not in model: plant not in reeds_plant_map.csv
+50305|GE10,50305,GE10,Petroleum Coke,p103,3.2,not in model: plant not in reeds_plant_map.csv
+50305|GEN6,50305,GEN6,Petroleum Coke,p103,12.0,not in model: plant not in reeds_plant_map.csv
+50305|GEN7,50305,GEN7,Petroleum Coke,p103,10.0,not in model: plant not in reeds_plant_map.csv
+50305|GEN8,50305,GEN8,Petroleum Coke,p103,11.0,not in model: plant not in reeds_plant_map.csv
+50305|GEN9,50305,GEN9,Petroleum Coke,p103,11.0,not in model: plant not in reeds_plant_map.csv
+50308|GEN1,50308,GEN1,Conventional Steam Coal,,4.3,not in model: plant not in reeds_plant_map.csv
+50308|GEN3,50308,GEN3,Conventional Steam Coal,,6.2,not in model: plant not in reeds_plant_map.csv
+50308|GEN4,50308,GEN4,Conventional Steam Coal,,6.2,not in model: plant not in reeds_plant_map.csv
+50308|GEN5,50308,GEN5,Conventional Steam Coal,,6.2,not in model: plant not in reeds_plant_map.csv
+50392|TG3,50392,TG3,Conventional Steam Coal,,5.0,not in model: plant not in reeds_plant_map.csv
+50392|TG4,50392,TG4,Conventional Steam Coal,,5.0,not in model: plant not in reeds_plant_map.csv
+50392|TG5,50392,TG5,Conventional Steam Coal,,9.5,not in model: plant not in reeds_plant_map.csv
+50397|GEN5,50397,GEN5,Conventional Steam Coal,p122,36.1,not in model: plant not in reeds_plant_map.csv
+50481|TG10,50481,TG10,Conventional Steam Coal,p92,6.0,not in model: plant not in reeds_plant_map.csv
+50481|TG11,50481,TG11,Conventional Steam Coal,p92,6.0,not in model: plant not in reeds_plant_map.csv
+50481|TG12,50481,TG12,Conventional Steam Coal,p92,6.0,not in model: plant not in reeds_plant_map.csv
+50481|TG13,50481,TG13,Conventional Steam Coal,p92,7.0,not in model: plant not in reeds_plant_map.csv
+50481|TG14,50481,TG14,Conventional Steam Coal,p92,10.0,not in model: plant not in reeds_plant_map.csv
+50481|TG15,50481,TG15,Conventional Steam Coal,p92,7.5,not in model: plant not in reeds_plant_map.csv
+50481|TG22,50481,TG22,Conventional Steam Coal,p92,15.4,not in model: plant not in reeds_plant_map.csv
+50481|TG25,50481,TG25,Conventional Steam Coal,p92,18.0,not in model: plant not in reeds_plant_map.csv
+50481|TG26,50481,TG26,Conventional Steam Coal,p92,16.6,not in model: plant not in reeds_plant_map.csv
+50481|TGO7,50481,TGO7,Conventional Steam Coal,p92,6.0,not in model: plant not in reeds_plant_map.csv
+50481|TGO8,50481,TGO8,Conventional Steam Coal,p92,6.0,not in model: plant not in reeds_plant_map.csv
+50481|TGO9,50481,TGO9,Conventional Steam Coal,p92,6.0,not in model: plant not in reeds_plant_map.csv
+50711|GEN5,50711,GEN5,Conventional Steam Coal,,17.0,not in model: plant not in reeds_plant_map.csv
+50900|GEN3,50900,GEN3,Conventional Steam Coal,p99,10.5,not in model: plant not in reeds_plant_map.csv
+50900|GEN5,50900,GEN5,Conventional Steam Coal,p99,32.5,not in model: plant not in reeds_plant_map.csv
+50965|GEN1,50965,GEN1,Petroleum Coke,p111,6.0,not in model: plant not in reeds_plant_map.csv
+54210|G1,54210,G1,Conventional Steam Coal,p37,13.3,not in model: plant not in reeds_plant_map.csv
+54211|G1,54211,G1,Conventional Steam Coal,p42,3.0,not in model: plant not in reeds_plant_map.csv
+54211|G2,54211,G2,Conventional Steam Coal,p42,2.0,not in model: plant not in reeds_plant_map.csv
+54212|G1,54212,G1,Conventional Steam Coal,p42,3.5,not in model: plant not in reeds_plant_map.csv
+54212|G2,54212,G2,Conventional Steam Coal,p42,3.0,not in model: plant not in reeds_plant_map.csv
+54213|G1,54213,G1,Conventional Steam Coal,p37,6.0,not in model: plant not in reeds_plant_map.csv
+54214|G1,54214,G1,Conventional Steam Coal,p42,2.5,not in model: plant not in reeds_plant_map.csv
+54214|G2,54214,G2,Conventional Steam Coal,p42,5.0,not in model: plant not in reeds_plant_map.csv
+54318|TG1,54318,TG1,Conventional Steam Coal,p21,15.0,not in model: plant not in reeds_plant_map.csv
+54318|TG2,54318,TG2,Conventional Steam Coal,p21,15.0,not in model: plant not in reeds_plant_map.csv
+54533|1,54533,0001,Conventional Steam Coal,p44,7.5,not in model: plant not in reeds_plant_map.csv
+54867|M387,54867,M387,Conventional Steam Coal,p74,5.8,not in model: plant not in reeds_plant_map.csv
+57046|GEN1,57046,GEN1,Conventional Steam Coal,p40,61.0,not in model: plant not in reeds_plant_map.csv
+57915|1,57915,1,Conventional Steam Coal,p21,3.5,not in model: plant not in reeds_plant_map.csv
+57915|2,57915,2,Conventional Steam Coal,p21,3.5,not in model: plant not in reeds_plant_map.csv
+57915|3,57915,3,Conventional Steam Coal,p21,4.0,not in model: plant not in reeds_plant_map.csv
+57915|4,57915,4,Conventional Steam Coal,p21,10.0,not in model: plant not in reeds_plant_map.csv
+57915|5,57915,5,Conventional Steam Coal,p21,10.0,not in model: plant not in reeds_plant_map.csv
+57915|6,57915,6,Conventional Steam Coal,p21,10.0,not in model: plant not in reeds_plant_map.csv
+57928|GEN5,57928,GEN5,Conventional Steam Coal,p81,2.8,not in model: plant not in reeds_plant_map.csv
+57949|1,57949,1,Conventional Steam Coal,p103,1.4,not in model: plant not in reeds_plant_map.csv
+57953|ST,57953,ST,Petroleum Coke,p70,32.0,not in model: plant not in reeds_plant_map.csv
+62319|1,62319,1,Conventional Steam Coal,p20,1.5,not in model: plant not in reeds_plant_map.csv
+6288|1,6288,1,Conventional Steam Coal,,25.0,not in model: plant not in reeds_plant_map.csv
+6288|2,6288,2,Conventional Steam Coal,,50.0,not in model: plant not in reeds_plant_map.csv
+79|1,79,1,Conventional Steam Coal,,4.3,not in model: plant not in reeds_plant_map.csv
+79|2,79,2,Conventional Steam Coal,,2.0,not in model: plant not in reeds_plant_map.csv
+79|5,79,5,Conventional Steam Coal,,18.8,not in model: plant not in reeds_plant_map.csv

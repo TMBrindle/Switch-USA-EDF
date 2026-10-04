@@ -2068,3 +2068,56 @@ Run on pandas 3.0.6 (Python 3.11) and pandas 1.4.4 (Python 3.10, numpy 1.23.5). 
 **Tests:** `build_rate` 22 and `s0_workflow` 65, passing on pandas 3.0.6 (Python 3.11) and on pandas 1.4.4
 (Python 3.10, numpy 1.23.5). Headroom 31 (pandas 3.0.6).
 
+## 53. S0 Production: Coal Spec Corrections After the VM Build at 88e6b30 (Rev. 2.1 A4)
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `s0_workflow/specs/coal/coal_spec.md` (addendum A4), `s0_workflow/VM_RECIPES.md` (recipe C),
+`SHARED_CHANGES.md` (#37)
+
+The VM build at 88e6b30 passed the removal fix but failed the coal check in 2028. All three causes were on the
+spec side. The regression case stays byte-identical (test).
+
+1. **Already-satisfied overrides pass.**
+   - **The case:** PowerGenome's fleet already has Brandon Shores 1 / 2 at 2029 and Stanton 1 with no date, so the
+     build derives no override.
+   - **Fix:** `check_overrides` now gets PowerGenome's unit table. A spec retire / retire-later / keep-online row
+     that the table already satisfies passes as `ok (already satisfied: model <year | no date>)`. Any other missing
+     row still fails.
+2. **Plants not in `reeds_plant_map.csv` are out of the model basis.**
+   - **Why:** PowerGenome's EIA-860 units keep only plants with a region, and with no `region_aggregations` only
+     the plant map gives one.
+   - **Fix:** `load_model_basis` keeps mapped plants only. Their spec override rows (12) pass as
+     `not in model: plant not in reeds_plant_map.csv`, and the build logs them and writes `coal_not_in_model.csv`.
+   - **Size:** 68 units, 1,470.4 MW in the lower 48 (ADM ×4, Tennessee Eastman, Savannah River Mill, Roquette, the
+     other pet-coke units, Seadrift Coke, sugar and paper mills, Covington), plus 159.5 MW in Alaska. Accepted as
+     absent for S0 and listed as a gap for the fleet refresh (A4).
+   - **Not changed:** the cap unit set (H, own, N), so N and every cap are unchanged.
+   - **Reported:** the hook now logs any coal-group unit PowerGenome adds back from the 860M new-generator rows. By
+     PowerGenome's code these plants could re-enter that way, as Biron Mill did; the next VM log will show it.
+3. **Edwardsport CT1 / CT2: 240.6 MW each** (nameplate; EIA-860 has no winter MW), as the build counts them: +481.2
+   MW in p107. This is in the basis (`fetch_coal_spec_eia.py`; only those two rows change) and in
+   `coal_spec_overrides.csv`.
+
+**Tables:**
+- All three options' `by_option` tables are regenerated, and `coal_spec_not_in_model.csv` is new.
+- Model coal after overrides is 0.97 GW lower in every stage:
+  - block_all 163.59 / 163.59 GW in 2028 / 2030 (was 164.56);
+  - planned_only and unrestricted 156.35 / 141.14 (was 157.32 / 142.11).
+- Against rev. 2, model MW differs exactly by the unmapped plants and +481.2 MW in p107 (test). Caps and rules are
+  the same, except zones left with no model coal.
+- **Zone-MW tolerance:** zone model MW differences are now reported above 0.1 MW (was 1 MW). There are none on the
+  public basis.
+
+**Docs:**
+- `coal_spec.md` addendum A4, including the not-in-model table and the GEM note: `update_coal_closures.py` is not
+  applied in the S0 build, which reads the unedited July 2025 860M, and the spec uses 860M dates only.
+- Recipe C's expected values, `s0_production.md`, `SHARED_CHANGES.md`.
+
+**Tests:** `s0_workflow` 66 (was 65):
+- already satisfied (Brandon Shores, Stanton), not in model, and a wrong date still failing;
+- the 860M re-add report;
+- rev. 2 vs A4 model MW by zone;
+- the case-build statuses.
+
+Run on pandas 3.0.6 and 1.4.4 (both: s0_workflow 66, build_rate 22); headroom 31 (pandas 3.0.6).
+

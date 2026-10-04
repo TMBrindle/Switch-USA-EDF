@@ -199,7 +199,8 @@ validation tables (`s0_workflow/specs/coal/`; caps and holds from `by_option/` f
 - the converted units' heat rates (±0.01).
 
 A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrides_applied.csv`,
-`coal_holds_by_stage.csv` and `coal_removals.csv` (and `coal_converted_heat_rates.csv`) in the stage folder. Don't patch around it: send Tom those files and
+`coal_holds_by_stage.csv`, `coal_removals.csv` and `coal_not_in_model.csv` (and `coal_converted_heat_rates.csv`)
+in the stage folder. Don't patch around it: send Tom those files and
 `s0_production_log.txt`.
 
 1. Check the pinned state-policy files, then build into a fresh folder. The build writes all five stage
@@ -277,26 +278,39 @@ A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrid
 
      | Stage | N | Zones with model coal | Model coal after overrides (GW) |
      |---|---|---|---|
-     | 2028 | 0.5785 | 76 | 164.56 |
-     | 2030 | 0.5785 | 76 | 164.56 |
-     | 2035 | 0.5998 | 68 | 126.45 |
-     | 2040 | 0.6001 | 68 | 124.35 |
-     | 2045 | 0.6001 | 68 | 124.35 |
+     | 2028 | 0.5785 | 72 | 163.59 |
+     | 2030 | 0.5785 | 72 | 163.59 |
+     | 2035 | 0.5998 | 61 | 125.48 |
+     | 2040 | 0.6001 | 61 | 123.38 |
+     | 2045 | 0.6001 | 61 | 123.38 |
+
+     These are the coal_spec.md addendum A4 values: plants not in `reeds_plant_map.csv` are out, and Edwardsport
+     CT1 / CT2 are in at 240.6 MW each. N and the caps are as before.
 
      - **Blend zone:** p111 in every stage (0.529 / 0.529 / 0.548 / 0.549 / 0.549).
      - **p130 in 2028 and 2030:** Merrimack 1 alone (108 MW), on its own history, cap 0.128. The
        out-of-service Merrimack 2 is removed in every option.
-     - **Model-MW differences:** the log lists any zone whose model MW differs from the public basis
-       reconstruction by more than 1 MW. §2.1 suggests p107 (about 481 MW). This is reported, not a
-       failure: report the list.
+     - **Model-MW differences:** the log lists any zone whose model MW after the overrides differs from the
+       expected table by more than 0.1 MW. None are expected (A4). It is reported, not a failure: report the
+       list if there is one.
+     - **Not in model:** the log line `coal: 81 coal-group units (1629.9 MW) not in model: plant not in
+       reeds_plant_map.csv; outside Alaska 68 units, 1470.4 MW by county zone {...}`, and `coal_not_in_model.csv`.
+       Accepted for S0 (A4).
+     - **860M re-adds:** if the log has `coal: <n> coal-group units PowerGenome added from the 860M`, report the
+       list. Those units are in the case's coal clusters but not in the caps' model MW (A4, what to watch).
      - **Coal clusters:** `gen_max_annual_availability` = cap / (1 − forced outage), capped at 1.
      - **Other options:** for a `planned_only` or `unrestricted` sensitivity, the expected values are 2028
-       0.5806 / 74 / 157.32 GW and 2030 0.5926 / 71 / 142.11 GW (`by_option/coal_spec_stage_summary.*.csv`).
-   - **Applied overrides:** `coal_overrides_applied.csv` has 71 rows, all `ok`: 15 retire, 9 retire later,
-     8 convert to gas, 5 remove, 5 keep online, 8 hold, and 21 no-change / review rows. Biron Mill GEN5's
-     row is expected to read `ok (removal: not in PowerGenome's EIA-860 units)`, with 70 derived overrides (log
-     line `70 overrides applied`), because that unit isn't among those units (71 and a plain `ok` if it is). Converted
+       0.5806 / 69 / 156.35 GW and 2030 0.5926 / 65 / 141.14 GW (`by_option/coal_spec_stage_summary.*.csv`).
+   - **Applied overrides:** `coal_overrides_applied.csv` has 71 rows (the spec table's S0 rows), all `ok`:
+     - 55 plain `ok`;
+     - 3 `ok (already satisfied: ...)`: Brandon Shores 1 / 2 (`model 2029`) and Stanton 1 (`model no date`),
+       which PowerGenome's fleet already has, so no override is derived;
+     - 12 `not in model: plant not in reeds_plant_map.csv` (the pet-coke units and Seadrift Coke);
+     - Biron Mill GEN5 `ok (removal: not in PowerGenome's EIA-860 units)`.
+     The log should say `55 overrides applied`. Another split with every row `ok` is fine: report it. Converted
      units are in the zone's `other_peaker` cluster, not the coal clusters.
+   - **Fleet dates:** the build reads the unedited July 2025 860M; `update_coal_closures.py` (GEM dates) is not
+     applied, and the spec uses 860M dates only (A4).
    - **Converted heat rates:** `coal_converted_heat_rates.csv` is all `ok` against
      `coal_spec_converted_gas_units.csv` (rev. 2.1, latest EIA-923, all 2026 ST/NG). The values are North Valmy
      11.42, Montour 10.11, Pawnee 10.96, Harrington 10.83 and James E. Rogers 10.55.

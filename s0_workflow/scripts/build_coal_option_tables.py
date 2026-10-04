@@ -4,6 +4,8 @@ option (s0_production.retirements_pre2030: block_all, planned_only, unrestricted
   s0_workflow/specs/coal/by_option/coal_spec_expected_caps_by_stage.<option>.csv   (as coal_spec_expected_caps_by_stage.csv)
   s0_workflow/specs/coal/by_option/coal_spec_hold_by_stage.<option>.csv            (as coal_spec_hold_by_stage.csv)
   s0_workflow/specs/coal/by_option/coal_spec_stage_summary.<option>.csv            (§4's per-stage figures)
+  s0_workflow/specs/coal/coal_spec_not_in_model.csv   coal-group units whose plant is not in reeds_plant_map.csv,
+                                                      left out of the model basis (all options; a known gap)
 
 The case build checks against the tables of the case's option. Model fleet: the public reconstruction of
 PowerGenome's coal basis (s0_workflow/data/coal_model_basis_860er2024.csv), with the overrides of §2.
@@ -30,6 +32,7 @@ def texts() -> dict:
         for name, df in (("coal_spec_expected_caps_by_stage", caps.round(4)), ("coal_spec_hold_by_stage", holds),
                          ("coal_spec_stage_summary", summ)):
             out[OUT / f"{name}.{o}.csv"] = cs.csv_text(df, index=False)
+    out[cs.SPEC / "coal_spec_not_in_model.csv"] = cs.csv_text(cs.not_in_model(), index=False)
     return out
 
 

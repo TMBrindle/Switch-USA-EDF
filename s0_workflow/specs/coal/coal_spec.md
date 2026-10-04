@@ -394,14 +394,15 @@ unchanged.
   2026-29 as in service through 2030 (§1.1 rule 3). Its 2021-24 history therefore counts in H and N in the 2028
   and 2030 stages.
 
-**Model basis for these tables.** A public reconstruction of PowerGenome's coal basis:
+**Model basis for these tables.** A public reconstruction of PowerGenome's coal basis
+(`s0_workflow/data/coal_model_basis_860er2024.csv`):
 - EIA-860 2024 **early release**, the vintage PUDL 2025_08 used: it has Brandon Shores 2025 and Stanton 2025;
 - PowerGenome's July 2025 860M Retired sheet;
-- zone from the plant map, then county (`s0_workflow/data/coal_model_basis_860er2024.csv`).
+- plants in `reeds_plant_map.csv` only, as PowerGenome's EIA-860 units (A4);
+- winter MW, or the nameplate where EIA-860 has none (Edwardsport CT1 / CT2, 240.6 MW each; A4).
 
-It reproduces the rev. 2 override list exactly (71 rows) and the rev. 2 caps and rule labels exactly. It differs
-from the rev. 2 model MW only in p99, by +43 MW: plant 50900 (VA, Alleghany County) is not in the plant map, and
-§1.4's county step places it in p99, as the case does (§2.1).
+It reproduces the rev. 2 caps and the rev. 2 rule labels, except zones left with no model coal (A4). Its model MW
+differs from rev. 2's exactly by the unmapped plants and Edwardsport CT1 / CT2 (A4).
 
 **Validation tables by option** (`s0_workflow/specs/coal/by_option/`, from
 `s0_workflow/scripts/build_coal_option_tables.py`; the case build checks the table of the case's option):
@@ -416,26 +417,27 @@ predetermined fleet. block_all differs only in the 2028 and 2030 stages.
 
 | option | stage | N(p) | zones | zones with model coal | model coal before / after overrides (GW) | model-MW-weighted cap | own / national / blend / no coal left | S0 held (GW) |
 |---|---|---|---|---|---|---|---|---|
-| block_all | 2028 | 0.5785 | 76 | 76 | 167.70 / 164.56 | 0.5780 | 73 / 2 / 1 / 0 | 3.24 |
-| block_all | 2030 | 0.5785 | 76 | 76 | 167.70 / 164.56 | 0.5780 | 73 / 2 / 1 / 0 | 3.24 |
-| block_all | 2035 | 0.5998 | 73 | 68 | 135.71 / 126.45 | 0.5992 | 64 / 3 / 1 / 5 | 0.00 |
-| block_all | 2040 | 0.6001 | 73 | 68 | 135.37 / 124.35 | 0.5996 | 64 / 3 / 1 / 5 | 0.00 |
-| block_all | 2045 | 0.6001 | 72 | 68 | 135.03 / 124.35 | 0.5996 | 64 / 3 / 1 / 4 | 0.00 |
-| planned_only | 2028 | 0.5806 | 75 | 74 | 158.02 / 157.32 | 0.5801 | 71 / 2 / 1 / 1 | 3.24 |
-| planned_only | 2030 | 0.5926 | 74 | 71 | 144.45 / 142.11 | 0.5921 | 67 / 3 / 1 / 3 | 0.00 |
-| planned_only | 2035 | 0.5998 | 73 | 68 | 135.71 / 126.45 | 0.5992 | 64 / 3 / 1 / 5 | 0.00 |
-| planned_only | 2040 | 0.6001 | 73 | 68 | 135.37 / 124.35 | 0.5996 | 64 / 3 / 1 / 5 | 0.00 |
-| planned_only | 2045 | 0.6001 | 72 | 68 | 135.03 / 124.35 | 0.5996 | 64 / 3 / 1 / 4 | 0.00 |
-| unrestricted | 2028 | 0.5806 | 75 | 74 | 158.02 / 157.32 | 0.5801 | 71 / 2 / 1 / 1 | 3.24 |
-| unrestricted | 2030 | 0.5926 | 74 | 71 | 144.45 / 142.11 | 0.5921 | 67 / 3 / 1 / 3 | 0.00 |
-| unrestricted | 2035 | 0.5998 | 73 | 68 | 135.71 / 126.45 | 0.5992 | 64 / 3 / 1 / 5 | 0.00 |
-| unrestricted | 2040 | 0.6001 | 73 | 68 | 135.37 / 124.35 | 0.5996 | 64 / 3 / 1 / 5 | 0.00 |
-| unrestricted | 2045 | 0.6001 | 72 | 68 | 135.03 / 124.35 | 0.5996 | 64 / 3 / 1 / 4 | 0.00 |
+| block_all | 2028 | 0.5785 | 74 | 72 | 166.71 / 163.59 | 0.5779 | 71 / 0 / 1 / 2 | 3.24 |
+| block_all | 2030 | 0.5785 | 74 | 72 | 166.71 / 163.59 | 0.5779 | 71 / 0 / 1 / 2 | 3.24 |
+| block_all | 2035 | 0.5998 | 70 | 61 | 134.72 / 125.48 | 0.5994 | 60 / 0 / 1 / 9 | 0.00 |
+| block_all | 2040 | 0.6001 | 70 | 61 | 134.38 / 123.38 | 0.5998 | 60 / 0 / 1 / 9 | 0.00 |
+| block_all | 2045 | 0.6001 | 69 | 61 | 134.04 / 123.38 | 0.5998 | 60 / 0 / 1 / 8 | 0.00 |
+| planned_only | 2028 | 0.5806 | 73 | 69 | 157.03 / 156.35 | 0.5801 | 68 / 0 / 1 / 4 | 3.24 |
+| planned_only | 2030 | 0.5926 | 71 | 65 | 143.47 / 141.14 | 0.5925 | 64 / 0 / 1 / 6 | 0.00 |
+| planned_only | 2035 | 0.5998 | 70 | 61 | 134.72 / 125.48 | 0.5994 | 60 / 0 / 1 / 9 | 0.00 |
+| planned_only | 2040 | 0.6001 | 70 | 61 | 134.38 / 123.38 | 0.5998 | 60 / 0 / 1 / 9 | 0.00 |
+| planned_only | 2045 | 0.6001 | 69 | 61 | 134.04 / 123.38 | 0.5998 | 60 / 0 / 1 / 8 | 0.00 |
+| unrestricted | 2028 | 0.5806 | 73 | 69 | 157.03 / 156.35 | 0.5801 | 68 / 0 / 1 / 4 | 3.24 |
+| unrestricted | 2030 | 0.5926 | 71 | 65 | 143.47 / 141.14 | 0.5925 | 64 / 0 / 1 / 6 | 0.00 |
+| unrestricted | 2035 | 0.5998 | 70 | 61 | 134.72 / 125.48 | 0.5994 | 60 / 0 / 1 / 9 | 0.00 |
+| unrestricted | 2040 | 0.6001 | 70 | 61 | 134.38 / 123.38 | 0.5998 | 60 / 0 / 1 / 9 | 0.00 |
+| unrestricted | 2045 | 0.6001 | 69 | 61 | 134.04 / 123.38 | 0.5998 | 60 / 0 / 1 / 8 | 0.00 |
 
-Model coal in the zone clusters, 2028 / 2030 stages (GW):
-- **block_all:** 164.56 / 164.56 (166.53 at 479f213, before the OS removals were taken out of the push);
-- **planned_only:** 157.32 / 142.11;
-- **unrestricted:** 157.32 / 142.11 before any economic retirements, which the model chooses.
+Model coal in the zone clusters, 2028 / 2030 stages (GW; A4 basis):
+- **block_all:** 163.59 / 163.59 (164.56 at 88e6b30, before A4; 166.53 at 479f213, before the OS removals were
+  taken out of the push);
+- **planned_only:** 156.35 / 141.14 (157.32 / 142.11 before A4);
+- **unrestricted:** 156.35 / 141.14 before any economic retirements, which the model chooses.
 
 Held projects (S0) come on top: 3.24 GW in 2028, and in 2030 with block_all.
 
@@ -443,24 +445,22 @@ Held projects (S0) come on top: 3.24 GW in 2028, and in 2030 with block_all.
 
 | stage | zone | model coal after overrides (MW): planned_only → block_all | H (MW) | rule | cap |
 |---|---|---|---|---|---|
-| 2028 | p111 | 190 → 190 | 47 → 47 | blend → blend | 0.5309 → 0.5290 |
+| 2028 | p111 | 184 → 184 | 47 → 47 | blend → blend | 0.5309 → 0.5290 |
 | 2028 | p130 | 0 → 108 | — → 108 | national (no coal) → own | 0.5806 → 0.1280 |
 | 2028 | p24 | 2,235 → 2,455 | 2,235 → 2,455 | own → own | 0.6796 → 0.6699 |
 | 2028 | p29 | 2,000 → 2,381 | 2,000 → 2,381 | own → own | 0.5899 → 0.5867 |
 | 2028 | p33 | 1,317 → 1,579 | 1,317 → 1,579 | own → own | 0.7223 → 0.7266 |
 | 2028 | p34 | 961 → 1,291 | 961 → 1,296 | own → own | 0.6910 → 0.6991 |
-| 2028 | p42 | 19 → 19 | — → — | national → national | 0.5806 → 0.5785 |
 | 2028 | p43 | 2,324 → 3,004 | 2,324 → 3,004 | own → own | 0.5003 → 0.5105 |
-| 2028 | p74 | 6 → 6 | — → — | national → national | 0.5806 → 0.5785 |
 | 2028 | p79 | 1,682 → 2,304 | 1,678 → 2,300 | own → own | 0.7314 → 0.6953 |
-| 2028 | p81 | 1,753 → 2,938 | 1,753 → 2,938 | own → own | 0.8755 → 0.7899 |
-| 2028 | p83 | 335 → 2,062 | 335 → 2,062 | own → own | 0.4118 → 0.4936 |
+| 2028 | p81 | 1,750 → 2,935 | 1,753 → 2,938 | own → own | 0.8755 → 0.7899 |
+| 2028 | p83 | 0 → 1,727 | 335 → 2,062 | own (no coal) → own | 0.4118 → 0.4936 |
 | 2028 | p87 | — → 1,004 | — → 1,004 | — → own | — → 0.3948 |
-| 2028 | p92 | 4,076 → 4,796 | 4,076 → 4,796 | own → own | 0.5123 → 0.4898 |
-| 2030 | p103 | 1,650 → 4,465 | 1,602 → 4,417 | own → own | 0.6527 → 0.6414 |
+| 2028 | p92 | 3,966 → 4,685 | 4,076 → 4,796 | own → own | 0.5123 → 0.4898 |
+| 2030 | p103 | 1,601 → 4,416 | 1,602 → 4,417 | own → own | 0.6527 → 0.6414 |
 | 2030 | p105 | 1,005 → 1,460 | 1,005 → 1,460 | own → own | 0.5753 → 0.5121 |
-| 2030 | p107 | 7,966 → 10,564 | 7,389 → 9,987 | own → own | 0.5201 → 0.4541 |
-| 2030 | p111 | 190 → 190 | 47 → 47 | blend → blend | 0.5419 → 0.5290 |
+| 2030 | p107 | 8,447 → 11,045 | 7,389 → 9,987 | own → own | 0.5201 → 0.4541 |
+| 2030 | p111 | 184 → 184 | 47 → 47 | blend → blend | 0.5419 → 0.5290 |
 | 2030 | p112 | 4,969 → 5,589 | 4,969 → 5,589 | own → own | 0.6349 → 0.6427 |
 | 2030 | p123 | — → 1,273 | — → 1,273 | — → own | — → 0.2238 |
 | 2030 | p130 | 0 → 108 | — → 108 | national (no coal) → own | 0.5926 → 0.1280 |
@@ -468,16 +468,97 @@ Held projects (S0) come on top: 3.24 GW in 2028, and in 2030 with block_all.
 | 2030 | p29 | 2,000 → 2,381 | 2,000 → 2,381 | own → own | 0.5899 → 0.5867 |
 | 2030 | p33 | 0 → 1,579 | — → 1,579 | national (no coal) → own | 0.5926 → 0.7266 |
 | 2030 | p34 | 766 → 1,291 | 766 → 1,296 | own → own | 0.7024 → 0.6991 |
-| 2030 | p42 | 19 → 19 | — → — | national → national | 0.5926 → 0.5785 |
 | 2030 | p43 | 1,813 → 3,004 | 1,813 → 3,004 | own → own | 0.5596 → 0.5105 |
 | 2030 | p48 | 0 → 1,067 | — → 1,067 | national (no coal) → own | 0.5926 → 0.3132 |
-| 2030 | p65 | 1,892 → 2,452 | 1,831 → 2,391 | own → own | 0.6514 → 0.6483 |
+| 2030 | p65 | 1,831 → 2,391 | 1,831 → 2,391 | own → own | 0.6514 → 0.6483 |
 | 2030 | p72 | 3,857 → 4,851 | 3,857 → 4,851 | own → own | 0.8180 → 0.7419 |
-| 2030 | p74 | 6 → 6 | — → — | national → national | 0.5926 → 0.5785 |
-| 2030 | p76 | 15 → 1,180 | — → 1,127 | national → own | 0.5926 → 0.5795 |
+| 2030 | p76 | — → 1,165 | — → 1,127 | — → own | — → 0.5795 |
 | 2030 | p79 | 1,682 → 2,304 | 1,678 → 2,300 | own → own | 0.7314 → 0.6953 |
-| 2030 | p81 | 1,753 → 2,938 | 1,753 → 2,938 | own → own | 0.8755 → 0.7899 |
-| 2030 | p83 | 335 → 2,062 | 335 → 2,062 | own → own | 0.4118 → 0.4936 |
+| 2030 | p81 | 1,750 → 2,935 | 1,753 → 2,938 | own → own | 0.8755 → 0.7899 |
+| 2030 | p83 | 0 → 1,727 | 335 → 2,062 | own (no coal) → own | 0.4118 → 0.4936 |
 | 2030 | p87 | — → 1,004 | — → 1,004 | — → own | — → 0.3948 |
-| 2030 | p92 | 2,812 → 4,796 | 2,812 → 4,796 | own → own | 0.5207 → 0.4898 |
+| 2030 | p92 | 2,701 → 4,685 | 2,812 → 4,796 | own → own | 0.5207 → 0.4898 |
 | 2030 | p97 | 660 → 1,040 | 660 → 1,040 | own → own | 0.5889 → 0.4930 |
+
+### A4. Spec-side corrections after the VM build at 88e6b30 (2026-10-04)
+
+The VM build at 88e6b30 passed the removal fix but failed the coal check in the 2028 stage. A read-only
+investigation found three causes, all on the spec side. Tom's decisions:
+
+1. **Overrides already satisfied by the build pass.**
+   - **The case:** PowerGenome's fleet can already have the date or status an override wants: Brandon Shores 1 / 2
+     dated 2029, Stanton 1 online with no date. The build then derives no override.
+   - **The check:** a spec row of action retire, retire later or keep online with no override in the build passes
+     as `ok (already satisfied: model <year | no date>)` when PowerGenome's unit table (before the edits) has the
+     spec's year, or no date for keep online. "Only in spec" otherwise still fails.
+   - **Why the public basis differs:** it is the EIA-860 2024 early release, which has Brandon Shores and Stanton
+     at 2025; PowerGenome's fleet on the VM doesn't. The end state is the same.
+2. **Plants not in `reeds_plant_map.csv` are not in the model.**
+   - **Why:** PowerGenome's EIA-860 unit table keeps only plants with a model region. With no
+     `region_aggregations` (`model_definition.yml`), only `reeds_plant_map.csv` gives one. §1.4's county step
+     therefore doesn't apply to the model fleet. Biron Mill is the exception: PowerGenome adds it back from the 860M
+     new-generator rows, and the build deletes it as an OS removal.
+   - **Expected tables:** the model basis leaves these plants out. The `by_option` tables are regenerated for all
+     three options. Spec override rows for them pass as `not in model: plant not in reeds_plant_map.csv` (12 rows:
+     Seadrift Coke, Alpena Cement ×5, Toledo Refinery, Valero Corpus Christi ×2, Roquette, Savannah River Mill ×2).
+     They are logged under the same label.
+   - **Cap unit set unchanged:** H, own and N still come from every mapped 860M cap unit (§1.1-1.5; county
+     placement included), so the caps and N are unchanged. Zones whose only model coal was unmapped now have
+     "(no model coal after overrides)" and no coal clusters: p10 and p44 in every stage; p83 from 2035 (planned_only
+     and unrestricted: from 2028); p92 from 2035. p42 and p74 drop out of the tables, and so does p76 from 2035
+     (planned_only and unrestricted: from 2030).
+   - **Known gap for the fleet refresh:** accepted as absent for S0 (Tom).
+     - **Lower 48:** 68 coal-group units, 1,470.4 MW, listed in `coal_spec_not_in_model.csv` with their county zone
+       (Biron Mill's 35.3 MW included).
+     - **Alaska:** five more plants, 159.5 MW, have no zone at all: Healy 75, Chena 25.1, FWA Central Heat 22.9,
+       Eielson AFB 19.5, University of Alaska Fairbanks 17.
+
+     | county zone | plants (MW) |
+     |---|---|
+     | p70 | ADM Clinton (180), ADM Cedar Rapids (260), Roquette America (pet coke, 32) |
+     | p83 | ADM Decatur (335) |
+     | p92 | Tennessee Eastman (110.5) |
+     | p94 | Savannah River Mill (pet coke, 84.6) |
+     | p21 | WE Soda (41), General Chemical (30) |
+     | p40 | ADM Columbus (61) |
+     | p65 | Valero Corpus Christi West (pet coke, 53.8), Seadrift Coke (pet coke, 7.6) |
+     | p10 | Argus Cogen (50) |
+     | p103 | Alpena Cement (pet coke, 47.2), MSC Sebewaing (1.4) |
+     | p99 | Covington (43) |
+     | p122 | Pixelle Spring Grove (36.1) |
+     | p76 | Biron Mill (35.3, incl. the OS removal GEN5) |
+     | p37 | American Crystal Sugar Hillsboro (13.3), Drayton (6) |
+     | p42 | American Crystal Sugar Moorhead (5), Crookston (6.5), East Grand Forks (7.5) |
+     | p44 | Southern Minnesota Beet Sugar (7.5) |
+     | p111 | Toledo Refinery (pet coke, 6) |
+     | p74 | Neenah Paper Munising (5.8) |
+     | p81 | SIUC (2.8) |
+     | p20 | Western Sugar Billings (1.5) |
+
+   - **p99:** Covington's 43 MW was in the 88e6b30 tables by the county step. Rev. 2's model MW didn't have it.
+   - **What to watch:** PowerGenome adds 860M Operating units that aren't among its EIA-860 units back as new
+     generators, placed by location (`import_new_generators`). That is how Biron Mill came back, and it could
+     bring these plants into the case as well. The model MW of the caps counts PowerGenome's EIA-860 units only,
+     so such units wouldn't appear there. The build therefore logs any coal-group unit in those rows: `coal: <n>
+     coal-group units PowerGenome added from the 860M ...` (reported, not failed).
+3. **Edwardsport CT1 / CT2 (p107).** EIA-860 2024 has no winter MW for them, and PowerGenome's unit table counts
+   2 × 240.6 MW (their nameplate) in the coal group.
+   - **Expected tables:** the basis uses the nameplate where winter MW is blank: +481.2 MW in p107 in every
+     stage. `coal_spec_overrides.csv` gives CT1 / CT2 `model_winter_MW` 240.6.
+   - **No other effect:** they remain "no change" (§2.5), and the p107 rule and cap don't change.
+
+**Zone MW tolerance.** The build reports a zone whose model MW after the overrides differs from the expected
+table by more than **0.1 MW** (was 1 MW; §1.5 reports M to 0.1 MW). The report doesn't fail the build. With A4 no
+differences are expected. On the public basis there are none in any option or stage (test). A difference on the VM
+means PowerGenome's fleet differs from the basis: report it.
+
+**Figures after A4** (all options; the table above):
+- **N and the caps:** unchanged.
+- **Model coal after overrides:** 0.97 GW lower in every stage (−1.45 GW unmapped, +0.48 GW Edwardsport).
+- **Zones with model coal:** block_all 72 in 2028 and 2030 (was 76); planned_only 69 / 65 (was 74 / 71); 61 from
+  2035 (was 68).
+
+**GEM dates are not used.** `update_coal_closures.py` (Global Energy Monitor closure dates written into the 860M)
+is not applied in the S0 build: the build reads the unedited July 2025 860M (VM, 88e6b30), and nothing in
+`pg_to_switch.py` runs it. This corrects §2.1's remark that the July 2025 860M "had been edited". The spec uses
+860M dates only, by design.

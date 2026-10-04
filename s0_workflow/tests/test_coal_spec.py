@@ -232,6 +232,32 @@ def test_overrides_derived_from_latest_860m_match_spec(scen, n):
     assert (cf.check_overrides(bad, spec("coal_spec_overrides.csv", dtype={"generator_id": str}), scen).status == "differs").sum() == 1
 
 
+def test_overrides_already_satisfied_and_unmapped():
+    """VM 88e6b30 (Tom 2026-10-04): where PowerGenome's fleet already has what the spec's override wants, the build
+    derives no override and the check passes as "already satisfied" (Brandon Shores 1 / 2 dated 2029, Stanton 1 with
+    no date), not "only in spec"; a unit whose plant isn't in reeds_plant_map.csv passes as not in the model; any other
+    spec row the build lacks still fails."""
+    op, rt = cf.load_fleet860m()
+    holds = cf.scenario_holds({"coal_holds": {"scenario": "s0"}})
+    e = spec("coal_spec_overrides.csv", dtype={"generator_id": str})
+    b = cs.load_model_basis()
+    k = pd.Series(cs.keys(b.plant_id_eia, b.generator_id), index=b.index)
+    b.loc[k.isin(["602|1", "602|2"]), "retirement_year"] = 2029                     # as PowerGenome's fleet has them
+    b.loc[k == "564|1", "retirement_year"] = b.loc[k == "564|1", "operating_date"] + 500
+    ov, _ = cf.derive_overrides(b, op, rt, holds)
+    assert not set(ov.kn) & {"602|1", "602|2", "564|1"}                              # no-ops: nothing derived
+    chk = cf.check_overrides(ov, e, "s0", absent={"10234|GEN5"}, units=b).set_index("kn")
+    assert chk.ok.all(), chk[~chk.ok]
+    assert chk.at["602|1", "status"] == "ok (already satisfied: model 2029)" == chk.at["602|2", "status"]
+    assert chk.at["564|1", "status"] == "ok (already satisfied: model no date)"
+    assert (chk.status == cs.NOT_IN_MODEL).sum() == 12 and chk.at["57953|ST", "status"] == cs.NOT_IN_MODEL
+    assert (cf.check_overrides(ov, e, "s0", absent={"10234|GEN5"}).status == "only in spec").sum() == 3   # no units
+    b.loc[k == "602|1", "retirement_year"] = 2030                                    # not what the spec wants: fails
+    ov2, _ = cf.derive_overrides(b, op, rt, holds)
+    c2 = cf.check_overrides(ov2, e, "s0", absent={"10234|GEN5"}, units=b).set_index("kn")
+    assert not c2.at["602|1", "ok"] and c2.at["602|1", "status"] == "differs"
+
+
 def test_apply_overrides_unit_edits():
     s0 = {"coal_holds": {"scenario": "s0"}}
     op, rt = cf.load_fleet860m()
@@ -506,6 +532,9 @@ def test_removals_deleted_before_fedpol_push(caplog):
     kn = pd.Series(cs.keys(basis.plant_id_eia, basis.generator_id))
     biron = kn == "10234|GEN5"
     operating = basis[kn.isin(REMOVALS).values].copy()                       # 860M July 2025 Operating: OP / OA
+    adm = basis.iloc[[0]].assign(plant_id_eia=10860, generator_id="9Z", technology_description=cs.CSC,
+                                 model_region="p70", winter_capacity_mw=75.0)   # an unmapped plant PowerGenome re-adds
+    operating = pd.concat([operating, adm], ignore_index=True)
     eia860 = basis[~biron.values]                                            # plant 10234: no plant-map region
     fn, _ = _pg_fn("apply_predetermined_retirement_override")
     try:
@@ -533,12 +562,14 @@ def test_removals_deleted_before_fedpol_push(caplog):
             assert "coal removals: 5 removed before clustering (4 deleted from EIA-860 units and 860M new generators: " \
                    "6705|2, 2364|2, 6055|1, 56611|S01; 1 deleted from 860M new generators: 10234|GEN5)" in caplog.text
             assert "10234|GEN5" not in set(cs.keys(rec["edited"].plant_id_eia, rec["edited"].generator_id))
+            assert rec["new_860m_coal"] == [f"10860|9Z {cs.CSC} 75.0 MW"]                 # reported, not edited
             # the build's override check: Biron Mill has no override row (not in the EIA-860 units), and is accepted
             chk = cf.check_overrides(rec["overrides"], spec("coal_spec_overrides.csv", dtype={"generator_id": str}), "s0",
                                      absent=set(r.index[~r.derived_override]))
             assert chk.ok.all() and chk.set_index("kn").at["10234|GEN5", "status"].startswith("ok (removal")
-            assert not cf.check_overrides(rec["overrides"], spec("coal_spec_overrides.csv", dtype={"generator_id": str}),
-                                          "s0").ok.all()
+            # without the removal record it still passes, as an unmapped plant (plant 10234 isn't in reeds_plant_map.csv)
+            c2 = cf.check_overrides(rec["overrides"], spec("coal_spec_overrides.csv", dtype={"generator_id": str}), "s0")
+            assert c2.set_index("kn").at["10234|GEN5", "status"] == cs.NOT_IN_MODEL
     finally:
         for k, v in saved.items():
             if v is None:
@@ -658,7 +689,8 @@ def _hook_record(option, scen="s0", basis=None):
     derived = cf.removal_keys(ov)
     return {"units": basis, "final": final, "overrides": ov, "rule": rule,
             "edited": cf.apply_overrides(basis, final, ov, rule=rule),
-            "removals": cf.removals_record(cf.spec_removals(), derived, {k: [cf.T860] for k in derived})}
+            "removals": cf.removals_record(cf.spec_removals(), derived,
+                                           {**{k: [cf.T860] for k in derived}, "10234|GEN5": [cf.T860M]})}
 
 
 @pytest.mark.parametrize("option", cs.RETIREMENT_OPTIONS)
@@ -689,14 +721,22 @@ def test_case_build_caps_holds_and_checks(tmp_path, option):
     assert gi.at[h, "gen_max_annual_availability"] == pytest.approx(0.5539 / 0.9, abs=1e-6)  # its own unit cap
     assert gi.at[h, "gen_can_retire_early"] == 0                                     # held: no economic retirement
     assert pd.isna(gi.at["p97_other_peaker_1", "gen_max_annual_availability"])      # converted gas: no coal cap
-    assert (pd.read_csv(tmp_path / "coal_overrides_applied.csv").status == "ok").all()
+    ap = pd.read_csv(tmp_path / "coal_overrides_applied.csv").set_index("kn")
+    assert ap.ok.all() and len(ap) == 71                                         # the spec table's S0 rows
+    assert set(ap.index[ap.status == cs.NOT_IN_MODEL]) == {"10167|GEN1", "50305|GE10", "50305|GEN6", "50305|GEN7",
+                                                            "50305|GEN8", "50305|GEN9", "50965|GEN1", "50121|TG1",
+                                                            "50121|TG2", "57953|ST", "10361|GEN3", "10361|GEN4"}
+    assert ap.at["10234|GEN5", "status"].startswith("ok (removal") and ap.at["1004|CT1", "status"] == "ok"
+    assert len(pd.read_csv(tmp_path / "coal_not_in_model.csv")) == len(cs.not_in_model())
     assert pd.read_csv(tmp_path / "coal_converted_heat_rates.csv").ok.all() if (tmp_path / "coal_converted_heat_rates.csv").exists() else True
     hb = pd.read_csv(tmp_path / "coal_holds_by_stage.csv")
     assert hb.ok.all() and set(hb[hb.build == "held"].stage) == ({2028, 2030} if option == "block_all" else {2028})
     txt = "\n".join(log.lines)
     n = {"block_all": "0.5785", "planned_only": "0.5806", "unrestricted": "0.5806"}[option]
     assert f"coal caps 2028: N {n}" in txt and "71/71 as coal_spec_overrides.csv" in txt
-    assert "coal removals: 5 removed before clustering (5 deleted from EIA-860 units: " in txt
+    assert "coal removals: 5 removed before clustering (4 deleted from EIA-860 units: " in txt
+    assert "1 deleted from 860M new generators: 10234|GEN5" in txt and cs.NOT_IN_MODEL in txt
+    assert "model MW differs" not in txt                                             # zone MW: no differences
     assert len(pd.read_csv(tmp_path / "coal_removals.csv")) == 5
     # the wrong option's table is caught
     if option != "block_all":
@@ -719,7 +759,9 @@ def test_case_build_caps_holds_and_checks(tmp_path, option):
 
 def test_option_tables_committed_and_figures():
     """The committed per-option tables are what option_tables() builds; planned_only (= unrestricted) reproduces the
-    rev. 2 tables (model MW +43 MW in p99: plant 50900, mapped by county); block_all changes only 2028 and 2030."""
+    rev. 2 caps and rules; its model MW differs from rev. 2's only by the plants not in reeds_plant_map.csv (left out,
+    Tom 2026-10-04) and Edwardsport CT1 / CT2 (+481.2 MW in p107, as the build counts them); block_all changes only
+    2028 and 2030."""
     import subprocess
     r = subprocess.run([sys.executable, str(REPO / "s0_workflow/scripts/build_coal_option_tables.py"), "--check"],
                        capture_output=True, text=True, cwd=REPO)
@@ -732,16 +774,27 @@ def test_option_tables_committed_and_figures():
     pd.testing.assert_frame_equal(holds["planned_only"], holds["unrestricted"])
     rev2 = spec("coal_spec_expected_caps_by_stage.csv").set_index(["stage", "zone"])
     j = rev2.join(caps["planned_only"], rsuffix="_o", how="outer")
-    assert len(j) == len(rev2) and (j.rule == j.rule_o).all() and (j.expected_cap - j.expected_cap_o).abs().max() <= 1e-4
-    dm = (j.model_MW_after_overrides - j.model_MW_after_overrides_o).abs()
-    assert set(dm[dm > 1].index.get_level_values("zone")) == {"p99"} and dm.max() == pytest.approx(43.0)
+    strip = lambda r: r.fillna("").str.replace(cs.NO_COAL, "", regex=False)  # noqa: E731
+    gone = j.rule_o.isna()                     # zones whose only model coal was unmapped (no history in rev. 2 either)
+    assert len(j) == len(rev2) and set(j.index[gone].get_level_values("zone")) == {"p42", "p74", "p76"}
+    assert (j.rule[gone] == cs.RULE_NAT).all() and (strip(j.rule[~gone]) == strip(j.rule_o[~gone])).all()
+    assert (j.expected_cap - j.expected_cap_o)[~gone].abs().max() <= 1e-4
+    nim = cs.not_in_model()
+    assert set(nim.status) == {cs.NOT_IN_MODEL} and not nim.plant_id_eia.isin(cs.read_plant_map()).any()
+    unmapped = nim[nim.county_zone.notna() & (nim.kn != "10234|GEN5")].groupby("county_zone").winter_capacity_mw.sum()
+    # GEN5: an OS removal, out in rev. 2 too; Covington (p99, 43 MW): not in rev. 2's model MW either
+    want = (-unmapped.drop("p99")).add(pd.Series({"p107": 481.2}), fill_value=0)
+    for st in cs.STAGES:
+        dm = (j.model_MW_after_overrides_o.fillna(0) - j.model_MW_after_overrides.fillna(0)).loc[st]
+        pd.testing.assert_series_equal(dm[dm.abs() > 0.05].sort_index(), want.sort_index(), check_names=False, atol=0.05)
+    assert unmapped.sum() == pytest.approx(1450.4) and unmapped["p70"] == pytest.approx(472.0)
     pd.testing.assert_frame_equal(holds["planned_only"].drop(columns="cap_while_held"),
                                   spec("coal_spec_hold_by_stage.csv", dtype={"generator_id": str}).drop(columns="cap_while_held"))
     s, b = summ["planned_only"], summ["block_all"]
     assert list(s.national_N) == [0.5806, 0.5926, 0.5998, 0.6001, 0.6001]
-    assert list(s.model_GW_after_overrides) == [157.32, 142.11, 126.45, 124.35, 124.35]
+    assert list(s.model_GW_after_overrides) == [156.35, 141.14, 125.48, 123.38, 123.38]
     assert list(b.national_N[[2028, 2030]]) == [0.5785, 0.5785]
-    assert list(b.model_GW_after_overrides[[2028, 2030]]) == [164.56, 164.56]             # OS removals out
+    assert list(b.model_GW_after_overrides[[2028, 2030]]) == [163.59, 163.59]             # OS removals out
     ba = caps["block_all"]
     assert ba.loc[(2028, "p130")].rule == cs.RULE_OWN and ba.loc[(2028, "p130")].expected_cap == pytest.approx(0.128)
     # the OS removals are out of both options in 2028 and 2030 (zones p63, p58, p130, p107, p76: 1,969 MW)

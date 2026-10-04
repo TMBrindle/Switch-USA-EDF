@@ -1,11 +1,12 @@
 # public reconstruction of PowerGenome's coal-group fleet (coal_spec.md §2.1): EIA-860 2024 early release
 # Operable, Conventional Steam Coal / IGCC / Petroleum Coke, not OS; retirement_year_basis = planned retirement,
-# or the Retirement Year of 860M july_generator2025.xlsx Retired; zone: plant map, then county; built 2026-10-04 by s0_workflow/scripts/fetch_coal_spec_eia.py from EIA-860M august 2026
+# or the Retirement Year of 860M july_generator2025.xlsx Retired; winter MW (nameplate where blank: Edwardsport CT1/CT2);
+# zone: plant map, then county (county-placed plants are not in the model fleet); built 2026-10-04 by s0_workflow/scripts/fetch_coal_spec_eia.py from EIA-860M august 2026
 kn,plant_id_eia,generator_id,technology_description,status,model_region,zone_source,winter_capacity_mw,operating_year,retirement_year_basis
 1001|1,1001,1,Conventional Steam Coal,OP,p105,plant map,505.0,1970.0,
 1001|2,1001,2,Conventional Steam Coal,OP,p105,plant map,500.0,1972.0,
-1004|CT1,1004,CT1,Coal Integrated Gasification Combined Cycle,OP,p107,plant map,,2013.0,
-1004|CT2,1004,CT2,Coal Integrated Gasification Combined Cycle,OP,p107,plant map,,2013.0,
+1004|CT1,1004,CT1,Coal Integrated Gasification Combined Cycle,OP,p107,plant map,240.6,2013.0,
+1004|CT2,1004,CT2,Coal Integrated Gasification Combined Cycle,OP,p107,plant map,240.6,2013.0,
 1004|ST,1004,ST,Coal Integrated Gasification Combined Cycle,OP,p107,plant map,578.0,2013.0,
 10113|GEN1,10113,GEN1,Conventional Steam Coal,OP,p122,plant map,80.0,1988.0,
 1012|2,1012,2,Conventional Steam Coal,OP,p107,plant map,90.0,1966.0,2025.0

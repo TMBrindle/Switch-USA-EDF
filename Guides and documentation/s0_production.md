@@ -280,9 +280,9 @@ options for the new-defaults cases. The regression case is `legacy`, which leave
 
 | Option | Dated coal and gas retirements before 2030 | Economic retirements before 2030 | Coal 2028 / 2030 stage (GW) |
 |---|---|---|---|
-| `block_all` (default) | none: fedpol's `blocked_2030_coal_gas` push (2026-29 → 2030), set by S0 whatever the `retirement_policy` axis says | none (retirement rule) | 164.56 / 164.56 |
-| `planned_only` | as scheduled (predetermined overrides removed) | none (retirement rule) | 157.32 / 142.11 |
-| `unrestricted` | as scheduled | allowed from the first stage (`gen_can_retire_early` 1 on existing coal and gas, no rule) | 157.32 / 142.11, before the model's economic retirements |
+| `block_all` (default) | none: fedpol's `blocked_2030_coal_gas` push (2026-29 → 2030), set by S0 whatever the `retirement_policy` axis says | none (retirement rule) | 163.59 / 163.59 |
+| `planned_only` | as scheduled (predetermined overrides removed) | none (retirement rule) | 156.35 / 141.14 |
+| `unrestricted` | as scheduled | allowed from the first stage (`gen_can_retire_early` 1 on existing coal and gas, no rule) | 156.35 / 141.14, before the model's economic retirements |
 
 **block_all, by stage.**
 - **Which stages:** with `--retire early`, a unit with retirement year Y runs in the stage whose period ends at
@@ -296,6 +296,11 @@ options for the new-defaults cases. The regression case is `legacy`, which leave
   Mill GEN5; 1,969 MW). They are physical status, removed in every option. The case build deletes them from PowerGenome's
   unit tables before clustering (its EIA-860 units and the 860M generators it adds back), so fedpol's push never
   sees them. The build log says `coal removals: 5 removed`; any other count stops the build (§51).
+- **Model fleet (coal spec rev. 2.1 A4, §53):**
+  - **Not in the model:** plants missing from `reeds_plant_map.csv` (about 1.47 GW of small industrial coal and
+    pet coke) never enter PowerGenome's EIA-860 units. They are a known gap for the fleet refresh.
+  - **Edwardsport:** CT1 / CT2 count 2 × 240.6 MW in p107.
+  - **Fleet dates:** 860M dates only. `update_coal_closures.py` (GEM dates) is not applied in the S0 build.
 - **Encoding:** in the S0 new-defaults cases the hook (`coal_fleet.unit_hooks`, `push_pre2030`) encodes the
   pushed coal, held and gas units as 2031, before clustering.
   - It matches on the cluster technology after PowerGenome's grouping, as fedpol's rule does, so gas in

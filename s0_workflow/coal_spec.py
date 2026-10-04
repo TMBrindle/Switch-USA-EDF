@@ -409,8 +409,11 @@ def model_basis_from_eia(gens2024: pd.DataFrame, retired_model_860m: pd.DataFram
                          c2z: pd.DataFrame) -> pd.DataFrame:
     """A public reconstruction of PowerGenome's coal-group fleet (§2.1): EIA-860 2024 (early release, the vintage of
     PUDL 2025_08) Operable units of the coal group, except status OS; retirement year = the planned retirement year,
-    or the Retirement Year of PowerGenome's 860M (July 2025) Retired sheet; zone from the plant map, then county.
-    Used for the per-option validation tables; the case build uses PowerGenome's own unit table."""
+    or the Retirement Year of PowerGenome's 860M (July 2025) Retired sheet; zone from the plant map, then county (the
+    county-placed plants are not in PowerGenome's fleet: load_model_basis leaves them out); winter MW, or the
+    nameplate MW where EIA-860 has no winter MW (Edwardsport CT1 / CT2, 240.6 MW each, as PowerGenome's unit table
+    has them: VM build at 88e6b30). Used for the per-option validation tables; the case build uses PowerGenome's own
+    unit table."""
     g = gens2024[gens2024.Technology.isin(COAL_GROUP)].copy()
     g = g[g.Status.astype(str).str.strip() != "OS"]
     g["kn"] = keys(g["Plant Code"], g["Generator ID"])
@@ -424,16 +427,39 @@ def model_basis_from_eia(gens2024: pd.DataFrame, retired_model_860m: pd.DataFram
     out = pd.DataFrame({"kn": g.kn.values, "plant_id_eia": g["Plant Code"].values, "generator_id": g["Generator ID"].values,
                         "technology_description": g.Technology.values, "status": g.Status.astype(str).str.strip().values,
                         "model_region": z.zone.values, "zone_source": z.zone_source.values,
-                        "winter_capacity_mw": g["Winter Capacity (MW)"].values, "operating_year": g["Operating Year"].values,
+                        "winter_capacity_mw": pd.to_numeric(g["Winter Capacity (MW)"], errors="coerce").fillna(
+                            pd.to_numeric(g["Nameplate Capacity (MW)"], errors="coerce")).values,
+                        "operating_year": g["Operating Year"].values,
                         "retirement_year_basis": g.retirement_year_basis.values})
     return out.sort_values("kn").reset_index(drop=True)
 
 
-def load_model_basis(path: Path | None = None) -> pd.DataFrame:
-    """The committed basis as a PowerGenome-like unit table (retirement_year: the basis year, or operating year + 500
-    with none, as PowerGenome encodes no planned retirement)."""
+NOT_IN_MODEL = "not in model: plant not in reeds_plant_map.csv"
+
+
+def in_plant_map(plants, plant_map: dict | None = None) -> np.ndarray:
+    """PowerGenome's EIA-860 unit table keeps only plants with a model region, and with no region_aggregations
+    (model_definition.yml) only reeds_plant_map.csv gives one: a plant missing from it never enters the model's
+    EIA-860 units (Tom 2026-10-04; Biron Mill comes back through the 860M new-generator rows and is removed)."""
+    pm = read_plant_map() if plant_map is None else plant_map
+    return pd.Series(plants).astype(int).isin(set(pm)).values
+
+
+def not_in_model(path: Path | None = None, plant_map: dict | None = None) -> pd.DataFrame:
+    """Coal-group units of the public basis whose plant is not in reeds_plant_map.csv: left out of the expected
+    tables (a known gap for the fleet refresh), with the zone the county step would give them."""
     b = read_table(path or REPO / "s0_workflow/data/coal_model_basis_860er2024.csv", dtype={"generator_id": str})
-    b = b[b.model_region.notna()].copy()
+    b = b[~in_plant_map(b.plant_id_eia, plant_map)]
+    return b.assign(status=NOT_IN_MODEL)[["kn", "plant_id_eia", "generator_id", "technology_description",
+                                          "model_region", "winter_capacity_mw", "status"]].rename(
+        columns={"model_region": "county_zone"}).reset_index(drop=True)
+
+
+def load_model_basis(path: Path | None = None, plant_map: dict | None = None) -> pd.DataFrame:
+    """The committed basis as a PowerGenome-like unit table (retirement_year: the basis year, or operating year + 500
+    with none, as PowerGenome encodes no planned retirement): plants in reeds_plant_map.csv only (not_in_model)."""
+    b = read_table(path or REPO / "s0_workflow/data/coal_model_basis_860er2024.csv", dtype={"generator_id": str})
+    b = b[b.model_region.notna() & in_plant_map(b.plant_id_eia, plant_map)].copy()
     b["retirement_year"] = b.retirement_year_basis.fillna(b.operating_year + 500)
     b["operating_date"] = b.operating_year
     b["retirement_age"] = 500

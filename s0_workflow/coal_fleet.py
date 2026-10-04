@@ -459,6 +459,13 @@ def unit_hooks(settings: dict):
             df, gone = drop_removals(df, set(removals.kn) | derived)
             for key in gone:
                 where.setdefault(key, []).append(T860M)
+            kn = _frame_keys(df)
+            if kn is not None and "technology_description" in df:
+                c = df.technology_description.isin(cs.COAL_GROUP).values
+                if c.any():                                     # reported by write_case_inputs (not edited)
+                    mw = df[cap_col] if cap_col in df else pd.Series(np.nan, index=df.index)
+                    rec.setdefault("new_860m_coal", []).extend(
+                        f"{k} {t} {float(w):.1f} MW" for k, t, w in zip(kn[c], df.technology_description[c], mw[c]))
         return orig_group(df, *a, **k)
 
     def atb_fixed_var_om_existing(units, *a, **k):
@@ -502,17 +509,28 @@ def _hold_class(a) -> str:
     return "hold online" if isinstance(a, str) and a.startswith("hold online") else a
 
 
-def check_overrides(ov: pd.DataFrame, expected: pd.DataFrame, scenario: str, absent=()) -> pd.DataFrame:
+def check_overrides(ov: pd.DataFrame, expected: pd.DataFrame, scenario: str, absent=(), units: pd.DataFrame | None = None,
+                    capacity_col: str = "winter_capacity_mw", plant_map: dict | None = None) -> pd.DataFrame:
     """Applied overrides vs coal_spec_overrides.csv (§5: same plant/generator/action set, effective year exact,
-    MW +-0.1). Hold actions compare as one class; persist-only rows are expected only in holds_persist. `absent`:
-    removals that aren't in PowerGenome's unit table (no override row to derive; out of the model either way)."""
+    MW +-0.1). Hold actions compare as one class; persist-only rows are expected only in holds_persist. A spec row
+    with no override in the build passes when (Tom, 2026-10-04):
+    - `absent`: it is a removal that isn't in PowerGenome's EIA-860 units (deleted from the 860M generators
+      PowerGenome adds, or never in the model);
+    - its plant isn't in reeds_plant_map.csv, so it never enters PowerGenome's EIA-860 units (cs.NOT_IN_MODEL);
+    - "already satisfied": `units` (PowerGenome's unit table before the edits) already has what a retire / retire
+      later / keep online row wants (the same year, or both gone before the first stage; no date for keep online),
+      so the override is a no-op (e.g. Brandon Shores 1 / 2 2029, Stanton 1 with no date)."""
     e = expected.copy()
     if scenario == "s0":
         e = e[e.action != A_HOLD_PERSIST]
     e["kn"] = cs.keys(e.plant_id_eia, e.generator_id)
     m = ov[["kn", "plant_id_eia", "generator_id", "zone", "action", "effective_year", "model_winter_MW"]].merge(
-        e[["kn", "action", "effective_year", "model_winter_MW"]], on="kn", how="outer", suffixes=("", "_spec"),
-        indicator=True)
+        e[["kn", "plant_id_eia", "generator_id", "zone", "action", "effective_year", "model_winter_MW"]].rename(
+            columns={"plant_id_eia": "_p", "generator_id": "_g", "zone": "_z"}),
+        on="kn", how="outer", suffixes=("", "_spec"), indicator=True)
+    for c, x in (("plant_id_eia", "_p"), ("generator_id", "_g"), ("zone", "_z")):
+        m[c] = m[c].where(m[c].notna(), m[x])
+    m = m.drop(columns=["_p", "_g", "_z"])
     eq = lambda a, b: (a == b) | (pd.isna(a) & pd.isna(b))  # noqa: E731
     m["ok"] = ((m._merge == "both") & eq(m.action.map(_hold_class), m.action_spec.map(_hold_class))
                & eq(pd.to_numeric(m.effective_year), pd.to_numeric(m.effective_year_spec))
@@ -520,8 +538,19 @@ def check_overrides(ov: pd.DataFrame, expected: pd.DataFrame, scenario: str, abs
                   | (m.model_winter_MW.isna() & m.model_winter_MW_spec.isna())))
     m["status"] = np.where(m._merge == "left_only", "only in build", np.where(m._merge == "right_only", "only in spec",
                                                                               np.where(m.ok, "ok", "differs")))
-    gone = (m._merge == "right_only") & (m.action_spec == A_REMOVE) & m.kn.isin(set(absent))
+    spec_only = m._merge == "right_only"
+    gone = spec_only & (m.action_spec == A_REMOVE) & m.kn.isin(set(absent))
     m.loc[gone, "ok"], m.loc[gone, "status"] = True, "ok (removal: not in PowerGenome's EIA-860 units)"
+    unmapped = spec_only & ~gone & ~cs.in_plant_map(m.plant_id_eia.astype(float).astype(int), plant_map)
+    m.loc[unmapped, "ok"], m.loc[unmapped, "status"] = True, cs.NOT_IN_MODEL
+    if units is not None:
+        u = model_units(units, capacity_col).drop_duplicates("kn").set_index("kn")
+        for i in m.index[spec_only & ~gone & ~unmapped & m.action_spec.isin([A_RETIRE, A_LATER, A_KEEP])
+                         & m.kn.isin(u.index)]:
+            y, want = _eff(u.at[m.at[i, "kn"], "base"]), _eff(m.at[i, "effective_year_spec"])   # (None is NaN there)
+            if y == want or (y is not None and want is not None and max(y, want) < cs.STAGES[0]):
+                m.loc[i, ["ok", "status", "model_winter_MW"]] = [
+                    True, f"ok (already satisfied: model {'no date' if y is None else y})", u.at[m.at[i, "kn"], "mw"]]
     return m.drop(columns=["_merge"]).sort_values("kn")
 
 
@@ -561,7 +590,7 @@ def stage_caps(cu: pd.DataFrame, held: set, rec: dict, stage: int, capacity_col:
         zv = zv.join(x[["expected_cap", "rule", "hist_MW", "model_MW_after_overrides"]].add_suffix("_spec"), how="outer")
         zv["stage"], zv["national_N"] = stage, nat
         zv["cap_diff"] = zv.expected_cap - zv.expected_cap_spec
-        zv["M_diff"] = zv.model_MW_after_overrides - zv.model_MW_after_overrides_spec.fillna(0)
+        zv["M_diff"] = zv.model_MW_after_overrides.fillna(0) - zv.model_MW_after_overrides_spec.fillna(0)
         zv["ok"] = ((zv.cap_diff.abs() <= tol) & (zv.rule == zv.rule_spec)
                     & ((zv.hist_MW.fillna(0) - zv.hist_MW_spec.fillna(0)).abs() <= 1.0))
         # no model coal after the overrides on either side: no coal clusters, no cap to compare (§1.5)
@@ -643,8 +672,11 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     rem.to_csv(folder / "coal_removals.csv", index=False)
     ov = check_overrides(recs[years[0]]["overrides"],
                          pd.read_csv(REPO / cfg.get("expected_overrides", "s0_workflow/specs/coal/coal_spec_overrides.csv"),
-                                     dtype={"generator_id": str}), scen, absent=set(rem.kn[~rem.derived_override]))
+                                     dtype={"generator_id": str}), scen, absent=set(rem.kn[~rem.derived_override]),
+                         units=recs[years[0]]["units"], capacity_col=cap_col)
     ov.to_csv(folder / "coal_overrides_applied.csv", index=False)
+    nim = cs.not_in_model()
+    nim.to_csv(folder / "coal_not_in_model.csv", index=False)
     hb = holds_by_stage(hold_years(recs[years[0]]["edited"]), holds_all, years, scen,
                         pd.read_csv(expected_path(cfg, "expected_holds", EXPECTED_HOLDS, option), dtype={"generator_id": str}))
     hb.to_csv(folder / "coal_holds_by_stage.csv", index=False)
@@ -661,7 +693,7 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
 
     bad_caps = T[~T.ok.fillna(False)] if "ok" in T else T.iloc[0:0]
     bad_ov, bad_h = ov[~ov.ok.astype(bool)], hb[~hb.ok]
-    m_diff = T[T.M_diff.abs() > 1.0] if "M_diff" in T else T.iloc[0:0]
+    m_diff = T[T.M_diff.abs() > M_TOL] if "M_diff" in T else T.iloc[0:0]
     for y in years:
         t = T[T.stage == y]
         log(f"coal caps {y}: N {t.national_N.iloc[0]:.4f}; {int((t.model_MW_after_overrides > 0).sum())} zones with coal "
@@ -669,14 +701,22 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
             f"before); rules {t.rule.str.replace(NO_COAL_LABEL, '', regex=False).value_counts().to_dict()}; "
             f"vs spec: {int(t.ok.sum())}/{len(t)} zones ok (cap +-{tol}, rule, H +-1 MW)")
     log(removals_line(rem))
+    g48 = nim[nim.county_zone.notna()]
+    log(f"coal: {len(nim)} coal-group units ({nim.winter_capacity_mw.sum():.1f} MW) {cs.NOT_IN_MODEL}; outside "
+        f"Alaska {len(g48)} units, {g48.winter_capacity_mw.sum():.1f} MW by county zone "
+        f"{g48.groupby('county_zone').winter_capacity_mw.sum().round(1).to_dict()} (coal_not_in_model.csv)")
+    if recs[years[0]].get("new_860m_coal"):
+        log(f"coal: {len(recs[years[0]]['new_860m_coal'])} coal-group units PowerGenome added from the 860M "
+            f"(not in its EIA-860 units; not in the caps' model MW; reported): "
+            + "; ".join(recs[years[0]]["new_860m_coal"]))
     log(f"coal overrides: {int(ov.ok.sum())}/{len(ov)} as coal_spec_overrides.csv "
         f"({recs[years[0]]['overrides'].action.map(_hold_class).value_counts().to_dict()}); holds ({scen}): "
         f"{int(hb.ok.sum())}/{len(hb)} unit-stages as coal_spec_hold_by_stage.csv; "
         f"{int(is_hold.sum())} hold projects in the case")
     if len(m_diff):
-        log(f"coal caps: model MW differs from the spec's reconstruction by > 1 MW in {len(m_diff)} zone-stages "
-            f"(reported, not failed; coal_spec.md §2.1): "
-            + "; ".join(f"{r.zone} {r.stage} {r.M_diff:+.0f}" for r in m_diff.itertuples()))
+        log(f"coal caps: model MW differs from the spec's reconstruction by > {M_TOL} MW in {len(m_diff)} zone-stages "
+            f"(reported, not failed; coal_spec.md addendum, model basis): "
+            + "; ".join(f"{r.zone} {r.stage} {r.M_diff:+.1f}" for r in m_diff.itertuples()))
     problems = removals_problems(rem)
     if len(bad_caps):
         problems.append(f"{len(bad_caps)} zone-stage caps differ from coal_spec_expected_caps_by_stage.csv: "
@@ -702,6 +742,7 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
 
 
 NO_COAL_LABEL = cs.NO_COAL
+M_TOL = 0.1             # model MW by zone vs the expected tables: reported above 0.1 MW (§1.5 reports M to 0.1 MW)
 EXPECTED_CAPS = "s0_workflow/specs/coal/by_option/coal_spec_expected_caps_by_stage.{option}.csv"
 EXPECTED_HOLDS = "s0_workflow/specs/coal/by_option/coal_spec_hold_by_stage.{option}.csv"
 

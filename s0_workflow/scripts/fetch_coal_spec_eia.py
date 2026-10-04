@@ -259,7 +259,8 @@ def main():
     write(DATA / "coal_model_basis_860er2024.csv", basis, header(
         f"public reconstruction of PowerGenome's coal-group fleet (coal_spec.md §2.1): EIA-860 2024 early release\n"
         f"Operable, Conventional Steam Coal / IGCC / Petroleum Coke, not OS; retirement_year_basis = planned retirement,\n"
-        f"or the Retirement Year of 860M {a.m860_model} Retired; zone: plant map, then county; {stamp}"))
+        f"or the Retirement Year of 860M {a.m860_model} Retired; winter MW (nameplate where blank: Edwardsport CT1/CT2);\n"
+        f"zone: plant map, then county (county-placed plants are not in the model fleet); {stamp}"))
     write(DATA / "coal_holds.csv", holds.round({"cf_since_order": 6}), header(
         f"units held open by orders (coal_spec.md §3): hold_cap = max(CF since the order, 0.001), 0.01 with\n"
         f"< 3 months of data; CF = EIA-923 Page 4 net MWh over the window / (860M winter MW x hours); window\n"
