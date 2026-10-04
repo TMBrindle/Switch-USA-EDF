@@ -33,18 +33,23 @@ def to_csv(df, file):
 dr_data = read_csv("loads.csv")
 dr_data["dr_shift_down_limit"] = shift_down_limit * dr_data["zone_demand_mw"]
 dr_data["dr_shift_up_limit"] = shift_up_limit * dr_data["zone_demand_mw"]
-# lookup periods per timepoint for later
-tp_period = (
+# lookup periods and weights per timepoint for later
+tp_info = (
     read_csv("timepoints.csv")
     .merge(read_csv("timeseries.csv"), on="timeseries")
-    .set_index("timepoint_id")["ts_period"]
+    .set_index("timepoint_id")
 )
-dr_data["PERIOD"] = dr_data["TIMEPOINT"].map(tp_period)
+dr_data["PERIOD"] = dr_data["TIMEPOINT"].map(tp_info["ts_period"])
 
 # cost per year to deploy the full amount of DR available
-# (used by study_modules.demand_response_investment)
+# (used by study_modules.demand_response_investment), sized off the normal peak:
+# the max over positive-weight timepoints only, so zero-weight stress or
+# extreme days (the S0 regional reserve's stress days are added during time
+# sampling, before this script runs) don't raise it
+weighted = dr_data["TIMEPOINT"].map(tp_info["ts_scale_to_period"] > 0).fillna(False).astype(bool)
 dr_cost = (
-    dr_data.groupby(["LOAD_ZONE", "PERIOD"])["dr_shift_down_limit"]
+    dr_data[weighted]
+    .groupby(["LOAD_ZONE", "PERIOD"])["dr_shift_down_limit"]
     .max()
     .mul(annual_cost_per_mw)
     .reset_index()

@@ -2567,3 +2567,42 @@ keeps them valid):
 - the writer reads these settings.
 
 **Results:** s0_workflow 123. pandas 3.0.6: 145 passed with build_rate; 1.4.4: 144 passed and 1 skipped.
+
+## 63. Demand-Response Cost Off the Weighted Peak (Stress Days Excluded)
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts` · **See also:** `SHARED_CHANGES.md` #62-#64, recipe E
+
+**Bug (VM, recipe E):**
+- `adjust/add_dr_info.py` sets DR cost at $43,000/MW-yr × each zone's maximum, over all timepoints, of 3% of zone
+  demand.
+- `switch.yml` runs it at order 2, before `add_extreme_days`, so it sizes off the normal peak.
+- The S0 regional reserve now inserts zero-weight stress days earlier, during time sampling. The maximum therefore hit
+  the stress-day super-peaks: 107 of 134 zones went up by 0.6–47%, adding $93.6M/yr.
+
+**Fix:**
+- **`add_dr_info.py`:** the maximum is now taken over positive-weight timepoints only, so DR cost no longer depends on
+  stress or extreme days, whatever the order. `dr_data.csv` (the per-timepoint shift limits) still covers every
+  timepoint.
+- **`define_scenarios.py`:** the low-growth load scaling had the same unweighted peak, and now ignores zero-weight
+  timepoints too.
+
+**Checked, no change needed:**
+- `add_ee_info.py` is weighted.
+- `add_spinning_reserve_info.py` doesn't use loads.
+- `add_extreme_days.py` is switched off when the regional reserve adds stress days.
+- `create_weekly_models.py` and `make_split_models.py` weight by `ts_scale_to_period`.
+
+**`dup.gen_build_costs.chained.<case>.csv`** (left in the 2035 stage): this is deliberate, not stray.
+- `prepare_next_stage.merge_build_data` saves the (project, build year) rows present in both stages, keeping this
+  stage's.
+- It is a diagnostic. These rows are common, because unit sizes and fixed O&M vary between periods. Switch doesn't
+  read the file.
+- It is kept, and the module now logs how many rows were duplicated.
+
+**Tests:** `test_adjust_dr.py` (2):
+- adding zero-weight stress days (12-digit ids) leaves `dr_annual_cost.csv` byte-identical;
+- the previous version raised it;
+- without stress days, old and new outputs are byte-identical;
+- the other scripts use weighted peaks.
+
+**Results:** s0_workflow 125. pandas 3.0.6: 147 passed with build_rate; 1.4.4: 146 passed and 1 skipped.

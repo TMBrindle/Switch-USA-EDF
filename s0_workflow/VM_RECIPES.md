@@ -502,7 +502,9 @@ requirement".
      - the new `prm_*.csv` files;
      - `planning_reserve_margin.csv`, in txreeds only;
      - the scenario line.
-   - The sampled (weighted) days should be identical. Anything else is unexpected: report it.
+   - The sampled (weighted) days should be identical, and so should `dr_annual_cost.csv`. Before §63 it rose in
+     107 of 134 zones because the DR cost took its peak over the stress days too. Anything else is unexpected:
+     report it.
 4. Solve both with recipe A's solver options, into fresh output folders (the same command as recipe D step 3).
    Gurobi's barrier without crossover still returns duals; `prm_summary.csv` says `duals_available`.
 5. Report for `s4x1_S0prod_2035_prm`:

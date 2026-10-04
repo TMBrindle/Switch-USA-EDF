@@ -194,7 +194,10 @@ def chain_stage(m, in_path, out_path, next_in_path, case_name, commit=None, comm
             # also create differences between predetermined capacity in the
             # dataframe and in the next model).
             df = df.drop_duplicates(subset=dup_cols, keep="first")
+            # diagnostic only (Switch doesn't read it): kept for inspection
             to_csv(dups, chained(next_in_path, "dup." + filename))
+            print(f"{__name__}: {dups[list(dup_cols)].drop_duplicates().shape[0]} {filename} rows in both stages "
+                  f"(kept this stage's; diagnostic copy {chained(next_in_path, 'dup.' + filename).name})")
 
         return df
 

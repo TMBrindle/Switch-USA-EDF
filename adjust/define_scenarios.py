@@ -110,8 +110,11 @@ for tag in ("", "_prm"):
             l = pd.read_csv(d / "loads.csv", na_values=".")
             l["tp_weight"] = l["TIMEPOINT"].map(tp["tp_weight"])
             l["PERIOD"] = l["TIMEPOINT"].map(tp["INVESTMENT_PERIOD"])
+            # peak over positive-weight timepoints only (not zero-weight stress or
+            # extreme days, whose load can exceed the sampled peak)
             s = (
-                l.groupby(["LOAD_ZONE", "PERIOD"])[["zone_demand_mw"]]
+                l[l["tp_weight"] > 0]
+                .groupby(["LOAD_ZONE", "PERIOD"])[["zone_demand_mw"]]
                 .max()
                 .rename(columns={"zone_demand_mw": "peak_mw"})
             )

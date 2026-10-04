@@ -181,6 +181,14 @@ every other case build as before — tests check the legacy settings and that th
 | 60 | `s0_workflow/production.py` (`apply_rggi`, `rggi_3pr_values`), `pg/settings/s0_production.yml` (`rggi`), `pg/settings/scenario_management.yml` (`on_pgdays` pins `rggi: {mode: legacy}`) | Every S0 case (any policies preset) gets the 3PR floor (`carbon_floor_price_by_program`) and both CCR tiers (`carbon_ccr_prices`, `carbon_ccr` pools) for each model year from `rggi_3pr_parameters.csv`; after 2037 prices +7%/yr, volumes held. | VM rggi_check.md: only the `current` preset set them (2028/2030/2035 only), so every S0 case (on `S0_uncapped`) ran with no floor and no CCR. | none outside S0 cases; the regression case is pinned legacy (unchanged). S0 cases now carry floor and CCR. |
 | 61 | `pg/extra_inputs/reeds_state_policies/REEDS_RELEASE.yml`, docs | The ReEDS copy of `rggicon.csv` labelled superseded (unused; `rggicon_3pr.csv` is the cap). | Avoid using the older trajectory by mistake. | none |
 
+### Added in §63 (Oct 2026: DR cost off the weighted peak)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 62 | `adjust/add_dr_info.py` | `dr_annual_cost` = $43,000/MW-yr × the max of 3% × zone demand over positive-weight timepoints only (`ts_scale_to_period` > 0); `dr_data.csv` still covers every timepoint. | VM recipe E: the S0 regional reserve's zero-weight stress days (added during time sampling, before order-2 adjust scripts) raised DR cost in 107 of 134 zones (+$93.6M/yr). | none where no zero-weight timeseries exist at order 2 (every non-S0 case and the regression case): byte-identical, tested |
+| 63 | `adjust/define_scenarios.py` (low-growth loads) | Peak per zone/period over positive-weight timepoints only. | Same exposure (runs after add_extreme_days and with stress days). | none for existing cases (the extreme-day copies duplicate a weighted day's load) |
+| 64 | `switch/study_modules/prepare_next_stage.py` (`merge_build_data`) | Prints how many rows were duplicated when it writes `dup.<file>.chained.<case>.csv`. The file itself is unchanged: a deliberate diagnostic (rows in both stages; this stage's kept), not read by Switch. | VM saw it in the 2035 stage. | log line only |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
