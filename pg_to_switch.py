@@ -2720,12 +2720,17 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         zone_hurdlereg = dict(zip(hierarchy["ba"], hierarchy["hurdlereg"]))
 
         tx_conn = pd.read_csv(tx_conn_path)
+        # Forced (planned) lines: transmission_connections.csv, or for S0 new-defaults cases with
+        # s0_production.forced_tx: reeds_certain the ReEDS release's certain additions
+        # (forced_tx_table, s0_workflow/scripts/build_reeds_forced_tx.py; same columns).
+        forced_fn = settings.get("forced_tx_table")
+        forced = pd.read_csv(script_dir / forced_fn) if forced_fn else tx_conn
 
         # Separate planned lines (for allow-flag override) from those with a
         # specific year (for minimum build constraint)
         planned_lines = set()  # frozenset({from_zone, to_zone}) with new_cap_mw > 0
         planned_with_year = {}  # same key -> (new_cap_mw, new_cap_year)
-        for _, row in tx_conn.iterrows():
+        for _, row in forced.iterrows():
             new_mw = row.get("new_cap_mw")
             if pd.notna(new_mw) and float(new_mw) > 0:
                 key = frozenset([row["from_zone"], row["to_zone"]])
@@ -2747,9 +2752,9 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
             if key in existing_pairs:
                 continue
             lz1, lz2 = sorted(key)  # consistent ordering
-            match = tx_conn[
-                ((tx_conn["from_zone"] == lz1) & (tx_conn["to_zone"] == lz2))
-                | ((tx_conn["from_zone"] == lz2) & (tx_conn["to_zone"] == lz1))
+            match = forced[
+                ((forced["from_zone"] == lz1) & (forced["to_zone"] == lz2))
+                | ((forced["from_zone"] == lz2) & (forced["to_zone"] == lz1))
             ]
             if match.empty:
                 continue
@@ -2914,6 +2919,12 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
     #   "unlimited"   - file is not written; Switch is unrestricted on expansion
     trans_expansion_policy = settings.get("trans_expansion_policy", "zero")
     min_build_lines = {r["TRANSMISSION_LINE"] for r in trans_build_minimum_rows}
+    # S0 new-defaults cases (forced_tx_expansion_limit: minimum): forced lines are limited like any other
+    # line, and to their trans_build_minimum_mw in the period they are forced. Otherwise they are left
+    # out of the file, so Switch's default (no limit) applies to them.
+    cap_forced = settings.get("forced_tx_expansion_limit") == "minimum"
+    if cap_forced:
+        min_build_lines = set()
 
     if trans_expansion_policy == "unlimited":
         trans_path_expansion_limit = None
@@ -3018,6 +3029,28 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         trans_path_expansion_limit = pd.concat(dfs).rename(
             columns={"Line_Max_Reinforcement_MW": "trans_path_expansion_limit_mw"}
         )
+
+    if cap_forced and trans_build_minimum_rows:
+        fmin = {
+            (r["TRANSMISSION_LINE"], r["PERIOD"]): r["trans_build_minimum_mw"]
+            for r in trans_build_minimum_rows
+        }
+        lim = (
+            trans_path_expansion_limit.reset_index(drop=True)
+            if trans_path_expansion_limit is not None  # unlimited: only the forced periods
+            else pd.DataFrame(columns=["TRANSMISSION_LINE", "PERIOD", "trans_path_expansion_limit_mw"])
+        )
+        keys = list(zip(lim["TRANSMISSION_LINE"], lim["PERIOD"]))
+        lim["trans_path_expansion_limit_mw"] = [
+            fmin.get(k, v) for k, v in zip(keys, lim["trans_path_expansion_limit_mw"])
+        ]
+        extra = [
+            {"TRANSMISSION_LINE": line, "PERIOD": per, "trans_path_expansion_limit_mw": v}
+            for (line, per), v in fmin.items() if (line, per) not in set(keys)
+        ]
+        if extra:
+            lim = pd.concat([lim, pd.DataFrame(extra, columns=lim.columns)], ignore_index=True)
+        trans_path_expansion_limit = lim
 
     transmission_lines.to_csv(out_folder / "transmission_lines.csv", index=False)
     trans_params_table.to_csv(out_folder / "trans_params.csv", index=False)

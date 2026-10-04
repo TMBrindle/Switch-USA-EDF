@@ -445,6 +445,12 @@ def in_plant_map(plants, plant_map: dict | None = None) -> np.ndarray:
     return pd.Series(plants).astype(int).isin(set(pm)).values
 
 
+def cap_unit_set(cu: pd.DataFrame, statuses=("OP", "SB"), plant_map: dict | None = None) -> pd.DataFrame:
+    """The cap units that define H, own and N: status OP / SB (rev. 2.1 A1) and plant in reeds_plant_map.csv, so the
+    zones' history comes from the plants the model has (Tom 2026-10-04, A5; county-placed plants are not in the model)."""
+    return cu[cu.status.isin(list(statuses)) & in_plant_map(cu["Plant ID"], plant_map)]
+
+
 def not_in_model(path: Path | None = None, plant_map: dict | None = None) -> pd.DataFrame:
     """Coal-group units of the public basis whose plant is not in reeds_plant_map.csv: left out of the expected
     tables (a known gap for the fleet refresh), with the zone the county step would give them."""

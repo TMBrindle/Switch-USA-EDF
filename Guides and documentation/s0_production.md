@@ -268,10 +268,14 @@ The script checks its results against `coal_cap_units_all.csv`, `coal_spec_hold_
 - **Output and checks:** the build writes `coal_caps_by_stage.csv` and compares it with the table of the case's
   pre-2030 option, `s0_workflow/specs/coal/by_option/coal_spec_expected_caps_by_stage.<option>.csv`. Cap
   (±0.001), rule label and H (±1 MW) must match; a zone with no model coal on either side needs no cap.
-  Model-MW differences from the public basis reconstruction are logged, not failed: §2.1 suggests p107.
+  Model-MW differences above 0.1 MW from the expected table are logged, not failed (none expected, A4).
 
 **Unit statuses.** The cap unit set is OP and SB (rev. 2.1, overriding §1.1's OA). The two OA units, Biron Mill
 GEN1 (15.3 MW, p76) and WE Soda 5 (10 MW, p21), are left out (`cap_statuses: [OP, SB]`).
+
+**Mapped plants only (A5, §54).** Cap units of plants not in `reeds_plant_map.csv` don't count in H, own or N
+(`coal_spec.cap_unit_set`), as those plants aren't in the model. N(p) is 0.5791 / 0.5791 / 0.6007 / 0.6011 / 0.6011
+(block_all). The largest cap changes are p70 0.5826 → 0.6210 and p99 0.1477 → 0.1229.
 
 ### Retirements before 2030 (rev. 2.1 §A3)
 
@@ -368,6 +372,33 @@ PowerGenome's files are not edited.
   both scenarios.
 - **Check:** the build writes `coal_holds_by_stage.csv` and compares it with `coal_spec_hold_by_stage.csv`
   (exact).
+
+## Forced transmission (§54)
+
+- **Source:** `s0_production.forced_tx: reeds_certain` (S0 default). The forced lines are ReEDS 2026.09.21's certain
+  additions (`inputs/transmission/hvdc_planned-baseline.csv`, `certain == 1`, pinned in
+  `pg/extra_inputs/transmission/reeds_2026.09.21/`): SunZia p28-p31 3,000 MW (2026, 2028 stage) and TransWest
+  Express p24-p25 3,000 MW (2032, 2035 stage).
+  - **Why this file:** the release has no `transmission_capacity_future_*` file. ReEDS adds AC capacity through its
+    transfer limits, and its "certain" status is the `certain` column of the planned-HVDC file.
+  - **Mapping:** the endpoints are placed in our zones with the ReEDS BA shapes, and the year goes to the first
+    model period at or after it.
+  - **No double counting:** neither line is in the 2024 starting capacity (NARIS 2024 AC ITLs, non-AC 2024 lines,
+    ReEDS's `hvdc_existing.csv`).
+  - **Table:** `forced_tx_reeds_certain_2026.09.21.csv`, built by `s0_workflow/scripts/build_reeds_forced_tx.py`.
+- **Option:** `forced_tx: named_projects` keeps the 72-line list of `transmission_connections.csv` (`new_cap_mw`,
+  245,857 MW) for sensitivities. It is the list every non-S0 case uses.
+- **Totals** (`forced_tx_comparison_2026.09.21.csv`):
+
+  | option | 2028 | 2030 | 2035 | total MW | MW-km | interregional share |
+  |---|---|---|---|---|---|---|
+  | reeds_certain | 3,000 | 0 | 3,000 | 6,000 | 3.76 M | 50% (TransWest Express) |
+  | named_projects | 36,976 | 53,692 | 155,189 | 245,857 | 71.56 M | 26.4% |
+
+- **Limit:** `forced_tx_expansion_limit: minimum` (S0 default). A forced line's `trans_path_expansion_limit` is its
+  minimum in its forced period, and the case's rule in other periods (0 with `trans_expansion: zero`). Before
+  this, forced lines were left out of the file, so they could expand without limit. Other cases keep that.
+- **Comparison pair:** `s4x1_S0prod_2035_txreeds` / `s4x1_S0prod_2035_txnamed` (VM_RECIPES recipe D).
 
 ## 2045 load entries
 

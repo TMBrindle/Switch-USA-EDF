@@ -1,0 +1,13 @@
+option,period,lines,MW,MW_km,interregional_MW,interregional_share
+reeds_certain,2028,1,3000.0,1757983.0,0.0,0.0
+reeds_certain,2030,0,0.0,0.0,0.0,0.0
+reeds_certain,2035,1,3000.0,1998800.0,3000.0,1.0
+reeds_certain,2040,0,0.0,0.0,0.0,0.0
+reeds_certain,2045,0,0.0,0.0,0.0,0.0
+reeds_certain,all,2,6000.0,3756783.0,3000.0,0.5
+named_projects,2028,16,36976.0,12053010.0,10292.0,0.2783
+named_projects,2030,18,53692.0,14842567.0,12168.0,0.2266
+named_projects,2035,38,155189.0,44662910.0,42547.0,0.2742
+named_projects,2040,0,0.0,0.0,0.0,0.0
+named_projects,2045,0,0.0,0.0,0.0,0.0
+named_projects,all,72,245857.0,71558487.0,65007.0,0.2644

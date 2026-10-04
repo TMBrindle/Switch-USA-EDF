@@ -180,6 +180,20 @@ s0_production:
   #   legacy        the settings as they are, without this option (the regression case, on_pgdays)
   retirements_pre2030: block_all
 
+  # forced (certain) transmission additions (axis forced_tx; scenario_inputs.csv column of that name; CHANGES §54):
+  #   reeds_certain   (S0 default) the certain additions of the pinned ReEDS release (hvdc_planned-baseline.csv,
+  #                   certain == 1: SunZia p28-p31 3,000 MW 2026, TransWest Express p24-p25 3,000 MW 2032), on ReEDS's
+  #                   own transfer-capability basis; pg/extra_inputs/transmission/forced_tx_reeds_certain_<release>.csv
+  #                   (s0_workflow/scripts/build_reeds_forced_tx.py)
+  #   named_projects  the project list of transmission_connections.csv (new_cap_mw, 72 lines, 245,857 MW), as every
+  #                   other case; for sensitivities
+  forced_tx: reeds_certain
+  forced_tx_release: "2026.09.21"
+  # forced lines' trans_path_expansion_limit (pg_to_switch transmission_tables):
+  #   minimum (S0 default) their trans_build_minimum_mw in the period they are forced, the case's rule otherwise
+  #   legacy  left out of trans_path_expansion_limit.csv, so unlimited in Switch (the regression case)
+  forced_tx_expansion_limit: minimum
+
   # item 6: extra Switch modules on the case's scenario line (not switch/modules.txt)
   extra_modules: [study_modules.gen_amortization_period]
 

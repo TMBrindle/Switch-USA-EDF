@@ -352,7 +352,7 @@ def test_settings_axis_column_and_legacy_off():
     leg = ax["s0_production"]["on_pgdays"]["s0_production"]
     assert leg["coal_spec"] == {"enabled": False} and leg["coal_holds"] == {"enabled": False}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
-    assert list(si.columns[-2:]) == ["coal_holds", "retirements_pre2030"] and (si.coal_holds == "s0").all()
+    assert list(si.columns[-3:]) == ["coal_holds", "retirements_pre2030", "forced_tx"] and (si.coal_holds == "s0").all()
     assert set(si.loc[si.case_id == "s4x1_S0prod_2035", "retirements_pre2030"]) == {"legacy"}
     assert (si.loc[si.case_id != "s4x1_S0prod_2035", "retirements_pre2030"] == "block_all").all()
     assert ax["retirements_pre2030"] == {o: {"s0_production": {"retirements_pre2030": o}} for o in cs.RETIREMENT_OPTIONS} \
@@ -732,7 +732,7 @@ def test_case_build_caps_holds_and_checks(tmp_path, option):
     hb = pd.read_csv(tmp_path / "coal_holds_by_stage.csv")
     assert hb.ok.all() and set(hb[hb.build == "held"].stage) == ({2028, 2030} if option == "block_all" else {2028})
     txt = "\n".join(log.lines)
-    n = {"block_all": "0.5785", "planned_only": "0.5806", "unrestricted": "0.5806"}[option]
+    n = {"block_all": "0.5791", "planned_only": "0.5812", "unrestricted": "0.5812"}[option]
     assert f"coal caps 2028: N {n}" in txt and "71/71 as coal_spec_overrides.csv" in txt
     assert "coal removals: 5 removed before clustering (4 deleted from EIA-860 units: " in txt
     assert "1 deleted from 860M new generators: 10234|GEN5" in txt and cs.NOT_IN_MODEL in txt
@@ -775,10 +775,24 @@ def test_option_tables_committed_and_figures():
     rev2 = spec("coal_spec_expected_caps_by_stage.csv").set_index(["stage", "zone"])
     j = rev2.join(caps["planned_only"], rsuffix="_o", how="outer")
     strip = lambda r: r.fillna("").str.replace(cs.NO_COAL, "", regex=False)  # noqa: E731
-    gone = j.rule_o.isna()                     # zones whose only model coal was unmapped (no history in rev. 2 either)
-    assert len(j) == len(rev2) and set(j.index[gone].get_level_values("zone")) == {"p42", "p74", "p76"}
-    assert (j.rule[gone] == cs.RULE_NAT).all() and (strip(j.rule[~gone]) == strip(j.rule_o[~gone])).all()
-    assert (j.expected_cap - j.expected_cap_o)[~gone].abs().max() <= 1e-4
+    # zones whose model coal and history were all unmapped plants drop out (A4, A5)
+    gone = j.rule_o.isna()
+    assert len(j) == len(rev2)
+    assert set(j.index[gone].get_level_values("zone")) == {"p10", "p42", "p44", "p74", "p76", "p83", "p92"}
+    assert (strip(j.rule[~gone]) == strip(j.rule_o[~gone])).all()                 # no rule changes
+    # H differs from rev. 2's exactly by the unmapped cap units (A5); caps move only through H and N
+    cu = cap_units()
+    cu = cu[cu.status.isin(["OP", "SB"])]
+    un = cu[~cs.in_plant_map(cu["Plant ID"]) & cu.cf_max.notna() & cu.zone.notna()]       # units with history
+    held = cs.held_keys(cs.load_holds())
+    for st in cs.STAGES:
+        dh = (j.hist_MW.fillna(0) - j.hist_MW_o.fillna(0)).loc[st]
+        want = cs.stage_units(un, st, held).groupby("zone").winter_mw.sum()
+        want = want[want.index.isin(j.loc[st].index)]
+        pd.testing.assert_series_equal(dh[dh.abs() > 0.05].sort_index(), want[want > 0.05].sort_index(),
+                                       check_names=False, atol=0.05)
+        same = j.loc[st][~gone.loc[st] & (dh.abs() <= 0.05) & (j.loc[st].rule == cs.RULE_OWN)]
+        assert (same.expected_cap - same.expected_cap_o).abs().max() <= 1e-4
     nim = cs.not_in_model()
     assert set(nim.status) == {cs.NOT_IN_MODEL} and not nim.plant_id_eia.isin(cs.read_plant_map()).any()
     unmapped = nim[nim.county_zone.notna() & (nim.kn != "10234|GEN5")].groupby("county_zone").winter_capacity_mw.sum()
@@ -791,9 +805,9 @@ def test_option_tables_committed_and_figures():
     pd.testing.assert_frame_equal(holds["planned_only"].drop(columns="cap_while_held"),
                                   spec("coal_spec_hold_by_stage.csv", dtype={"generator_id": str}).drop(columns="cap_while_held"))
     s, b = summ["planned_only"], summ["block_all"]
-    assert list(s.national_N) == [0.5806, 0.5926, 0.5998, 0.6001, 0.6001]
+    assert list(s.national_N) == [0.5812, 0.5934, 0.6007, 0.6011, 0.6011]            # A5 (was 0.5806 ... 0.6001)
     assert list(s.model_GW_after_overrides) == [156.35, 141.14, 125.48, 123.38, 123.38]
-    assert list(b.national_N[[2028, 2030]]) == [0.5785, 0.5785]
+    assert list(b.national_N[[2028, 2030]]) == [0.5791, 0.5791]
     assert list(b.model_GW_after_overrides[[2028, 2030]]) == [163.59, 163.59]             # OS removals out
     ba = caps["block_all"]
     assert ba.loc[(2028, "p130")].rule == cs.RULE_OWN and ba.loc[(2028, "p130")].expected_cap == pytest.approx(0.128)
@@ -877,3 +891,16 @@ def test_2045_load_entries_and_notes_removed():
         assert gone not in txt
     doc = (REPO / "Guides and documentation/load_growth.md").read_text()
     assert "load_adjustments_epri_high.csv.zip" in doc and "Follow-up" in doc
+
+
+def test_cap_unit_set_mapped_plants_only():
+    """A5 (Tom 2026-10-04): H, own and N come from OP / SB cap units of plants in reeds_plant_map.csv only, in the
+    case build (write_case_inputs) and the expected tables (option_tables) alike."""
+    cu = cs.load_cap_units()
+    c = cs.cap_unit_set(cu)
+    assert set(c.status) == {"OP", "SB"} and cs.in_plant_map(c["Plant ID"]).all()
+    gone = cu[cu.status.isin(["OP", "SB"]) & ~cs.in_plant_map(cu["Plant ID"])]
+    assert len(c) + len(gone) == cu.status.isin(["OP", "SB"]).sum()
+    assert {10860, 10864, 10865, 50481, 50900} <= set(gone["Plant ID"])            # ADM, Tennessee Eastman, Covington
+    src = (REPO / "s0_workflow/coal_fleet.py").read_text()
+    assert src.count("cs.cap_unit_set(") == 2                                      # build and option tables

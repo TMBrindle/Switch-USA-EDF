@@ -52,10 +52,10 @@ def test_settings_file_axis_and_rows():
     reg = si[si.case_id == "s4x1_S0prod_2035"].iloc[0]
     base = si[si.case_id == "s4x1_S0unc_2035_icon"].iloc[0]
     diff = [c for c in si.columns if reg[c] != base[c]]
-    assert set(diff) == {"case_id", "build_rate", "s0_production", "retirements_pre2030"}
-    assert reg.s0_production == "on_pgdays" and reg.retirements_pre2030 == "legacy"
+    assert set(diff) == {"case_id", "build_rate", "s0_production", "retirements_pre2030", "forced_tx"}
+    assert reg.s0_production == "on_pgdays" and reg.retirements_pre2030 == "legacy" and reg.forced_tx == "legacy"
     new = si[si.case_id == "s4x1_S0prod_2035_new"].iloc[0]
-    assert [c for c in si.columns if new[c] != reg[c]] == ["case_id", "s0_production", "retirements_pre2030"]
+    assert [c for c in si.columns if new[c] != reg[c]] == ["case_id", "s0_production", "retirements_pre2030", "forced_tx"]
     assert new.s0_production == "on_pgdays_new" and new.retirements_pre2030 == "block_all"
     md = yaml.safe_load(open(REPO / "pg/settings/model_definition.yml"))
     spans = {int(k): v for k, v in s0["period_spans"].items()}
@@ -319,6 +319,7 @@ def test_legacy_settings_build_as_before(tmp_path):
     s0prod.apply_settings({"c": {2035: new_s}})
     assert old_s["atb_modifiers"] == new_s["atb_modifiers"]
     assert old_s.get("build_rate") == new_s.get("build_rate")            # no gas-turbine cap override
+    assert "forced_tx_table" not in new_s and "forced_tx_expansion_limit" not in new_s   # transmission as before
     old.write_case_inputs(tmp_path / "old", {2035: old_s})
     s0prod.write_case_inputs(tmp_path / "new", {2035: new_s})
     for f in sorted(p.name for p in (tmp_path / "old").glob("*.csv")):

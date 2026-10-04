@@ -1,0 +1,22 @@
+# ReEDS transmission inputs for the S0 forced lines (s0_production.forced_tx: reeds_certain; CHANGES §54),
+# pinned to the same ReEDS release as reeds_state_policies/. Verbatim copies of inputs/transmission/<file>.
+repository: https://github.com/ReEDS-Model/ReEDS
+release: "2026.09.21"
+commit: 8a1572331da89b15ad3c0f74db448911f715266c
+copied: "2026-10-04"
+files:
+  hvdc_planned-baseline.csv:   # blob 95c1dc73f6d03ab2daa516f9eda1536a2404865f
+    sha256: 4e06cd0fdafa6138fd85b574cbde75b105022223492acafa4004220c28ca612f
+  hvdc_existing.csv:           # blob 48500d07173b1e9c57a5347e5f80c21e52a13f43
+    sha256: 421f52b5c228fd43de38cb760db2a61e527210218ae4d16b6cec9043142eb934
+# Which file and status field (checked at this commit):
+# - There is no transmission_capacity_future_*.csv in this release: ReEDS's future transmission comes from
+#   reeds/input_processing/transmission.py get_trancap_fut(), which reads inputs/transmission/
+#   hvdc_planned-baseline.csv ("Included in all runs") plus hvdc_planned-<GSw_TransScen>.csv (NTP study
+#   scenarios, not baseline) and the offshore links.
+# - Status field: `certain` (1 = "the line MUST be built at the provided MW capacity in year_online" ->
+#   trancap_fut_cat 'certain'; 0 = may be built, 'possible'). AC additions are not listed: ReEDS handles them
+#   through the interface transfer limits (itl_NARIS.csv), so its certain future capacity is on its own
+#   transfer-capability basis (MW of the line between the two zones).
+# - hvdc_existing.csv: the HVDC lines already in service, used to check that nothing certain is already in
+#   the 2024 starting capacity.

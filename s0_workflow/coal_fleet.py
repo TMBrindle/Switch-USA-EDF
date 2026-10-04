@@ -611,8 +611,8 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     case, cap_col = first.get("case_id"), first.get("capacity_col", "capacity_mw")
     years = sorted(int(y) for y in scen_settings_dict)
     tol, scen = float(cfg.get("tolerance", 0.001)), hold_scenario(s0)
-    cu = cs.load_cap_units(REPO / cfg.get("cap_units_table", "s0_workflow/data/coal_cap_units_860m.csv"))
-    cu = cu[cu.status.isin(cfg.get("cap_statuses", ["OP", "SB"]))]
+    cu = cs.cap_unit_set(cs.load_cap_units(REPO / cfg.get("cap_units_table", "s0_workflow/data/coal_cap_units_860m.csv")),
+                         cfg.get("cap_statuses", ["OP", "SB"]))
     holds_all = hold_table(s0)
     held = cs.held_keys(holds_all)
     option = retirement_option(s0)
@@ -763,8 +763,7 @@ def option_tables(option: str, stages=cs.STAGES) -> tuple[pd.DataFrame, pd.DataF
     rule = cs.BLOCK_RULE if option == "block_all" else None
     basis = cs.load_model_basis()
     op, rt = load_fleet860m()
-    cu = cs.load_cap_units()
-    cu = cu[cu.status.isin(["OP", "SB"])]
+    cu = cs.cap_unit_set(cs.load_cap_units())
     holds_all = cs.load_holds()
     held = cs.held_keys(holds_all)
     edited, hyears = {}, {}

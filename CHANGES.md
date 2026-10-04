@@ -2121,3 +2121,60 @@ spec side. The regression case stays byte-identical (test).
 
 Run on pandas 3.0.6 and 1.4.4 (both: s0_workflow 66, build_rate 22); headroom 31 (pandas 3.0.6).
 
+## 54. S0 Production: Forced Transmission From ReEDS, Forced Lines Limited, Coal History From Mapped Plants
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `SHARED_CHANGES.md` (#38-#40, review point 8), `Guides and documentation/s0_production.md` (Forced
+transmission), `s0_workflow/specs/coal/coal_spec.md` (addendum A5), `s0_workflow/VM_RECIPES.md` (recipes C, D)
+
+For the S0 new-defaults cases only; legacy, fedpol and every other case are unchanged. The regression case stays
+byte-identical (tests).
+
+1. **Forced transmission: ReEDS's certain additions** (`s0_production.forced_tx: reeds_certain`, S0 default).
+   - **The file:** at ReEDS 2026.09.21 (commit 8a157233) there is no `transmission_capacity_future_*` file.
+     `get_trancap_fut` reads `inputs/transmission/hvdc_planned-baseline.csv` (in all runs), whose `certain` column
+     (1 = must be built at that MW in `year_online`) is the "Certain" status. AC additions go through the ITLs and
+     aren't listed.
+   - **Pinned copy:** `pg/extra_inputs/transmission/reeds_2026.09.21/`, with `REEDS_RELEASE.yml`.
+   - **Certain lines:** SunZia 3,000 MW 2026 and TransWest Express 3,000 MW 2032, both VSC. Their endpoints are in p31 →
+     p28 and p24 → p25 (ReEDS BA shapes). They are forced in the 2028 and 2035 stages.
+   - **Basis:** ReEDS's own transfer capability, which for a DC line is its MW.
+   - **No double counting:** neither line is in the NARIS 2024 AC ITLs, the 2024 non-AC lines or `hvdc_existing.csv`;
+     the script stops if a line would be.
+   - **Corridors:** p28-p31 is already a corridor (586 km, `network_costs_ReEDS.csv`). p24-p25 is injected as a new
+     line (666 km, as for Aeolus-Clover).
+   - **Totals by period** (`forced_tx_comparison_2026.09.21.csv`):
+
+     | option | 2028 | 2030 | 2035 | 2040-45 | total MW | MW-km | interregional |
+     |---|---|---|---|---|---|---|---|
+     | reeds_certain | 3,000 | 0 | 3,000 | 0 | 6,000 | 3,756,783 | 3,000 MW (50%) |
+     | named_projects (old) | 36,976 | 53,692 | 155,189 | 0 | 245,857 | 71,558,487 | 65,007 MW (26.4%) |
+
+   - **Option kept:** `forced_tx: named_projects` keeps the old list for sensitivities.
+   - **Setting:** a new axis and `scenario_inputs.csv` column `forced_tx`; the regression row is `legacy`, and
+     `on_pgdays` pins named_projects.
+   - **Script:** `s0_workflow/scripts/build_reeds_forced_tx.py`; `--check` runs without the geo libraries.
+2. **Forced lines limited to their minimum** (`forced_tx_expansion_limit: minimum`, S0 default).
+   - **The gap:** `transmission_tables` left forced lines out of `trans_path_expansion_limit.csv`, so Switch's
+     default let them expand without bound.
+   - **Fix:** a forced line is now in the file. Its limit is its `trans_build_minimum_mw` in its forced period, and
+     the policy's limit in the others (0 with zero; the growth rule with nerc_growth). Under `unlimited`, only the
+     forced periods are written.
+   - **Other cases:** no change, tested byte for byte against 4f882b6 for each policy, constrained and unconstrained.
+3. **Coal: H and N from mapped plants only** (`coal_spec.cap_unit_set`; addendum A5).
+   - **N:** block_all 2028 / 2030 0.5785 → 0.5791, 2035 0.5998 → 0.6007, 2040-45 0.6001 → 0.6011; planned_only
+     0.5806 → 0.5812 and 0.5926 → 0.5934 in 2028 / 2030.
+   - **Zone caps:** p70 0.5826 → 0.6210 (ADM out), p99 0.1477 → 0.1229 (Covington), p83 0.4936 → 0.5094 (block_all
+     2028/30), p103 0.9292 → 0.9484 (2035-45), p21 0.6319 → 0.6231, p92 0.4898 → 0.4849, and small moves in p40, p37,
+     p98, p122, p81 and p111 (through N).
+   - **Unchanged:** rules, model MW and holds. The per-option tables are regenerated.
+
+**Cases:** `s4x1_S0prod_2035_txreeds` and `s4x1_S0prod_2035_txnamed`. They are a single-year 2035 pair, identical
+except `forced_tx`, each equal to `s4x1_S0prod_2035_new` but for the id (recipe D).
+
+**Tests:**
+- `s0_workflow` 71 (was 66): the forced table and comparison, the settings and rows, `transmission_tables` with
+  each option and policy, legacy byte-identity, and the mapped cap unit set.
+- Run on pandas 3.0.6 and 1.4.4 (both: s0_workflow 71, build_rate 22, three `--check` scripts); headroom 31
+  (pandas 3.0.6).
+

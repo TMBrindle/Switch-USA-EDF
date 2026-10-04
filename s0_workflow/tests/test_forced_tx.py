@@ -1,0 +1,170 @@
+"""Forced transmission for the S0 new-defaults cases (CHANGES §54): the ReEDS release's certain additions
+(forced_tx: reeds_certain) and forced lines limited to their minimum (forced_tx_expansion_limit: minimum), in
+pg_to_switch.transmission_tables; other cases unchanged."""
+import ast
+import logging
+import subprocess
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+import yaml
+
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))
+from s0_workflow import production as s0prod  # noqa: E402
+
+TX = REPO / "pg/extra_inputs/transmission"
+REGIONS = list(pd.read_csv(REPO / "hierarchy.csv").ba)
+
+
+def _fns(path, names, g):
+    tree = ast.parse(Path(path).read_text())
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
+    assert {n.name for n in nodes} == set(names)
+    exec(compile(ast.Module(nodes, []), str(path), "exec"), g)
+
+
+def transmission_tables(source=None):
+    """pg_to_switch.transmission_tables as written, with conversion_functions' helpers; PowerGenome's
+    agg_transmission_constraints (existing capacity from its database, VM-only) and network_max_reinforcement
+    stood in for."""
+    g = {"pd": pd, "np": np, "Path": Path, "logger": logging.getLogger("t"), "__file__": str(REPO / "pg_to_switch.py")}
+    _fns(REPO / "conversion_functions.py", ["first_value", "load_zones_table", "tx_cost_transform"], g)
+    _fns(source or REPO / "pg_to_switch.py", ["transmission_tables"], g)
+    nc = pd.read_csv(TX / "network_costs_ReEDS.csv")
+
+    def agg_transmission_constraints(pg_engine, settings):
+        return pd.DataFrame({"transmission_path_name": nc.start_region + "_to_" + nc.dest_region,
+                             "Line_Max_Flow_MW": 1000.0})
+
+    def network_max_reinforcement(transmission, settings):          # PowerGenome GenX, fraction form
+        transmission["Line_Max_Reinforcement_MW"] = (transmission["Line_Max_Flow_MW"]
+                                                     * settings.get("tx_expansion_per_period", 0)).round(0)
+        return transmission
+    g.update(agg_transmission_constraints=agg_transmission_constraints,
+             network_max_reinforcement=network_max_reinforcement)
+    return g["transmission_tables"]
+
+
+def build(tmp_path, years=(2028, 2030, 2035), source=None, **kw):
+    s = {"model_regions": REGIONS, "input_folder": REPO / "pg/extra_inputs",
+         "user_transmission_costs": "transmission/network_costs_ReEDS.csv", "transmission_policy": "constrained",
+         "trans_expansion_policy": "zero", "build_minimum_policy": "yes", "degrade_policy": "no",
+         "hurdle_policy": "no", "asymmetry_policy": "no", "tx_expansion_per_period": 0, **kw}
+    out = tmp_path / f"run{len(list(tmp_path.iterdir()))}"
+    out.mkdir(parents=True)
+    transmission_tables(source)({y: dict(s) for y in years}, out, None)
+    if source is not None:
+        return out
+    rd = lambda f: pd.read_csv(out / f) if (out / f).exists() else None  # noqa: E731
+    lines = rd("transmission_lines.csv")
+    name = {r.TRANSMISSION_LINE: "-".join(sorted([r.trans_lz1, r.trans_lz2], key=lambda z: int(z[1:])))
+            for r in lines.itertuples()}
+    return lines, rd("trans_build_minimum.csv"), rd("trans_path_expansion_limit.csv"), name
+
+
+def test_reeds_certain_table_and_comparison():
+    """The committed table is what the script builds from the pinned ReEDS file (zones of the committed table when the
+    geo libraries are missing); two certain lines, none already in the 2024 capacity."""
+    r = subprocess.run([sys.executable, str(REPO / "s0_workflow/scripts/build_reeds_forced_tx.py"), "--check"],
+                       capture_output=True, text=True, cwd=REPO)
+    assert r.returncode == 0, r.stdout + r.stderr
+    src = pd.read_csv(TX / "reeds_2026.09.21/hvdc_planned-baseline.csv")
+    assert set(src.name[src.certain == 1]) == {"sunzia", "transwestexpress"}
+    t = pd.read_csv(TX / "forced_tx_reeds_certain_2026.09.21.csv").set_index("project_name")
+    assert t.loc["sunzia", ["from_zone", "to_zone", "new_cap_mw", "new_cap_year", "period"]].tolist() == \
+        ["p28", "p31", 3000.0, 2026, 2028]
+    assert t.loc["transwestexpress", ["from_zone", "to_zone", "new_cap_mw", "new_cap_year", "period"]].tolist() == \
+        ["p24", "p25", 3000.0, 2032, 2035]
+    nonac = pd.read_csv(TX / "transmission_capacity_init_nonAC_ba.csv")
+    assert not {frozenset(p) for p in zip(nonac.r, nonac.rr)} & {frozenset(p) for p in zip(t.from_zone, t.to_zone)}
+    c = pd.read_csv(TX / "forced_tx_comparison_2026.09.21.csv").set_index(["option", "period"])
+    assert c.loc[("named_projects", "all"), "MW"] == 245857.0 and c.loc[("named_projects", "all"), "lines"] == 72
+    assert c.loc[("reeds_certain", "all"), "MW"] == 6000.0
+    assert c.loc[("reeds_certain", "all"), "interregional_share"] == 0.5          # TransWest: WestConnect-NorthernGrid
+    assert list(c.loc["named_projects"].MW[["2028", "2030", "2035"]]) == [36976.0, 53692.0, 155189.0]
+
+
+def test_settings_options_and_legacy():
+    s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
+    assert s0["forced_tx"] == "reeds_certain" and s0["forced_tx_expansion_limit"] == "minimum"
+    ax = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))["settings_management"]["all_years"]
+    assert ax["forced_tx"] == {"reeds_certain": {"s0_production": {"forced_tx": "reeds_certain"}},
+                               "named_projects": {"s0_production": {"forced_tx": "named_projects"}}, "legacy": None}
+    leg = ax["s0_production"]["on_pgdays"]["s0_production"]
+    assert leg["forced_tx"] == "named_projects" and leg["forced_tx_expansion_limit"] == "legacy"
+    for opt, table in (("reeds_certain", "pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv"),
+                       ("named_projects", None)):
+        s = {}
+        s0prod.apply_forced_tx(s, dict(s0, forced_tx=opt))
+        assert s.get("forced_tx_table") == table and s["forced_tx_expansion_limit"] == "minimum"
+    s = {}
+    s0prod.apply_forced_tx(s, dict(s0, **leg))
+    assert s == {}                                                         # legacy: pg_to_switch as before
+    with pytest.raises(ValueError, match="forced_tx"):
+        s0prod.apply_forced_tx({}, dict(s0, forced_tx="all"))
+    # the 2035 comparison pair differs only in forced_tx
+    si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
+    a = si[si.case_id == "s4x1_S0prod_2035_txreeds"].iloc[0]
+    b = si[si.case_id == "s4x1_S0prod_2035_txnamed"].iloc[0]
+    assert [c for c in si.columns if a[c] != b[c]] == ["case_id", "forced_tx"] and a.year == 2035
+    assert a.forced_tx == "reeds_certain" and b.forced_tx == "named_projects" and a.s0_production == "on_pgdays_new"
+    new = si[si.case_id == "s4x1_S0prod_2035_new"].iloc[0]
+    assert [c for c in si.columns if a[c] != new[c]] == ["case_id"]
+    assert set(si.loc[si.case_id == "s4x1_S0prod_2035", "forced_tx"]) == {"legacy"}
+    rest = si[~si.case_id.isin(["s4x1_S0prod_2035", "s4x1_S0prod_2035_txnamed"])]
+    assert (rest.forced_tx == "reeds_certain").all()                  # inert where s0_production is off
+
+
+def test_transmission_tables_forced_lines(tmp_path):
+    """Legacy: the named projects are forced and left out of trans_path_expansion_limit.csv (unlimited in Switch).
+    S0: reeds_certain forces SunZia (2028) and TransWest Express (2035) only, and with the minimum limit each forced
+    line is limited to its minimum in its forced period and to the case's rule (0 here) otherwise; under nerc_growth
+    and unlimited too."""
+    lines, bm, lim, name = build(tmp_path)
+    forced = {name[x] for x in bm.TRANSMISSION_LINE}
+    assert len(bm) == 72 and {"p60-p61", "p15-p16"} <= forced           # the 72 named projects
+    assert not set(lim.TRANSMISSION_LINE) & set(bm.TRANSMISSION_LINE)  # the gap: no limit on forced lines
+    for pol in ("zero", "nerc_growth", "unlimited"):
+        lines, bm, lim, name = build(tmp_path, trans_expansion_policy=pol,
+                                     forced_tx_table="pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv",
+                                     forced_tx_expansion_limit="minimum")
+        b = {(name[r.TRANSMISSION_LINE], r.PERIOD): r.trans_build_minimum_mw for r in bm.itertuples()}
+        assert b == {("p28-p31", 2028): 3000.0, ("p24-p25", 2035): 3000.0}, pol
+        L = {(name[r.TRANSMISSION_LINE], r.PERIOD): r.trans_path_expansion_limit_mw for r in lim.itertuples()}
+        assert L[("p28-p31", 2028)] == 3000.0 and L[("p24-p25", 2035)] == 3000.0, pol
+        if pol == "unlimited":
+            assert len(lim) == 2                                           # only the forced periods are limited
+        elif pol == "zero":
+            assert L[("p28-p31", 2030)] == 0 and L[("p28-p31", 2035)] == 0 and L[("p24-p25", 2028)] == 0
+        else:                                                              # nerc_growth: its rule, as other lines
+            assert all(np.isfinite(L[(ln, y)]) for ln in ("p28-p31", "p24-p25") for y in (2028, 2030, 2035))
+            assert L[("p28-p31", 2030)] > 0
+        if pol != "unlimited":
+            assert len(lim) == lim[["TRANSMISSION_LINE", "PERIOD"]].drop_duplicates().shape[0]
+        # the named projects are no longer forced; their cross-transreg corridors are blocked like any other
+        nb = {name[r.TRANSMISSION_LINE] for r in lines.itertuples() if r.trans_new_build_allowed == 0}
+        assert "p37-p38" in nb and "p24-p25" not in nb
+    # named_projects with the minimum limit: the same 72 forced lines, each limited to its minimum
+    lines, bm, lim, name = build(tmp_path, forced_tx_expansion_limit="minimum")
+    m = bm.merge(lim, on=["TRANSMISSION_LINE", "PERIOD"])
+    assert len(bm) == 72 and len(m) == 72 and (m.trans_path_expansion_limit_mw == m.trans_build_minimum_mw).all()
+
+
+def test_legacy_transmission_files_unchanged(tmp_path):
+    """Without the S0 keys (the regression case and every other case) transmission_tables writes the same files as
+    before this change (4f882b6), under each expansion policy."""
+    old = tmp_path / "old_pg_to_switch.py"
+    old.write_text(subprocess.run(["git", "show", "4f882b6:pg_to_switch.py"], cwd=REPO, capture_output=True,
+                                  text=True, check=True).stdout)
+    for pol in ("zero", "nerc_growth", "unlimited"):
+        for tr in ("constrained", "unconstrained"):
+            a = build(tmp_path, source=old, trans_expansion_policy=pol, transmission_policy=tr)
+            b = build(tmp_path, source=REPO / "pg_to_switch.py", trans_expansion_policy=pol, transmission_policy=tr)
+            files = sorted(f.name for f in a.glob("*.csv"))
+            assert files == sorted(f.name for f in b.glob("*.csv")) and "transmission_lines.csv" in files
+            for f in files:
+                assert (a / f).read_bytes() == (b / f).read_bytes(), (pol, tr, f)

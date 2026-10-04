@@ -1,6 +1,6 @@
 option,stage,national_N,zones,zones_with_model_coal,model_GW_before,model_GW_after_overrides,model_MW_weighted_cap,zones_own_history,zones_national,zones_blend,zones_no_coal_left,held_GW_S0,held_GW_holds_persist
-planned_only,2028,0.5806,73,69,157.03,156.35,0.5801,68,0,1,4,3.24,5.04
-planned_only,2030,0.5926,71,65,143.47,141.14,0.5925,64,0,1,6,0.0,5.04
-planned_only,2035,0.5998,70,61,134.72,125.48,0.5994,60,0,1,9,0.0,5.04
-planned_only,2040,0.6001,70,61,134.38,123.38,0.5998,60,0,1,9,0.0,5.04
-planned_only,2045,0.6001,69,61,134.04,123.38,0.5998,60,0,1,8,0.0,5.04
+planned_only,2028,0.5812,70,69,157.03,156.35,0.5803,68,0,1,1,3.24,5.04
+planned_only,2030,0.5934,68,65,143.47,141.14,0.5926,64,0,1,3,0.0,5.04
+planned_only,2035,0.6007,66,61,134.72,125.48,0.5998,60,0,1,5,0.0,5.04
+planned_only,2040,0.6011,66,61,134.38,123.38,0.6002,60,0,1,5,0.0,5.04
+planned_only,2045,0.6011,65,61,134.04,123.38,0.6002,60,0,1,4,0.0,5.04

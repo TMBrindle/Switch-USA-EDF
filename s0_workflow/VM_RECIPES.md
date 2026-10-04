@@ -50,6 +50,7 @@ cases (`pg_to_switch.py` runs `brc.switch_case` and `brc.turbine_cap` there):
 | `pytest` (all three suites) | the env with `pytest` | no VM env has both `pytest` and `scikit-learn`: the day-selection test skips with a message where `sklearn` is missing |
 | `pytest s0_workflow/tests` and `build_rate/tests` **again** | `switch-pg-reeds-fedpol` | it builds the cases, with pandas 1.4.4: the coal-spec code must run there (the c4a19f8 build failed on a pandas ≥ 2.2 call that the other env accepted) |
 | `build_reeds_state_policies.py --check` (C step 1) | `ic-pipeline` | pandas and PyYAML only (runs on pandas 1.4.4 too) |
+| `build_reeds_forced_tx.py --check` (C step 1) | `ic-pipeline` | pandas only; reuses the committed zones (endpoint mapping needs pyshp/shapely/pyproj, not installed: fine) |
 | `fetch_coal_spec_eia.py --check-only` (C step 1, optional) | `ic-pipeline` | pandas, openpyxl, PyYAML |
 | `pg_to_switch.py` (case builds: A, B, C) | `switch-pg-reeds-fedpol` | PowerGenome, `scipy`, `sklearn` |
 | `"<SWITCH_EXE>" solve` | `switch-pg-reeds-fedpol` (its `switch`) | Pyomo, Switch, Gurobi |
@@ -188,6 +189,9 @@ the October 2026 defaults:
 - no new nuclear before the 2035 stage;
 - the coal specification rev. 2.1 (`s0_workflow/specs/coal/coal_spec.md` and its addendum): zonal coal caps by stage, the
   fleet overrides from the August 2026 860M, and the S0 order holds (eight units, 2028 stage only);
+- forced transmission (`forced_tx: reeds_certain`, CHANGES §54): ReEDS 2026.09.21's certain additions only,
+  SunZia p28-p31 3,000 MW (2028 stage) and TransWest Express p24-p25 3,000 MW (2035 stage), instead of the
+  72-line project list (245,857 MW); each forced line is limited to its minimum in its forced period;
 - wind loss, build rate central, headroom atts_s0.
 
 **The coal checks stop the build.** For each stage, the case build compares four things with the spec's
@@ -209,7 +213,8 @@ in the stage folder. Don't patch around it: send Tom those files and
    and exit 0. If it reports a difference, stop and report it; don't overwrite the files.
    ```bash
    "<ic-pipeline python>" s0_workflow/scripts/build_reeds_state_policies.py --check; echo "check exit $?"
-   # only if the check printed "check exit 0":
+   "<ic-pipeline python>" s0_workflow/scripts/build_reeds_forced_tx.py --check; echo "check exit $?"
+   # only if both checks printed "check exit 0":
    test -e switch/in/s0prod_A && echo "exists: pick another name" || \
    "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_A --case-id S0prod_A \
        --year 2028 --year 2030 --year 2035 --year 2040 --year 2045
@@ -272,22 +277,32 @@ in the stage folder. Don't patch around it: send Tom those files and
        4 remove overrides at c4a19f8. Report the breakdown if it differs.
      - Any count other than 5 stops the build.
    - `build_rules.csv`: `uranium`, 2035 (no new nuclear before the 2035 stage).
+   - **Forced transmission (reeds_certain):** console log `forced transmission reeds_certain
+     (pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv); forced-line expansion limit minimum`.
+     - `trans_build_minimum.csv`: one row in the 2028 stage (the p28-p31 line, 3,000 MW) and one in the 2035 stage (the
+       p24-p25 line, 3,000 MW); none in 2030, 2040 and 2045.
+     - `trans_path_expansion_limit.csv`: those two lines are now in the file. Each has 3,000 in its forced stage and the
+       case's limit (0, `trans_expansion: zero`) in the other stages.
+     - `transmission_lines.csv`: p24-p25 is added as a new line (666.3 km), and the named projects' other new corridors
+       are absent. Cross-transreg corridors of the old list are no longer exempt from the block
+       (`trans_new_build_allowed` 0, e.g. p37-p38).
    - **Coal caps by stage (block_all):** in `coal_caps_by_stage.csv`, every row has `ok` True (checked against
      `by_option/coal_spec_expected_caps_by_stage.block_all.csv`). The log line `coal caps <year>: N ...`
      should match:
 
      | Stage | N | Zones with model coal | Model coal after overrides (GW) |
      |---|---|---|---|
-     | 2028 | 0.5785 | 72 | 163.59 |
-     | 2030 | 0.5785 | 72 | 163.59 |
-     | 2035 | 0.5998 | 61 | 125.48 |
-     | 2040 | 0.6001 | 61 | 123.38 |
-     | 2045 | 0.6001 | 61 | 123.38 |
+     | 2028 | 0.5791 | 72 | 163.59 |
+     | 2030 | 0.5791 | 72 | 163.59 |
+     | 2035 | 0.6007 | 61 | 125.48 |
+     | 2040 | 0.6011 | 61 | 123.38 |
+     | 2045 | 0.6011 | 61 | 123.38 |
 
-     These are the coal_spec.md addendum A4 values: plants not in `reeds_plant_map.csv` are out, and Edwardsport
-     CT1 / CT2 are in at 240.6 MW each. N and the caps are as before.
+     These are the coal_spec.md addendum A4 and A5 values. Plants not in `reeds_plant_map.csv` are out of the model
+     coal (A4) and of each zone's history and N (A5), and Edwardsport CT1 / CT2 are in at 240.6 MW each. The
+     zone caps that move with A5 are listed there, e.g. p70 0.6210, p99 0.1229.
 
-     - **Blend zone:** p111 in every stage (0.529 / 0.529 / 0.548 / 0.549 / 0.549).
+     - **Blend zone:** p111 in every stage (0.5295 / 0.5295 / 0.5493 / 0.5497 / 0.5497).
      - **p130 in 2028 and 2030:** Merrimack 1 alone (108 MW), on its own history, cap 0.128. The
        out-of-service Merrimack 2 is removed in every option.
      - **Model-MW differences:** the log lists any zone whose model MW after the overrides differs from the
@@ -300,7 +315,7 @@ in the stage folder. Don't patch around it: send Tom those files and
        list. Those units are in the case's coal clusters but not in the caps' model MW (A4, what to watch).
      - **Coal clusters:** `gen_max_annual_availability` = cap / (1 − forced outage), capped at 1.
      - **Other options:** for a `planned_only` or `unrestricted` sensitivity, the expected values are 2028
-       0.5806 / 69 / 156.35 GW and 2030 0.5926 / 65 / 141.14 GW (`by_option/coal_spec_stage_summary.*.csv`).
+       0.5812 / 69 / 156.35 GW and 2030 0.5934 / 65 / 141.14 GW (`by_option/coal_spec_stage_summary.*.csv`).
    - **Applied overrides:** `coal_overrides_applied.csv` has 71 rows (the spec table's S0 rows), all `ok`:
      - 55 plain `ok`;
      - 3 `ok (already satisfied: ...)`: Brandon Shores 1 / 2 (`model 2029`) and Stanton 1 (`model no date`),
@@ -348,6 +363,37 @@ in the stage folder. Don't patch around it: send Tom those files and
 
 Optional: build and solve `s4x1_S0prod_2035_new` (the regression case with the new defaults). Compare
 it with recipe A's run to see what the new defaults change in 2035 on the same days.
+
+## D. Forced transmission: 2035 s4x1 pair (reeds_certain vs named_projects)
+
+**Cases:** `s4x1_S0prod_2035_txreeds` (`forced_tx = reeds_certain`) and `s4x1_S0prod_2035_txnamed`
+(`forced_tx = named_projects`). They are identical to each other except `forced_tx`, and to
+`s4x1_S0prod_2035_new` (new defaults, PowerGenome's s4x1 days, single year 2035) except the case id. Both cap
+forced lines at their minimum.
+
+1. Build both into fresh folders (one `--year`, so each is a single 2035 stage):
+   ```bash
+   for c in txreeds txnamed; do
+     test -e switch/in/s0prod_$c && { echo "exists: pick another name"; break; }
+     "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_$c --case-id s4x1_S0prod_2035_$c --year 2035
+   done
+   ```
+2. Input check: only the transmission files should differ.
+   ```bash
+   "<ic-pipeline python>" s0_workflow/scripts/compare_s0_runs.py inputs \
+     switch/in/s0prod_txreeds/2035/s4x1_S0prod_2035_txreeds switch/in/s0prod_txnamed/2035/s4x1_S0prod_2035_txnamed > s0prod_tx_inputs.txt
+   ```
+   - **trans_build_minimum.csv:** in a single 2035 stage, every forced line is due in 2035. txreeds has 2 rows,
+     6,000 MW (SunZia p28-p31, TransWest Express p24-p25). txnamed has 72 rows, 245,857 MW.
+   - **trans_path_expansion_limit.csv:** each forced line at its minimum.
+   - **transmission_lines.csv:** txnamed has the named projects' new corridors (injected with no existing capacity);
+     txreeds has only p24-p25 among them. `trans_new_build_allowed` differs on the old list's cross-transreg
+     corridors.
+   - Any other difference is unexpected: report it.
+3. Solve each scenario line with recipe A's solver options, into fresh output folders.
+4. Report for each case: total and interregional new transmission (MW, MW-km), CO2, new wind / solar / storage /
+   gas by transreg, and system cost. Compare with `pg/extra_inputs/transmission/forced_tx_comparison_2026.09.21.csv`
+   (forced MW, MW-km and interregional share by period for both options).
 
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 

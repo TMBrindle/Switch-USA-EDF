@@ -95,6 +95,30 @@ entries and remove a comment block; no existing value changes.
 | 36 | `build_rate/brc/rates.py` | §52: `completion_rates` loops over the groups instead of `groupby.apply(include_groups=False)` (pandas ≥ 2.2), with the same sums. | pandas 1.4.4 in `switch-pg-reeds-fedpol`. | none: the 20 pipeline tables are byte-identical (old code on pandas 3.0.6 vs new code on 3.0.6 and 1.4.4) |
 | 32 | `s0_workflow/specs/coal/coal_spec_converted_gas_units.csv`, `coal_spec_overrides.csv`, `coal_spec.md` | Converted-unit heat rates replaced by the latest-EIA-923 values (rev. 2.1); addendum rev. 2.1; new `by_option/` validation tables. | Tom's decisions, 2026-10-04. | none (S0 coal spec only) |
 
+### Added in §54 (Oct 2026: forced transmission from ReEDS, forced lines limited, coal history from mapped plants)
+
+**Flagged for Ollie** (all three are for the S0 new-defaults cases only; legacy, fedpol and every other case build
+as before, and a test checks that transmission_tables writes byte-identical files without the S0 keys):
+- **Forced transmission source (#38, #39).** The S0 default (`s0_production.forced_tx: reeds_certain`) replaces the
+  72 named projects of `transmission_connections.csv` (245,857 MW, `new_cap_mw`) with ReEDS 2026.09.21's certain
+  additions: SunZia (p28-p31, 3,000 MW, 2026 -> 2028) and TransWest Express (p24-p25, 3,000 MW, 2032 -> 2035), 6,000
+  MW in all. The release has no `transmission_capacity_future_*` file; its certain future capacity is
+  `inputs/transmission/hvdc_planned-baseline.csv` with `certain == 1` (AC additions go through the ITLs). The named
+  list stays as `forced_tx: named_projects` for sensitivities. Worth a look for fedpol: the named list's values look
+  like project nameplate, not transfer capability (e.g. Gateway West 11,208 MW).
+- **Forced lines were unlimited (#38).** `transmission_tables` leaves forced lines (those with a
+  `trans_build_minimum`) out of `trans_path_expansion_limit.csv`, so Switch's default (no limit) lets them expand
+  without bound. That is still so for every non-S0 case. With `forced_tx_expansion_limit: minimum` (S0) a forced line
+  is limited to its minimum in its forced period, and like any other line in the others; under
+  `trans_expansion_policy: unlimited` only the forced periods are written. This is likely worth adopting generally.
+- **Coal history (#40).** S0's coal caps take H and N from plants in `reeds_plant_map.csv` only.
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 38 | `pg_to_switch.py` (`transmission_tables`) | (a) The forced-line table is `settings["forced_tx_table"]` when set (same columns as `transmission_connections.csv`), else `transmission_connections.csv` as before; it supplies the planned lines, their minimum builds and the injected new corridors. (b) With `settings["forced_tx_expansion_limit"] == "minimum"`, forced lines are kept in `trans_path_expansion_limit.csv`: their `trans_build_minimum_mw` in the forced period, the policy's limit otherwise (zero / nerc_growth), and only the forced periods under `unlimited`. | §54 items 1-2. | none: neither key is set outside S0 new-defaults cases; byte-identical files tested against 4f882b6 for zero / nerc_growth / unlimited, constrained and unconstrained |
+| 39 | `pg/settings/s0_production.yml`, `s0_workflow/production.py` (`apply_forced_tx`), `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv`, `pg/extra_inputs/transmission/reeds_2026.09.21/` (new, pinned copies), `forced_tx_reeds_certain_2026.09.21.csv`, `forced_tx_comparison_2026.09.21.csv`, `s0_workflow/scripts/build_reeds_forced_tx.py` (new) | New S0 settings `forced_tx` (reeds_certain default / named_projects) and `forced_tx_expansion_limit` (minimum default / legacy). New axis and column `forced_tx` (reeds_certain in every existing row, legacy in the regression row; `on_pgdays` pins named_projects + legacy). New rows `s4x1_S0prod_2035_txreeds` / `_txnamed` (the 2035 comparison pair). | §54. | none (inert unless `s0_production.enabled`; the regression case keeps the named list and no limit) |
+| 40 | `s0_workflow/coal_spec.py` (`cap_unit_set`), `coal_fleet.py`, `specs/coal/by_option/*`, `coal_spec.md` (A5) (S0 only) | The coal cap unit set (H, own, N) keeps plants in `reeds_plant_map.csv` only. N moves +0.0006 to +0.0010; the largest cap changes are p70 +0.038, p99 −0.025, p103 +0.019 (2035-45), p83 +0.016, p21 −0.009. | Tom, 2026-10-04. | none outside S0 cases with the coal spec |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -120,3 +144,7 @@ entries and remove a comment block; no existing value changes.
 7. (§48) #27(c) and #28: the follow-up is to generate the per-year `flexible_demand_resources` entries from
    the model-year list, so extending the horizon can't break a build again
    (`Guides and documentation/load_growth.md`).
+8. (§54) The forced-line expansion limit (#38) is S0-only. The same gap applies to every other case, where forced
+   lines have no expansion limit in Switch. Consider `forced_tx_expansion_limit: minimum` (or its logic) for
+   fedpol's cases too.
+

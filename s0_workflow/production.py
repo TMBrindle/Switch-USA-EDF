@@ -87,6 +87,7 @@ def apply_settings(case_settings: dict) -> None:
                 raise ValueError(f"s0_production.gas_capex.mode must be premium, atb_moderate or gridlab, "
                                  f"not {mode!r}")
             apply_retirement_option(s, s0)
+            apply_forced_tx(s, s0, case, year)
             if coal_fleet.spec_settings(s0):            # coal spec rev. 2: hold technologies
                 techs = coal_fleet.apply_settings(s, s0)
                 logger.info("s0_production %s/%s: coal spec; hold projects %s", case, year, techs)
@@ -177,6 +178,40 @@ def apply_retirement_option(s: dict, s0: dict) -> None:
     elif o in ("planned_only", "unrestricted"):
         for k in RETIREMENT_OVERRIDE_KEYS:
             s.pop(k, None)
+
+
+FORCED_TX_OPTIONS = ("reeds_certain", "named_projects")
+
+
+def forced_tx_table(release: str) -> str:
+    """The forced-line table of a pinned ReEDS release (s0_workflow/scripts/build_reeds_forced_tx.py), repo-relative."""
+    rel = f"pg/extra_inputs/transmission/forced_tx_reeds_certain_{release}.csv"
+    if not (REPO / rel).exists():
+        raise FileNotFoundError(f"s0_production.forced_tx reeds_certain, release {release!r}: {rel} not found; build "
+                                f"it with s0_workflow/scripts/build_reeds_forced_tx.py")
+    return rel
+
+
+def apply_forced_tx(s: dict, s0: dict, case=None, year=None) -> None:
+    """s0_production.forced_tx and forced_tx_expansion_limit, in place for one case/year (pg_to_switch
+    transmission_tables reads the keys it sets; without them it builds as before):
+      reeds_certain   (S0 default) forced lines = the ReEDS release's certain additions (forced_tx_table)
+      named_projects  forced lines = transmission_connections.csv new_cap_mw (the list every other case uses)
+      expansion limit minimum (S0 default): a forced line's trans_path_expansion_limit in its forced period is its
+                      trans_build_minimum_mw, and it is limited like any other line in other periods; legacy: forced
+                      lines are left out of trans_path_expansion_limit.csv (no limit), as in every other case"""
+    o = s0.get("forced_tx", "named_projects") or "named_projects"
+    if o not in FORCED_TX_OPTIONS:
+        raise ValueError(f"s0_production.forced_tx must be one of {FORCED_TX_OPTIONS}, not {o!r}")
+    if o == "reeds_certain":
+        s["forced_tx_table"] = forced_tx_table(str(s0.get("forced_tx_release", "2026.09.21")))
+    lim = s0.get("forced_tx_expansion_limit", "legacy") or "legacy"
+    if lim not in ("minimum", "legacy"):
+        raise ValueError(f"s0_production.forced_tx_expansion_limit must be minimum or legacy, not {lim!r}")
+    if lim == "minimum":
+        s["forced_tx_expansion_limit"] = "minimum"
+    logger.info("s0_production %s/%s: forced transmission %s%s; forced-line expansion limit %s", case, year, o,
+                f" ({s['forced_tx_table']})" if o == "reeds_certain" else "", lim)
 
 
 def economic_rule_on(s0: dict) -> bool:

@@ -1292,6 +1292,8 @@ settings_management:
           coal_spec: {enabled: false}
           coal_holds: {enabled: false}
           retirements_pre2030: legacy
+          forced_tx: named_projects
+          forced_tx_expansion_limit: legacy
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}
@@ -1314,6 +1316,15 @@ settings_management:
         s0_production: {retirements_pre2030: planned_only}
       unrestricted:
         s0_production: {retirements_pre2030: unrestricted}
+      legacy: ~
+    # Forced (certain) transmission for S0 production cases (pg/settings/s0_production.yml forced_tx; CHANGES §54).
+    # Inert unless s0_production.enabled. Column `forced_tx` in scenario_inputs.csv: reeds_certain in every row that
+    # predates it, legacy in the regression row (its s0_production value pins named_projects; `legacy` sets nothing).
+    forced_tx:
+      reeds_certain:
+        s0_production: {forced_tx: reeds_certain}
+      named_projects:
+        s0_production: {forced_tx: named_projects}
       legacy: ~
     policies:
       current:
