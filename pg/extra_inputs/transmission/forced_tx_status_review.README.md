@@ -1,5 +1,14 @@
 # `forced_tx_status_review.csv` — method note
 
+**Revised** after Tom's review of the first pass: dropped "New Delaney-Colorado River 500 kV"
+(p10-p28, 2024) — confirmed this is Ten West Link, already in service, which had incorrectly been
+kept as class B; identified the b3800.124/b3800.240 row (p99-p121) as Doubs-Aspen 500 kV
+(Potomac Edison/Dominion) rather than leaving it unidentified — this also resolves the "Doubs-Aspen
+2030" segment that the first pass couldn't locate; and replaced the n5034/b3800.119
+corrected-zone-pair rows' length/efficiency with the real values from `transmission_connections.csv`'s
+own rows for those corrected pairs (both exist there), rather than carrying over the uncorrected
+pair's values.
+
 Replaces the header-only placeholder (CHANGES §60) that `s0_workflow/production.py`'s
 `reeds_certain_plus_A` / `reeds_certain_plus_AB` forced-transmission options read via
 `status_review_rows()`. Columns are fixed by that function's `STATUS_REVIEW_COLUMNS` check
@@ -18,10 +27,12 @@ cross-checked against the `forced_projects.csv` project-level rollup from an ear
 
 - **Class A** — in service by 2035 very likely.
 - **Class B** — everything else kept (later in-service years, or less certain).
-- **Dropped entirely, not in this file** (11 source rows): Plains & Eastern Clean Line (3 rows),
+- **Dropped entirely, not in this file** (12 source rows): Plains & Eastern Clean Line (3 rows),
   "Mountain View-Lambert" (unidentified), the Humboldt/Fern Road/Shaffer bundle, Gateway South
-  Aeolus-Clover (already in service), four unidentified PJM-area codes (s2853.2a/b, n8376, n7147,
-  n7204), and one intra-zone row (b3800.212, both ends effectively p99).
+  Aeolus-Clover (already in service), **New Delaney-Colorado River 500 kV = Ten West Link**
+  (p10-p28, 2024, already in service — confirmed by Tom; had incorrectly been kept as class B in
+  the first pass), four unidentified PJM-area codes (s2853.2a/b, n8376, n7147, n7204), and one
+  intra-zone row (b3800.212, both ends effectively p99).
 
 ## MW rule
 
@@ -52,8 +63,8 @@ takes the listed number's year; flagged in `notes`.
 | | Rows | MW | MW-km | Interregional MW (share) |
 |---|---|---|---|---|
 | Class A | 21 | 28,170.7 | 7,270,072 | 5,376.0 (19.1%) |
-| Class B | 42 | 77,837.0 | 21,785,154 | 24,080.0 (30.9%) |
-| **Total** | **63** | **106,007.7** | **29,055,227** | **29,456.0 (27.8%)** |
+| Class B | 41 | 76,587.0 | 21,267,929 | 22,830.0 (29.8%) |
+| **Total** | **62** | **104,757.7** | **28,538,001** | **28,206.0 (26.9%)** |
 
 Interregional = `from_zone`/`to_zone` in different `hierarchy.csv` transregs.
 
@@ -69,17 +80,20 @@ Interregional = `from_zone`/`to_zone` in different `hierarchy.csv` transregs.
 - **p122-p123** (b3800.31): n6559 and b3780.2, bundled in the same source row, could not be
   independently identified.
 - **p107-p105** (n5034) and **p100-p99** (b3800.119, "Woodside-Aspen"): Tom corrected the zone
-  pair from the source's listed pair; `trans_length_km`/`trans_efficiency` are carried over from
-  the source's (uncorrected) row since a corrected-pair distance isn't available.
+  pair from the source's listed pair. **Resolved in this revision**: both corrected pairs exist as
+  their own rows in `transmission_connections.csv` (p105-p107 and p99-p100 respectively), so
+  `trans_length_km`/`trans_efficiency` are taken from those real rows (484.141 km / 0.972301, and
+  317.024 km / 0.958077) instead of being carried over from the uncorrected pair.
 - **p15-p16** (Gateway West Midpoint-Hemingway): length/efficiency are the source's full-corridor
   values, not segment-specific.
 - **p127-p128** ("Propel NY Energy") and **p51-p55** ("probably Delaware-Monett 345 kV"):
   identifications are probable/tentative per Tom, not confirmed.
-- **"Doubs-Aspen" (2030)**, one of three segments Tom named alongside Beckham County-Potter and
-  Potter-Crossroads-Phantom, could not be matched to any row in `transmission_connections.csv` —
-  **not included in this file**, reported as unresolved rather than invented.
-- **"Ten West Link"** (named in the exclusion list as already in service) does not appear in
-  `transmission_connections.csv` at all — nothing to exclude, no action needed.
+- **"Ten West Link"** does not appear by that name in `transmission_connections.csv` — it is the
+  row originally listed as "New Delaney-Colorado River 500 kV" (p10-p28), per Tom's identification;
+  now dropped (see Classes, above) rather than kept as class B.
+
+**Resolved from the first pass:** "Doubs-Aspen 2030" (previously unmatched) is the b3800.124/
+b3800.240 row (p99-p121), per Tom's identification — now labeled accordingly, nothing missing.
 
 ## A data-structure limitation in the consuming code, not in this file
 
