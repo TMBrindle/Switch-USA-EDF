@@ -240,9 +240,13 @@ A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrid
      1.090, for planned units and new builds alike (nameplate basis); no reciprocating engines.
    - `time_sampling/<year>/fi_target_errors.csv`: every row within tolerance.
    - `retirement_rules.csv`: coal and naturalgas, 2030 (block_all and planned_only; none with unrestricted).
-   - Console log (block_all): `predetermined_retirement_override: pushing back <n> unit(s) ... to 2030` for gas.
-     Coal units dated 2026-29 are already encoded 2031 by the coal hook: in service through the 2030 stage, as
-     the push intends, and kept by PowerGenome in model year 2030.
+   - **Console log (block_all):** `retirements_pre2030 block_all <case>/<year>: <n> units dated 2026-2029
+     encoded 2031 (...)`, broken down by cluster technology (Conventional Steam Coal, the hold technologies,
+     Natural Gas Fired Combined Cycle / Combustion Turbine).
+     - These units are in service through the 2030 stage and kept by PowerGenome in model year 2030.
+     - Expect **no** `predetermined_retirement_override: pushing back ...` line: fedpol's function finds nothing
+       left in its window.
+     - The five out-of-service coal removals are not pushed.
    - `build_rules.csv`: `uranium`, 2035 (no new nuclear before the 2035 stage).
    - **Coal caps by stage (block_all):** in `coal_caps_by_stage.csv`, every row has `ok` True (checked against
      `by_option/coal_spec_expected_caps_by_stage.block_all.csv`). The log line `coal caps <year>: N ...`
@@ -250,14 +254,15 @@ A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrid
 
      | Stage | N | Zones with model coal | Model coal after overrides (GW) |
      |---|---|---|---|
-     | 2028 | 0.5785 | 76 | 166.53 |
-     | 2030 | 0.5785 | 76 | 166.53 |
+     | 2028 | 0.5785 | 76 | 164.56 |
+     | 2030 | 0.5785 | 76 | 164.56 |
      | 2035 | 0.5998 | 68 | 126.45 |
      | 2040 | 0.6001 | 68 | 124.35 |
      | 2045 | 0.6001 | 68 | 124.35 |
 
-     - **Blend zones:** p111 in every stage (0.529 / 0.529 / 0.548 / 0.549 / 0.549), and p130 in 2028 and
-       2030 (0.4985: Merrimack 1 and the out-of-service Merrimack 2 are kept through 2030 by block_all).
+     - **Blend zone:** p111 in every stage (0.529 / 0.529 / 0.548 / 0.549 / 0.549).
+     - **p130 in 2028 and 2030:** Merrimack 1 alone (108 MW), on its own history, cap 0.128. The
+       out-of-service Merrimack 2 is removed in every option.
      - **Model-MW differences:** the log lists any zone whose model MW differs from the public basis
        reconstruction by more than 1 MW. §2.1 suggests p107 (about 481 MW). This is reported, not a
        failure: report the list.

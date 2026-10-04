@@ -280,7 +280,7 @@ options for the new-defaults cases. The regression case is `legacy`, which leave
 
 | Option | Dated coal and gas retirements before 2030 | Economic retirements before 2030 | Coal 2028 / 2030 stage (GW) |
 |---|---|---|---|
-| `block_all` (default) | none: fedpol's `blocked_2030_coal_gas` push (2026-29 → 2030), set by S0 whatever the `retirement_policy` axis says | none (retirement rule) | 166.53 / 166.53 |
+| `block_all` (default) | none: fedpol's `blocked_2030_coal_gas` push (2026-29 → 2030), set by S0 whatever the `retirement_policy` axis says | none (retirement rule) | 164.56 / 164.56 |
 | `planned_only` | as scheduled (predetermined overrides removed) | none (retirement rule) | 157.32 / 142.11 |
 | `unrestricted` | as scheduled | allowed from the first stage (`gen_can_retire_early` 1 on existing coal and gas, no rule) | 157.32 / 142.11, before the model's economic retirements |
 
@@ -290,13 +290,19 @@ options for the new-defaults cases. The regression case is `legacy`, which leave
   stage.
 - **What it covers:**
   - the coal spec's dated retirements;
-  - the OS removals (encoded 2026; 1,969 MW kept through 2030);
-  - the eight S0 holds, which are held in the 2028 and 2030 stages with their own unit caps.
-- **Gas:** fedpol's own code pushes gas, unchanged (`apply_predetermined_retirement_override` in
-  `pg_to_switch.py` is back to its original form).
-- **Coal encoding:** the coal hook encodes coal and hold units dated 2026-29 as 2031. PowerGenome counts a unit
-  in model year M only if Y > M, so with 2030 a cluster of pushed units, such as a hold project, would be
-  dropped from the 2030 stage. Switch treats 2031 exactly like 2030 in every S0 stage.
+  - the eight S0 holds, which are held in the 2028 and 2030 stages with their own unit caps;
+  - gas units whose cluster technology matches "natural gas" (combined cycle, combustion turbine).
+- **Not covered:** the five out-of-service removals (Sandy Creek, Big Cajun 2-1, Merrimack 2, Warrick 2, Biron
+  Mill GEN5; 1,969 MW). They are physical status, removed in every option.
+- **Encoding:** in the S0 new-defaults cases the hook (`coal_fleet.unit_hooks`, `push_pre2030`) encodes the
+  pushed coal, held and gas units as 2031, before clustering.
+  - It matches on the cluster technology after PowerGenome's grouping, as fedpol's rule does, so gas in
+    `Other_peaker` is not pushed.
+  - PowerGenome counts a unit in model year M only if Y > M, so with 2030 a cluster of pushed units, such as a
+    hold project or an all-pushed gas cluster, would be dropped from the 2030 stage. Switch treats 2031
+    exactly like 2030 in every S0 stage.
+  - fedpol's `apply_predetermined_retirement_override` is unchanged; it leaves 2031 alone, and every other
+    case keeps its 2030 encoding.
 - **Cap unit set:** cap units with a planned retirement in 2026-29 count in H and N through the 2030 stage
   too, so the cap unit set follows the fleet.
 

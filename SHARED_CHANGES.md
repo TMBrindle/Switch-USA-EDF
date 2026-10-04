@@ -75,17 +75,20 @@ entries and remove a comment block; no existing value changes.
   cases. Its default, `block_all`, applies fedpol's `blocked_2030_coal_gas` rule to coal and gas alike.
 - **fedpol's block is back to its own code:** the coal exemption added in §48 (#25b) is removed, and
   `apply_predetermined_retirement_override` is byte-for-byte fedpol's again.
-- **Encoding difference to note:** for the coal spec, the S0 coal hook encodes coal and held units dated
-  2026-29 as 2031 rather than 2030. Switch behaviour is the same (in service through the 2030 stage, gone from
-  2035). PowerGenome otherwise drops a cluster whose units are all dated ≤ 2030 from a 2030 model year, because
-  it treats retirement_year ≤ model year as retired.
-- **The same limit applies to fedpol's own push:** for gas, and for any other case with a single 2030 model
-  year, a cluster whose units are all pushed to 2030 gets no capacity in that year. Not changed here.
+- **Encoding difference to note:** for the S0 new-defaults cases only, the S0 hook encodes coal, held **and gas**
+  units dated 2026-29 as 2031 rather than 2030 (§50). The units are those whose cluster technology matches the
+  rule, as fedpol's function matches it. Switch behaviour is the same: in service through the 2030 stage, gone
+  from 2035. Every other case keeps fedpol's 2030, and fedpol's function is unchanged.
+- **Likely general bug in fedpol's encoding:** PowerGenome treats `retirement_year <= model_year` as retired, so a
+  cluster whose units are all pushed to 2030 gets zero capacity in model year 2030 and is dropped, even though the
+  push meant to keep it. A target of 2031 (or keeping zero-capacity clusters that have build-year capacity) would
+  fix it.
 
 | # | File | Change | Why | Effect on existing cases |
 |---|---|---|---|---|
 | 30 | `pg_to_switch.py` | #25(b) withdrawn: the `predetermined_retirement_override_exempt` key and its three lines in `apply_predetermined_retirement_override` are removed; the function is identical to fedpol's (tested against 79c5f35). | Tom: block_all applies fedpol's block to coal and gas alike. | none (the function is as before §48) |
 | 31 | `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv` | New axis `retirements_pre2030` (block_all / planned_only / unrestricted, touching only `s0_production.retirements_pre2030`; `legacy: ~`). New column `retirements_pre2030`: `block_all` in every row, `legacy` in the regression row. `on_pgdays` sets `retirements_pre2030: legacy`. | Rev. 2.1 §A3. | none: inert unless `s0_production.enabled`; the regression case is unchanged (byte-identical test) |
+| 33 | `s0_workflow/coal_fleet.py` (S0 only) | §50: block_all's push no longer moves the five out-of-service coal removals. The hook also pushes gas (cluster technology after PowerGenome's grouping matching "natural gas") to 2031 in S0 new-defaults cases. | Tom, 2026-10-04. | none outside S0 new-defaults cases (the hook is inactive elsewhere, including the legacy case) |
 | 32 | `s0_workflow/specs/coal/coal_spec_converted_gas_units.csv`, `coal_spec_overrides.csv`, `coal_spec.md` | Converted-unit heat rates replaced by the latest-EIA-923 values (rev. 2.1); addendum rev. 2.1; new `by_option/` validation tables. | Tom's decisions, 2026-10-04. | none (S0 coal spec only) |
 
 **Not changed:**

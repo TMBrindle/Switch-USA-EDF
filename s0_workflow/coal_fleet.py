@@ -248,7 +248,8 @@ def apply_overrides(units: pd.DataFrame, final: dict, ov: pd.DataFrame, capacity
     """Unit-level edits before clustering (§2.2, §2.3, §3.5); returns a copy. Only units with an override row change
     (a unit the model basis already retires by its 860M retirement keeps its basis year). With `rule` (pre-2030 option
     block_all), coal-group and held units with a retirement year in the rule's window are then pushed
-    (coal_spec.pushed_year)."""
+    (coal_spec.pushed_year), except the out-of-service removals (rev. 2.1: physical status, removed in every option).
+    The case build pushes gas as well (unit_hooks, push_pre2030)."""
     df = units.copy()
     kn = pd.Series(cs.keys(df.plant_id_eia, df.generator_id), index=df.index)
     conv = ov[ov.action == A_CONVERT].set_index("kn") if len(ov) else pd.DataFrame()
@@ -270,8 +271,28 @@ def apply_overrides(units: pd.DataFrame, final: dict, ov: pd.DataFrame, capacity
             p, g = k.split("|")
             df.loc[m, "technology_description"] = hold_tech(p, g)
     if rule is not None:
-        coal = df.technology_description.isin(cs.COAL_GROUP) | df.technology_description.astype(str).str.startswith(HOLD_TECH)
-        df.loc[coal, "retirement_year"] = [cs.pushed_year(y, rule) for y in df.loc[coal, "retirement_year"]]
+        td = df.technology_description.astype(str)
+        coal = df.technology_description.isin(cs.COAL_GROUP) | td.str.startswith(HOLD_TECH)
+        df = push_pre2030(df, rule, td.where(~df.technology_description.isin(cs.COAL_GROUP), cs.CSC).where(coal, ""),
+                          removal_keys(ov))
+    return df
+
+
+def removal_keys(ov: pd.DataFrame) -> set:
+    """Units the spec removes as out of service (encoded 2026): never pushed (rev. 2.1)."""
+    return set(ov.loc[ov.action == A_REMOVE, "kn"]) if len(ov) else set()
+
+
+def push_pre2030(df: pd.DataFrame, rule: dict, cluster_tech: pd.Series, exclude=()) -> pd.DataFrame:
+    """block_all's push on PowerGenome's unit table, before clustering: units whose cluster technology (after
+    PowerGenome's grouping, as fedpol's apply_predetermined_retirement_override matches it) contains one of the rule's
+    technologies and whose retirement year is in the rule's window get target + 1 (coal_spec.pushed_year: through the
+    2030 stage in Switch and in PowerGenome's model year 2030). `exclude`: unit keys never pushed. Returns a copy."""
+    df = df.copy()
+    techs = [t.lower() for t in rule["technologies"]]
+    m = cluster_tech.astype(str).str.lower().apply(lambda x: any(t in x for t in techs))
+    m &= ~pd.Series(cs.keys(df.plant_id_eia, df.generator_id), index=df.index).isin(set(exclude))
+    df.loc[m, "retirement_year"] = [cs.pushed_year(y, rule) for y in df.loc[m, "retirement_year"]]
     return df
 
 
@@ -311,33 +332,49 @@ def state(case: str, year: int) -> dict | None:
 
 @contextlib.contextmanager
 def unit_hooks(settings: dict):
-    """Around gc.create_all_generators() for one case/year with s0_production.coal_spec enabled: unit-level edits
-    in PowerGenome's group_technologies step (the unit table still has EIA technologies there) and the converted
-    units' heat rates in atb_fixed_var_om_existing. No-op for other cases."""
+    """Around gc.create_all_generators() for one S0 case/year with the coal spec or retirements_pre2030 block_all:
+    unit-level edits in PowerGenome's group_technologies step (the unit table still has EIA technologies there) and
+    the converted units' heat rates in atb_fixed_var_om_existing. block_all's push of coal, held and gas units dated
+    2026-29 is encoded there as 2031 (push_pre2030; fedpol's own code then leaves them alone). No-op for other cases,
+    including the legacy regression case."""
     s0 = (settings.get("s0_production") or {})
-    if not (s0.get("enabled") and spec_settings(s0)):
+    rule = pre2030_rule(settings) if s0.get("enabled") and retirement_option(s0) == "block_all" else None
+    if not (s0.get("enabled") and (spec_settings(s0) or rule)):
         yield None
         return
     import powergenome.generators as pgg
 
-    cfg = spec_settings(s0)
+    cfg = spec_settings(s0) or {}
     op, rt = load_fleet860m(REPO / cfg.get("fleet_table", "s0_workflow/data/coal_fleet_860m.csv"))
     holds = scenario_holds(s0)
     st = cs.read_table(REPO / cfg.get("plant_fuel_table", "s0_workflow/data/coal_plant_st_fuel.csv"))
     cap_col = settings.get("capacity_col", "capacity_mw")
-    rule = pre2030_rule(settings)
     rec = {"case": settings.get("case_id"), "year": int(settings["model_year"]), "rule": rule}
     orig_group, orig_om = pgg.group_technologies, pgg.atb_fixed_var_om_existing
 
     def group_technologies(df, *a, **k):
-        if "technology_description" in df and "plant_id_eia" in df and "retirement_year" in df and \
-                df.technology_description.isin(cs.COAL_GROUP).any() and "final" not in rec:
-            ov, final = derive_overrides(df, op, rt, holds, cap_col)
-            rec.update(overrides=ov, final=final, units=df.copy())
-            df = apply_overrides(df, final, ov, tuple(c for c in (cap_col, "capacity_mw") if c in df), rule)
-            rec["edited"] = df.copy()
-            logger.info("coal spec %s/%s: %d overrides applied before clustering (%s)", rec["case"], rec["year"],
-                        len(ov), ov.action.str.split(r" \(|:").str[0].value_counts().to_dict() if len(ov) else {})
+        if "technology_description" in df and "plant_id_eia" in df and "retirement_year" in df and "done" not in rec:
+            rec["done"] = True                                  # the existing-unit table: the first such frame
+            exclude = set()
+            if cfg.get("enabled") and df.technology_description.isin(cs.COAL_GROUP).any():
+                ov, final = derive_overrides(df, op, rt, holds, cap_col)
+                rec.update(overrides=ov, final=final, units=df.copy())
+                df = apply_overrides(df, final, ov, tuple(c for c in (cap_col, "capacity_mw") if c in df))
+                exclude = removal_keys(ov)
+                logger.info("coal spec %s/%s: %d overrides applied before clustering (%s)", rec["case"], rec["year"],
+                            len(ov), ov.action.str.split(r" \(|:").str[0].value_counts().to_dict() if len(ov) else {})
+            if rule is not None:
+                cluster_tech = orig_group(df.copy(), *a, **k).technology_description     # as fedpol's rule sees it
+                before = pd.to_numeric(df.retirement_year, errors="coerce")
+                df = push_pre2030(df, rule, cluster_tech, exclude)
+                moved = pd.to_numeric(df.retirement_year, errors="coerce") != before
+                rec["pushed"] = df.loc[moved, ["plant_id_eia", "generator_id", "technology_description"]].assign(
+                    cluster_technology=cluster_tech[moved], from_year=before[moved], to_year=df.retirement_year[moved])
+                logger.info("retirements_pre2030 block_all %s/%s: %d units dated %s-%s encoded %s (%s)", rec["case"],
+                            rec["year"], int(moved.sum()), *rule["window"], int(rule["target_year"]) + 1,
+                            cluster_tech[moved].value_counts().to_dict())
+            if "final" in rec:
+                rec["edited"] = df.copy()
         return orig_group(df, *a, **k)
 
     def atb_fixed_var_om_existing(units, *a, **k):

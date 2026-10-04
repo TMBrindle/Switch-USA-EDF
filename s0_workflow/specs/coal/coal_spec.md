@@ -364,18 +364,24 @@ unchanged.
   inclusive, target 2030). This covers coal and gas, and the coal side includes:
   - this spec's dated retirements and later-than-basis dates (Merrimack 1 2027, Marshall 2 2028, Brandon
     Shores 1/2 2029, Comanche 2 2026, South Oak Creek 7/8 2027);
-  - the OS removals, encoded 2026: Sandy Creek S01, Big Cajun 2-1, Merrimack 2, Warrick 2, Biron Mill GEN5,
-    1,969 MW;
   - the S0 holds' encoded 2029.
+- **Not pushed: the OS removals** (Tom, 2026-10-04). Sandy Creek S01, Big Cajun 2-1, Merrimack 2, Warrick 2 and
+  Biron Mill GEN5 (1,969 MW, encoded 2026) are out-of-service status, not retirement decisions, so they are
+  removed in every option, block_all included.
 - **Which stages:** Switch runs with `--retire early`, so a unit with retirement year Y is in service in the stage
   whose period ends at p iff Y ≥ p. A unit dated 2026-29 is therefore **in service in the 2028 and 2030 stages
   and first disappears from the 2035 stage**. With planned_only or unrestricted it is in the 2028 stage only if
   dated 2028 or 2029, and gone from 2030.
-- **Encoding:** the case build encodes these coal and hold units as **2031**, not 2030, in PowerGenome's unit
-  table, before clustering. PowerGenome counts a unit in model year M only if Y > M, so with 2030 a cluster
-  whose units are all pushed would have no capacity in the 2030 stage and would be dropped (each hold project
-  is such a cluster). 2031 gives the same stages in Switch, and fedpol's rule leaves it alone (outside its
-  window). Gas units are pushed by fedpol's own code, unchanged.
+- **Encoding:** in the S0 new-defaults cases the case build encodes these units, **coal, held and gas**, as
+  **2031**, not 2030, in PowerGenome's unit table before clustering (Tom, 2026-10-04, for gas).
+  - **Why 2031:** PowerGenome counts a unit in model year M only if Y > M. With 2030, a cluster whose units are
+    all pushed would have no capacity in the 2030 stage and would be dropped (each hold project is such a
+    cluster, and so can a gas cluster be). 2031 gives the same stages in Switch.
+  - **Which units:** those whose cluster technology after PowerGenome's grouping matches the rule, as fedpol's
+    function matches it ("coal" or "natural gas"). Gas units grouped into `Other_peaker`, including the converted
+    units, don't match and keep their years, as under fedpol.
+  - **fedpol's function** in `pg_to_switch.py` is unchanged and leaves 2031 alone (outside its window). Every
+    other case keeps fedpol's 2030 encoding.
 - **Held units:** with block_all the eight S0 holds are held in the 2028 **and 2030** stages, each with its own
   unit cap from §3.2, and gone from 2035. holds_persist is unchanged.
 - **Cap unit set:** for consistency with the fleet, block_all also treats a cap unit's planned retirement year in
@@ -404,8 +410,8 @@ predetermined fleet. block_all differs only in the 2028 and 2030 stages.
 
 | option | stage | N(p) | zones | zones with model coal | model coal before / after overrides (GW) | model-MW-weighted cap | own / national / blend / no coal left | S0 held (GW) |
 |---|---|---|---|---|---|---|---|---|
-| block_all | 2028 | 0.5785 | 76 | 76 | 167.70 / 166.53 | 0.5783 | 72 / 2 / 2 / 0 | 3.24 |
-| block_all | 2030 | 0.5785 | 76 | 76 | 167.70 / 166.53 | 0.5783 | 72 / 2 / 2 / 0 | 3.24 |
+| block_all | 2028 | 0.5785 | 76 | 76 | 167.70 / 164.56 | 0.5780 | 73 / 2 / 1 / 0 | 3.24 |
+| block_all | 2030 | 0.5785 | 76 | 76 | 167.70 / 164.56 | 0.5780 | 73 / 2 / 1 / 0 | 3.24 |
 | block_all | 2035 | 0.5998 | 73 | 68 | 135.71 / 126.45 | 0.5992 | 64 / 3 / 1 / 5 | 0.00 |
 | block_all | 2040 | 0.6001 | 73 | 68 | 135.37 / 124.35 | 0.5996 | 64 / 3 / 1 / 5 | 0.00 |
 | block_all | 2045 | 0.6001 | 72 | 68 | 135.03 / 124.35 | 0.5996 | 64 / 3 / 1 / 4 | 0.00 |
@@ -421,7 +427,7 @@ predetermined fleet. block_all differs only in the 2028 and 2030 stages.
 | unrestricted | 2045 | 0.6001 | 72 | 68 | 135.03 / 124.35 | 0.5996 | 64 / 3 / 1 / 4 | 0.00 |
 
 Model coal in the zone clusters, 2028 / 2030 stages (GW):
-- **block_all:** 166.53 / 166.53;
+- **block_all:** 164.56 / 164.56 (166.53 at 479f213, before the OS removals were taken out of the push);
 - **planned_only:** 157.32 / 142.11;
 - **unrestricted:** 157.32 / 142.11 before any economic retirements, which the model chooses.
 
@@ -432,7 +438,7 @@ Held projects (S0) come on top: 3.24 GW in 2028, and in 2030 with block_all.
 | stage | zone | model coal after overrides (MW): planned_only → block_all | H (MW) | rule | cap |
 |---|---|---|---|---|---|
 | 2028 | p111 | 190 → 190 | 47 → 47 | blend → blend | 0.5309 → 0.5290 |
-| 2028 | p130 | 0 → 438 | — → 108 | national (no coal) → blend | 0.5806 → 0.4985 |
+| 2028 | p130 | 0 → 108 | — → 108 | national (no coal) → own | 0.5806 → 0.1280 |
 | 2028 | p24 | 2,235 → 2,455 | 2,235 → 2,455 | own → own | 0.6796 → 0.6699 |
 | 2028 | p29 | 2,000 → 2,381 | 2,000 → 2,381 | own → own | 0.5899 → 0.5867 |
 | 2028 | p33 | 1,317 → 1,579 | 1,317 → 1,579 | own → own | 0.7223 → 0.7266 |
@@ -447,11 +453,11 @@ Held projects (S0) come on top: 3.24 GW in 2028, and in 2030 with block_all.
 | 2028 | p92 | 4,076 → 4,796 | 4,076 → 4,796 | own → own | 0.5123 → 0.4898 |
 | 2030 | p103 | 1,650 → 4,465 | 1,602 → 4,417 | own → own | 0.6527 → 0.6414 |
 | 2030 | p105 | 1,005 → 1,460 | 1,005 → 1,460 | own → own | 0.5753 → 0.5121 |
-| 2030 | p107 | 7,966 → 10,690 | 7,389 → 9,987 | own → own | 0.5201 → 0.4541 |
+| 2030 | p107 | 7,966 → 10,564 | 7,389 → 9,987 | own → own | 0.5201 → 0.4541 |
 | 2030 | p111 | 190 → 190 | 47 → 47 | blend → blend | 0.5419 → 0.5290 |
 | 2030 | p112 | 4,969 → 5,589 | 4,969 → 5,589 | own → own | 0.6349 → 0.6427 |
 | 2030 | p123 | — → 1,273 | — → 1,273 | — → own | — → 0.2238 |
-| 2030 | p130 | 0 → 438 | — → 108 | national (no coal) → blend | 0.5926 → 0.4985 |
+| 2030 | p130 | 0 → 108 | — → 108 | national (no coal) → own | 0.5926 → 0.1280 |
 | 2030 | p24 | 2,235 → 2,455 | 2,235 → 2,455 | own → own | 0.6796 → 0.6699 |
 | 2030 | p29 | 2,000 → 2,381 | 2,000 → 2,381 | own → own | 0.5899 → 0.5867 |
 | 2030 | p33 | 0 → 1,579 | — → 1,579 | national (no coal) → own | 0.5926 → 0.7266 |
@@ -462,7 +468,7 @@ Held projects (S0) come on top: 3.24 GW in 2028, and in 2030 with block_all.
 | 2030 | p65 | 1,892 → 2,452 | 1,831 → 2,391 | own → own | 0.6514 → 0.6483 |
 | 2030 | p72 | 3,857 → 4,851 | 3,857 → 4,851 | own → own | 0.8180 → 0.7419 |
 | 2030 | p74 | 6 → 6 | — → — | national → national | 0.5926 → 0.5785 |
-| 2030 | p76 | 15 → 1,200 | — → 1,127 | national → own | 0.5926 → 0.5795 |
+| 2030 | p76 | 15 → 1,180 | — → 1,127 | national → own | 0.5926 → 0.5795 |
 | 2030 | p79 | 1,682 → 2,304 | 1,678 → 2,300 | own → own | 0.7314 → 0.6953 |
 | 2030 | p81 | 1,753 → 2,938 | 1,753 → 2,938 | own → own | 0.8755 → 0.7899 |
 | 2030 | p83 | 335 → 2,062 | 335 → 2,062 | own → own | 0.4118 → 0.4936 |

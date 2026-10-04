@@ -254,7 +254,11 @@ def test_apply_overrides_unit_edits():
     pb = cf.apply_overrides(u, final, ov, rule=cs.BLOCK_RULE).assign(
         kn=lambda d: cs.keys(d.plant_id_eia, d.generator_id)).set_index("kn")
     assert pb.at["602|1", "retirement_year"] == 2031 and pb.at["2364|1", "retirement_year"] == 2031   # Brandon, Merrimack 1
-    assert pb.at["56611|S01", "retirement_year"] == 2031                                    # an OS removal (2026) too
+    for k in ["56611|S01", "6055|1", "2364|2", "6705|2", "10234|GEN5"]:                     # the OS removals: never pushed (rev. 2.1, Tom 2026-10-04)
+        assert pb.at[k, "retirement_year"] == 2026
+    assert cf.removal_keys(ov) == set(["56611|S01", "6055|1", "2364|2", "6705|2", "10234|GEN5"])
+    a28b = cf.model_mw(u, pb.reset_index(), 2028, rule=cs.BLOCK_RULE)[1]
+    assert a28b.get("p130", 0) == pytest.approx(108.0)                                      # Merrimack 1 only
     assert pb.at["3845|2", "retirement_year"] == 2031 and cf.hold_years(pb.reset_index())["3845|2"] == 2031
     assert pb.at["628|ST4", "retirement_year"] == 2034 and pb.at["470|3", "retirement_year"] == 2030
     assert pb.at["55000|CT1", "retirement_year"] == 2027                                   # gas: fedpol's own push
@@ -397,6 +401,70 @@ def test_unit_hooks_wrap_powergenome_and_restore():
                 sys.modules[k] = v
 
 
+def test_block_all_pushes_gas_to_2031_in_the_hook():
+    """S0 new-defaults cases with block_all: gas units whose cluster technology (after PowerGenome's grouping) matches
+    fedpol's rule are encoded 2031 in the hook, like coal, so an all-pushed gas cluster stays in the 2030 stage; gas
+    grouped into Other_peaker is left alone (as fedpol); OS removals aren't pushed; planned_only, unrestricted and
+    the legacy case push nothing in the hook."""
+    tech_groups = {cs.CSC: list(cs.COAL_GROUP),
+                   "Other_peaker": ["Natural Gas Internal Combustion Engine", "Natural Gas Steam Turbine"]}
+
+    def group_technologies(df, groups=None, *a, **k):                      # PowerGenome's grouping rule
+        df["_t"] = df["technology_description"]
+        for tech, members in (groups or {}).items():
+            df.loc[df["technology_description"].isin(members), "_t"] = tech
+        df["technology_description"] = df.pop("_t")
+        return df
+
+    fake = types.ModuleType("powergenome.generators")
+    fake.group_technologies, fake.atb_fixed_var_om_existing = group_technologies, lambda u, *a, **k: u
+    pkg = types.ModuleType("powergenome")
+    pkg.generators = fake
+    saved = {k: sys.modules.get(k) for k in ("powergenome", "powergenome.generators")}
+    sys.modules["powergenome"], sys.modules["powergenome.generators"] = pkg, fake
+    gas = pd.DataFrame({"plant_id_eia": [55001, 55002, 55003, 55004, 55005], "generator_id": ["CC1", "CT1", "ST1", "IC1", "CT2"],
+                        "technology_description": ["Natural Gas Fired Combined Cycle", "Natural Gas Fired Combustion Turbine",
+                                                   "Natural Gas Steam Turbine", "Natural Gas Internal Combustion Engine",
+                                                   "Natural Gas Fired Combustion Turbine"],
+                        "model_region": "p1", "winter_capacity_mw": 100.0, "retirement_year": [2027, 2029, 2027, 2028, 2033],
+                        "operating_date": 1990, "retirement_age": 500, "heat_rate_mmbtu_mwh": 10.0, "energy_source_code_1": "NG"})
+    try:
+        out = {}
+        for opt in ("block_all", "planned_only", "unrestricted"):
+            s = s0_case("on")
+            s["s0_production"]["retirements_pre2030"] = opt
+            s0prod.apply_settings({"c": {2028: s}})
+            with cf.unit_hooks(s) as rec:
+                g = fake.group_technologies(pd.concat([model_basis(), gas], ignore_index=True), tech_groups)
+            out[opt] = (g.assign(kn=lambda d: cs.keys(d.plant_id_eia, d.generator_id)).set_index("kn").retirement_year, rec)
+        y, rec = out["block_all"]
+        assert y["55001|CC1"] == 2031 and y["55002|CT1"] == 2031                         # gas CC / CT: 2031
+        assert y["55003|ST1"] == 2027 and y["55004|IC1"] == 2028                         # Other_peaker: as fedpol
+        assert y["55005|CT2"] == 2033 and y["55000|CT1"] == 2031                         # outside / inside the window
+        assert y["602|1"] == 2031 and y["3845|2"] == 2031 and y["56611|S01"] == 2026     # coal, hold, OS removal
+        assert set(rec["pushed"].cluster_technology) >= {"Conventional Steam Coal", "Natural Gas Fired Combined Cycle"}
+        assert not rec["pushed"].technology_description.isin(["Natural Gas Steam Turbine"]).any()
+        # what PowerGenome then sees: in model year 2030 (Y > 2030) and gone in 2035; fedpol's function leaves it
+        fn, _ = _pg_fn("apply_predetermined_retirement_override")
+        assert y["55001|CC1"] > 2030 and not y["55001|CC1"] > 2035
+        units = pd.DataFrame({"technology": ["Natural Gas Fired Combined Cycle"], "retirement_year": [y["55001|CC1"]]})
+        assert fn(units, {"predetermined_retirement_override": cs.BLOCK_RULE}).retirement_year.iloc[0] == 2031
+        for opt in ("planned_only", "unrestricted"):
+            y2, rec2 = out[opt]
+            assert y2["55001|CC1"] == 2027 and y2["602|1"] == 2029 and "pushed" not in rec2
+        # the legacy regression case and non-S0 cases: no hook at all
+        for s in (s0_case("on_pgdays"), {"s0_production": {"enabled": False}, "model_year": 2035}):
+            s["predetermined_retirement_override"] = dict(cs.BLOCK_RULE)
+            with cf.unit_hooks(s) as none:
+                assert none is None and fake.group_technologies is group_technologies
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                sys.modules.pop(k, None)
+            else:
+                sys.modules[k] = v
+
+
 def _pg_fn(name):
     src = (REPO / "pg_to_switch.py").read_text()
     tree = ast.parse(src)
@@ -526,7 +594,14 @@ def test_option_tables_committed_and_figures():
     assert list(s.national_N) == [0.5806, 0.5926, 0.5998, 0.6001, 0.6001]
     assert list(s.model_GW_after_overrides) == [157.32, 142.11, 126.45, 124.35, 124.35]
     assert list(b.national_N[[2028, 2030]]) == [0.5785, 0.5785]
-    assert list(b.model_GW_after_overrides[[2028, 2030]]) == [166.53, 166.53]
+    assert list(b.model_GW_after_overrides[[2028, 2030]]) == [164.56, 164.56]             # OS removals out
+    ba = caps["block_all"]
+    assert ba.loc[(2028, "p130")].rule == cs.RULE_OWN and ba.loc[(2028, "p130")].expected_cap == pytest.approx(0.128)
+    # the OS removals are out of both options in 2028 and 2030 (zones p63, p58, p130, p107, p76: 1,969 MW)
+    for st in (2028, 2030):
+        for z in ("p63", "p58", "p107", "p76"):
+            assert ba.loc[(st, z)].model_MW_after_overrides <= ba.loc[(2028, z)].model_MW_before + 1e-6
+    assert (b.model_GW_after_overrides[2028] - s.model_GW_after_overrides[2028]) == pytest.approx(7.24, abs=0.01)
     assert list(b.held_GW_S0) == [3.24, 3.24, 0, 0, 0] and list(s.held_GW_S0) == [3.24, 0, 0, 0, 0]
     later = [2035, 2040, 2045]
     pd.testing.assert_frame_equal(caps["block_all"].loc[later], caps["planned_only"].loc[later])

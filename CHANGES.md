@@ -1961,3 +1961,39 @@ Tom's decisions on §48. The regression case `s4x1_S0prod_2035` stays byte-ident
 - updated heat-rate, hook and fedpol-function tests.
 
 Build rate 22, headroom 31.
+
+---
+
+## 50. S0 Production: OS Removals Not Pushed; Gas Encoded 2031 Under block_all
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `s0_workflow/specs/coal/coal_spec.md` (addendum rev. 2.1), `SHARED_CHANGES.md` (#33)
+
+Tom's decisions on §49 (other choices accepted). The regression case stays byte-identical (test).
+
+1. **Held units:** they keep their own unit caps in the 2030 stage under block_all, as implemented.
+2. **OS removals are not pushed.** The five units the spec removes as out of service are removed in every
+   pre-2030 option, including block_all: Sandy Creek S01, Big Cajun 2-1, Merrimack 2, Warrick 2 and Biron
+   Mill GEN5 (1,969 MW).
+   - **Tables:** `by_option` block_all tables regenerated. Planned_only and unrestricted are unchanged.
+   - **Model coal, 2028 / 2030 stages (GW):** block_all 164.56 / 164.56 (was 166.53); planned_only and
+     unrestricted 157.32 / 142.11.
+   - **Caps:** only p130 changes (Merrimack 1 alone, own history 0.128, was blend 0.4985). The zones with caps
+     or rules different from planned_only are still 14 (2028) and 24 (2030).
+3. **Gas encoded 2031 under block_all**, in S0 new-defaults cases only.
+   - **Where:** the hook (`coal_fleet.unit_hooks`, new `push_pre2030`) encodes gas units dated 2026-29 as 2031
+     before clustering, like coal.
+   - **Which units:** those whose cluster technology after PowerGenome's grouping matches the rule, as fedpol's
+     function matches it. Gas grouped into `Other_peaker`, including the converted units, is left alone.
+   - **Effect:** a cluster of only pushed gas units now stays in the 2030 stage.
+   - **Scope:** the hook now also runs for an S0 block_all case without the coal spec. It doesn't run for the
+     legacy case or for non-S0 cases. fedpol's function is unchanged, and its 2030 encoding is flagged for
+     Ollie as a likely general bug.
+
+**Tests:** `s0_workflow/tests` 62 (was 61):
+- the removals are not pushed (unit edits, p130, block_all figures);
+- gas is encoded 2031 by the hook only for S0 block_all (combined cycle and combustion turbine yes,
+  `Other_peaker` no; planned_only, unrestricted and legacy: no push);
+- fedpol's function leaves 2031 alone.
+
+Build rate 22, headroom 31.
