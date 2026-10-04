@@ -39,15 +39,16 @@ PowerGenome, `typer`, `scipy` and `sklearn` (VM env `switch-pg-reeds-fedpol`). C
 own env; do not install anything.
 
 **Which env runs each step** (all recipes). `switch-pg-reeds-fedpol` has an old pandas (1.4.4). The case
-build and the solve run there, and so do the `s0_workflow` tests, because that env builds the cases:
+build and the solve run there, and so do the `s0_workflow` and `build_rate` tests, because that env builds the
+cases (`pg_to_switch.py` runs `brc.switch_case` and `brc.turbine_cap` there):
 
 | Step | Env | Why |
 |---|---|---|
 | git, `cp`, `ls`, `grep` (worktree and data) | Git Bash, no Python | |
 | `icsc.cli run` (headroom tables) | `ic-pipeline` | needs `h5py` |
-| `brc.cli run` (build-rate tables) | `ic-pipeline` | fails in `switch-pg-reeds-fedpol` (old pandas) |
+| `brc.cli run` (build-rate tables) | `ic-pipeline` | runs on pandas 1.4.4 too since §52, with the same tables |
 | `pytest` (all three suites) | the env with `pytest` | no VM env has both `pytest` and `scikit-learn`: the day-selection test skips with a message where `sklearn` is missing |
-| `pytest s0_workflow/tests` **again** | `switch-pg-reeds-fedpol` | it builds the cases, with pandas 1.4.4: the coal-spec code must run there (the c4a19f8 build failed on a pandas ≥ 2.2 call that the other env accepted) |
+| `pytest s0_workflow/tests` and `build_rate/tests` **again** | `switch-pg-reeds-fedpol` | it builds the cases, with pandas 1.4.4: the coal-spec code must run there (the c4a19f8 build failed on a pandas ≥ 2.2 call that the other env accepted) |
 | `build_reeds_state_policies.py --check` (C step 1) | `ic-pipeline` | pandas and PyYAML only (runs on pandas 1.4.4 too) |
 | `fetch_coal_spec_eia.py --check-only` (C step 1, optional) | `ic-pipeline` | pandas, openpyxl, PyYAML |
 | `pg_to_switch.py` (case builds: A, B, C) | `switch-pg-reeds-fedpol` | PowerGenome, `scipy`, `sklearn` |
@@ -62,7 +63,7 @@ build and the solve run there, and so do the `s0_workflow` tests, because that e
 Pipeline tables:
 ```bash
 cd "$WT/interconnection_headroom" && "<ic-pipeline python>" -m icsc.cli run --start-year 2026
-cd "$WT/build_rate" && "<ic-pipeline python>" -m brc.cli run       # not switch-pg-reeds-fedpol: old pandas
+cd "$WT/build_rate" && "<ic-pipeline python>" -m brc.cli run
 cd "$WT"
 ```
 
@@ -75,12 +76,13 @@ SWITCH_SRC="<switch checkout>" "<pytest env python>" -m pytest -q -rs s0_workflo
 (cd build_rate && SWITCH_SRC="<switch checkout>" "<pytest env python>" -m pytest -q)
 ```
 
-Then the `s0_workflow` tests in `switch-pg-reeds-fedpol`, the env that builds the cases (pandas 1.4.4). They
-must all pass there too, except the same skip. Check `pytest` first; if the import fails, stop and tell Tom
+Then the `s0_workflow` and `build_rate` tests in `switch-pg-reeds-fedpol`, the env that builds the cases
+(pandas 1.4.4). They must all pass there too, except the same skip. Check `pytest` first; if the import fails, stop and tell Tom
 (don't install it):
 ```bash
 "<switch-pg-reeds-fedpol python>" -c "import pytest, pandas; print(pandas.__version__)"
 SWITCH_SRC="<switch checkout>" "<switch-pg-reeds-fedpol python>" -m pytest -q -rs s0_workflow/tests
+(cd build_rate && SWITCH_SRC="<switch checkout>" "<switch-pg-reeds-fedpol python>" -m pytest -q)
 ```
 
 ## A. Regression: s4x1 2035 new-stack base through the settings (legacy settings)

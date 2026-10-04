@@ -70,9 +70,11 @@ def completion_rates(comp: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     nt = cfg["near_term"]
     c = comp[(comp["phase"] == "IA Executed") & (comp["q_year"] <= nt["completion_cohort_max_queue_year"])
              & comp["status"].isin(["operational", "withdrawn", "suspended"])]
-    ia = c.groupby("group").apply(lambda d: pd.Series({
-        "n_mw": d["mw"].sum(), "rate": d.loc[d["status"] == "operational", "mw"].sum() / d["mw"].sum()}),
-        include_groups=False)
+    # a loop over the groups, not groupby.apply(include_groups=) (pandas >= 2.2; the case-build env has 1.4.4);
+    # the same Series sums as before, so the same floats
+    ia = pd.DataFrame([{"group": g, "n_mw": d["mw"].sum(),
+                        "rate": d.loc[d["status"] == "operational", "mw"].sum() / d["mw"].sum()}
+                       for g, d in c.groupby("group")], columns=["group", "n_mw", "rate"]).set_index("group")
     rows = [{"stage": "IA Executed", "group": g, "rate": r.rate, "basis_mw": r.n_mw,
              "source": f"Queued Up, IA Executed requests queued <= {nt['completion_cohort_max_queue_year']}, resolved"}
             for g, r in ia.iterrows()]

@@ -2046,3 +2046,25 @@ The VM build at c4a19f8 failed. Three fixes; the regression case stays byte-iden
 
 Run on pandas 3.0.6 (Python 3.11) and pandas 1.4.4 (Python 3.10, numpy 1.23.5). Build rate 22, headroom 31.
 
+## 52. Build Rate: pandas 1.4.4 Compatibility
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts` · **See also:** `SHARED_CHANGES.md` (#36)
+
+- **What failed on pandas 1.4.4:** 3 of the 22 `build_rate` tests (`test_completion_delay_and_phasing`,
+  `test_rate_table_levels_regional_floor`, `test_regional_floor_stock_and_peak`). All three failed in
+  `rates.completion_rates`, which used `groupby.apply(..., include_groups=False)` (pandas ≥ 2.2).
+  - That function is part of the table pipeline (`brc.cli run`), not of `brc.switch_case` or `brc.turbine_cap`,
+    which the case build runs. Their tests already passed on 1.4.4.
+- **Fix:** a loop over the groups with the same `Series.sum` calls, so the floats are identical. (A plain groupby
+  aggregation changed the last digits of the solar completion rate.)
+- **No output changes:**
+  - **Pipeline tables:** all 20 files `brc.cli run` writes from the real inputs are byte-identical: old code on
+    pandas 3.0.6, and new code on 3.0.6 and on 1.4.4.
+  - **Case-build files:** they are byte-identical between pandas 3.0.6 and 1.4.4 for every test case. That covers
+    476 CSVs from the `build_rate` tests and 18 `gas_turbine_cap*` / `build_rate_*` files from the `s0_workflow`
+    tests.
+- **Recipe 0:** the `build_rate` tests are also run in `switch-pg-reeds-fedpol`.
+
+**Tests:** `build_rate` 22 and `s0_workflow` 65, passing on pandas 3.0.6 (Python 3.11) and on pandas 1.4.4
+(Python 3.10, numpy 1.23.5). Headroom 31 (pandas 3.0.6).
+
