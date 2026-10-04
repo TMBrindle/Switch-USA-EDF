@@ -475,6 +475,34 @@ def chain_ic_inputs(in_path, out_path, next_in_path, case_name, commit=None):
         steps["ic_tranche_width"]).clip(lower=0).round(6)
     steps.to_csv(next_in_path / f"ic_tranches.chained.{case_name}.csv", index=False, na_rep=".")
 
+    # headroom scenario switch between stages (S0 levels_by_period; ic_scenario_switch.csv in the next stage)
+    if (next_in_path / "ic_scenario_switch.csv").exists():
+        switch_ic_scenario(in_path, next_in_path, case_name, uprates, rd)
+
+
+def switch_ic_scenario(in_path, next_in_path, case_name, uprates_after, rd):
+    """The next stage uses another headroom scenario (ic_scenario_switch.csv). The ATTS scenarios share the zones and
+    the empirical curve (ic_zones / ic_tranches) and differ in the deliberate uprates, so the network state carried
+    above stands and the next stage gets ITS scenario's uprates, each less what the chain has built of it so far
+    (matched by IC_UPRATE; built so far = this stage's starting cap (base file) - its cap after this stage). A switch
+    between scenarios whose zones or curve differ is not supported: it stops rather than mix two curves."""
+    for name in ("ic_zones", "ic_tranches"):
+        a, b = rd(in_path / f"{name}.csv"), rd(next_in_path / f"{name}.csv")
+        if not a.reset_index(drop=True).equals(b.reset_index(drop=True)):
+            sw = rd(next_in_path / "ic_scenario_switch.csv").iloc[0]
+            raise NotImplementedError(
+                f"{__name__}: headroom scenario switch {sw.from_scenario} -> {sw.to_scenario}: {name}.csv differs between "
+                f"the two scenarios; only switches between scenarios with the same zones and curve are supported")
+    if not (next_in_path / "ic_uprates.csv").exists():
+        return
+    new = rd(next_in_path / "ic_uprates.csv")
+    if uprates_after is not None and (in_path / "ic_uprates.csv").exists():
+        base = rd(in_path / "ic_uprates.csv").set_index("IC_UPRATE")["ic_uprate_max_mw"]
+        after = uprates_after.set_index("IC_UPRATE")["ic_uprate_max_mw"]
+        built = (base - after.reindex(base.index).fillna(base)).clip(lower=0)
+        new["ic_uprate_max_mw"] = (new["ic_uprate_max_mw"] - new["IC_UPRATE"].map(built).fillna(0)).clip(lower=0).round(3)
+    new.to_csv(next_in_path / f"ic_uprates.chained.{case_name}.csv", index=False, na_rep=".")
+
 class Test:
     """
     generic object that can be assigned any attributes needed

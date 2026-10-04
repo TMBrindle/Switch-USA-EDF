@@ -198,8 +198,16 @@ s0_production:
   #                   (s0_workflow/scripts/build_reeds_forced_tx.py)
   #   named_projects  the project list of transmission_connections.csv (new_cap_mw, 72 lines, 245,857 MW), as every
   #                   other case; for sensitivities
+  #   reeds_certain_plus_A   (S0_tx and the bill cases, CHANGES §60) reeds_certain + the class-A projects of the
+  #                   transmission status review (forced_tx_status_review below; placeholder until the list is
+  #                   supplied: the build stops while it has no class-A rows)
+  #   reeds_certain_plus_AB  the same with class A and class B (sensitivity)
   forced_tx: reeds_certain
   forced_tx_release: "2026.09.21"
+  # status-review projects, one row per project: from_zone, to_zone (model zones), project_name, status_class (A|B),
+  # new_cap_mw (MW of transfer capability), mw_basis (must be transfer_capability), new_cap_year (in-service year),
+  # trans_length_km, trans_efficiency, source, notes. A row for a zone pair already in the ReEDS table replaces it.
+  forced_tx_status_review: pg/extra_inputs/transmission/forced_tx_status_review.csv
   # forced lines' trans_path_expansion_limit (pg_to_switch transmission_tables):
   #   minimum (S0 default) their trans_build_minimum_mw in the period they are forced, the case's rule otherwise
   #   legacy  left out of trans_path_expansion_limit.csv, so unlimited in Switch (the regression case)
@@ -234,9 +242,38 @@ s0_production:
       summer_months: [5, 6, 7, 8, 9]   # other months (Apr, Oct): normal-weather (static) rates
     imports:
       mode: flat                   # flat (S0) | relaxed (ReEDS 2031_hist/2050_100) | none
+      # bill cases (§60): the import cap also allows this share of the new interregional capacity built into the
+      # region to date (nameplate MW on lines crossing the region boundary); S0: 0 (historical shares only)
+      new_tx_allowance: 0.0
     new_tx_derate: 0.15            # new transmission, reserve purposes (ReEDS GSw_TransInvPRMderate)
     penalty: central               # central ($300/kW-yr, 2028$) | low ($106/kW-yr, 2025$, PJM RTO Net CONE)
     inflation_after_cpi: 0.025     # dollar-year conversion past the last CPI-U year in the repo (2024)
+
+  # transmission policy (axis tx_bill; scenario_inputs.csv column of that name; CHANGES §60; s0_workflow/tx_policy.py,
+  # switch/study_modules/tx_build_cap.py, Guides and documentation/transmission_bill_scenarios.md):
+  #   legacy        the case's trans_expansion policy as before (zero: no discretionary transmission); every
+  #                 existing row, including the regression case
+  #   national_cap  S0_tx and the bill cases: per-line limits of the expansion policy replaced by a national cap on
+  #                 discretionary additions (MW-km, forced lines excluded), with an interregional moratorium
+  tx_policy:
+    mode: legacy
+    moratorium_first_period: 2040  # first period new lines between transmission planning regions (transreg) can be built
+    cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}   # national, intra + interregional; each key holds until the next
+    no_bill:                       # lines with an end in these transregs (ERCOT ties and ERCOT-internal lines) keep
+      regions: [ERCOT]             # the no-bill values whatever the bill does
+      moratorium_first_period: 2040
+      cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}
+    capex_multiplier: 1.0          # sensitivity: x trans_capital_cost_per_mw_km (trans_params.csv)
+    transfer_floor: ~              # sensitivity: CSV region_a, region_b, PERIOD, min_transfer_mw (transreg pairs)
+
+  # interconnection-headroom scenario and build-rate level by period (CHANGES §60 item 3; mode A): {period: value},
+  # each key holds until the next; empty = the levels of `settings` above (atts_s0, central) in every period. A
+  # headroom switch between stages carries the headroom state onto the new scenario's uprates (prepare_next_stage).
+  levels_by_period:
+    interconnection_headroom: {}
+    build_rate: {}
+  # sensitivity: one level in every period, over levels_by_period (e.g. {build_rate: high})
+  level_overrides: {}
 
   # item 6: extra Switch modules on the case's scenario line (not switch/modules.txt)
   extra_modules: [study_modules.gen_amortization_period]

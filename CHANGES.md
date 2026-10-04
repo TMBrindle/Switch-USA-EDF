@@ -2409,3 +2409,73 @@ are, and nothing converts them through the C long.
 
 **Tests:** s0_workflow 102. pandas 3.0.6: 124 passed with build_rate; 1.4.4: 123 passed and 1 skipped. With the guard
 active, nothing else in the suite trips it.
+
+## 60. S0 Production: S0 Transmission Baseline and Transmission-Bill Scenarios
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/transmission_bill_scenarios.md` (the guide), `s0_workflow/VM_RECIPES.md`
+(recipe G), `SHARED_CHANGES.md` (#53-#58, review points 12-13)
+
+Everything is a setting. The `tx_bill` and `tx_sens` axes (new columns, `legacy` / `none` in every older row) and two
+new `forced_tx` values switch them per case. With `legacy` nothing changes, so the regression case stays byte-identical
+(legacy transmission files are compared byte for byte; the regression row's settings are unchanged).
+
+1. **Interregional moratorium** (`tx_policy.moratorium_first_period`): new lines between transregs can be built from
+   this period; before it, their `trans_path_expansion_limit` is 0. S0 and bill low: 2040; bill central and high:
+   2035. ERCOT ties use the no-bill value (2040). Under the national cap, interregional lines that the constrained
+   policy had blocked are unblocked and governed by the moratorium.
+2. **National transmission cap** (`study_modules.tx_build_cap`): discretionary additions are BuildTx (MW of transfer
+   capability) × km on every line but forced lines in their forced period. Per period they must stay within the cap ×
+   1.609344e6 MW-km/TW-mi × period years. The cap is national, intra-region plus interregional, reported separately in
+   `tx_build_cap.csv`. Values:
+   - S0: 0 in 2028, 1.4 from 2030;
+   - bill low: 1.4, then 2.0 from 2035;
+   - bill central: 1.4, then 3.0 from 2035;
+   - bill high: 1.4, 2.0 in 2030, then 4.0 from 2035.
+
+   ERCOT-related additions also stay within the S0 trajectory. The cap replaces `trans_expansion: zero`'s per-line
+   limits; the other per-line rules are as today.
+3. **Levels by period** (`levels_by_period`, mode A): the headroom scenario and the build-rate level per stage.
+   - Headroom: S0 atts_s0; bill central planned → reform 2035; low planned → reform 2040; high planned (2028) →
+     reform 2030 → reform_techmax 2035.
+   - Build rate: S0 central; central reform from 2035; low reform 2040; high reform 2030.
+   - On a headroom switch (`ic_scenario_switch.csv`), `prepare_next_stage` gives the next stage its own scenario's
+     uprates less what the chain built. The ATTS scenarios share zones and curve; a switch between scenarios that
+     don't share them stops.
+   - The guide says what mode B would need.
+4. **Reserve import allowance** (`prm.imports.new_tx_allowance`): in bill cases each PRM region's import cap is
+   historical share × peak + 0.85 × the new capacity built into it to date (this stage's BuildTx plus earlier stages'
+   `trans_built_to_date`). S0 keeps 0.
+5. **`forced_tx: reeds_certain_plus_A` / `_AB`:** the ReEDS certain lines plus the class-A (or A and B) projects of
+   the status review. `forced_tx_status_review.csv` is a header-only placeholder with the agreed columns, and the
+   build stops until it has rows.
+6. **Cases:**
+   - mode-A chains `S0_tx`, `BILL_central`, `BILL_low`, `BILL_high`, `BILL_central_txonly`, `BILL_central_bronly`,
+     `BILL_central_S1` (fedpol S1's tax credits only);
+   - single-year 2035 versions `s4x1_<case>_2035`;
+   - sensitivity rows on S0_tx 2035: classes A+B forced, transfer floor (placeholder file), transmission capex ×1.5,
+     build rate high, offshore wind approvals restored.
+
+**Interpretations to confirm** (guide, last section):
+- ERCOT "no-bill values" cover both the moratorium and the cap;
+- S0's 2028 cap is 0;
+- bill high uses planned headroom and central build rate in 2028;
+- nameplate MW × km, and the exact 1.609344 conversion;
+- "interregional" means transreg for items 1–2 and the PRM boundary for item 4.
+
+**Tests (new):**
+- `test_tx_policy.py` (8):
+  - Switch toys: the cap binds at exactly the non-exempt MW-km, is infeasible just below, and forced lines are exempt;
+  - no-bill cap; transfer floor;
+  - the case build on real transmission tables: line classes, ERCOT ties, unblocking, moratorium rows for S0 vs
+    bill, forced cap, exempt rows;
+  - capex multiplier and the floor placeholder;
+  - the plus_A / _AB options with the class filter and the placeholder stop;
+  - every `tx_bill` value's merged settings (caps by period, moratorium, levels, allowance);
+  - case rows against S0prod_A.
+- `test_levels_by_period.py` (3): levels by year, the switch marker, the uprate carry-over across switches, and the
+  stop when curves differ.
+- `test_prm.py` (+2): the allowance toy (builds (4 − 2)/0.85 MW instead of a shortfall; earlier stages' builds count)
+  and the S0 default of 0.
+- The int64 guard is active throughout.
+- Results: s0_workflow 115; pandas 3.0.6 137 passed with build_rate; 1.4.4 136 passed and 1 skipped.

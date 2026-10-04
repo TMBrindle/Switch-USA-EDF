@@ -1,0 +1,309 @@
+"""S0 transmission policy (CHANGES §60): national cap on discretionary transmission (study_modules.tx_build_cap),
+interregional moratorium and the case-build step (s0_workflow/tx_policy.py), sensitivity hooks.
+Small hand-built inputs: fixtures, not results."""
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from s0_workflow import tx_policy  # noqa: E402
+
+MWKM = 1.609344e6
+
+
+def toy(tmp_path, name, minimum, cap_rate, exempt=(), no_bill=(), no_bill_rate=".", classes=None, floor=None):
+    """3-zone toy (periods 2020, 2030). minimum: {(line, period): MW}; cap_rate: {period: TW-mi/yr}."""
+    from toyutil import toy_inputs
+
+    def edit(inp):
+        pd.DataFrame([{"TRANSMISSION_LINE": ln, "PERIOD": p, "trans_build_minimum_mw": v} for (ln, p), v in minimum.items()],
+                     columns=["TRANSMISSION_LINE", "PERIOD", "trans_build_minimum_mw"]).to_csv(
+            inp / "trans_build_minimum.csv", index=False)
+        pd.DataFrame({"PERIOD": [2020, 2030], "tx_cap_tw_mi_per_yr": [cap_rate.get(2020, "."), cap_rate.get(2030, ".")],
+                      "tx_cap_no_bill_tw_mi_per_yr": [no_bill_rate, "."]}).to_csv(inp / "tx_cap_periods.csv", index=False)
+        cl = classes or {"N-C": "inter", "C-S": "intra"}
+        pd.DataFrame({"TRANSMISSION_LINE": list(cl), "tx_cap_class": list(cl.values()),
+                      "tx_cap_no_bill": [int(ln in no_bill) for ln in cl]}).to_csv(inp / "tx_cap_lines.csv", index=False)
+        pd.DataFrame(list(exempt), columns=["TRANSMISSION_LINE", "PERIOD"]).to_csv(inp / "tx_cap_exempt.csv", index=False)
+        if floor:
+            pd.DataFrame([{"TX_FLOOR": "NC", "PERIOD": p, "tx_floor_mw": v} for p, v in floor.items()]).to_csv(
+                inp / "tx_floor.csv", index=False)
+            pd.DataFrame({"TX_FLOOR": ["NC"], "TRANSMISSION_LINE": ["N-C"]}).to_csv(inp / "tx_floor_lines.csv", index=False)
+    return toy_inputs(tmp_path, name, ["trans_build_minimum", "tx_build_cap"], edit)
+
+
+def solve(run):
+    r = subprocess.run(["switch", "solve", "--solver", "appsi_highs", "--suffixes", "dual",
+                        "--include-module", "mods.trans_build_minimum", "--include-module", "mods.tx_build_cap"],
+                       cwd=run, capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(run)})
+    return r.returncode == 0, run / "outputs", r.stdout + r.stderr
+
+
+def years(run):
+    per = pd.read_csv(run / "inputs/periods.csv").set_index("INVESTMENT_PERIOD")
+    return per
+
+
+def test_toy_national_cap_exempt_and_no_bill(tmp_path):
+    # C-S (intra, 200 km) must build 5 MW in 2020: 1,000 MW-km. N-C (inter, 100 km) 4 MW forced and exempt.
+    mins = {("C-S", 2020): 5.0, ("N-C", 2020): 4.0}
+    run = toy(tmp_path, "probe", mins, {})
+    ok, out, msg = solve(run)
+    assert ok, msg
+    yrs = pd.read_csv(out / "tx_build_cap.csv").set_index("PERIOD").at[2020, "period_years"]
+    rate = 1000.0 / (MWKM * yrs)                                       # cap = exactly 1,000 MW-km in 2020
+    run = toy(tmp_path, "cap", mins, {2020: rate}, exempt=[("N-C", 2020)])
+    ok, out, msg = solve(run)
+    assert ok, msg
+    r = pd.read_csv(out / "tx_build_cap.csv").set_index("PERIOD")
+    assert r.at[2020, "intra_mw_km"] == pytest.approx(1000.0, rel=1e-6) and r.at[2020, "inter_mw_km"] == pytest.approx(0)
+    assert r.at[2020, "exempt_forced_mw_km"] == pytest.approx(400.0, rel=1e-6)
+    assert r.at[2020, "cap_mw_km"] == pytest.approx(1000.0, rel=1e-9)
+    assert r.at[2020, "total_tw_mi_per_yr"] == pytest.approx(rate, rel=1e-6)
+    assert pd.isna(r.at[2030, "cap_tw_mi_per_yr"])                    # blank = no cap
+    # a cap just below what C-S must build: infeasible; forced lines don't count (N-C exempt)
+    ok, _, _ = solve(toy(tmp_path, "tight", mins, {2020: rate * 0.999}, exempt=[("N-C", 2020)]))
+    assert not ok
+    # N-C not exempt: it would count (1,400 MW-km > 1,000): infeasible
+    ok, _, _ = solve(toy(tmp_path, "noexempt", mins, {2020: rate}))
+    assert not ok
+    # no-bill cap of 0: a no-bill line can't build discretionary MW; an exempt (forced) one still can
+    ok, _, _ = solve(toy(tmp_path, "nb_cs", mins, {}, exempt=[("N-C", 2020)], no_bill=["C-S"], no_bill_rate=0.0))
+    assert not ok
+    ok, out, msg = solve(toy(tmp_path, "nb_nc", mins, {}, exempt=[("N-C", 2020)], no_bill=["N-C"], no_bill_rate=0.0))
+    assert ok, msg
+    assert pd.read_csv(out / "tx_build_cap.csv").set_index("PERIOD").at[2020, "no_bill_mw_km"] == pytest.approx(0)
+
+
+def test_toy_transfer_floor(tmp_path):
+    # N-C exists at 3 MW; a floor of 7 MW in 2030 makes 4 MW be built by 2030
+    ok, out, msg = solve(toy(tmp_path, "floor", {}, {}, floor={2030: 7.0}))
+    assert ok, msg
+    f = pd.read_csv(out / "tx_floor.csv").set_index("PERIOD")
+    assert f.at[2030, "transfer_mw"] >= 7.0 - 1e-6
+    b = pd.read_csv(out / "BuildTx.csv")
+    assert b[b.TRANS_BLD_YRS_1 == "N-C"].BuildTx.sum() == pytest.approx(4.0, abs=1e-5)
+
+
+def _stage(tmp_path, years, chain, **kw):
+    """A stage's transmission files from pg_to_switch.transmission_tables (test_forced_tx harness), with periods.csv."""
+    from test_forced_tx import build
+    (tmp_path / "b").mkdir(exist_ok=True)
+    out = build(tmp_path / "b", years=years, source=REPO / "pg_to_switch.py", _chain_years=chain,
+                forced_tx_table="pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv",
+                forced_tx_expansion_limit="minimum", trans_expansion_policy="zero", **kw)
+    pd.DataFrame({"INVESTMENT_PERIOD": years}).to_csv(out / "periods.csv", index=False)
+    return out
+
+
+def _names(out):
+    tl = pd.read_csv(out / "transmission_lines.csv")
+    return {r.TRANSMISSION_LINE: "-".join(sorted([r.trans_lz1, r.trans_lz2], key=lambda z: int(z[1:])))
+            for r in tl.itertuples()}
+
+
+SETTINGS = {
+    "s0_tx": {"mode": "national_cap", "moratorium_first_period": 2040, "cap_tw_mi_per_yr": {2028: 0.0, 2030: 1.4}},
+    "bill_central": {"mode": "national_cap", "moratorium_first_period": 2035, "cap_tw_mi_per_yr": {2028: 1.4, 2035: 3.0}},
+}
+
+
+def test_case_build_moratorium_and_cap(tmp_path):
+    chain = [2028, 2030, 2035, 2040, 2045]
+    before = _stage(tmp_path, [2035], chain)
+    tl0 = pd.read_csv(before / "transmission_lines.csv")
+    for name, tp in SETTINGS.items():
+        out = _stage(tmp_path, [2035], chain)
+        logs = []
+        tx_policy.write_case_inputs(out, {"tx_policy": tp}, {2035: {"forced_tx_expansion_limit": "minimum"}}, logs.append)
+        names = _names(out)
+        cls = pd.read_csv(out / "tx_cap_lines.csv").set_index("TRANSMISSION_LINE")
+        cls.index = [names[x] for x in cls.index]
+        assert cls.at["p24-p25", "tx_cap_class"] == "inter" and cls.at["p28-p31", "tx_cap_class"] == "intra"
+        assert cls.at["p60-p61", "tx_cap_class"] == "intra" and cls.at["p60-p61", "tx_cap_no_bill"] == 1   # ERCOT-internal
+        ercot_ties = [k for k in cls.index if cls.at[k, "tx_cap_no_bill"] == 1 and cls.at[k, "tx_cap_class"] == "inter"]
+        assert ercot_ties                                                             # ERCOT ties exist
+        tl = pd.read_csv(out / "transmission_lines.csv")
+        inter = set(cls.index[cls.tx_cap_class == "inter"])
+        assert (tl[[names[x] in inter for x in tl.TRANSMISSION_LINE]].trans_new_build_allowed == 1).all()
+        assert (tl0.trans_new_build_allowed == 0).sum() > 0                             # the constrained policy blocked some
+        lim = pd.read_csv(out / "trans_path_expansion_limit.csv")
+        L = {(names[r.TRANSMISSION_LINE], r.PERIOD): r.trans_path_expansion_limit_mw for r in lim.itertuples()}
+        assert L[("p24-p25", 2035)] == 3000.0                     # TransWest forced in 2035: capped at its minimum
+        assert not any(k[0] not in inter for k in L if k != ("p24-p25", 2035))         # no per-line limit intra-region
+        zero_inter = {k[0] for k, v in L.items() if v == 0}
+        if name == "s0_tx":                                       # moratorium to 2040: every interregional line 0 in 2035
+            assert zero_inter == inter - {"p24-p25"}
+        else:                                                     # bill from 2035: only the no-bill (ERCOT) ties
+            assert zero_inter == set(ercot_ties)
+        per = pd.read_csv(out / "tx_cap_periods.csv").set_index("PERIOD")
+        assert per.at[2035, "tx_cap_tw_mi_per_yr"] == (1.4 if name == "s0_tx" else 3.0)
+        assert per.at[2035, "tx_cap_no_bill_tw_mi_per_yr"] == 1.4
+        ex = pd.read_csv(out / "tx_cap_exempt.csv")
+        assert [(names[a], b) for a, b in zip(ex.TRANSMISSION_LINE, ex.PERIOD)] == [("p24-p25", 2035)]
+        assert any("national_cap" in x for x in logs)
+
+
+def test_step_values_and_settings():
+    t = {2028: 1.4, 2030: 2.0, 2035: 4.0}
+    assert [tx_policy.step_value(t, y) for y in (2026, 2028, 2030, 2034, 2035, 2045)] == [1.4, 1.4, 2.0, 2.0, 4.0, 4.0]
+    assert tx_policy.tx_settings({})["mode"] == "legacy" and not tx_policy.active({})
+    assert tx_policy.tx_settings({"tx_policy": {"no_bill": {"moratorium_first_period": 2045}}})["no_bill"] == {
+        "regions": ["ERCOT"], "moratorium_first_period": 2045, "cap_tw_mi_per_yr": {2028: 0.0, 2030: 1.4}}
+    with pytest.raises(ValueError, match="mode"):
+        tx_policy.tx_settings({"tx_policy": {"mode": "zero"}})
+    assert tx_policy.MODES == ("legacy", "national_cap")
+
+
+def test_capex_multiplier_and_transfer_floor(tmp_path):
+    out = _stage(tmp_path, [2035], [2035])
+    tp0 = pd.read_csv(out / "trans_params.csv").trans_capital_cost_per_mw_km.iloc[0]
+    tx_policy.write_case_inputs(out, {"tx_policy": {"capex_multiplier": 1.5}}, {2035: {}}, lambda x: None)
+    assert pd.read_csv(out / "trans_params.csv").trans_capital_cost_per_mw_km.iloc[0] == pytest.approx(tp0 * 1.5)
+    assert not (out / "tx_cap_periods.csv").exists()                                   # legacy mode: no cap files
+    # the placeholder floor file has no rows: the build stops
+    ph = "pg/extra_inputs/transmission/tx_transfer_floor_placeholder.csv"
+    assert list(pd.read_csv(REPO / ph).columns) == tx_policy.FLOOR_COLUMNS
+    with pytest.raises(ValueError, match="placeholder"):
+        tx_policy.write_case_inputs(out, {"tx_policy": {"transfer_floor": ph}}, {2035: {}}, lambda x: None)
+    f = tmp_path / "floor.csv"
+    pd.DataFrame([{"region_a": "PJM", "region_b": "MISO", "PERIOD": 2035, "min_transfer_mw": 12000}]).to_csv(f, index=False)
+    tx_policy.write_case_inputs(out, {"tx_policy": {"transfer_floor": str(f)}}, {2035: {}}, lambda x: None)
+    fl = pd.read_csv(out / "tx_floor.csv")
+    assert fl.to_dict("records") == [{"TX_FLOOR": "MISO-PJM", "PERIOD": 2035, "tx_floor_mw": 12000.0}]
+    assert len(pd.read_csv(out / "tx_floor_lines.csv")) > 0
+
+
+def test_forced_tx_plus_status_review_classes(tmp_path):
+    from s0_workflow import production as s0prod
+    from test_forced_tx import build
+    # the committed placeholder has the agreed columns and no rows: the plus options stop until the list arrives
+    ph = pd.read_csv(REPO / s0prod.STATUS_REVIEW_TABLE)
+    assert list(ph.columns) == s0prod.STATUS_REVIEW_COLUMNS and ph.empty
+    for opt in ("reeds_certain_plus_A", "reeds_certain_plus_AB"):
+        with pytest.raises(ValueError, match="placeholder"):
+            s0prod.apply_forced_tx({}, {"forced_tx": opt})
+    f = tmp_path / "status.csv"
+    rows = [{"from_zone": "p1", "to_zone": "p2", "project_name": "projA", "status_class": "A", "new_cap_mw": 1500.0,
+             "mw_basis": "transfer_capability", "new_cap_year": 2029, "trans_length_km": 120.0, "trans_efficiency": 0.98,
+             "source": "test", "notes": ""},
+            {"from_zone": "p3", "to_zone": "p4", "project_name": "projB", "status_class": "B", "new_cap_mw": 900.0,
+             "mw_basis": "transfer_capability", "new_cap_year": 2033, "trans_length_km": 80.0, "trans_efficiency": 0.99,
+             "source": "test", "notes": ""}]
+    pd.DataFrame(rows, columns=s0prod.STATUS_REVIEW_COLUMNS).to_csv(f, index=False)
+    s = {}
+    s0prod.apply_forced_tx(s, {"forced_tx": "reeds_certain_plus_A", "forced_tx_status_review": str(f),
+                               "forced_tx_expansion_limit": "minimum"})
+    assert s["forced_tx_table"] == ["pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv", str(f)]
+    assert s["forced_tx_status_classes"] == ["A"]
+    (tmp_path / "b").mkdir()
+    for classes, want in ((["A"], {("p28-p31", 2028), ("p1-p2", 2030), ("p24-p25", 2035)}),
+                          (["A", "B"], {("p28-p31", 2028), ("p1-p2", 2030), ("p24-p25", 2035), ("p3-p4", 2035)})):
+        out = build(tmp_path / "b", years=[2028, 2030, 2035], source=REPO / "pg_to_switch.py",
+                    forced_tx_table=s["forced_tx_table"], forced_tx_status_classes=classes,
+                    forced_tx_expansion_limit="minimum")
+        names = _names(out)
+        bm = pd.read_csv(out / "trans_build_minimum.csv")
+        assert {(names[a], b) for a, b in zip(bm.TRANSMISSION_LINE, bm.PERIOD)} == want, classes
+    # a project not on the model's MW basis stops the build
+    pd.DataFrame([dict(rows[0], mw_basis="nameplate")], columns=s0prod.STATUS_REVIEW_COLUMNS).to_csv(f, index=False)
+    with pytest.raises(ValueError, match="transfer_capability"):
+        s0prod.apply_forced_tx({}, {"forced_tx": "reeds_certain_plus_A", "forced_tx_status_review": str(f)})
+
+
+def _merged(*axis_values):
+    import yaml
+    from s0_workflow import production as s0prod
+    s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
+    ax = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))["settings_management"]["all_years"]
+    s = {"s0_production": dict(s0, enabled=True)}
+    for axis, val in axis_values:
+        if ax[axis][val]:
+            s = s0prod.deep_merge(s, ax[axis][val])
+    return s["s0_production"], ax
+
+
+EXPECT = {   # tx_bill value: (moratorium, cap by period 2028-2045, headroom by period, build rate by period, allowance)
+    "s0_tx": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], None, None, 0.0),
+    "bill_central": (2035, [1.4, 1.4, 3.0, 3.0, 3.0], ["atts_planned"] * 2 + ["atts_reform"] * 3,
+                     ["central"] * 2 + ["reform"] * 3, 0.85),
+    "bill_low": (2040, [1.4, 1.4, 2.0, 2.0, 2.0], ["atts_planned"] * 3 + ["atts_reform"] * 2,
+                 ["central"] * 3 + ["reform"] * 2, 0.85),
+    "bill_high": (2035, [1.4, 2.0, 4.0, 4.0, 4.0], ["atts_planned", "atts_reform"] + ["atts_reform_techmax"] * 3,
+                  ["central"] + ["reform"] * 4, 0.85),
+    "bill_central_txonly": (2035, [1.4, 1.4, 3.0, 3.0, 3.0], None, None, 0.85),
+    "bill_central_bronly": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], ["atts_planned"] * 2 + ["atts_reform"] * 3,
+                            ["central"] * 2 + ["reform"] * 3, 0.0),
+}
+
+
+def test_bill_axis_values():
+    from s0_workflow import production as s0prod
+    years = [2028, 2030, 2035, 2040, 2045]
+    for val, (mor, cap, hr, br, allow) in EXPECT.items():
+        s0, ax = _merged(("tx_bill", val))
+        t = tx_policy.tx_settings(s0)
+        assert t["mode"] == "national_cap" and t["moratorium_first_period"] == mor, val
+        assert [tx_policy.step_value(t["cap_tw_mi_per_yr"], y) for y in years] == cap, val
+        assert t["no_bill"] == {"regions": ["ERCOT"], "moratorium_first_period": 2040,
+                                "cap_tw_mi_per_yr": {2028: 0.0, 2030: 1.4}}, val          # ERCOT: no-bill values
+        assert [s0prod.level_for(s0, "interconnection_headroom", y) for y in years] == (hr or [None] * 5), val
+        assert [s0prod.level_for(s0, "build_rate", y) for y in years] == (br or [None] * 5), val
+        assert float(s0["prm"]["imports"]["new_tx_allowance"]) == allow, val
+        assert "--include-module study_modules.tx_build_cap" in s0prod.scenario_options({"s0_production": s0})
+    # legacy (every older row, the regression case): nothing changes
+    s0, ax = _merged(("tx_bill", "legacy"), ("tx_sens", "none"))
+    assert not tx_policy.active(s0) and s0["levels_by_period"] == {"interconnection_headroom": {}, "build_rate": {}}
+    assert "tx_build_cap" not in s0prod.scenario_options({"s0_production": s0})
+    assert float(s0["prm"]["imports"]["new_tx_allowance"]) == 0.0
+    # sensitivity hooks
+    s0, _ = _merged(("tx_bill", "s0_tx"), ("tx_sens", "forced_ab"))
+    assert s0["forced_tx"] == "reeds_certain_plus_AB"
+    s0, _ = _merged(("tx_bill", "s0_tx"), ("tx_sens", "tx_capex_x1_5"))
+    assert tx_policy.tx_settings(s0)["capex_multiplier"] == 1.5
+    s0, _ = _merged(("tx_bill", "s0_tx"), ("tx_sens", "transfer_floor"))
+    assert tx_policy.tx_settings(s0)["transfer_floor"].endswith("tx_transfer_floor_placeholder.csv")
+    s0, _ = _merged(("tx_bill", "bill_central"), ("tx_sens", "br_high"))
+    cs = {"c": {y: {"s0_production": s0, "model_first_planning_year": y - 1} for y in years}}
+    s0prod.apply_levels_by_period(cs["c"][2035], s0, "c", 2035)
+    assert cs["c"][2035]["build_rate"]["level"] == "high" and cs["c"][2035]["interconnection_headroom"]["scenario"] == "atts_reform"
+
+
+def test_bill_case_rows():
+    si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
+    a = si[si.case_id == "S0prod_A"].set_index("year")
+    names = {"S0_tx": "s0_tx", "BILL_central": "bill_central", "BILL_low": "bill_low", "BILL_high": "bill_high",
+             "BILL_central_txonly": "bill_central_txonly", "BILL_central_bronly": "bill_central_bronly",
+             "BILL_central_S1": "bill_central"}
+    for cid, val in names.items():
+        c = si[si.case_id == cid].set_index("year")
+        assert list(c.index) == [2028, 2030, 2035, 2040, 2045] and (c.tx_bill == val).all() and (c.tx_sens == "none").all()
+        extra = {"tax_credits"} if cid.endswith("_S1") else set()
+        for y in c.index:                                              # mode-A chains: S0prod_A + the new columns
+            diff = {k for k in si.columns if k not in ("case_id", "year") and str(a.at[y, k]) != str(c.at[y, k])}
+            assert diff <= {"tx_bill", "forced_tx"} | extra, (cid, y, diff)
+        assert (c.forced_tx == "reeds_certain_plus_A").all() and (c.s0_production == "on").all()
+        t = si[si.case_id == f"s4x1_{cid}_2035"].iloc[0]                # single-year 2035 test version
+        diff = {k for k in si.columns if k not in ("case_id", "year") and str(a.at[2035, k]) != str(t[k])}
+        assert diff <= {"tx_bill", "forced_tx", "s0_production"} | extra and t.s0_production == "on_single", (cid, diff)
+    # S1: BILL_central with fedpol S1's tax credits (no_wind_solar in 2028, full_ira from 2030); same policies
+    s1 = si[si.case_id == "BILL_central_S1"].set_index("year")
+    bc = si[si.case_id == "BILL_central"].set_index("year")
+    assert list(s1.tax_credits) == ["no_wind_solar"] + ["full_ira"] * 4 and (s1.policies == bc.policies).all()
+    assert si[si.case_id == "s4x1_BILL_central_S1_2035"].iloc[0].tax_credits == "full_ira"
+    # sensitivity rows on S0_tx 2035
+    base = si[si.case_id == "s4x1_S0_tx_2035"].iloc[0]
+    for k, col, v in (("forcedAB", "tx_sens", "forced_ab"), ("floor", "tx_sens", "transfer_floor"),
+                      ("txcapex", "tx_sens", "tx_capex_x1_5"), ("brhigh", "tx_sens", "br_high"),
+                      ("osw", "offshore_wind_policy", "capped_2025_released")):
+        r = si[si.case_id == f"s4x1_S0_tx_2035_{k}"].iloc[0]
+        assert [c for c in si.columns if c != "case_id" and str(r[c]) != str(base[c])] == [col] and r[col] == v
+    # every older row: legacy / none
+    old = si[~si.case_id.str.contains("S0_tx|BILL")]
+    assert (old.tx_bill == "legacy").all() and (old.tx_sens == "none").all()

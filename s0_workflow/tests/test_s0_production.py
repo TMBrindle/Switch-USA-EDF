@@ -44,7 +44,7 @@ def test_settings_file_axis_and_rows():
     assert ax["on_pgdays_new"]["s0_production"] == {"enabled": True, "time_sampling": {"method": "powergenome"},
                                                     "foresight": {"mode": "single"}}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
-    old = si[~si.case_id.str.contains("S0prod")]
+    old = si[~si.case_id.str.contains("S0prod|S0_tx|BILL")]
     assert (old.s0_production == "off").all() and (old.build_rate == "off").all()   # existing rows unchanged
     a = si[si.case_id == "S0prod_A"]
     assert sorted(a.year) == [2028, 2030, 2035, 2040, 2045] and (a.s0_production == "on").all()

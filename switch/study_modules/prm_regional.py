@@ -56,7 +56,8 @@ Inputs:
     prm_timeseries.csv          TIMESERIES
     prm_gen_credit.csv*         GENERATION_PROJECT, prm_credit*, prm_class*
     prm_gen_availability.csv*   GENERATION_PROJECT, TIMEPOINT, prm_avail_frac
-    prm_params.csv*             prm_new_tx_derate, prm_shortfall_cost_per_mw_yr, prm_import_cap_all_hours
+    prm_params.csv*             prm_new_tx_derate, prm_shortfall_cost_per_mw_yr, prm_import_cap_all_hours,
+                                prm_import_new_tx_allowance* (bill cases: + allowance x new boundary capacity)
     trans_built_to_date.csv*    TRANSMISSION_LINE, trans_built_to_date_mw (chained stages; prepare_next_stage)
     prm_benchmarks.csv*         PRM_REGION, prm_class, benchmark, benchmark_value
 """
@@ -129,6 +130,8 @@ def define_components(m):
     # 1 (default): import cap in every stress timepoint; 0: only at each region's peak-load stress
     # timepoint (diagnostic only: shows the storage "laundering" loophole the default closes)
     m.prm_import_cap_all_hours = Param(within=NonNegativeReals, default=1)
+    # bill cases: reserve imports may also use this share of new interregional capacity built into the region
+    m.prm_import_new_tx_allowance = Param(within=NonNegativeReals, default=0.0)
 
     # generator credit
     def credit_default(m, g):
@@ -335,11 +338,33 @@ def define_dynamic_components(m):
         dimen=2,
         initialize=lambda m: [(r, t) for r in m.PRM_REGIONS for t in m.PRM_TPS if capped(m, r, t)],
     )
-    m.Prm_Import_Cap = Constraint(
-        m.PRM_IMPORT_CAP_TPS,
-        rule=lambda m, r, t: m.PrmNetImport[r, t]
-        <= m.prm_import_share[r, m.tp_period[t]] * m.prm_region_peak_mw[r, m.tp_period[t]],
+    # import allowance for new interregional transmission (transmission-bill cases, CHANGES §60): the cap rises by
+    # prm_import_new_tx_allowance x the new capacity (nameplate MW) on lines crossing the region's boundary, built
+    # to date (this stage's BuildTx plus earlier stages' trans_built_to_date_mw)
+    def boundary_lines(m, r):
+        return [
+            tx for tx in m.TRANSMISSION_LINES
+            if m.prm_region_of_zone[m.trans_lz1[tx]] != m.prm_region_of_zone[m.trans_lz2[tx]]
+            and r in (m.prm_region_of_zone[m.trans_lz1[tx]], m.prm_region_of_zone[m.trans_lz2[tx]])
+        ]
+
+    m.PrmNewInterCapacity = Expression(
+        m.PRM_REGIONS, m.PERIODS,
+        rule=lambda m, r, p: sum(
+            sum(m.BuildTx[tx, b] for b in m.PERIODS if b <= p and (tx, b) in m.TRANS_BLD_YRS)
+            + m.trans_built_to_date_mw[tx]
+            for tx in boundary_lines(m, r)
+        ),
     )
+
+    def import_cap_rule(m, r, t):
+        p = m.tp_period[t]
+        cap = m.prm_import_share[r, p] * m.prm_region_peak_mw[r, p]
+        if value(m.prm_import_new_tx_allowance) > 0:
+            cap = cap + m.prm_import_new_tx_allowance * m.PrmNewInterCapacity[r, p]
+        return m.PrmNetImport[r, t] <= cap
+
+    m.Prm_Import_Cap = Constraint(m.PRM_IMPORT_CAP_TPS, rule=import_cap_rule)
 
 
 def load_inputs(m, switch_data, inputs_dir):
@@ -378,7 +403,8 @@ def load_inputs(m, switch_data, inputs_dir):
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "prm_params.csv"),
         optional=True,
-        param=(m.prm_new_tx_derate, m.prm_shortfall_cost_per_mw_yr, m.prm_import_cap_all_hours),
+        param=(m.prm_new_tx_derate, m.prm_shortfall_cost_per_mw_yr, m.prm_import_cap_all_hours,
+               m.prm_import_new_tx_allowance),
     )
 
 

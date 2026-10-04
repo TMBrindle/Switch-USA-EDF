@@ -162,6 +162,17 @@ every other case build as before — tests check the legacy settings and that th
 | 51 | `switch/study_modules/prm_regional.py`, `pg_to_switch.py` (`add_stage_row`) | `prm_regional` reads optional `trans_built_to_date.csv` (`trans_built_to_date_mw`) and derates earlier stages' new lines as new; S0 chain stages after the first alias it to its chained file. Docstring: duals come from `write_dual_costs`' suffix. | §55 item 5 in chains (follow-on to §57). | none (S0 chains only) |
 | 52 | `s0_workflow/scripts/fix_forced_tx_aliases.py` (new), `s0_workflow/tests/toyutil.py` (`run_chain`: alias overrides; chained forced files aliased when written) | Corrected forced-line files as `*.fixed.csv` aliases for S0 chains built before §57, plus a fixed scenarios file. | §58: the VM's S0prod_A chain built at 1eab1ac. | none (new files next to a built case; nothing changed) |
 
+### Added in §60 (Oct 2026: S0 transmission baseline and transmission-bill scenarios)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 53 | `pg_to_switch.py` (`transmission_tables`) | `forced_tx_table` may be a list of tables, concatenated; rows with a `status_class` are kept only for the classes in `forced_tx_status_classes`. | §60 item 5: `reeds_certain_plus_A` / `_AB`. | none (a string, the only form before, reads as before; legacy transmission files byte-identical, tested) |
+| 54 | `switch/study_modules/tx_build_cap.py` (new) | National cap on discretionary transmission additions in MW-km per period (intra + interregional, reported separately), a no-bill cap, forced lines exempt; optional transfer floors by line group. | §60 items 1-2, sensitivity hook. | none (only on the scenario lines of `tx_policy.mode: national_cap` or floor cases) |
+| 55 | `switch/study_modules/prepare_next_stage.py` (`chain_ic_inputs`, new `switch_ic_scenario`) | When the next stage has `ic_scenario_switch.csv`, it gets its own headroom scenario's uprates less what the chain built; zones and curve carried as before; stops if they differ between the scenarios. | §60 item 3. | none (the file exists only with `levels_by_period`) |
+| 56 | `switch/study_modules/prm_regional.py` | `prm_import_new_tx_allowance` (prm_params.csv, default 0): import cap + allowance × new capacity across the region's boundary to date (`PrmNewInterCapacity`). | §60 item 4. | none (0 gives the same constraint) |
+| 57 | `s0_workflow/tx_policy.py` (new), `s0_workflow/production.py` (`apply_levels_by_period`, `write_level_switch`, forced options, `status_review_rows`, module on the scenario line), `s0_workflow/prm.py` (allowance) | Case-build steps for §60. | §60. | none (defaults legacy) |
+| 58 | `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv`, `pg/extra_inputs/transmission/forced_tx_status_review.csv` (placeholder), `tx_transfer_floor_placeholder.csv` | `tx_policy`, `levels_by_period`, `level_overrides`, `prm.imports.new_tx_allowance`, `forced_tx_status_review`; axes `tx_bill`, `tx_sens`; `forced_tx` values `reeds_certain_plus_A` / `_AB`; columns `tx_bill`, `tx_sens` (legacy / none in every older row); 7 mode-A chains, 7 single-year 2035 versions, 5 sensitivity rows. | §60 item 6. | none (legacy / none set nothing) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -200,3 +211,9 @@ every other case build as before — tests check the legacy settings and that th
     top of the capacity `prepare_next_stage` carries forward. The fix is S0-only. For fedpol, setting
     `_chain_years` for its myopic stages (or using `forced_tx_period`) would close it; `chain_forced_tx` would
     need `commit` (or a flag) on the legacy path.
+12. (§60) `scenario_inputs.csv` has two more columns (`tx_bill`, `tx_sens`); merging with `ollie/fedpol` adds `legacy` /
+    `none` to its rows. `transmission_tables` now accepts a list for `forced_tx_table` (#53). The national cap and
+    moratorium (`tx_build_cap`, `tx_policy`) could replace `trans_expansion: zero` / `nerc_growth` in fedpol's cases
+    too; nothing there changes unless a case opts in.
+13. (§60) `BILL_central_S1` takes only fedpol S1's `tax_credits`; fedpol's S1 also differs from its S0 in `policies`
+    (growth caps S1.csv) and `trans_expansion` (nerc_growth), which these cases don't carry over (Tom's decision).

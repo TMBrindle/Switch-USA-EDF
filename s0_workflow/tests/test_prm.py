@@ -226,7 +226,8 @@ def test_settings_axis_column_and_legacy():
                                 "legacy": {"s0_production": {"prm": {"design": "legacy"}}}}
     assert ax["s0_production"]["on_pgdays"]["s0_production"]["prm"] == {"design": "legacy"}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
-    assert set(si.loc[si.prm_design == "regional", "case_id"]) == {"S0prod_A", "S0prod_B", "s4x1_S0prod_2035_prm"}
+    regional = set(si.loc[si.prm_design == "regional", "case_id"])
+    assert {c for c in regional if not ("S0_tx" in c or "BILL" in c)} == {"S0prod_A", "S0prod_B", "s4x1_S0prod_2035_prm"}
     a = si[si.case_id == "s4x1_S0prod_2035_prm"].iloc[0]
     b = si[si.case_id == "s4x1_S0prod_2035_txreeds"].iloc[0]
     assert [c for c in si.columns if a[c] != b[c]] == ["case_id", "prm_design"] and a.year == 2035
@@ -520,3 +521,39 @@ def test_toy_storage_cannot_launder_imports(tmp_path):
     assert sf == pytest.approx(6.3 / 3.7, abs=1e-5) and sf > 1.0
     rh = _read(out, "prm_region_hours.csv")
     assert rh[rh.PRM_REGION == "A"].net_import_mw.max() <= 1.0 + 1e-6
+
+
+def test_toy_import_allowance_for_new_interregional_capacity(tmp_path):
+    """Bill cases (CHANGES §60): the import cap = share x peak + allowance x new capacity built across the region's
+    boundary to date. North (region A) needs 4 MW of imports with a cap of 0.2 x 10 = 2 MW: with the allowance 0.85
+    it builds (4 - 2) / 0.85 MW on N-C instead of paying the shortfall; capacity an earlier stage built counts too."""
+    gens = BACKUP + [("N-th", "North", "thermal", 6), ("C-th", "Central", "thermal", 100)]
+    loads = {"North": ([5, 5], [10, 10, 10, 10]), "Central": ([5, 5], [5, 5, 5, 5]), "South": ([1, 1], [1, 1, 1, 1])}
+    reg = {"North": "A", "Central": "B"}
+    per = [{"PRM_REGION": "A", "PERIOD": 2020, "prm_margin": 0.0, "prm_import_share": 0.2},
+           {"PRM_REGION": "B", "PERIOD": 2020, "prm_margin": 0.0, "prm_import_share": "."}]
+    lines = [("N-C", "North", "Central", 50, 0.9), ("C-S", "Central", "South", 0, 1.0)]
+    out = mini_case(tmp_path, "allow", gens, loads, lines, reg, per, {}, dict(PEN, prm_import_new_tx_allowance=0.85),
+                    new_tx=True)
+    b = _read(out, "BuildTx.csv")
+    assert b[b.TRANS_BLD_YRS_1 == "N-C"].BuildTx.sum() == pytest.approx(2 / 0.85, rel=1e-5)
+    assert _read(out, "prm_shortfall.csv").set_index("PRM_REGION").at["A", "shortfall_mw"] == pytest.approx(0, abs=1e-6)
+    a = _read(out, "prm_region_hours.csv")
+    assert a[a.PRM_REGION == "A"].net_import_mw.max() == pytest.approx(4.0, abs=1e-6)
+    # allowance 0 (S0): the historical share only, shortfall 2 (as before)
+    out0 = mini_case(tmp_path, "allow0", gens, loads, lines, reg, per, {}, PEN, new_tx=True)
+    assert _read(out0, "prm_shortfall.csv").set_index("PRM_REGION").at["A", "shortfall_mw"] == pytest.approx(2.0, abs=1e-6)
+    # a chained stage: 2 / 0.85 MW built earlier (trans_built_to_date) already raises the cap; nothing new needed
+    lines2 = [("N-C", "North", "Central", 50 + 2 / 0.85, 0.9), ("C-S", "Central", "South", 0, 1.0)]
+    out2 = mini_case(tmp_path, "allow_chain", gens, loads, lines2, reg, per, {}, dict(PEN, prm_import_new_tx_allowance=0.85),
+                     new_tx=True, built_before={"N-C": 2 / 0.85})
+    b2 = _read(out2, "BuildTx.csv")
+    assert b2[b2.TRANS_BLD_YRS_1 == "N-C"].BuildTx.sum() == pytest.approx(0, abs=1e-6)
+    assert _read(out2, "prm_shortfall.csv").set_index("PRM_REGION").at["A", "shortfall_mw"] == pytest.approx(0, abs=1e-6)
+
+
+def test_import_allowance_setting_in_prm_params(tmp_path):
+    assert prm.DEFAULTS["imports"]["new_tx_allowance"] == 0.0
+    import yaml
+    s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
+    assert float(s0["prm"]["imports"].get("new_tx_allowance", 0.0)) == 0.0          # S0: historical shares only

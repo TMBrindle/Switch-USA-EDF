@@ -2753,7 +2753,20 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         # s0_production.forced_tx: reeds_certain the ReEDS release's certain additions
         # (forced_tx_table, s0_workflow/scripts/build_reeds_forced_tx.py; same columns).
         forced_fn = settings.get("forced_tx_table")
-        forced = pd.read_csv(script_dir / forced_fn) if forced_fn else tx_conn
+        if isinstance(forced_fn, (list, tuple)):
+            # S0 reeds_certain_plus_A / _AB (CHANGES §60): the ReEDS certain lines plus the status-review projects
+            # of the listed status classes (rows without a status_class are kept); a later row for the same zone
+            # pair replaces an earlier one
+            classes = set(settings.get("forced_tx_status_classes") or [])
+            parts = []
+            for fn in forced_fn:
+                part = pd.read_csv(script_dir / fn)
+                if "status_class" in part.columns:
+                    part = part[part["status_class"].isna() | part["status_class"].isin(classes)]
+                parts.append(part)
+            forced = pd.concat(parts, ignore_index=True)
+        else:
+            forced = pd.read_csv(script_dir / forced_fn) if forced_fn else tx_conn
 
         # Separate planned lines (for allow-flag override) from those with a
         # specific year (for minimum build constraint)

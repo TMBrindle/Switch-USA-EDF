@@ -33,6 +33,7 @@ import pandas as pd
 
 from s0_workflow import coal_fleet
 from s0_workflow import prm
+from s0_workflow import tx_policy
 
 logger = logging.getLogger(__name__)
 REPO = Path(__file__).resolve().parents[1]
@@ -87,6 +88,7 @@ def apply_settings(case_settings: dict) -> None:
             elif mode != "gridlab":
                 raise ValueError(f"s0_production.gas_capex.mode must be premium, atb_moderate or gridlab, "
                                  f"not {mode!r}")
+            apply_levels_by_period(s, s0, case, year)
             apply_retirement_option(s, s0)
             apply_forced_tx(s, s0, case, year)
             if prm.apply_settings(s, s0):
@@ -184,7 +186,34 @@ def apply_retirement_option(s: dict, s0: dict) -> None:
             s.pop(k, None)
 
 
-FORCED_TX_OPTIONS = ("reeds_certain", "named_projects")
+FORCED_TX_OPTIONS = ("reeds_certain", "named_projects", "reeds_certain_plus_A", "reeds_certain_plus_AB")
+# status-review projects for reeds_certain_plus_A / _AB (CHANGES §60): placeholder until the list is supplied
+STATUS_REVIEW_TABLE = "pg/extra_inputs/transmission/forced_tx_status_review.csv"
+STATUS_REVIEW_COLUMNS = ["from_zone", "to_zone", "project_name", "status_class", "new_cap_mw", "mw_basis",
+                         "new_cap_year", "trans_length_km", "trans_efficiency", "source", "notes"]
+STATUS_CLASSES = {"reeds_certain_plus_A": ["A"], "reeds_certain_plus_AB": ["A", "B"]}
+
+
+def status_review_rows(table: str, classes) -> pd.DataFrame:
+    """The status-review projects of these classes, checked: the agreed columns; MW on the model's basis (transfer
+    capability, the MW of trans_build_minimum and BuildTx); a year, length and efficiency on every row. Stops when
+    there are none (the placeholder): the case can't be built until the list is supplied."""
+    f = pd.read_csv(REPO / table)
+    if list(f.columns) != STATUS_REVIEW_COLUMNS:
+        raise ValueError(f"{table}: columns must be {STATUS_REVIEW_COLUMNS}, not {list(f.columns)}")
+    rows = f[f.status_class.isin(classes)]
+    if rows.empty:
+        raise ValueError(f"s0_production.forced_tx with status classes {list(classes)}: {table} has no such rows "
+                         f"(placeholder until the status-review list is supplied); the case can't be built yet")
+    bad = rows[rows.mw_basis != "transfer_capability"]
+    if len(bad):
+        raise ValueError(f"{table}: mw_basis must be transfer_capability (MW of transfer capability, the model's "
+                         f"basis); convert these first: {list(bad.project_name)}")
+    miss = rows[rows[["new_cap_mw", "new_cap_year", "trans_length_km", "trans_efficiency"]].isna().any(axis=1)]
+    if len(miss):
+        raise ValueError(f"{table}: new_cap_mw, new_cap_year, trans_length_km and trans_efficiency are required: "
+                         f"{list(miss.project_name)}")
+    return rows
 
 
 def forced_tx_table(release: str) -> str:
@@ -209,13 +238,62 @@ def apply_forced_tx(s: dict, s0: dict, case=None, year=None) -> None:
         raise ValueError(f"s0_production.forced_tx must be one of {FORCED_TX_OPTIONS}, not {o!r}")
     if o == "reeds_certain":
         s["forced_tx_table"] = forced_tx_table(str(s0.get("forced_tx_release", "2026.09.21")))
+    elif o in STATUS_CLASSES:
+        table = s0.get("forced_tx_status_review", STATUS_REVIEW_TABLE)
+        rows = status_review_rows(table, STATUS_CLASSES[o])
+        s["forced_tx_table"] = [forced_tx_table(str(s0.get("forced_tx_release", "2026.09.21"))), table]
+        s["forced_tx_status_classes"] = list(STATUS_CLASSES[o])
+        logger.info("s0_production %s/%s: %d status-review projects (classes %s) forced with the ReEDS certain lines",
+                    case, year, len(rows), STATUS_CLASSES[o])
     lim = s0.get("forced_tx_expansion_limit", "legacy") or "legacy"
     if lim not in ("minimum", "legacy"):
         raise ValueError(f"s0_production.forced_tx_expansion_limit must be minimum or legacy, not {lim!r}")
     if lim == "minimum":
         s["forced_tx_expansion_limit"] = "minimum"
     logger.info("s0_production %s/%s: forced transmission %s%s; forced-line expansion limit %s", case, year, o,
-                f" ({s['forced_tx_table']})" if o == "reeds_certain" else "", lim)
+                f" ({s['forced_tx_table']})" if o != "named_projects" else "", lim)
+
+
+LEVEL_KEYS = {"interconnection_headroom": "scenario", "build_rate": "level"}
+
+
+def level_for(s0: dict, what: str, year: int):
+    """The level s0_production.levels_by_period sets for `what` (interconnection_headroom | build_rate) in a model
+    year (each key holds until the next; earlier years take the first), or None when it sets none."""
+    table = ((s0 or {}).get("levels_by_period") or {}).get(what) or {}
+    if not table:
+        return None
+    return tx_policy.step_value(table, int(year))
+
+
+def apply_levels_by_period(s: dict, s0: dict, case=None, year=None) -> None:
+    """s0_production.levels_by_period (CHANGES §60 item 3): the interconnection-headroom scenario and the build-rate
+    level by period, so they can change between the stages of a mode-A chain. Empty (default): the levels of
+    s0_production.settings (atts_s0, central) in every period. The headroom state carried between stages follows the
+    switch (study_modules.prepare_next_stage.chain_ic_inputs, ic_scenario_switch.csv)."""
+    over = (s0 or {}).get("level_overrides") or {}
+    for what, key in LEVEL_KEYS.items():
+        v = over.get(what, level_for(s0, what, year))
+        if v is not None:
+            s.setdefault(what, {})[key] = v
+            logger.info("s0_production %s/%s: %s %s %s (levels_by_period)", case, year, what, key, v)
+
+
+def write_level_switch(out_folder: Path, s0: dict, scen_settings_dict: dict, log) -> None:
+    """In a stage whose headroom scenario differs from the previous chain period's, ic_scenario_switch.csv tells
+    prepare_next_stage (of the previous stage) to carry the headroom state onto this stage's own curves."""
+    first_year = min(int(y) for y in scen_settings_dict)
+    first = scen_settings_dict[next(iter(scen_settings_dict))]
+    chain = sorted(int(y) for y in (first.get("_chain_years") or []))
+    prev = [y for y in chain if y < first_year]
+    if not prev or level_for(s0, "interconnection_headroom", first_year) is None \
+            or ((s0 or {}).get("level_overrides") or {}).get("interconnection_headroom"):
+        return
+    a, b = level_for(s0, "interconnection_headroom", prev[-1]), level_for(s0, "interconnection_headroom", first_year)
+    if a != b:
+        pd.DataFrame([{"from_scenario": a, "to_scenario": b, "from_period": prev[-1], "to_period": first_year}]).to_csv(
+            Path(out_folder) / "ic_scenario_switch.csv", index=False)
+        log(f"interconnection headroom scenario switch {a} ({prev[-1]}) -> {b} ({first_year}): ic_scenario_switch.csv")
 
 
 def forced_tx_period(in_service_year: int, chain_years, stage_years):
@@ -540,6 +618,8 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     write_build_rules(out_folder, s0, log)
     coal_fleet.write_case_inputs(out_folder, s0, scen_settings_dict, log)   # coal spec rev. 2 (after the retirement rule)
     prm.write_case_inputs(out_folder, s0, scen_settings_dict, log)          # regional planning reserve (§55)
+    tx_policy.write_case_inputs(out_folder, s0, scen_settings_dict, log)    # moratorium, national cap (§60)
+    write_level_switch(out_folder, s0, scen_settings_dict, log)             # headroom scenario by period (§60)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))
@@ -556,4 +636,6 @@ def scenario_options(settings: dict) -> str:
         mods.append("study_modules.retirement_rules")
     if (s0.get("new_build_rule") or {}).get("enabled") and "study_modules.build_rules" not in mods:
         mods.append("study_modules.build_rules")
+    if tx_policy.needs_module(s0) and "study_modules.tx_build_cap" not in mods:
+        mods.append("study_modules.tx_build_cap")
     return "".join(f"--include-module {m} " for m in mods) + prm.scenario_options(s0)

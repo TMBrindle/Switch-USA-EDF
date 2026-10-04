@@ -583,6 +583,45 @@ documentation/s0_production.md`, "Time sampling: multi-day blocks".
    carry-over matters. A shift in wind or solar means the four blocks miss the targets (check `fi_target_errors.csv`
    first).
 
+## G. Transmission-bill scenarios: 2035 test versions (then the mode-A chains)
+
+**Prerequisite:** the class-A list in `pg/extra_inputs/transmission/forced_tx_status_review.csv`. Until it has
+class-A rows, every S0_tx / BILL case stops at the build with "placeholder until the status-review list is supplied".
+Design: `Guides and documentation/transmission_bill_scenarios.md`.
+
+**Cases:** `s4x1_S0_tx_2035`, `s4x1_BILL_central_2035`, `s4x1_BILL_low_2035`, `s4x1_BILL_high_2035`,
+`s4x1_BILL_central_txonly_2035`, `s4x1_BILL_central_bronly_2035`, `s4x1_BILL_central_S1_2035`.
+
+1. Build each into a fresh folder (`--year 2035`, single stage), as in recipe D step 1.
+2. **Build log and folder:**
+   - `s0_production_log.txt`: `tx_policy national_cap: N intra-region and M interregional lines (K unblocked ...),
+     ... moratorium: interregional from <2040|2035> ...; cap TW-mi/yr 2035: <1.4|3.0|2.0|4.0> (no-bill 1.4)`.
+   - `tx_cap_periods.csv`, `tx_cap_lines.csv` and `tx_cap_exempt.csv`. The exempt file lists every forced line in
+     2035: the ReEDS certain lines plus the class-A projects.
+   - `trans_path_expansion_limit.csv`:
+     - S0_tx and bill low: 0 for every interregional line except forced ones;
+     - bill central and high: 0 only for ERCOT ties.
+   - The scenario line includes `study_modules.tx_build_cap`.
+   - Bill cases except bronly: `prm_params.csv` has `prm_import_new_tx_allowance` 0.85.
+   - Headroom uprates in 2035:
+     - atts_reform: BILL_central, bronly and S1;
+     - atts_planned: BILL_low;
+     - atts_reform_techmax: BILL_high;
+     - atts_s0: S0_tx and txonly.
+   - Build rate in 2035: reform for central, bronly, S1 and high; central for low, txonly and S0_tx.
+3. Solve with recipe A's solver options.
+4. **Report** for each case:
+   - `tx_build_cap.csv`: intra-region and interregional TW-mi/yr against the cap, and the dual;
+   - interregional builds by transreg pair;
+   - `prm_summary.csv` import use;
+   - new gas/wind/solar/storage;
+   - CO2 and system cost.
+
+   Then run S0_tx against each bill case, and the txonly and bronly decomposition.
+5. **Mode-A chains** (`S0_tx`, `BILL_*`): as recipe C. In bill central from the 2035 stage (low from 2040; high from
+   2030 and again in 2035), the stage folder has `ic_scenario_switch.csv`. The previous stage's
+   `prepare_next_stage` writes `ic_uprates.chained.<case>.csv` with the new scenario's caps less what was built.
+
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 
 **Deferred** (Oct 2026): mode A is the production route for now. Keep this recipe for when mode B is

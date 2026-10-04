@@ -94,7 +94,10 @@ def test_settings_options_and_legacy():
     assert s0["forced_tx"] == "reeds_certain" and s0["forced_tx_expansion_limit"] == "minimum"
     ax = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))["settings_management"]["all_years"]
     assert ax["forced_tx"] == {"reeds_certain": {"s0_production": {"forced_tx": "reeds_certain"}},
-                               "named_projects": {"s0_production": {"forced_tx": "named_projects"}}, "legacy": None}
+                               "named_projects": {"s0_production": {"forced_tx": "named_projects"}},
+                               "reeds_certain_plus_A": {"s0_production": {"forced_tx": "reeds_certain_plus_A"}},
+                               "reeds_certain_plus_AB": {"s0_production": {"forced_tx": "reeds_certain_plus_AB"}},
+                               "legacy": None}
     leg = ax["s0_production"]["on_pgdays"]["s0_production"]
     assert leg["forced_tx"] == "named_projects" and leg["forced_tx_expansion_limit"] == "legacy"
     for opt, table in (("reeds_certain", "pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv"),
@@ -116,7 +119,9 @@ def test_settings_options_and_legacy():
     new = si[si.case_id == "s4x1_S0prod_2035_new"].iloc[0]
     assert [c for c in si.columns if a[c] != new[c]] == ["case_id"]
     assert set(si.loc[si.case_id == "s4x1_S0prod_2035", "forced_tx"]) == {"legacy"}
-    rest = si[~si.case_id.isin(["s4x1_S0prod_2035", "s4x1_S0prod_2035_txnamed"])]
+    bill = si.case_id.str.contains("S0_tx|BILL")                     # §60: the new S0 transmission baseline
+    assert (si[bill].forced_tx == "reeds_certain_plus_A").all()
+    rest = si[~si.case_id.isin(["s4x1_S0prod_2035", "s4x1_S0prod_2035_txnamed"]) & ~bill]
     assert (rest.forced_tx == "reeds_certain").all()                  # inert where s0_production is off
 
 

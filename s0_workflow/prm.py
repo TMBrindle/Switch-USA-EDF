@@ -50,7 +50,7 @@ DEFAULTS = {
                     "diag_dir": "prm"},
     "thermal_derate": {"method": "seasonal", "temperature_h5": None, "temperature_tz": "Etc/GMT+6",
                        "cold_c": -15, "hot_c": 35, "winter_months": [11, 12, 1, 2, 3], "summer_months": [5, 6, 7, 8, 9]},
-    "imports": {"mode": "flat", "relax_from": 2031, "relax_to": 2050},
+    "imports": {"mode": "flat", "relax_from": 2031, "relax_to": 2050, "new_tx_allowance": 0.0},
     "new_tx_derate": 0.15,
     "penalty": "central",
     "penalty_values": {"central": {"usd_per_kw_yr": 300.0, "dollar_year": 2028},
@@ -589,8 +589,12 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
         folder / "prm_gen_availability.csv", index=False)
     dollar_year = int(first.get("target_usd_year", 2024))
     pen, how = penalty_per_mw_yr(p, dollar_year)
-    pd.DataFrame({"prm_new_tx_derate": [float(p["new_tx_derate"])], "prm_shortfall_cost_per_mw_yr": [round(pen, 2)],
-                  "prm_import_cap_all_hours": [1]}).to_csv(folder / "prm_params.csv", index=False)
+    params = {"prm_new_tx_derate": [float(p["new_tx_derate"])], "prm_shortfall_cost_per_mw_yr": [round(pen, 2)],
+              "prm_import_cap_all_hours": [1]}
+    allowance = float(p["imports"].get("new_tx_allowance") or 0.0)
+    if allowance > 0:          # bill cases (§60): imports may also use this share of new interregional capacity
+        params["prm_import_new_tx_allowance"] = [allowance]
+    pd.DataFrame(params).to_csv(folder / "prm_params.csv", index=False)
     benchmark_rows(cfg).to_csv(folder / "prm_benchmarks.csv", index=False)
     log(f"prm regional: {len(set(regions.values()))} regions; margins "
         + "; ".join(f"{r.PRM_REGION} {r.PERIOD} {r.prm_margin:.4f} (RML {r.rml:.4f}, FOR_w {r.for_w:.4f})"

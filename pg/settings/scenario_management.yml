@@ -1329,6 +1329,10 @@ settings_management:
         s0_production: {forced_tx: reeds_certain}
       named_projects:
         s0_production: {forced_tx: named_projects}
+      reeds_certain_plus_A:
+        s0_production: {forced_tx: reeds_certain_plus_A}
+      reeds_certain_plus_AB:
+        s0_production: {forced_tx: reeds_certain_plus_AB}
       legacy: ~
     # Planning reserve design for S0 production cases (pg/settings/s0_production.yml prm; CHANGES §55). Inert unless
     # s0_production.enabled. Column `prm_design` in scenario_inputs.csv: regional for S0prod_A/B and
@@ -1339,6 +1343,61 @@ settings_management:
         s0_production: {prm: {design: regional}}
       legacy:
         s0_production: {prm: {design: legacy}}
+    # Transmission policy, headroom and build-rate paths, and reserve imports for the S0 transmission baseline and the
+    # transmission-bill scenarios (pg/settings/s0_production.yml tx_policy, levels_by_period, prm.imports; CHANGES §60;
+    # Guides and documentation/transmission_bill_scenarios.md). Inert unless s0_production.enabled. Column `tx_bill`
+    # in scenario_inputs.csv: legacy (sets nothing: today's behaviour) in every row that predates it.
+    tx_bill:
+      legacy: ~
+      s0_tx:
+        s0_production:
+          tx_policy: {mode: national_cap, moratorium_first_period: 2040, cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}}
+      bill_central:
+        s0_production:
+          tx_policy: {mode: national_cap, moratorium_first_period: 2035, cap_tw_mi_per_yr: {2028: 1.4, 2035: 3.0}}
+          levels_by_period:
+            interconnection_headroom: {2028: atts_planned, 2035: atts_reform}
+            build_rate: {2028: central, 2035: reform}
+          prm: {imports: {new_tx_allowance: 0.85}}
+      bill_low:
+        s0_production:
+          tx_policy: {mode: national_cap, moratorium_first_period: 2040, cap_tw_mi_per_yr: {2028: 1.4, 2035: 2.0}}
+          levels_by_period:
+            interconnection_headroom: {2028: atts_planned, 2040: atts_reform}
+            build_rate: {2028: central, 2040: reform}
+          prm: {imports: {new_tx_allowance: 0.85}}
+      bill_high:
+        s0_production:
+          tx_policy: {mode: national_cap, moratorium_first_period: 2035,
+                      cap_tw_mi_per_yr: {2028: 1.4, 2030: 2.0, 2035: 4.0}}
+          levels_by_period:
+            interconnection_headroom: {2028: atts_planned, 2030: atts_reform, 2035: atts_reform_techmax}
+            build_rate: {2028: central, 2030: reform}
+          prm: {imports: {new_tx_allowance: 0.85}}
+      # bill central, transmission pieces only (moratorium, cap, reserve imports); S0 headroom and build rate
+      bill_central_txonly:
+        s0_production:
+          tx_policy: {mode: national_cap, moratorium_first_period: 2035, cap_tw_mi_per_yr: {2028: 1.4, 2035: 3.0}}
+          prm: {imports: {new_tx_allowance: 0.85}}
+      # bill central, headroom and build-rate reforms only; S0 transmission (as s0_tx)
+      bill_central_bronly:
+        s0_production:
+          tx_policy: {mode: national_cap, moratorium_first_period: 2040, cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}}
+          levels_by_period:
+            interconnection_headroom: {2028: atts_planned, 2035: atts_reform}
+            build_rate: {2028: central, 2035: reform}
+    # Sensitivity hooks on the cases above (CHANGES §60). Column `tx_sens`: none (sets nothing) in every other row.
+    # Offshore wind approvals restored: the offshore_wind_policy column (capped_2025_released), not this axis.
+    tx_sens:
+      none: ~
+      forced_ab:                   # named projects of status classes A and B forced (with the ReEDS certain lines)
+        s0_production: {forced_tx: reeds_certain_plus_AB}
+      transfer_floor:              # minimum transfer capability by region pair (placeholder file until supplied)
+        s0_production: {tx_policy: {transfer_floor: pg/extra_inputs/transmission/tx_transfer_floor_placeholder.csv}}
+      tx_capex_x1_5:               # transmission capex x 1.5
+        s0_production: {tx_policy: {capex_multiplier: 1.5}}
+      br_high:                     # generator build rate "high" in every period
+        s0_production: {level_overrides: {build_rate: high}}
     # Fleet-independent sample shape for S0 production cases (pg/settings/s0_production.yml time_sampling.sample;
     # CHANGES §56). Inert unless the fleet-independent selector runs. Column `time_sample` in scenario_inputs.csv:
     # days24 (sets nothing: n_days single days) in every row but s4x1_S0prod_2035_fi4x3.
