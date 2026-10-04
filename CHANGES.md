@@ -2479,3 +2479,41 @@ new `forced_tx` values switch them per case. With `legacy` nothing changes, so t
   and the S0 default of 0.
 - The int64 guard is active throughout.
 - Results: s0_workflow 115; pandas 3.0.6 137 passed with build_rate; 1.4.4 136 passed and 1 skipped.
+
+## 61. S0 Production: Several Forced Projects on One Zone Pair
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts` · **See also:** `SHARED_CHANGES.md` #59, the bill guide
+
+**Problem:** the status-review list (2eb325d: 21 class-A and 42 class-B rows) has two zone pairs with two projects
+each:
+- p80–p105: #16 (A, 2030) and #42 (B, 2032);
+- p81–p83: #14 (A, 2029) and Coffeen North–Roxford (B, 2030).
+
+`transmission_tables` kept forced lines in a dict keyed by zone pair, so under `reeds_certain_plus_AB` the later row
+overwrote the earlier one.
+
+**Fix:** with a list of forced tables (the `_plus_*` options), a pair keeps all its rows from one table:
+- each project is forced in the period whose span holds its in-service year;
+- projects in the same period add up;
+- the minimum is cumulative (new capacity on the line up to the period, as `trans_build_minimum` counts it);
+- the forced-period cap (forced_tx_expansion_limit: minimum) is the period's own projects;
+- the national-cap rewrite (`tx_policy`) keeps that cap;
+- in a mode-A chain, the later stage's minimum less what the earlier stage built (`prepare_next_stage`) is that
+  period's projects again;
+- a later table's rows for a pair still replace an earlier table's.
+
+The single-table path (every other case) is unchanged.
+
+**Results:**
+- p81–p83: 2,146 MW in 2030;
+- p80–p105: 896 MW in 2030, then a minimum of 1,792 and a cap of 896 in 2035;
+- single-year 2035 versions: 2,146 and 1,792.
+
+**Tests** (`test_tx_policy.py` +2, with expected values derived from the committed file, so the coming VM correction
+keeps them valid):
+- the two pairs under `_AB` for a multi-period stage, every mode-A stage and the single-year version;
+- class A alone;
+- `_plus_A` byte-identical to 8f4a266 for those builds, with `_AB` differing only on the two pairs;
+- the national-cap rewrite and the chain subtraction.
+
+**Results:** s0_workflow 118. pandas 3.0.6: 140 passed with build_rate; 1.4.4: 139 passed and 1 skipped.

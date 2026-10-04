@@ -2759,11 +2759,11 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
             # pair replaces an earlier one
             classes = set(settings.get("forced_tx_status_classes") or [])
             parts = []
-            for fn in forced_fn:
+            for i, fn in enumerate(forced_fn):
                 part = pd.read_csv(script_dir / fn)
                 if "status_class" in part.columns:
                     part = part[part["status_class"].isna() | part["status_class"].isin(classes)]
-                parts.append(part)
+                parts.append(part.assign(_forced_source=i))
             forced = pd.concat(parts, ignore_index=True)
         else:
             forced = pd.read_csv(script_dir / forced_fn) if forced_fn else tx_conn
@@ -2772,6 +2772,10 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         # specific year (for minimum build constraint)
         planned_lines = set()  # frozenset({from_zone, to_zone}) with new_cap_mw > 0
         planned_with_year = {}  # same key -> (new_cap_mw, new_cap_year)
+        # several tables (S0 reeds_certain_plus_A / _AB): several projects may share a zone pair, so each pair
+        # keeps all its rows from one table, [(new_cap_mw, new_cap_year), ...]; a later table's rows for a pair
+        # replace an earlier table's (a status-review project replaces the ReEDS line on its pair)
+        multi_forced = "_forced_source" in forced.columns
         for _, row in forced.iterrows():
             new_mw = row.get("new_cap_mw")
             if pd.notna(new_mw) and float(new_mw) > 0:
@@ -2779,7 +2783,13 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
                 planned_lines.add(key)
                 yr = row.get("new_cap_year")
                 if pd.notna(yr):
-                    planned_with_year[key] = (float(new_mw), int(yr))
+                    if multi_forced:
+                        src = row["_forced_source"]
+                        if key not in planned_with_year or planned_with_year[key][0] != src:
+                            planned_with_year[key] = (src, [])
+                        planned_with_year[key][1].append((float(new_mw), int(yr)))
+                    else:
+                        planned_with_year[key] = (float(new_mw), int(yr))
 
         # Inject purely-new lines (existing_cap_mw == 0, new_cap_mw > 0) that
         # PowerGenome omits because they have no existing infrastructure.
@@ -2853,10 +2863,28 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
         # Elsewhere _chain_years is absent and this is the first model year at or after it, as before.
         chain_years = settings.get("_chain_years") or model_years
         if settings.get("build_minimum_policy", "yes") == "yes":
-            for key, (new_cap_mw, new_cap_year) in planned_with_year.items():
+            for key, value in planned_with_year.items():
                 tx_id = tx_line_lookup.get(key)
                 if tx_id is None:
                     continue
+                if multi_forced:
+                    # each project in the chain period whose span holds its in-service year; the minimum is
+                    # cumulative (new capacity on the line up to the period, as trans_build_minimum counts it:
+                    # projects in the same period add up, a later period's includes the earlier ones, which a
+                    # chained stage has already built and prepare_next_stage subtracts), and the forced-period
+                    # cap (_limit_mw) is the period's own projects
+                    forced_at = [(mw, s0prod.forced_tx_period(yr, chain_years, chain_years)) for mw, yr in value[1]]
+                    for period in sorted({p for _, p in forced_at if p is not None and p in model_years}):
+                        trans_build_minimum_rows.append(
+                            {
+                                "TRANSMISSION_LINE": tx_id,
+                                "PERIOD": period,
+                                "trans_build_minimum_mw": sum(mw for mw, p in forced_at if p is not None and p <= period),
+                                "_limit_mw": sum(mw for mw, p in forced_at if p == period),
+                            }
+                        )
+                    continue
+                new_cap_mw, new_cap_year = value
                 period = s0prod.forced_tx_period(new_cap_year, chain_years, model_years)
                 if period is None:
                     continue
@@ -3079,7 +3107,7 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
 
     if cap_forced and trans_build_minimum_rows:
         fmin = {
-            (r["TRANSMISSION_LINE"], r["PERIOD"]): r["trans_build_minimum_mw"]
+            (r["TRANSMISSION_LINE"], r["PERIOD"]): r.get("_limit_mw", r["trans_build_minimum_mw"])
             for r in trans_build_minimum_rows
         }
         lim = (

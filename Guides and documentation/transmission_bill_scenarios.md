@@ -140,6 +140,16 @@ supplied" until it has class-A rows.
 - **Options:** `reeds_certain_plus_A` forces the ReEDS certain lines plus the class-A rows; `reeds_certain_plus_AB`
   adds class B.
 - **Same zone pair:** a status-review row for a pair already in the ReEDS table replaces it.
+- **Several projects on one pair** (CHANGES §61): each is forced in the period whose span holds its in-service year.
+  - Projects in the same period add up.
+  - The minimum is cumulative (`trans_build_minimum` counts new capacity up to the period).
+  - The forced-period cap is that period's own projects. In a chain, the later stage's minimum less what the earlier
+    stage built (`prepare_next_stage`) is that period's projects again.
+  - In 2eb325d, `_AB` has two such pairs:
+    - p81–p83: #14 (A) and Coffeen North–Roxford (B), both in 2030, so the MW add up;
+    - p80–p105: #16 (A) in 2030, then #42 (B) in 2035.
+
+    Class A has none, so `_plus_A` is unchanged.
 - **The build stops** if the file has no rows of the classes asked for, a row's MW basis is wrong, or a required
   field is missing.
 

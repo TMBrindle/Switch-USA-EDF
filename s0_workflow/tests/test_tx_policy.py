@@ -183,12 +183,17 @@ def test_capex_multiplier_and_transfer_floor(tmp_path):
 def test_forced_tx_plus_status_review_classes(tmp_path):
     from s0_workflow import production as s0prod
     from test_forced_tx import build
-    # the committed placeholder has the agreed columns and no rows: the plus options stop until the list arrives
+    # the committed list has the agreed columns and passes the checks (class A and B rows)
     ph = pd.read_csv(REPO / s0prod.STATUS_REVIEW_TABLE)
-    assert list(ph.columns) == s0prod.STATUS_REVIEW_COLUMNS and ph.empty
+    assert list(ph.columns) == s0prod.STATUS_REVIEW_COLUMNS and {"A", "B"} <= set(ph.status_class)
+    for opt in ("reeds_certain_plus_A", "reeds_certain_plus_AB"):
+        s0prod.apply_forced_tx({}, {"forced_tx": opt})
+    # an empty list (the placeholder before 2eb325d) stops the build
+    empty = tmp_path / "empty.csv"
+    pd.DataFrame(columns=s0prod.STATUS_REVIEW_COLUMNS).to_csv(empty, index=False)
     for opt in ("reeds_certain_plus_A", "reeds_certain_plus_AB"):
         with pytest.raises(ValueError, match="placeholder"):
-            s0prod.apply_forced_tx({}, {"forced_tx": opt})
+            s0prod.apply_forced_tx({}, {"forced_tx": opt, "forced_tx_status_review": str(empty)})
     f = tmp_path / "status.csv"
     rows = [{"from_zone": "p1", "to_zone": "p2", "project_name": "projA", "status_class": "A", "new_cap_mw": 1500.0,
              "mw_basis": "transfer_capability", "new_cap_year": 2029, "trans_length_km": 120.0, "trans_efficiency": 0.98,
@@ -307,3 +312,120 @@ def test_bill_case_rows():
     # every older row: legacy / none
     old = si[~si.case_id.str.contains("S0_tx|BILL")]
     assert (old.tx_bill == "legacy").all() and (old.tx_sens == "none").all()
+
+
+def _forced_files(tmp_path, out_dir, years, chain, classes, source=None, **kw):
+    """trans_build_minimum / trans_path_expansion_limit (as {(pair, period): MW}) of a reeds_certain_plus_* stage built
+    from the committed status-review file."""
+    from s0_workflow import production as s0prod
+    from test_forced_tx import build
+    (tmp_path / out_dir).mkdir(exist_ok=True)
+    extra = {"_chain_years": chain} if chain else {}
+    out = build(tmp_path / out_dir, years=years, source=source or REPO / "pg_to_switch.py",
+                forced_tx_table=["pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv",
+                                 s0prod.STATUS_REVIEW_TABLE],
+                forced_tx_status_classes=classes, forced_tx_expansion_limit="minimum", **extra, **kw)
+    names = _names(out)
+    bm = pd.read_csv(out / "trans_build_minimum.csv") if (out / "trans_build_minimum.csv").exists() else None
+    lim = pd.read_csv(out / "trans_path_expansion_limit.csv")
+    m = {} if bm is None else {(names[a], b): v for a, b, v in zip(bm.TRANSMISSION_LINE, bm.PERIOD, bm.trans_build_minimum_mw)}
+    L = {(names[a], b): v for a, b, v in zip(lim.TRANSMISSION_LINE, lim.PERIOD, lim.trans_path_expansion_limit_mw)}
+    return out, m, L
+
+
+def test_several_projects_on_one_pair(tmp_path):
+    """reeds_certain_plus_AB: two zone pairs have two projects each (p81-p83: #14 class A and Coffeen North-Roxford
+    class B, both in the 2030 period; p80-p105: #16 class A in 2030 and #42 class B in 2035). Projects in the same
+    period add up; projects in different periods are each forced in their own period. The minimum is cumulative
+    (trans_build_minimum counts new capacity up to the period); the forced-period cap is the period's own projects.
+    Expected values come from the committed file, so a correction to its MW or years keeps the test valid."""
+    from s0_workflow import production as s0prod
+    sr = pd.read_csv(REPO / "pg/extra_inputs/transmission/forced_tx_status_review.csv")
+    sr["pair"] = ["-".join(sorted([a, b], key=lambda z: int(z[1:]))) for a, b in zip(sr.from_zone, sr.to_zone)]
+    two = sr[sr.pair.duplicated(keep=False)]
+    assert set(two.pair) == {"p81-p83", "p80-p105"}
+    assert all(sorted(g.status_class) == ["A", "B"] for _, g in two.groupby("pair"))
+    chain = [2028, 2030, 2035, 2040, 2045]
+
+    def expected(pair, classes, ch, stage):
+        rows = [(mw, s0prod.forced_tx_period(yr, ch, ch)) for mw, yr, c in
+                zip(two[two.pair == pair].new_cap_mw, two[two.pair == pair].new_cap_year, two[two.pair == pair].status_class)
+                if c in classes]
+        return {(pair, p): (sum(mw for mw, q in rows if q is not None and q <= p), sum(mw for mw, q in rows if q == p))
+                for p in sorted({q for _, q in rows if q is not None and q in stage})}
+
+    per = {pr: {s0prod.forced_tx_period(y, chain, chain) for y in two[two.pair == pr].new_cap_year} for pr in set(two.pair)}
+    assert len(per["p81-p83"]) == 1 and len(per["p80-p105"]) == 2          # one shared period; two different ones
+    for name, years, ch in (("f", chain, chain), ("s", [2035], [2035])):
+        _, m, L = _forced_files(tmp_path, name, years, ch, ["A", "B"])
+        got = {k: (m[k], L[k]) for k in m if k[0] in ("p81-p83", "p80-p105")}
+        want = {**expected("p81-p83", "AB", ch, years), **expected("p80-p105", "AB", ch, years)}
+        assert got == want, (name, got, want)
+        if name == "f":                                               # summed in one period / cumulative over two
+            mw = dict(zip(zip(two.pair, two.status_class), two.new_cap_mw))
+            assert got[("p81-p83", 2030)] == (mw[("p81-p83", "A")] + mw[("p81-p83", "B")],) * 2
+            p1, p2 = sorted(per["p80-p105"])
+            first = [mw[("p80-p105", c)] for c in "AB"
+                     if s0prod.forced_tx_period(int(two[(two.pair == "p80-p105") & (two.status_class == c)].new_cap_year.iloc[0]),
+                                                chain, chain) == p1][0]
+            assert got[("p80-p105", p1)] == (first, first)
+            assert got[("p80-p105", p2)] == (mw[("p80-p105", "A")] + mw[("p80-p105", "B")],
+                                             mw[("p80-p105", "A")] + mw[("p80-p105", "B")] - first)
+    # mode A: each stage forces the projects of its own period
+    for y in chain:
+        _, m, L = _forced_files(tmp_path, f"a{y}", [y], chain, ["A", "B"])
+        got = {k: (m[k], L[k]) for k in m if k[0] in ("p81-p83", "p80-p105")}
+        assert got == {**expected("p81-p83", "AB", chain, [y]), **expected("p80-p105", "AB", chain, [y])}, y
+    # class A only: one project per pair, as before
+    _, m, L = _forced_files(tmp_path, "fa", chain, chain, ["A"])
+    got = {k: (m[k], L[k]) for k in m if k[0] in ("p81-p83", "p80-p105")}
+    assert got == {**expected("p81-p83", "A", chain, chain), **expected("p80-p105", "A", chain, chain)}
+    assert all(a == b for a, b in got.values())
+
+
+def test_plus_A_unchanged_by_the_multi_project_merge(tmp_path):
+    """reeds_certain_plus_A builds byte-identical forced-line files with the code before this change (8f4a266), for a
+    multi-period stage, mode-A stages and the single-year version; plus_AB differs only on the two shared pairs."""
+    old = tmp_path / "old_pg_to_switch.py"
+    old.write_text(subprocess.run(["git", "show", "8f4a266:pg_to_switch.py"], cwd=REPO, capture_output=True, text=True,
+                                  check=True).stdout)
+    chain = [2028, 2030, 2035, 2040, 2045]
+    for years, ch in ((chain, chain), ([2030], chain), ([2035], chain), ([2035], [2035])):
+        a, *_ = _forced_files(tmp_path, "o", years, ch, ["A"], source=old)
+        b, *_ = _forced_files(tmp_path, "n", years, ch, ["A"])
+        for f in ("trans_build_minimum.csv", "trans_path_expansion_limit.csv", "transmission_lines.csv"):
+            assert (a / f).read_bytes() == (b / f).read_bytes(), (years, ch, f)
+        _, mo, Lo = _forced_files(tmp_path, "oab", years, ch, ["A", "B"], source=old)
+        _, mn, Ln = _forced_files(tmp_path, "nab", years, ch, ["A", "B"])
+        diff = {k[0] for k in set(mo) | set(mn) if mo.get(k) != mn.get(k)} | \
+            {k[0] for k in set(Lo) | set(Ln) if Lo.get(k) != Ln.get(k)}
+        assert diff <= {"p81-p83", "p80-p105"} and (diff or years == [2028]), (years, ch, diff)
+
+
+def test_multi_project_pair_in_national_cap_and_chain(tmp_path):
+    """The national-cap rewrite keeps the forced-period cap at the period's own projects, and in a chain the
+    cumulative minimum less what earlier stages built is the period's own projects again (prepare_next_stage)."""
+    import importlib.util
+    chain = [2028, 2030, 2035, 2040, 2045]
+    out, m, _ = _forced_files(tmp_path, "nc", [2035], chain, ["A", "B"])
+    pd.DataFrame({"INVESTMENT_PERIOD": [2035]}).to_csv(out / "periods.csv", index=False)
+    tx_policy.write_case_inputs(out, {"tx_policy": SETTINGS["bill_central"]},
+                                {2035: {"forced_tx_expansion_limit": "minimum"}}, lambda x: None)
+    names = _names(out)
+    lim = pd.read_csv(out / "trans_path_expansion_limit.csv")
+    L = {(names[a], b): v for a, b, v in zip(lim.TRANSMISSION_LINE, lim.PERIOD, lim.trans_path_expansion_limit_mw)}
+    assert m[("p80-p105", 2035)] == 1792.0 and L[("p80-p105", 2035)] == 896.0
+    # chain: the 2030 stage built 896 MW on p80-p105 (and 2,146 on p81-p83); the 2035 stage's chained files
+    spec = importlib.util.spec_from_file_location("pns", REPO / "switch/study_modules/prepare_next_stage.py")
+    pns = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pns)
+    line = {v: k for k, v in names.items()}
+    inp, nxt = tmp_path / "in", out
+    inp.mkdir()
+    built = pd.DataFrame({"TRANSMISSION_LINE": [line["p80-p105"], line["p81-p83"]], "BuildTx": [896.0, 2146.0]})
+    pns.chain_forced_tx(inp, nxt, built, lambda *q: Path(Path(*q).parent, f"{Path(*q).stem}.chained.c{Path(*q).suffix}"),
+                        lambda q: pd.read_csv(q, na_values=["."]), lambda df, q: df.to_csv(q, index=False, na_rep="."))
+    cm = pd.read_csv(nxt / "trans_build_minimum.chained.c.csv")
+    cl = pd.read_csv(nxt / "trans_path_expansion_limit.chained.c.csv")
+    assert cm.set_index("TRANSMISSION_LINE").at[line["p80-p105"], "trans_build_minimum_mw"] == 896.0
+    assert cl.set_index(["TRANSMISSION_LINE", "PERIOD"]).at[(line["p80-p105"], 2035), "trans_path_expansion_limit_mw"] == 896.0

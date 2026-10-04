@@ -115,6 +115,13 @@ def _national_cap(folder, t, first, tl, cls, years, log):
         fmin = {(str(a), int(b)): float(v) for a, b, v in
                 zip(bm.TRANSMISSION_LINE, bm.PERIOD, bm.trans_build_minimum_mw)}
     cap_forced = first.get("forced_tx_expansion_limit") == "minimum"
+    if cap_forced and (folder / "trans_path_expansion_limit.csv").exists():
+        # the forced-period cap pg_to_switch wrote: the period's own projects (the minimum is cumulative when a
+        # line has projects in several periods)
+        lim0 = pd.read_csv(folder / "trans_path_expansion_limit.csv")
+        cap0 = {(str(a), int(b)): float(v) for a, b, v in
+                zip(lim0.TRANSMISSION_LINE, lim0.PERIOD, lim0.trans_path_expansion_limit_mw)}
+        fmin = {k: cap0.get(k, v) for k, v in fmin.items()}
     c = cls.set_index("TRANSMISSION_LINE")
     inter = c.tx_cap_class == "inter"
     blocked = tl.TRANSMISSION_LINE.isin(c.index[inter]) & (tl.trans_new_build_allowed != 1)

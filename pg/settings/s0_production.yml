@@ -206,7 +206,8 @@ s0_production:
   forced_tx_release: "2026.09.21"
   # status-review projects, one row per project: from_zone, to_zone (model zones), project_name, status_class (A|B),
   # new_cap_mw (MW of transfer capability), mw_basis (must be transfer_capability), new_cap_year (in-service year),
-  # trans_length_km, trans_efficiency, source, notes. A row for a zone pair already in the ReEDS table replaces it.
+  # trans_length_km, trans_efficiency, source, notes. A row for a zone pair already in the ReEDS table replaces it;
+  # several rows on one pair are each forced in their own period (same period: MW add up; §61).
   forced_tx_status_review: pg/extra_inputs/transmission/forced_tx_status_review.csv
   # forced lines' trans_path_expansion_limit (pg_to_switch transmission_tables):
   #   minimum (S0 default) their trans_build_minimum_mw in the period they are forced, the case's rule otherwise
