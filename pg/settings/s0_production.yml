@@ -290,6 +290,13 @@ s0_production:
   # sensitivity: one level in every period, over levels_by_period (e.g. {build_rate: high})
   level_overrides: {}
 
+  # demand response (CHANGES §64): study_modules.demand_response_investment on the scenario line (3% of zone load
+  # shiftable within each day, $43/kW-yr for what is deployed; inputs dr_data.csv / dr_annual_cost.csv from
+  # adjust/add_dr_info.py, written for every case). With the regional reserve it counts at its dispatch in the stress
+  # hours (through served load) and is reported as class "dr". Off: S0 cases have had no demand response so far.
+  demand_response:
+    enabled: false
+
   # item 6: extra Switch modules on the case's scenario line (not switch/modules.txt)
   extra_modules: [study_modules.gen_amortization_period]
 

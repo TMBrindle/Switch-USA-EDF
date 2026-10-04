@@ -621,7 +621,20 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
    - `prm_zone_hours.csv`: requirement, local credit, net inflow, dual, and price in $/kW-yr.
    - `prm_region_hours.csv`: margin achieved = (local + net imports) / load − 1, import use, and import-cap duals.
    - `prm_summary.csv`: by region and period, the minimum margin achieved, the hour, the maximum import use and the
-     reserve price.
+     reserve price (§64).
+     - **Zone price:** each zone's price is the sum over the period's stress hours of its requirement's dual, in
+       $/kW-yr (`prm_zone_prices.csv`). The zone's shortfall slack is one MW figure per period. It appears in every
+       stress-hour constraint and costs the penalty once a year, so the price is at most the penalty, and equals it
+       when the zone is short.
+     - **Region price:** `reserve_price_usd_per_kw_yr` is the zones' prices weighted by their peak load. The highest
+       zone price and that zone are given too.
+     - **Before §64** the region figure summed the hourly duals over all its zones. That is not a price: PJM showed
+       $2,555/kW-yr against a $271.8 penalty.
+   - **Demand response:** `demand_response_investment` counts at its dispatch in the stress hours, through served
+     load, and appears as class `dr` in `prm_capacity_credit.csv`. S0 cases include it only with
+     `s0_production.demand_response.enabled` (off). PowerGenome's `load_growth` / `us_exports` virtual generators
+     (energy source `demand_response`) are load curtailment switched off in S0, so they get no credit (class
+     `flex_load`).
    - `prm_capacity_credit.csv`: implied capacity credit by class and region, Σ_t |dual_t| × credited MW_t /
      (Σ_t |dual_t| × capacity). It is blank when no stress hour has a price. Next to it are PJM 2029/30, NYISO
      2026/27 (ROS and NYC), ISO-NE preliminary (summer and winter) and SPP 2024 (summer and winter) values from the

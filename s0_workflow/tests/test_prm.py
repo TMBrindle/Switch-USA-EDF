@@ -99,7 +99,7 @@ def test_forced_outage_classes_and_seasonal_mapping():
     c = prm.classify(gi).set_index("GENERATION_PROJECT")
     assert c.at["p1_batteries_1", "prm_credit"] == "storage" and c.at["p1_batteries_1", "prm_class"] == "storage_4h"
     assert c.at["p10_hydroelectric_pumped_storage_1", "prm_class"] == "pumped_storage"
-    assert c.at["p1_load_growth_1", "prm_credit"] == "dispatch" and c.at["p1_load_growth_1", "prm_class"] == "dr"
+    assert c.at["p1_load_growth_1", "prm_credit"] == "none" and c.at["p1_load_growth_1", "prm_class"] == "flex_load"
     assert c.at["p1_imports_base_base_1", "prm_credit"] == "dispatch"
     assert tuple(c.loc["p1_distributed_generation_1", ["prm_credit", "prm_class"]]) == ("variable", "solar")
     assert tuple(c.loc["p1_other_peaker_1", ["prm_credit", "prm_class"]]) == ("capacity", "gas_ct")
@@ -314,7 +314,7 @@ GI_COLS = ["GENERATION_PROJECT", "gen_tech", "gen_load_zone", "gen_connect_cost_
 
 
 def mini_case(tmp_path, name, gens, loads, lines, regions, periods_rows, credit, params, stress_hours=(6, 6, 6, 6),
-              cf=None, storage=False, new_tx=False, built_before=None):
+              cf=None, storage=False, new_tx=False, built_before=None, modules=(), extra=None):
     """A one-period (2020) toy: timeseries 2020_norm (weighted, 2 x 12 h) and 2020_stress (zero weight, 4 x 6 h).
     gens: (name, zone, kind, MW[, MWh]) with kind thermal | backup | wind | storage; loads: {zone: ([norm x2],
     [stress x4])}; lines: (name, z1, z2, MW, efficiency)."""
@@ -387,8 +387,13 @@ def mini_case(tmp_path, name, gens, loads, lines, regions, periods_rows, credit,
                          ).to_csv(inp / "trans_built_to_date.csv", index=False)
         for f in ("zone_coincident_peak_demand.csv",):
             (inp / f).unlink(missing_ok=True)
-    run = toy_inputs(tmp_path, name, ["prm_regional"], edit)
-    return solve(run, extra=("--include-module", "mods.prm_regional"))
+        if extra is not None:
+            extra(inp, tps)
+    run = toy_inputs(tmp_path, name, ["prm_regional", *modules], edit)
+    args = ["--include-module", "mods.prm_regional"]
+    for mod in modules:
+        args += ["--include-module", f"mods.{mod}"]
+    return solve(run, extra=tuple(args))
 
 
 PEN = {"prm_new_tx_derate": 0.15, "prm_shortfall_cost_per_mw_yr": 1e6, "prm_import_cap_all_hours": 1}
@@ -557,3 +562,88 @@ def test_import_allowance_setting_in_prm_params(tmp_path):
     import yaml
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
     assert float(s0["prm"]["imports"].get("new_tx_allowance", 0.0)) == 0.0          # S0: historical shares only
+
+
+def test_toy_shortfall_costs_the_penalty_once_and_price_within_it(tmp_path):
+    """One shortfall slack per zone and period (MW), in every stress-hour constraint, costing the penalty once a
+    year: deficits of 2, 4, 3 and 1 MW in the four stress hours give a shortfall of 4 MW (not 10) and an annual cost of
+    4 x the penalty. Each zone's reserve price (the sum of its stress-hour duals, $/kW-yr) equals the penalty when
+    short and never exceeds it; the region's price is the peak-weighted mean of its zones' prices, not their sum."""
+    gens = BACKUP + [("N-th", "North", "thermal", 6), ("C-th", "Central", "thermal", 6)]
+    loads = {"North": ([5, 5], [8, 10, 9, 7]), "Central": ([5, 5], [8, 10, 9, 7]), "South": ([1, 1], [1, 1, 1, 1])}
+    reg = {"North": "A", "Central": "A"}
+    per = [{"PRM_REGION": "A", "PERIOD": 2020, "prm_margin": 0.0, "prm_import_share": "."}]
+    lines = [("N-C", "North", "Central", 0, 1.0), ("C-S", "Central", "South", 0, 1.0)]
+    out = mini_case(tmp_path, "once", gens, loads, lines, reg, per, {}, PEN)
+    sf = _read(out, "prm_shortfall.csv").set_index("PRM_REGION")
+    assert sf.at["A", "shortfall_mw"] == pytest.approx(8.0, abs=1e-6)                 # 4 MW in each of two zones
+    assert sf.at["A", "annual_cost"] == pytest.approx(8.0 * PEN["prm_shortfall_cost_per_mw_yr"])
+    zp = _read(out, "prm_zone_prices.csv").set_index("LOAD_ZONE")
+    penalty_kw = PEN["prm_shortfall_cost_per_mw_yr"] / 1000
+    assert zp.at["North", "shortfall_mw"] == pytest.approx(4.0, abs=1e-6)
+    assert zp.price_usd_per_kw_yr.tolist() == pytest.approx([penalty_kw, penalty_kw], rel=1e-6)
+    sm = _read(out, "prm_summary.csv").set_index("PRM_REGION")
+    assert sm.at["A", "reserve_price_usd_per_kw_yr"] == pytest.approx(penalty_kw, rel=1e-6)    # not 2 x
+    assert sm.at["A", "max_zone_price_usd_per_kw_yr"] == pytest.approx(penalty_kw, rel=1e-6)
+    zh = _read(out, "prm_zone_hours.csv")
+    assert zh[zh.LOAD_ZONE == "North"].price_usd_per_kw_yr.max() == pytest.approx(penalty_kw, rel=1e-6)  # binds once
+    # enough capacity: no shortfall, price below the penalty
+    gens2 = BACKUP + [("N-th", "North", "thermal", 12), ("C-th", "Central", "thermal", 12)]
+    out2 = mini_case(tmp_path, "none", gens2, loads, lines, reg, per, {}, PEN)
+    assert _read(out2, "prm_shortfall.csv").shortfall_mw.max() == pytest.approx(0, abs=1e-6)
+    assert (_read(out2, "prm_zone_prices.csv").price_usd_per_kw_yr <= penalty_kw + 1e-6).all()
+
+
+def test_toy_demand_response_counts_in_stress_hours(tmp_path):
+    """Demand response (study_modules.demand_response_investment) counts at its dispatch: North is 2 MW short in the
+    first stress hour and has room in the others; with 3 MW of shift-down DR it shifts 2 MW out of that hour (net zero
+    over the stress day) and the shortfall is 0. dr_data covers the stress hours; the credit table has a "dr" row."""
+    gens = BACKUP + [("N-th", "North", "thermal", 8), ("C-th", "Central", "thermal", 100)]
+    loads = {"North": ([5, 5], [10, 6, 6, 6]), "Central": ([5, 5], [5, 5, 5, 5]), "South": ([1, 1], [1, 1, 1, 1])}
+    reg = {"North": "A"}
+    per = [{"PRM_REGION": "A", "PERIOD": 2020, "prm_margin": 0.0, "prm_import_share": "."}]
+    lines = [("N-C", "North", "Central", 0, 1.0), ("C-S", "Central", "South", 0, 1.0)]
+
+    def dr(inp, tps):
+        # no local T&D cost here: its capacity must cover every timepoint, stress hours included, which would make
+        # shaving the stress peak with DR worth more than the reserve alone and the shift non-unique
+        lz = pd.read_csv(inp / "load_zones.csv")
+        lz["local_td_annual_cost_per_mw"] = 0.0
+        lz.to_csv(inp / "load_zones.csv", index=False)
+        pd.DataFrame([{"LOAD_ZONE": z, "TIMEPOINT": t, "dr_shift_down_limit": 3.0 if z == "North" else 0.0,
+                       "dr_shift_up_limit": 24.0 if z == "North" else 0.0}
+                      for z in ("North", "Central", "South") for t in tps]).to_csv(inp / "dr_data.csv", index=False)
+        # deploying all of a zone's DR costs $1,000/yr (well under the shortfall penalty): the cheapest plan deploys
+        # just enough, 2 of the 3 MW
+        pd.DataFrame([{"LOAD_ZONE": z, "PERIOD": 2020, "dr_annual_cost": 1000.0} for z in ("North", "Central", "South")]
+                     ).to_csv(inp / "dr_annual_cost.csv", index=False)
+
+    out0 = mini_case(tmp_path, "nodr", gens, loads, lines, reg, per, {}, PEN)
+    assert _read(out0, "prm_shortfall.csv").shortfall_mw.max() == pytest.approx(2.0, abs=1e-6)
+    out = mini_case(tmp_path, "dr", gens, loads, lines, reg, per, {}, PEN, modules=["demand_response_investment"],
+                    extra=dr)
+    assert _read(out, "prm_shortfall.csv").shortfall_mw.max() == pytest.approx(0, abs=1e-6)
+    zh = _read(out, "prm_zone_hours.csv")
+    first = zh[zh.LOAD_ZONE == "North"].sort_values("TIMEPOINT").iloc[0]
+    assert first.served_load_mw == pytest.approx(8.0, abs=1e-6)                  # 10 MW less the 2 MW shifted out
+    cc = _read(out, "prm_capacity_credit.csv").set_index("prm_class")
+    assert cc.at["dr", "capacity_mw"] == pytest.approx(2.0, abs=1e-6)             # 2/3 of the 3 MW deployed
+    assert cc.at["dr", "implied_capacity_credit"] == pytest.approx(1.0, abs=1e-6)
+
+
+def test_flexible_demand_virtual_generators_get_no_credit():
+    """PowerGenome's load_growth / us_exports virtual generators (energy source demand_response) are load curtailment
+    switched off in S0 (annual availability 0); annual limits don't bind in zero-weight stress hours, so they get no
+    reserve credit and their own class (not compared with the ISO DR benchmarks)."""
+    assert prm.gen_class("load_growth", "demand_response", 1, False) == ("none", "flex_load", None)
+    assert prm.gen_class("us_exports", "demand_response", 1, False) == ("none", "flex_load", None)
+
+
+def test_demand_response_setting():
+    import yaml
+    s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
+    assert s0["demand_response"] == {"enabled": False}
+    on = dict(s0, enabled=True, demand_response={"enabled": True})
+    assert "--include-module study_modules.demand_response_investment" in s0prod.scenario_options({"s0_production": on})
+    off = dict(s0, enabled=True)
+    assert "demand_response_investment" not in s0prod.scenario_options({"s0_production": off})

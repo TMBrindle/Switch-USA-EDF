@@ -693,4 +693,7 @@ def scenario_options(settings: dict) -> str:
         mods.append("study_modules.build_rules")
     if tx_policy.needs_module(s0) and "study_modules.tx_build_cap" not in mods:
         mods.append("study_modules.tx_build_cap")
+    # demand response (3% shiftable load at $43/kW-yr deployed; adjust/add_dr_info.py writes its inputs for every case)
+    if (s0.get("demand_response") or {}).get("enabled") and "study_modules.demand_response_investment" not in mods:
+        mods.append("study_modules.demand_response_investment")
     return "".join(f"--include-module {m} " for m in mods) + prm.scenario_options(s0)

@@ -511,6 +511,11 @@ requirement".
    - `prm_shortfall.csv`: MW by region; expect 0 or small. A large shortfall means a region can't build enough.
    - `prm_summary.csv`: by region, the target margin, minimum margin achieved and at which stress hour, maximum
      import use (1.0 = at the cap), and reserve price ($/kW-yr).
+     - **Regional price:** the peak-load-weighted mean of the zone prices in `prm_zone_prices.csv`. Each zone price
+       is the sum of its stress-hour duals, at most the shortfall penalty ($271.8/kW-yr) and equal to it where a zone
+       is short. Any price above the penalty means a build from before §64.
+     - **`dr` row:** it appears only when demand response is on (`s0_production.demand_response.enabled`; off by
+       default). Class `flex_load` is PowerGenome's switched-off load curtailment, with no credit.
    - `prm_capacity_credit.csv`: implied capacity credit by class and region, next to the PJM, NYISO, ISO-NE and SPP
      columns.
    - `prm_region_hours.csv`: which stress days bind. A price on a day means it binds.

@@ -181,7 +181,11 @@ def gen_class(tech: str, source: str, is_variable, is_storage: bool, duration=No
         d = float(duration) if duration is not None and pd.notna(duration) else 4.0
         return "storage", f"storage_{min((4, 6, 8, 10), key=lambda x: abs(x - d))}h", None
     if s == "demand_response":
-        return "dispatch", "dr", None
+        # PowerGenome's flexible-demand virtual generators (load_growth, us_exports): curtailment of added load, off
+        # in S0 (annual availability 0). Annual limits don't bind in zero-weight stress hours, so crediting their
+        # dispatch would give free reserve: no credit. Demand response proper is ShiftDemand
+        # (demand_response_investment), credited through served load and reported as class "dr".
+        return "none", "flex_load", None
     if s == "imports":
         return "dispatch", "imports", None
     if s == "water" or "hydro" in t:

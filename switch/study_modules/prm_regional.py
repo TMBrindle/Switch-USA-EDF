@@ -44,7 +44,8 @@ stress days include each region's peak days). A blank share means no cap.
 Shortfall: PrmZoneShortfall[z, p] (MW, applies to every stress timepoint of the period) at
 prm_shortfall_cost_per_mw_yr in each year of the period; PrmShortfall[r, p] sums a region's zones.
 
-Outputs (post_solve): prm_shortfall.csv, prm_zone_hours.csv (with duals), prm_region_hours.csv
+Outputs (post_solve): prm_shortfall.csv, prm_zone_hours.csv (with hourly duals), prm_zone_prices.csv
+(reserve price by zone: the sum of its stress-hour duals, $/kW-yr, <= the penalty), prm_region_hours.csv
 (margin achieved, import use, import-cap duals), prm_summary.csv and prm_capacity_credit.csv
 (implied capacity credit by class and region against the benchmarks in prm_benchmarks.csv). Duals
 need the `dual` suffix (switch/modules.txt's write_dual_costs declares it for every run) and an LP solution with duals (Gurobi barrier
@@ -296,7 +297,9 @@ def define_dynamic_components(m):
             return m.prm_td_multiplier[z] * sum(
                 getattr(m, c)[z, t] for c in m.Distributed_Power_Withdrawals
             )
-        return m.zone_demand_mw[z, t]
+        # without local_td: demand plus demand-response shifting (demand_response_investment registers ShiftDemand
+        # at the zone's central node then), so DR counts at its dispatch in either case
+        return m.zone_demand_mw[z, t] + (m.ShiftDemand[z, t] if hasattr(m, "ShiftDemand") else 0)
 
     m.PrmServedLoad = Expression(m.LOAD_ZONES, m.PRM_TPS, rule=served_load)
 
@@ -421,6 +424,17 @@ def _dual(m, con, idx):
         return float("nan")
 
 
+def _region_price(zp, r, p):
+    x = zp[(zp.PRM_REGION == r) & (zp.PERIOD == p)] if len(zp) else zp
+    if not len(x) or x.peak_served_load_mw.sum() <= 0:
+        return {"reserve_price_usd_per_kw_yr": float("nan"), "max_zone_price_usd_per_kw_yr": float("nan"),
+                "max_price_zone": ""}
+    top = x.loc[x.price_usd_per_kw_yr.idxmax()]
+    return {"reserve_price_usd_per_kw_yr": (x.price_usd_per_kw_yr * x.peak_served_load_mw).sum()
+            / x.peak_served_load_mw.sum(),
+            "max_zone_price_usd_per_kw_yr": top.price_usd_per_kw_yr, "max_price_zone": top.LOAD_ZONE}
+
+
 def post_solve(m, outputs_dir):
     to_kw_yr = lambda dual, p: dual / value(m.bring_annual_costs_to_base_year[p]) / 1000.0  # noqa: E731
     has_duals = hasattr(m, "dual") and len(m.dual) > 0
@@ -462,6 +476,22 @@ def post_solve(m, outputs_dir):
         )
     zh = pd.DataFrame(zrows)
     zh.to_csv(os.path.join(outputs_dir, "prm_zone_hours.csv"), index=False)
+
+    # reserve price by zone and period, $/kW-yr: the sum over the period's stress hours of the zone requirement's
+    # dual. The zone's shortfall slack (MW, one per period) appears in every stress-hour constraint and costs
+    # prm_shortfall_cost_per_mw_yr once a year, so this sum never exceeds the penalty, and equals it when the zone
+    # is short. (An hourly dual alone is the value of 1 MW more in that hour only.)
+    prow = []
+    for (z, p) in m.PRM_ZONE_PERIODS:
+        x = zh[(zh.LOAD_ZONE == z) & (zh.PERIOD == p)] if len(zh) else zh
+        if not len(x):
+            continue
+        prow.append({"LOAD_ZONE": z, "PRM_REGION": m.prm_region_of_zone[z], "PERIOD": p,
+                     "peak_served_load_mw": x.served_load_mw.max(), "shortfall_mw": value(m.PrmZoneShortfall[z, p]),
+                     "price_usd_per_kw_yr": to_kw_yr(x.dual.abs().sum(), p)})
+    zp = pd.DataFrame(prow, columns=["LOAD_ZONE", "PRM_REGION", "PERIOD", "peak_served_load_mw", "shortfall_mw",
+                                     "price_usd_per_kw_yr"])
+    zp.to_csv(os.path.join(outputs_dir, "prm_zone_prices.csv"), index=False)
 
     # region hours: margin achieved and import use
     rrows = []
@@ -521,7 +551,9 @@ def post_solve(m, outputs_dir):
                 "max_import_use": x.import_use.max(),
                 "peak_mw": value(m.prm_region_peak_mw[r, p]),
                 "shortfall_mw": value(m.PrmShortfall[r, p]),
-                "reserve_price_usd_per_kw_yr": to_kw_yr(x.reserve_dual_sum.sum(), p),
+                # zone prices (prm_zone_prices.csv) weighted by zone peak load: <= the penalty; the regional
+                # sum of hourly duals over all its zones (the old figure) is not a price
+                **_region_price(zp, r, p),
                 "duals_available": has_duals,
             }
         )
@@ -550,6 +582,20 @@ def post_solve(m, outputs_dir):
                         c["credit"] += v / len(tps)
                         if wsum > 0:
                             c["wcredit"] += w[t] * v / wsum
+        # demand response (study_modules.demand_response_investment): deployed MW = DeployDRShare x the largest
+        # shift-down limit in the period's stress hours; credit = the load reduction (-ShiftDemand) in each hour
+        if hasattr(m, "ShiftDemand"):
+            c = {"cap": 0.0, "wcredit": 0.0, "credit": 0.0}
+            for z in m.ZONES_IN_PRM_REGION[r]:
+                lim = max((value(m.dr_shift_down_limit[z, t]) for t in tps), default=0.0)
+                c["cap"] += value(m.DeployDRShare[z, p]) * lim
+                for t in tps:
+                    v = -value(m.ShiftDemand[z, t]) * value(m.prm_td_multiplier[z])
+                    c["credit"] += v / len(tps)
+                    if wsum > 0:
+                        c["wcredit"] += w[t] * v / wsum
+            if c["cap"] > 1e-6:
+                by_class["dr"] = c
         for cls, c in by_class.items():
             crows.append(
                 {

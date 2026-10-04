@@ -189,6 +189,13 @@ every other case build as before — tests check the legacy settings and that th
 | 63 | `adjust/define_scenarios.py` (low-growth loads) | Peak per zone/period over positive-weight timepoints only. | Same exposure (runs after add_extreme_days and with stress days). | none for existing cases (the extreme-day copies duplicate a weighted day's load) |
 | 64 | `switch/study_modules/prepare_next_stage.py` (`merge_build_data`) | Prints how many rows were duplicated when it writes `dup.<file>.chained.<case>.csv`. The file itself is unchanged: a deliberate diagnostic (rows in both stages; this stage's kept), not read by Switch. | VM saw it in the 2035 stage. | log line only |
 
+### Added in §64 (Oct 2026: reserve price reporting, demand response in the regional reserve)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 65 | `switch/study_modules/prm_regional.py` | New `prm_zone_prices.csv` (zone price = Σ stress-hour duals, $/kW-yr, ≤ penalty); `prm_summary.csv` region price = peak-weighted mean of zone prices (+ max zone price and zone), replacing the sum of hourly duals over all zones; served load includes ShiftDemand without local_td; `dr` credit row from ShiftDemand. The model is unchanged (one shortfall slack per zone and period, as before). | VM recipe E: PJM $2,555/kW-yr vs a $271.8 penalty (reporting only). | S0 regional cases only (reporting) |
+| 66 | `s0_workflow/prm.py` (`gen_class`), `s0_workflow/production.py`, `pg/settings/s0_production.yml` | Energy source `demand_response` virtual generators (load_growth, us_exports): credit `none`, class `flex_load` (was dispatch / `dr`); `s0_production.demand_response.enabled` (off) puts demand_response_investment on S0 scenario lines. | Their annual availability 0 doesn't bind in zero-weight stress hours; they aren't DR. | S0 regional cases: those generators no longer credited (they had dispatched 0 in recipe E) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

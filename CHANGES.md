@@ -2606,3 +2606,50 @@ keeps them valid):
 - the other scripts use weighted peaks.
 
 **Results:** s0_workflow 125. pandas 3.0.6: 147 passed with build_rate; 1.4.4: 146 passed and 1 skipped.
+
+## 64. Regional Reserve: Price Reporting and Demand Response
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts` · **See also:** `SHARED_CHANGES.md` #65-#66, s0_production.md
+(planning reserve), recipe E
+
+**1. Reserve prices above the penalty** (recipe E: PJM $2,555/kW-yr, MISO $1,172, NorthernGrid_West $1,069,
+NorthernGrid_East $811, against $271.8). The model was right and the reporting was wrong.
+- **The slack** is one `PrmZoneShortfall` per zone and period (MW, not per hour). It appears in every stress-hour
+  constraint of the zone and costs `prm_shortfall_cost_per_mw_yr` once a year, so the effective penalty is the
+  intended one.
+- **The reporting bug:** `prm_summary.csv`'s price summed the hourly duals over all of a region's zones. Per zone that
+  sum is bounded by the penalty; across a region's zones it isn't.
+- **Now:**
+  - `prm_zone_prices.csv` gives each zone's price: the sum of its stress-hour duals / `bring_annual_costs` / 1000, in
+    $/kW-yr. It is at most the penalty, and equal to it when the zone is short.
+  - `prm_summary.csv` gives the peak-load-weighted mean of a region's zone prices, plus the highest zone price and
+    that zone.
+- **The definition** is in s0_production.md.
+
+**2. Demand response at 0.00 credit everywhere.**
+- **No real DR in the S0 cases:** they don't run `study_modules.demand_response_investment` (only `define_scenarios`'
+  alternative scenarios add it), so there was no demand response in recipe E.
+- **What the "dr" class held:** PowerGenome's flexible-demand virtual generators (`load_growth`, `us_exports`, energy
+  source `demand_response`). They are load curtailment switched off in S0 (annual availability 0), so they rightly
+  dispatched nothing.
+- **A loophole:** an annual limit doesn't bind in zero-weight stress hours, so crediting their dispatch was free
+  reserve waiting to happen.
+- **Now:**
+  - those generators get no credit (class `flex_load`, not compared with ISO DR benchmarks);
+  - DR proper (`ShiftDemand`) counts at its dispatch through served load, with or without local_td. It is reported as
+    class `dr` (capacity = deployed share × the largest stress-hour shift-down limit; credit = load reduction);
+  - `dr_data.csv` covers the stress hours (every timepoint);
+  - new setting `s0_production.demand_response.enabled` (off) puts the module on S0 scenario lines.
+- **Also seen:** local T&D capacity must cover every timepoint, stress hours included, so stress-day peaks raise local
+  T&D builds; in the toy, DR shaves them. This is Switch's local_td behaviour, and the legacy extreme day has the same
+  effect. Not changed.
+
+**Tests** (`test_prm.py` +4):
+- deficits of 2/4/3/1 MW across four stress hours give a 4 MW shortfall costing 4 × the penalty, not 10;
+- zone prices equal the penalty when short; the region price is not the sum of two zones' prices; prices stay within
+  the penalty when there is no shortfall;
+- DR shifts 2 MW out of a short stress hour (served load 10 → 8, shortfall 2 → 0, `dr` implied credit 1.0);
+- the flexible-demand virtual generators get no credit;
+- the setting.
+
+**Results:** s0_workflow 129. pandas 3.0.6: 151 passed with build_rate; 1.4.4: 150 passed and 1 skipped.
