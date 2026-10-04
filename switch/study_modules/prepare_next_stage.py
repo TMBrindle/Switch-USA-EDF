@@ -353,8 +353,54 @@ def chain_stage(m, in_path, out_path, next_in_path, case_name, commit=None, comm
     trans = trans.drop(columns=["BuildTx"])
     to_csv(trans, chained(next_in_path, "transmission_lines.csv"))
 
+    # forced transmission: never re-force capacity the chain already built (S0 stages only)
+    if commit is not None:
+        chain_forced_tx(in_path, next_in_path, trans_built, chained, read_csv, to_csv)
+
     # carry interconnection headroom forward (study_modules.interconnection_headroom)
     chain_ic_inputs(in_path, out_path, next_in_path, case_name, commit)
+
+
+def chain_forced_tx(in_path, next_in_path, trans_built, chained, read_csv, to_csv):
+    """Safeguard for forced lines in S0 chains (pg_to_switch forces each line only in its own period).
+
+    Keeps trans_built_to_date.chained.<case>.csv, the new transmission each line has had over the chain
+    (committed builds), and writes the next stage's trans_build_minimum and trans_path_expansion_limit as
+    .chained.<case>.csv: each minimum less what the line already has (floored at 0), and in the forced
+    period a limit equal to that minimum (the cap-at-minimum rows) reduced by the same amount. Total new
+    capacity on a forced line then never exceeds its forced MW because of a repeated minimum. Nothing is
+    written when the next stage has no trans_build_minimum.csv."""
+    prev_path = chained(in_path, "trans_built_to_date.csv")          # absent in the first stage
+    to_date = (read_csv(prev_path) if prev_path.exists()
+               else pd.DataFrame(columns=["TRANSMISSION_LINE", "BuildTx"]))
+    to_date = (pd.concat([to_date, trans_built[["TRANSMISSION_LINE", "BuildTx"]]], ignore_index=True)
+               .groupby("TRANSMISSION_LINE", as_index=False)["BuildTx"].sum())
+    to_csv(to_date, chained(next_in_path, "trans_built_to_date.csv"))
+    min_path = Path(next_in_path, "trans_build_minimum.csv")
+    if not min_path.exists():
+        return
+    built = dict(zip(to_date["TRANSMISSION_LINE"].astype(str), to_date["BuildTx"].astype(float)))
+    mins = read_csv(min_path)
+    orig = {(str(line), int(pr)): float(v) for line, pr, v in
+            zip(mins["TRANSMISSION_LINE"], mins["PERIOD"], mins["trans_build_minimum_mw"])}
+    mins["trans_build_minimum_mw"] = [
+        max(0.0, float(v) - built.get(str(line), 0.0)) for line, v in zip(mins["TRANSMISSION_LINE"], mins["trans_build_minimum_mw"])]
+    mins.loc[mins["trans_build_minimum_mw"] < 0.001, "trans_build_minimum_mw"] = 0.0
+    to_csv(mins, chained(next_in_path, "trans_build_minimum.csv"))
+    for (line, pr), v in orig.items():
+        if built.get(line, 0.0) > 0.001:
+            print(f"{__name__}: forced line {line} ({pr}): minimum {v:.1f} MW less {built[line]:.1f} MW already built")
+    lim_path = Path(next_in_path, "trans_path_expansion_limit.csv")
+    if lim_path.exists():
+        lim = read_csv(lim_path)
+        new = []
+        for line, pr, v in zip(lim["TRANSMISSION_LINE"], lim["PERIOD"], lim["trans_path_expansion_limit_mw"]):
+            k = (str(line), int(pr))
+            if k in orig and pd.notna(v) and abs(float(v) - orig[k]) < 1e-6:
+                v = max(0.0, float(v) - built.get(k[0], 0.0))
+            new.append(v)
+        lim["trans_path_expansion_limit_mw"] = new
+        to_csv(lim, chained(next_in_path, "trans_path_expansion_limit.csv"))
 
 
 def chain_ic_inputs(in_path, out_path, next_in_path, case_name, commit=None):

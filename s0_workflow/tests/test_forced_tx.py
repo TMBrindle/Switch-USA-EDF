@@ -31,7 +31,8 @@ def transmission_tables(source=None):
     """pg_to_switch.transmission_tables as written, with conversion_functions' helpers; PowerGenome's
     agg_transmission_constraints (existing capacity from its database, VM-only) and network_max_reinforcement
     stood in for."""
-    g = {"pd": pd, "np": np, "Path": Path, "logger": logging.getLogger("t"), "__file__": str(REPO / "pg_to_switch.py")}
+    g = {"pd": pd, "np": np, "Path": Path, "logger": logging.getLogger("t"), "__file__": str(REPO / "pg_to_switch.py"),
+         "s0prod": s0prod}
     _fns(REPO / "conversion_functions.py", ["first_value", "load_zones_table", "tx_cost_transform"], g)
     _fns(source or REPO / "pg_to_switch.py", ["transmission_tables"], g)
     nc = pd.read_csv(TX / "network_costs_ReEDS.csv")
@@ -168,3 +169,36 @@ def test_legacy_transmission_files_unchanged(tmp_path):
             assert files == sorted(f.name for f in b.glob("*.csv")) and "transmission_lines.csv" in files
             for f in files:
                 assert (a / f).read_bytes() == (b / f).read_bytes(), (pol, tr, f)
+
+
+def test_chained_stages_force_each_line_once(tmp_path):
+    """S0 chains (CHANGES §57): with _chain_years each stage forces only the lines whose period it models, so over a
+    mode-A chain every forced line is forced in exactly one stage, at the single-stage period (reeds_certain and
+    named_projects); in mode B each line is forced only in the windows holding its period."""
+    chain = [2028, 2030, 2035, 2040, 2045]
+    for table in ("pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv", None):
+        kw = {"forced_tx_table": table} if table else {}
+        _, full, _, name_full = build(tmp_path, years=chain, forced_tx_expansion_limit="minimum", **kw)
+        want = sorted((name_full[r.TRANSMISSION_LINE], r.PERIOD, r.trans_build_minimum_mw) for r in full.itertuples())
+        got = []
+        for st in s0prod.plan_stages(chain, "myopic"):
+            _, bm, lim, name = build(tmp_path, years=st["years"], _chain_years=chain, forced_tx_expansion_limit="minimum",
+                                     **kw)
+            if bm is not None:
+                got += [(name[r.TRANSMISSION_LINE], r.PERIOD, r.trans_build_minimum_mw) for r in bm.itertuples()]
+                L = {(name[r.TRANSMISSION_LINE], r.PERIOD): r.trans_path_expansion_limit_mw for r in lim.itertuples()}
+                assert all(L[(n, p)] == mw for n, p, mw in got if p in st["years"])       # capped at the minimum
+        assert sorted(got) == want and len(got) == len(set((n, p) for n, p, _ in got))
+        if table:
+            assert sorted(got) == [("p24-p25", 2035, 3000.0), ("p28-p31", 2028, 3000.0)]
+    # mode B: TransWest (2035) in the windows 2030-35 and 2035-40 only; SunZia (2028) in the first window only
+    table = "pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv"
+    per_window = {}
+    for st in s0prod.plan_stages(chain, "windows", 2):
+        _, bm, _, name = build(tmp_path, years=st["years"], _chain_years=chain, forced_tx_table=table)
+        per_window[st["name"]] = [] if bm is None else sorted((name[r.TRANSMISSION_LINE], r.PERIOD) for r in bm.itertuples())
+    assert per_window == {"2028_2030": [("p28-p31", 2028)], "2030_2035": [("p24-p25", 2035)],
+                          "2035_2040": [("p24-p25", 2035)], "2040_2045": []}
+    # the bug this fixes: without _chain_years a 2040 stage re-forces both lines at 2040
+    _, bm, _, name = build(tmp_path, years=[2040], forced_tx_table=table)
+    assert sorted(name[x] for x in bm.TRANSMISSION_LINE) == ["p24-p25", "p28-p31"]

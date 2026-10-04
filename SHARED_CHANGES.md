@@ -152,6 +152,14 @@ every other case build as before — tests check the legacy settings and that th
 | 46 | `s0_workflow/day_selection.py` | `sample` setting (N or NxL); `_select_blocks` (block candidates, set search, relaxation only when no set is feasible); `ts_tp_blocks`. The day path is split into `_prepare` + the unchanged day code (outputs byte-identical, checked against the previous version). | §56. | none |
 | 47 | `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv` | `time_sampling.sample` (commented), `block_pool`, `block_relax_max_steps`; `s0_production` axis value `on_single`; axis and column `time_sample` (days24 sets nothing, in every row but `s4x1_S0prod_2035_fi4x3`); rows `s4x1_S0prod_2035_fi24` / `_fi4x3`. | §56, recipe F. | none (days24 sets nothing) |
 
+### Added in §57 (Oct 2026: forced transmission built once in S0 chains)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 48 | `pg_to_switch.py` (`transmission_tables`, case-stage setup, `scenario_files.add_stage_row`) | S0 chain stages get `_chain_years` (all of the case's years). The forced period is `s0prod.forced_tx_period(year, chain years, stage years)`, so a stage forces only lines whose period it models. Later stages alias `trans_build_minimum` / `trans_path_expansion_limit` to their `.chained.<case>.csv` when the stage has the file. | VM: every chained stage re-forced SunZia / TransWest. | none (without `_chain_years` the rule is the old one: legacy byte identity tested; single-stage S0 cases have chain = stage) |
+| 49 | `switch/study_modules/prepare_next_stage.py` (`chain_stage`, new `chain_forced_tx`) | S0 chains only (`stage_info.csv`, `commit` set): writes `trans_built_to_date.chained.<case>.csv`, and the next stage's `trans_build_minimum` / `trans_path_expansion_limit` chained files with each minimum less the line's committed new capacity so far (and the cap-at-minimum row likewise). | Safeguard against re-forcing. | none (the legacy myopic path passes no commit and skips it) |
+| 50 | `s0_workflow/production.py` (`forced_tx_period`), `s0_workflow/tests/toyutil.py` (`run_chain` aliases the forced files as the scenario lines do) | The forced-period rule as a helper; test plumbing. | §57. | none |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -185,3 +193,8 @@ every other case build as before — tests check the legacy settings and that th
    hydro at nameplate, imports capped only in that hour (storage can launder uncapped imports), no deliverability
    within multi-zone regions, and the CAISO 1e-6 workaround. `prm_regional` addresses each; consider it for fedpol.
 10. (§56) `scenario_inputs.csv` has one more column (`time_sample`); merging with `ollie/fedpol` adds `days24` to its rows.
+11. (§57) Non-S0 myopic chains (`--myopic`, e.g. fedpol's) have the same re-forcing: `transmission_tables` builds
+    each year's stage with its own years, so a forced line due at or before a later year is forced again there, on
+    top of the capacity `prepare_next_stage` carries forward. The fix is S0-only. For fedpol, setting
+    `_chain_years` for its myopic stages (or using `forced_tx_period`) would close it; `chain_forced_tx` would
+    need `commit` (or a flag) on the legacy path.

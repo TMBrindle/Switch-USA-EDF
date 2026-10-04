@@ -2280,3 +2280,51 @@ reserve drops the copy.
 only when infeasible (and the stop); ids for blocks, the peak day and stress days, and single days identical to
 `ts_tp_pg_kmeans`; the case pair and axis; the pg_to_switch hook. `s0_workflow` 91 (was 85); pandas 3.0.6 91 passed,
 1.4.4 90 passed and 1 skipped; build_rate 22 on both.
+
+## 57. S0 Production: Forced Transmission Built Once in Chained Stages (Fix)
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("Forced transmission", Chains), `s0_workflow/VM_RECIPES.md`
+(recipe C, forced-transmission checks), `SHARED_CHANGES.md` (#48-#50, review point 11)
+
+**Bug (found on the VM):** in an S0 chain, each stage's `trans_build_minimum.csv` forced every line dated at or before
+that stage. In S0prod_A that meant 2028: SunZia; 2030: SunZia; 2035-2045: SunZia + TransWest. At the same time
+`prepare_next_stage.py` carried each stage's built transmission forward as existing capacity. The minimum counts only new
+capacity, so SunZia would have been built 5 times and TransWest 3 times. The expected schedule
+(`forced_tx_comparison_2026.09.21.csv`) is SunZia once in 2028 and TransWest once in 2035.
+
+**Fix, both ways (`reeds_certain` and `named_projects`):**
+1. **Force each line in its own period only.** `pg_to_switch.py` gives S0 chain stages the case's full year list
+   (`_chain_years`). The forced period is `production.forced_tx_period`: the first chain period at or after the
+   in-service year, i.e. the period whose span holds it. A stage forces a line only if it models that period:
+   - **Mode A:** once.
+   - **Mode B:** in each window holding the period (TransWest: windows 2030-35 and 2035-40). Only the window that
+     commits the period hands the build on, and later windows don't force it again.
+
+   The cap-at-minimum limit in the forced period is unchanged.
+2. **Safeguard in `prepare_next_stage.py`** (S0 chains only):
+   - `chain_forced_tx` keeps `trans_built_to_date.chained.<case>.csv` (committed new capacity by line).
+   - It writes the next stage's `trans_build_minimum` and `trans_path_expansion_limit` as chained files, with each
+     minimum less what the line already has (floored at 0) and the cap-at-minimum row reduced by the same amount.
+   - Later stages' scenario lines alias those files when the stage has a minimum file.
+   - If a minimum is ever repeated, the line is still built only once.
+
+**Unchanged:**
+- **Single-stage cases**, including the regression case: chain years = stage years and there is no next stage.
+- **Non-S0 cases:** no `_chain_years` and no `stage_info.csv`. Their transmission files are byte-identical to before
+  (test against 4f882b6). Non-S0 myopic chains have the same re-forcing issue; it is left for Ollie (review point 11).
+
+**Tests:**
+- `test_forced_tx_chain.py` (6), on the 3-zone toy with five periods and two forced lines, each limited to its
+  minimum in its forced period and 0 elsewhere:
+  - a 5-stage mode-A chain builds each line exactly once, in its period, and carries it forward;
+  - the same chain with the old repeated minima still builds once through the safeguard;
+  - mode-B windows build once, with and without repeated minima;
+  - the period rule, including the S0 schedule;
+  - the stage scenario lines alias the chained files only where needed.
+
+  With the safeguard and the stage rule off, the repeated-minimum toys build N-C 4 times and C-S twice. That
+  reproduces the VM bug, and the tests fail.
+- `test_forced_tx.py`: `transmission_tables` per stage over a mode-A chain forces each line once (both options; all
+  72 named projects), and mode B only in the windows holding its period.
+- `s0_workflow` 98 (was 91): pandas 3.0.6 98 passed; 1.4.4 97 passed and 1 skipped. build_rate 22 on both.

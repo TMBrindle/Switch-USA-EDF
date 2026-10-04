@@ -286,12 +286,25 @@ in the stage folder. Don't patch around it: send Tom those files and
    - **Forced transmission (reeds_certain):** console log `forced transmission reeds_certain
      (pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv); forced-line expansion limit minimum`.
      - `trans_build_minimum.csv`: one row in the 2028 stage (the p28-p31 line, 3,000 MW) and one in the 2035 stage (the
-       p24-p25 line, 3,000 MW); none in 2030, 2040 and 2045.
+       p24-p25 line, 3,000 MW); **no file** in 2030, 2040 and 2045. Before §57 every stage re-forced every line dated
+       at or before it (2028: SunZia; 2030: SunZia; 2035-2045: SunZia + TransWest). If a stage still shows that, the
+       build predates §57: rebuild.
+     - Scenario lines: the 2035 stage's `--input-aliases` include
+       `trans_build_minimum.csv=trans_build_minimum.chained.S0prod_A.csv` and the same for
+       `trans_path_expansion_limit.csv`. No other stage aliases them.
      - `trans_path_expansion_limit.csv`: those two lines are now in the file. Each has 3,000 in its forced stage and the
        case's limit (0, `trans_expansion: zero`) in the other stages.
      - `transmission_lines.csv`: p24-p25 is added as a new line (666.3 km), and the named projects' other new corridors
        are absent. Cross-transreg corridors of the old list are no longer exempt from the block
        (`trans_new_build_allowed` 0, e.g. p37-p38).
+     - **After solving (each stage):**
+       - `BuildTx.csv`: p28-p31 has 3,000 MW in 2028 only and p24-p25 has 3,000 MW in 2035 only, nothing on
+         either in other stages.
+       - In the 2035 stage folder, `trans_build_minimum.chained.S0prod_A.csv` still says 3,000 for p24-p25
+         (nothing built on it before).
+       - `trans_built_to_date.chained.S0prod_A.csv` in the 2045 folder has p28-p31 3,000 and p24-p25 3,000, plus any
+         economic builds on other lines.
+       - **Report both lines' totals.**
    - **Coal caps by stage (block_all):** in `coal_caps_by_stage.csv`, every row has `ok` True (checked against
      `by_option/coal_spec_expected_caps_by_stage.block_all.csv`). The log line `coal caps <year>: N ...`
      should match:

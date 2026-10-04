@@ -158,7 +158,8 @@ def subset_periods(src: Path, dst: Path, periods):
 
 def run_chain(run: Path, stages: list, case="case", modules=(), extra=()) -> list[Path]:
     """Solve the stages of a chain in order (stages from s0_workflow.production.plan_stages; inputs in
-    run/in/<stage>/<case> with stage_info.csv). Returns the outputs folders."""
+    run/in/<stage>/<case> with stage_info.csv). Returns the outputs folders. Later stages read the chained
+    files as pg_to_switch's scenario lines do (forced-line files only when the stage has trans_build_minimum.csv)."""
     outs = []
     for i, st in enumerate(stages):
         args = list(extra)
@@ -167,7 +168,10 @@ def run_chain(run: Path, stages: list, case="case", modules=(), extra=()) -> lis
         if st["next"]:
             args += ["--include-module", "mods.prepare_next_stage"]
         if i > 0:
-            args += ["--input-aliases"] + [f"{f}.csv={f}.chained.{case}.csv" for f in
-                                           ("gen_build_predetermined", "gen_build_costs", "transmission_lines")]
+            files = ["gen_build_predetermined", "gen_build_costs", "transmission_lines"]
+            d = run / "in" / st["name"] / case
+            if (d / "trans_build_minimum.csv").exists():
+                files += [f for f in ("trans_build_minimum", "trans_path_expansion_limit") if (d / f"{f}.csv").exists()]
+            args += ["--input-aliases"] + [f"{f}.csv={f}.chained.{case}.csv" for f in files]
         outs.append(solve(run, f"in/{st['name']}/{case}", f"out/{st['name']}/{case}", args))
     return outs

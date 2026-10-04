@@ -218,6 +218,17 @@ def apply_forced_tx(s: dict, s0: dict, case=None, year=None) -> None:
                 f" ({s['forced_tx_table']})" if o == "reeds_certain" else "", lim)
 
 
+def forced_tx_period(in_service_year: int, chain_years, stage_years):
+    """The period in which a forced line with this in-service year gets its trans_build_minimum in a stage, or
+    None. The forced period is the first chain period at or after the year (the period whose span holds it; an
+    earlier year falls in the first period); a stage forces the line only when it models that period. Myopic
+    stages (mode A) force each line once; rolling windows (mode B) force it in each window holding the period,
+    but only the window that commits the period hands the build on. Outside S0 chains chain_years =
+    stage_years (pg_to_switch's behaviour before)."""
+    period = next((p for p in sorted(chain_years) if p >= int(in_service_year)), None)
+    return period if period is not None and period in set(stage_years) else None
+
+
 def economic_rule_on(s0: dict) -> bool:
     """The per-period retirement rule applies (block_all, planned_only; legacy: as retirement_rule.enabled)."""
     o = coal_fleet.retirement_option(s0)

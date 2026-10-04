@@ -2834,12 +2834,17 @@ def transmission_tables(scen_settings_dict, out_folder, pg_engine):
                         transmission_lines.at[idx, "trans_new_build_allowed"] = 0
 
         # Generate minimum build entries for each planned project with a target year.
+        # S0 chained stages (mode A / mode B): the forced period is chosen over the whole chain
+        # (_chain_years, set per case before the build), so each line is forced only in the period
+        # whose span holds its in-service year, and only in stages that model that period.
+        # Elsewhere _chain_years is absent and this is the first model year at or after it, as before.
+        chain_years = settings.get("_chain_years") or model_years
         if settings.get("build_minimum_policy", "yes") == "yes":
             for key, (new_cap_mw, new_cap_year) in planned_with_year.items():
                 tx_id = tx_line_lookup.get(key)
                 if tx_id is None:
                     continue
-                period = next((p for p in model_years if p >= new_cap_year), None)
+                period = s0prod.forced_tx_period(new_cap_year, chain_years, model_years)
                 if period is None:
                     continue
                 trans_build_minimum_rows.append(
@@ -3529,6 +3534,12 @@ def scenario_files(results_folder, case_settings, myopic, case_stages=None):
                 aliases += [f"{f}.csv={f}.chained.{scen_name}.csv" for f in ("ic_zones", "ic_tranches", "ic_uprates")]
             if (settings.get("build_rate") or {}).get("enabled"):
                 aliases.append(f"build_rate_prev_build.csv=build_rate_prev_build.chained.{scen_name}.csv")
+            # forced lines less what the chain already built (prepare_next_stage.chain_forced_tx)
+            stage_in = Path(results_folder) / stage["name"] / case
+            if (stage_in / "trans_build_minimum.csv").exists():
+                for f in ("trans_build_minimum", "trans_path_expansion_limit"):
+                    if (stage_in / f"{f}.csv").exists():
+                        aliases.append(f"{f}.csv={f}.chained.{scen_name}.csv")
             line += "--input-aliases " + " ".join(aliases) + " "
         scenarios[scen_name].append(line.strip())
         chain_names.add(scen_name)
@@ -3840,6 +3851,9 @@ def main(
         else:
             fs = s0prod.s0_settings(first_value(scen_settings_dict)).get("foresight") or {}
             stages = s0prod.plan_stages(scen_settings_dict.keys(), mode, fs.get("window_periods", 2))
+            # forced transmission: each line forced once over the chain (transmission_tables)
+            for y in scen_settings_dict:
+                scen_settings_dict[y]["_chain_years"] = sorted(scen_settings_dict)
         case_stages[c] = stages
     to_run = [
         (c, {y: case_settings[c][y] for y in st["years"]}, st)

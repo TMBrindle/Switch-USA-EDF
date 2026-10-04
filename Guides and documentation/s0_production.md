@@ -424,6 +424,25 @@ PowerGenome's files are not edited.
   minimum in its forced period, and the case's rule in other periods (0 with `trans_expansion: zero`). Before
   this, forced lines were left out of the file, so they could expand without limit. Other cases keep that.
 - **Comparison pair:** `s4x1_S0prod_2035_txreeds` / `s4x1_S0prod_2035_txnamed` (VM_RECIPES recipe D).
+- **Chains (§57): each forced line is forced once.**
+  - **Forced period:** the period whose span holds the in-service year: the first period of the whole chain at or
+    after it, so a year before the first span goes to the first period. A stage forces a line only if it models that
+    period:
+    - mode A forces it once;
+    - mode B forces it in each window holding the period, but only the window that commits the period hands the
+      build on.
+
+    SunZia is forced in the 2028 stage only and TransWest in the 2035 stage only. This applies to both
+    `reeds_certain` and `named_projects`. Before the fix, each stage forced every line dated at or before it, and
+    `prepare_next_stage` also carried the earlier builds forward as existing capacity, so SunZia would have been
+    built 5 times and TransWest 3 times.
+  - **Safeguard:** `prepare_next_stage` (S0 chains, `stage_info.csv`) keeps `trans_built_to_date.chained.<case>.csv`
+    (committed new capacity by line). It writes the next stage's `trans_build_minimum` and
+    `trans_path_expansion_limit` as chained files, with each minimum less what the line already has (floored at 0)
+    and the cap-at-minimum row reduced by the same amount. Later stages' scenario lines alias them when the stage
+    has a `trans_build_minimum.csv`.
+  - **Unchanged:** a single-stage case (the regression case) and every non-S0 case, which have no `_chain_years`
+    and no `stage_info.csv`.
 
 ## Planning reserve requirement (§55)
 
