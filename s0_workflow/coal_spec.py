@@ -89,7 +89,9 @@ def read_860m(path: Path, sheet: str) -> pd.DataFrame:
 
 def read_860_annual(path: Path, sheet: str = "Operable") -> pd.DataFrame:
     """EIA-860 3_1_Generator sheet (header on row 2)."""
-    df = pd.read_excel(path, sheet_name=sheet, header=1, dtype={"Generator ID": str})
+    top = pd.read_excel(path, sheet_name=sheet, header=None, nrows=8)
+    hdr = int(top.index[(top.astype(str).apply(lambda c: c.str.strip()) == "Plant Code").any(axis=1)][0])
+    df = pd.read_excel(path, sheet_name=sheet, header=hdr, dtype={"Generator ID": str})   # row 2; 3 in early releases
     df = df[pd.to_numeric(df["Plant Code"], errors="coerce").notna()].copy()
     df["Plant Code"] = df["Plant Code"].astype(int)
     df["Generator ID"] = df["Generator ID"].astype(str).str.strip()
@@ -218,15 +220,35 @@ def cap_units(op860m: pd.DataFrame, gens_by_year: dict[int, pd.DataFrame], page4
          "Planned Retirement Year", "winter_mw", "cf_max", "years"]].sort_values("kn").reset_index(drop=True)
 
 
-def stage_units(cu: pd.DataFrame, stage: int, held: set) -> pd.DataFrame:
-    """§1.1 rules 3-4: planned retirement blank or >= stage, not a held unit (in either hold scenario)."""
-    pry = pd.to_numeric(cu["Planned Retirement Year"], errors="coerce")
+# ------------------------------------------------------------------------------------------- pre-2030 retirements
+RETIREMENT_OPTIONS = ("block_all", "planned_only", "unrestricted")
+# fedpol's blocked_2030_coal_gas predetermined-retirement override (scenario_management.yml retirement_policy)
+BLOCK_RULE = {"technologies": ["coal", "natural gas"], "window": [2026, 2029], "target_year": 2030}
+
+
+def pushed_year(y, rule: dict | None):
+    """A retirement year under a predetermined-retirement push rule (window inclusive -> target). With Switch's
+    --retire early a unit with retirement year Y runs in a period iff Y >= the period's end (its label), so fedpol's
+    push to 2030 keeps a unit dated 2026-29 through the 2030 stage; it first disappears from the 2035 stage.
+    PowerGenome counts a unit in model year M only if Y > M, so the S0 build encodes the pushed year as
+    target + 1 (2031): the same stages in Switch, and PowerGenome keeps it in model year 2030 too."""
+    if rule is None or y is None or pd.isna(y):
+        return y
+    a, b = rule["window"]
+    return int(rule["target_year"]) + 1 if a <= y <= b else y
+
+
+def stage_units(cu: pd.DataFrame, stage: int, held: set, rule: dict | None = None) -> pd.DataFrame:
+    """§1.1 rules 3-4: planned retirement blank or >= stage (after the pre-2030 push, if any), not a held unit
+    (in either hold scenario)."""
+    pry = pd.to_numeric(cu["Planned Retirement Year"], errors="coerce").map(lambda y: pushed_year(y, rule))
+    pry = pd.to_numeric(pry, errors="coerce")
     return cu[(pry.isna() | (pry >= stage)) & ~cu.kn.isin(held)]
 
 
-def stage_history(cu: pd.DataFrame, stage: int, held: set) -> tuple[pd.DataFrame, float]:
+def stage_history(cu: pd.DataFrame, stage: int, held: set, rule: dict | None = None) -> tuple[pd.DataFrame, float]:
     """(per-zone H, n_units, own) and the national fallback N for one stage (§1.5)."""
-    h = stage_units(cu, stage, held)
+    h = stage_units(cu, stage, held, rule)
     h = h[h.zone.notna() & h.cf_max.notna()]
     nat = float(np.average(h.cf_max, weights=h.winter_mw))
     z = h.groupby("zone").apply(lambda x: pd.Series({
@@ -366,3 +388,39 @@ def plant_gas_heat_rate(st_monthly: pd.DataFrame, plant: int, coal_hr_2024: floa
                 f"EIA-923 plant ST/NG {y} ({a.at[y, 'months']} months, {a.at[y, 'n'] / 1e3:.0f} GWh)", False)
     hr = round(float(coal_hr_2024), 3) if coal_hr_2024 is not None and pd.notna(coal_hr_2024) else np.nan
     return hr, "no gas-fired history: unit's 2024 coal heat rate kept (flag)", True
+
+
+# ------------------------------------------------------------------------------------------- model basis (public)
+def model_basis_from_eia(gens2024: pd.DataFrame, retired_model_860m: pd.DataFrame, plant_map: dict,
+                         c2z: pd.DataFrame) -> pd.DataFrame:
+    """A public reconstruction of PowerGenome's coal-group fleet (§2.1): EIA-860 2024 (early release, the vintage of
+    PUDL 2025_08) Operable units of the coal group, except status OS; retirement year = the planned retirement year,
+    or the Retirement Year of PowerGenome's 860M (July 2025) Retired sheet; zone from the plant map, then county.
+    Used for the per-option validation tables; the case build uses PowerGenome's own unit table."""
+    g = gens2024[gens2024.Technology.isin(COAL_GROUP)].copy()
+    g = g[g.Status.astype(str).str.strip() != "OS"]
+    g["kn"] = keys(g["Plant Code"], g["Generator ID"])
+    rt = retired_model_860m.drop_duplicates("kn").set_index("kn")["Retirement Year"]
+    g["retirement_year_basis"] = g["Planned Retirement Year"]
+    m = g.kn.isin(rt.index)
+    g.loc[m, "retirement_year_basis"] = g.loc[m, "kn"].map(rt)
+    z = place_zones(g.rename(columns={"Plant Code": "Plant ID", "State": "Plant State"}).assign(Latitude=np.nan,
+                                                                                                 Longitude=np.nan),
+                    plant_map, c2z)
+    out = pd.DataFrame({"kn": g.kn.values, "plant_id_eia": g["Plant Code"].values, "generator_id": g["Generator ID"].values,
+                        "technology_description": g.Technology.values, "status": g.Status.astype(str).str.strip().values,
+                        "model_region": z.zone.values, "zone_source": z.zone_source.values,
+                        "winter_capacity_mw": g["Winter Capacity (MW)"].values, "operating_year": g["Operating Year"].values,
+                        "retirement_year_basis": g.retirement_year_basis.values})
+    return out.sort_values("kn").reset_index(drop=True)
+
+
+def load_model_basis(path: Path | None = None) -> pd.DataFrame:
+    """The committed basis as a PowerGenome-like unit table (retirement_year: the basis year, or operating year + 500
+    with none, as PowerGenome encodes no planned retirement)."""
+    b = read_table(path or REPO / "s0_workflow/data/coal_model_basis_860er2024.csv", dtype={"generator_id": str})
+    b = b[b.model_region.notna()].copy()
+    b["retirement_year"] = b.retirement_year_basis.fillna(b.operating_year + 500)
+    b["operating_date"] = b.operating_year
+    b["retirement_age"] = 500
+    return b

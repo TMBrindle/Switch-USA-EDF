@@ -1291,6 +1291,7 @@ settings_management:
           new_build_rule: {enabled: false}
           coal_spec: {enabled: false}
           coal_holds: {enabled: false}
+          retirements_pre2030: legacy
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}
@@ -1302,6 +1303,18 @@ settings_management:
         s0_production: {coal_holds: {scenario: s0}}
       holds_persist:
         s0_production: {coal_holds: {scenario: holds_persist}}
+    # Coal and gas retirements before 2030 for S0 production cases (pg/settings/s0_production.yml
+    # retirements_pre2030; coal_spec.md rev. 2.1). Inert unless s0_production.enabled. Column
+    # `retirements_pre2030` in scenario_inputs.csv: block_all in every row that predates it, legacy in the
+    # regression row (its s0_production value pins legacy; `legacy` here sets nothing).
+    retirements_pre2030:
+      block_all:
+        s0_production: {retirements_pre2030: block_all}
+      planned_only:
+        s0_production: {retirements_pre2030: planned_only}
+      unrestricted:
+        s0_production: {retirements_pre2030: unrestricted}
+      legacy: ~
     policies:
       current:
         # Per-program costs and hard RGGI cap; CCR prices are year-specific below.

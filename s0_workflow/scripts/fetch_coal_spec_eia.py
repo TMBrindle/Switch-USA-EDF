@@ -18,6 +18,9 @@ Writes (s0_workflow/data/):
   coal_plant_st_fuel.csv    monthly ST fuel and net generation (NG, coal) 2023-26 of the plants with a
                             converted unit, and their 2024 ST coal heat rate (§2.3)
   coal_holds.csv            the order-held units (coal_spec.md §3.2, §3.4) with their hold caps (§3.1)
+  coal_model_basis_860er2024.csv  a public reconstruction of PowerGenome's coal-group fleet (§2.1): EIA-860 2024
+                            early release (PUDL 2025_08's vintage) and the July 2025 860M Retired sheet; used for
+                            the per-option validation tables (scripts/build_coal_option_tables.py)
 and checks them against the validation tables in s0_workflow/specs/coal/ (--check-only: no writes).
 
 usage (repo root): python s0_workflow/scripts/fetch_coal_spec_eia.py [--m860 august_generator2026.xlsx]
@@ -125,6 +128,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--m860", default="august_generator2026.xlsx", help="latest EIA-860M workbook (basename)")
     ap.add_argument("--m860-2025", default="june_generator2025.xlsx", help="860M used as the 2025 record")
+    ap.add_argument("--m860-model", default="july_generator2025.xlsx", help="PowerGenome's 860M (model basis)")
     ap.add_argument("--cache", default=str(REPO / "s0_workflow/data/raw"))
     ap.add_argument("--check-only", action="store_true")
     a = ap.parse_args()
@@ -227,6 +231,15 @@ def main():
         if len(p) and pd.notna(p.iloc[0]) and p.iloc[0] >= 2030:
             holds.at[i, "S0_encoded_retirement_year"] = int(p.iloc[0])
 
+    # 5. model basis: EIA-860 2024 early release + PowerGenome's 860M (July 2025) Retired sheet
+    er = cache / "eia8602024ER.zip"
+    if not (er.exists() and zipfile.is_zipfile(er)):
+        req = urllib.request.Request("https://www.eia.gov/electricity/data/eia860/archive/xls/eia8602024ER.zip",
+                                     headers={"User-Agent": "Mozilla/5.0"})
+        er.write_bytes(urllib.request.urlopen(req, timeout=600).read())
+    basis = cs.model_basis_from_eia(cs.read_860_annual(member(er, "3_1_Generator", cache)),
+                                    cs.read_860m(fetch("860m", cache, f=a.m860_model), "Retired"), pmap, c2z)
+
     ok = check(cu, fl, st, holds)
     if a.check_only:
         sys.exit(0 if ok else 1)
@@ -243,6 +256,10 @@ def main():
         f"monthly ST fuel for electricity (MMBtu) and net generation (MWh) by fuel (NG; COAL = BIT/SUB/LIG/RC/\n"
         f"WC/ANT/SGC), EIA-923 Page 1 2023-26 (2026 year-to-date), plants with a converted unit\n"
         f"(coal_spec.md §2.3); {stamp}"))
+    write(DATA / "coal_model_basis_860er2024.csv", basis, header(
+        f"public reconstruction of PowerGenome's coal-group fleet (coal_spec.md §2.1): EIA-860 2024 early release\n"
+        f"Operable, Conventional Steam Coal / IGCC / Petroleum Coke, not OS; retirement_year_basis = planned retirement,\n"
+        f"or the Retirement Year of 860M {a.m860_model} Retired; zone: plant map, then county; {stamp}"))
     write(DATA / "coal_holds.csv", holds.round({"cf_since_order": 6}), header(
         f"units held open by orders (coal_spec.md §3): hold_cap = max(CF since the order, 0.001), 0.01 with\n"
         f"< 3 months of data; CF = EIA-923 Page 4 net MWh over the window / (860M winter MW x hours); window\n"
@@ -284,9 +301,14 @@ def check(cu, fl, st, holds) -> bool:
     f = fl.set_index("kn")
     dmw = (g.kn.map(f["Net Winter Capacity (MW)"]) - g.convert_winter_MW).abs().max()
     dy = (g.kn.map(f["conversion_year"]) != g.conversion_year).sum()
+    hr = []
+    for r in g.itertuples():
+        c = st[(st.plant == r.plant_id_eia) & (st.fuel == "COAL") & (st.year == 2024)]
+        hr.append(cs.plant_gas_heat_rate(st, r.plant_id_eia, c.mmbtu.sum() / c.mwh.sum() if c.mwh.sum() > 0 else None)[0])
+    dhr = (pd.Series(hr, index=g.index) - g.convert_heat_rate).abs().max()
     print(f"converted units vs coal_spec_converted_gas_units.csv: winter MW max |diff| {dmw} (0.1); conversion "
-          f"year mismatches {dy}")
-    ok &= dmw <= 0.1 and dy == 0
+          f"year mismatches {dy}; heat rate (latest EIA-923, rev. 2.1) max |diff| {dhr:.4f} (0.01)")
+    ok &= dmw <= 0.1 and dy == 0 and dhr <= 0.01
     print("CHECK", "OK" if ok else "FAILED")
     return ok
 

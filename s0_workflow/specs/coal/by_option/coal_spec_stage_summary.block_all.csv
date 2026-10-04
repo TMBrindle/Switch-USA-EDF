@@ -1,0 +1,6 @@
+option,stage,national_N,zones,zones_with_model_coal,model_GW_before,model_GW_after_overrides,model_MW_weighted_cap,zones_own_history,zones_national,zones_blend,zones_no_coal_left,held_GW_S0,held_GW_holds_persist
+block_all,2028,0.5785,76,76,167.7,166.53,0.5783,72,2,2,0,3.24,5.04
+block_all,2030,0.5785,76,76,167.7,166.53,0.5783,72,2,2,0,3.24,5.04
+block_all,2035,0.5998,73,68,135.71,126.45,0.5992,64,3,1,5,0.0,5.04
+block_all,2040,0.6001,73,68,135.37,124.35,0.5996,64,3,1,5,0.0,5.04
+block_all,2045,0.6001,72,68,135.03,124.35,0.5996,64,3,1,4,0.0,5.04

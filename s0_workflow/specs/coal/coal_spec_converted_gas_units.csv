@@ -1,9 +1,9 @@
 plant_id_eia,generator_id,plant_name,zone,convert_tech,convert_fuel,convert_winter_MW,convert_heat_rate,convert_heat_rate_source,conversion_year,convert_planned_ret,pudl_2024_technology
-8224,2,North Valmy,p12,Natural Gas Steam Turbine,NG,268.0,13.978,no gas-fired history: unit's 2024 coal heat rate (PowerGenome) kept,2026.0,,Conventional Steam Coal
-8224,1,North Valmy,p12,Natural Gas Steam Turbine,NG,254.0,13.978,no gas-fired history: unit's 2024 coal heat rate (PowerGenome) kept,2026.0,,Conventional Steam Coal
-3149,1,TalenEnergy Montour,p122,Natural Gas Steam Turbine,NG,752.0,10.123,"EIA-923 plant ST/NG 2025 (5 months, 1699 GWh)",2026.0,,Conventional Steam Coal
-6248,1,Pawnee,p33,Natural Gas Steam Turbine,NG,505.0,12.969,"EIA-923 plant ST/NG 2024 (12 months, 12 GWh)",2026.0,,Conventional Steam Coal
-6193,3,Harrington,p48,Natural Gas Steam Turbine,NG,340.0,11.104,"EIA-923 plant ST/NG 2025 (5 months, 909 GWh)",2026.0,2040.0,Conventional Steam Coal
-6193,2,Harrington,p48,Natural Gas Steam Turbine,NG,339.0,11.104,"EIA-923 plant ST/NG 2025 (5 months, 909 GWh)",2025.0,2038.0,Conventional Steam Coal
-2721,6,James E. Rogers Energy Complex,p97,Natural Gas Steam Turbine,NG,849.0,9.798,"EIA-923 plant ST/NG 2025 (5 months, 1116 GWh)",2026.0,,Conventional Steam Coal
-2721,5,James E. Rogers Energy Complex,p97,Natural Gas Steam Turbine,NG,546.0,9.798,"EIA-923 plant ST/NG 2025 (5 months, 1116 GWh)",2026.0,,Conventional Steam Coal
+8224,2,North Valmy,p12,Natural Gas Steam Turbine,NG,268.0,11.416,"EIA-923 plant ST/NG 2026 (7 months, 926 GWh)",2026.0,,Conventional Steam Coal
+8224,1,North Valmy,p12,Natural Gas Steam Turbine,NG,254.0,11.416,"EIA-923 plant ST/NG 2026 (7 months, 926 GWh)",2026.0,,Conventional Steam Coal
+3149,1,TalenEnergy Montour,p122,Natural Gas Steam Turbine,NG,752.0,10.109,"EIA-923 plant ST/NG 2026 (7 months, 3031 GWh)",2026.0,,Conventional Steam Coal
+6248,1,Pawnee,p33,Natural Gas Steam Turbine,NG,505.0,10.962,"EIA-923 plant ST/NG 2026 (7 months, 1294 GWh)",2026.0,,Conventional Steam Coal
+6193,3,Harrington,p48,Natural Gas Steam Turbine,NG,340.0,10.833,"EIA-923 plant ST/NG 2026 (7 months, 1640 GWh)",2026.0,2040.0,Conventional Steam Coal
+6193,2,Harrington,p48,Natural Gas Steam Turbine,NG,339.0,10.833,"EIA-923 plant ST/NG 2026 (7 months, 1640 GWh)",2025.0,2038.0,Conventional Steam Coal
+2721,6,James E. Rogers Energy Complex,p97,Natural Gas Steam Turbine,NG,849.0,10.552,"EIA-923 plant ST/NG 2026 (7 months, 1032 GWh)",2026.0,,Conventional Steam Coal
+2721,5,James E. Rogers Energy Complex,p97,Natural Gas Steam Turbine,NG,546.0,10.552,"EIA-923 plant ST/NG 2026 (7 months, 1032 GWh)",2026.0,,Conventional Steam Coal

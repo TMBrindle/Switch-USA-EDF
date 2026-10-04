@@ -86,7 +86,8 @@ def apply_settings(case_settings: dict) -> None:
             elif mode != "gridlab":
                 raise ValueError(f"s0_production.gas_capex.mode must be premium, atb_moderate or gridlab, "
                                  f"not {mode!r}")
-            if coal_fleet.spec_settings(s0):            # coal spec rev. 2: hold technologies, override exemption
+            apply_retirement_option(s, s0)
+            if coal_fleet.spec_settings(s0):            # coal spec rev. 2: hold technologies
                 techs = coal_fleet.apply_settings(s, s0)
                 logger.info("s0_production %s/%s: coal spec; hold projects %s", case, year, techs)
             gtc = s0.get("gas_turbine_cap") or {}
@@ -157,6 +158,31 @@ def apply_state_policies(case_settings: dict) -> None:
                 s[key] = rest[:at] + list(doc["esr_tags"]) + rest[at:]
             logger.info("s0_production %s/%s: state policies from ReEDS %s (%s)", case, year, release,
                         doc["emission_policies_fn"])
+
+
+RETIREMENT_OVERRIDE_KEYS = ("predetermined_retirement_override", "clean_power_regs_retirement_override")
+
+
+def apply_retirement_option(s: dict, s0: dict) -> None:
+    """s0_production.retirements_pre2030, in place for one case/year:
+      block_all     (S0 default, current policy) fedpol's blocked_2030_coal_gas predetermined override for coal and
+                    gas (dated 2026-29 -> 2030: in service through the 2030 stage, gone from 2035) and no economic
+                    retirement before 2030 (retirement_rule)
+      planned_only  dated retirements as scheduled (no predetermined override), no economic retirement before 2030
+      unrestricted  dated retirements as scheduled, economic retirement from the first stage (no retirement rule)
+      legacy        the settings as they are (the regression case)"""
+    o = coal_fleet.retirement_option(s0)
+    if o == "block_all":
+        s["predetermined_retirement_override"] = copy.deepcopy(coal_fleet.cs.BLOCK_RULE)
+    elif o in ("planned_only", "unrestricted"):
+        for k in RETIREMENT_OVERRIDE_KEYS:
+            s.pop(k, None)
+
+
+def economic_rule_on(s0: dict) -> bool:
+    """The per-period retirement rule applies (block_all, planned_only; legacy: as retirement_rule.enabled)."""
+    o = coal_fleet.retirement_option(s0)
+    return o in ("block_all", "planned_only") or (o == "legacy" and bool((s0.get("retirement_rule") or {}).get("enabled")))
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -400,7 +426,8 @@ def write_retirement_rules(folder: Path, s0: dict, log: Log) -> None:
     """retirement_rules.csv for study_modules.retirement_rules, and gen_can_retire_early = 1 for the
     existing generators it covers (economic retirement allowed from the rule's year on)."""
     rr = s0.get("retirement_rule") or {}
-    if not rr.get("enabled"):
+    unrestricted = coal_fleet.retirement_option(s0) == "unrestricted"
+    if not (economic_rule_on(s0) or unrestricted):
         return
     year = int(rr.get("no_retirement_before", 2030))
     sources = [str(x).lower() for x in rr.get("energy_sources", ["coal", "naturalgas"])]
@@ -413,6 +440,10 @@ def write_retirement_rules(folder: Path, s0: dict, log: Log) -> None:
     before = int((gi.loc[m, "gen_can_retire_early"].isin(["1", "1.0"])).sum())
     gi.loc[m, "gen_can_retire_early"] = "1"
     gi.to_csv(Path(folder) / "gen_info.csv", index=False)
+    if unrestricted:                                       # retirements_pre2030: unrestricted
+        log(f"pre-2030 retirements unrestricted: economic retirement of {sources} from the first stage "
+            f"(gen_can_retire_early = 1 on {int(m.sum())} existing generators, {before} already); no retirement rule")
+        return
     pd.DataFrame({"gen_energy_source": [s for s in sorted(set(gi.loc[m, "gen_energy_source"]))],
                   "rr_no_retirement_before": year}).to_csv(Path(folder) / "retirement_rules.csv", index=False)
     log(f"retirement rule: no economic retirement of {sources} before period {year}, economic from {year}; "
@@ -470,7 +501,7 @@ def scenario_options(settings: dict) -> str:
     if s0 is None:
         return ""
     mods = list(s0.get("extra_modules") or [])
-    if (s0.get("retirement_rule") or {}).get("enabled") and "study_modules.retirement_rules" not in mods:
+    if economic_rule_on(s0) and "study_modules.retirement_rules" not in mods:
         mods.append("study_modules.retirement_rules")
     if (s0.get("new_build_rule") or {}).get("enabled") and "study_modules.build_rules" not in mods:
         mods.append("study_modules.build_rules")

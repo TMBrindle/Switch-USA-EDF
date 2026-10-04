@@ -52,9 +52,11 @@ def test_settings_file_axis_and_rows():
     reg = si[si.case_id == "s4x1_S0prod_2035"].iloc[0]
     base = si[si.case_id == "s4x1_S0unc_2035_icon"].iloc[0]
     diff = [c for c in si.columns if reg[c] != base[c]]
-    assert set(diff) == {"case_id", "build_rate", "s0_production"} and reg.s0_production == "on_pgdays"
+    assert set(diff) == {"case_id", "build_rate", "s0_production", "retirements_pre2030"}
+    assert reg.s0_production == "on_pgdays" and reg.retirements_pre2030 == "legacy"
     new = si[si.case_id == "s4x1_S0prod_2035_new"].iloc[0]
-    assert [c for c in si.columns if new[c] != reg[c]] == ["case_id", "s0_production"] and new.s0_production == "on_pgdays_new"
+    assert [c for c in si.columns if new[c] != reg[c]] == ["case_id", "s0_production", "retirements_pre2030"]
+    assert new.s0_production == "on_pgdays_new" and new.retirements_pre2030 == "block_all"
     md = yaml.safe_load(open(REPO / "pg/settings/model_definition.yml"))
     spans = {int(k): v for k, v in s0["period_spans"].items()}
     for y, (first, last) in spans.items():

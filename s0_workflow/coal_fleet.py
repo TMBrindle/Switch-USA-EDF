@@ -97,6 +97,29 @@ def hold_tech(plant, gen) -> str:
     return f"{HOLD_TECH} {int(plant)} {cs.norm_gen(gen)}"
 
 
+def retirement_option(s0: dict) -> str:
+    """s0_production.retirements_pre2030: block_all (S0 default) | planned_only | unrestricted | legacy."""
+    o = (s0 or {}).get("retirements_pre2030", "block_all") or "block_all"
+    if o not in cs.RETIREMENT_OPTIONS + ("legacy",):
+        raise ValueError(f"s0_production.retirements_pre2030 must be one of {cs.RETIREMENT_OPTIONS}, not {o!r}")
+    return o
+
+
+def pre2030_rule(settings: dict) -> dict | None:
+    """The predetermined-retirement push that applies to coal in this case: the window rule among the case's
+    predetermined_retirement_override settings whose technologies match coal (block_all sets fedpol's
+    blocked_2030_coal_gas rule; planned_only and unrestricted remove it)."""
+    val = settings.get("predetermined_retirement_override")
+    for r in (val if isinstance(val, list) else [val] if val else []):
+        if r.get("mode", "window") == "window" and any(t.lower() in cs.CSC.lower() for t in r["technologies"]):
+            return r
+    return None
+
+
+def expected_path(cfg: dict, key: str, default: str, option: str) -> Path:
+    return REPO / str(cfg.get(key, default)).format(option=option)
+
+
 def apply_settings(s: dict, s0: dict) -> list[str]:
     """In place for one case/year: a PowerGenome technology per held unit (copying the "Conventional Steam Coal"
     entry of every technology-keyed settings dict; num_clusters 1), and the exemption of coal-group units from the
@@ -109,7 +132,6 @@ def apply_settings(s: dict, s0: dict) -> list[str]:
         for t in techs:
             d[t] = 1 if key == "num_clusters" else copy.deepcopy(val[cs.CSC])
         s[key] = d
-    s["predetermined_retirement_override_exempt"] = ["coal"]
     return techs
 
 
@@ -221,16 +243,20 @@ def _no_retirement_year(df: pd.DataFrame) -> pd.Series:
     return (op + age).clip(lower=cs.HORIZON + 1)
 
 
-def apply_overrides(units: pd.DataFrame, final: dict, ov: pd.DataFrame, capacity_cols=("winter_capacity_mw",)
-                    ) -> pd.DataFrame:
-    """Unit-level edits before clustering (§2.2, §2.3, §3.5). Returns a copy."""
+def apply_overrides(units: pd.DataFrame, final: dict, ov: pd.DataFrame, capacity_cols=("winter_capacity_mw",),
+                    rule: dict | None = None) -> pd.DataFrame:
+    """Unit-level edits before clustering (§2.2, §2.3, §3.5); returns a copy. Only units with an override row change
+    (a unit the model basis already retires by its 860M retirement keeps its basis year). With `rule` (pre-2030 option
+    block_all), coal-group and held units with a retirement year in the rule's window are then pushed
+    (coal_spec.pushed_year)."""
     df = units.copy()
     kn = pd.Series(cs.keys(df.plant_id_eia, df.generator_id), index=df.index)
     conv = ov[ov.action == A_CONVERT].set_index("kn") if len(ov) else pd.DataFrame()
+    rows = set(ov.kn) if len(ov) else set()
     none_year = _no_retirement_year(df)
     for k, (kind, y) in final.items():
         m = kn == k
-        if not m.any():
+        if k not in rows or not m.any():
             continue
         df.loc[m, "retirement_year"] = none_year[m] if y is None else y
         if kind == "gas":
@@ -243,20 +269,34 @@ def apply_overrides(units: pd.DataFrame, final: dict, ov: pd.DataFrame, capacity
         elif kind == "held":
             p, g = k.split("|")
             df.loc[m, "technology_description"] = hold_tech(p, g)
+    if rule is not None:
+        coal = df.technology_description.isin(cs.COAL_GROUP) | df.technology_description.astype(str).str.startswith(HOLD_TECH)
+        df.loc[coal, "retirement_year"] = [cs.pushed_year(y, rule) for y in df.loc[coal, "retirement_year"]]
     return df
 
 
 # ---------------------------------------------------------------------------------------------- model MW (§1.5)
-def model_mw(units: pd.DataFrame, final: dict, stage: int, capacity_col: str = "winter_capacity_mw"
-             ) -> tuple[pd.Series, pd.Series]:
-    """Model coal MW in service in `stage` by zone, before and after the overrides (coal clusters only: held and
-    converted units excluded after). In service in p: encoded retirement year >= p or none."""
-    u = model_units(units, capacity_col)
-    alive = lambda y: y is None or y >= stage  # noqa: E731
-    before = u[[alive(_eff(b)) for b in u.base]].groupby("model_region").mw.sum()
-    keep = [k for k, (kind, y) in final.items() if kind == "coal" and alive(y)]
-    after = u[u.kn.isin(keep)].groupby("model_region").mw.sum()
-    return before, after
+def model_mw(units: pd.DataFrame, edited: pd.DataFrame, stage: int, capacity_col: str = "winter_capacity_mw",
+             rule: dict | None = None) -> tuple[pd.Series, pd.Series]:
+    """Model coal MW in service in `stage` by zone: before the overrides (the model basis, with the pre-2030 push
+    if any) and after (`edited`, from apply_overrides: coal-group technologies only, so held and converted units
+    are out). In service in stage p: encoded retirement year >= p (Switch --retire early)."""
+    def mw(df, push):
+        u = df[df.technology_description.isin(cs.COAL_GROUP) & df.model_region.notna()]
+        if "operational_status_code" in u:
+            u = u[u.operational_status_code.astype(str) != "OS"]
+        y = pd.to_numeric(u.retirement_year, errors="coerce")
+        if push is not None:
+            y = y.map(lambda v: cs.pushed_year(v, push))
+        alive = y.isna() | (y >= stage)
+        return pd.to_numeric(u.loc[alive, capacity_col], errors="coerce").groupby(u.loc[alive, "model_region"]).sum()
+    return mw(units, rule), mw(edited, None)
+
+
+def hold_years(edited: pd.DataFrame) -> dict:
+    """Encoded retirement year (None: beyond the horizon) of every hold project in the edited unit table."""
+    h = edited[edited.technology_description.astype(str).str.startswith(HOLD_TECH)]
+    return {k: _eff(y) for k, y in zip(cs.keys(h.plant_id_eia, h.generator_id), h.retirement_year)}
 
 
 # ---------------------------------------------------------------------------------------------- PowerGenome hooks
@@ -285,7 +325,8 @@ def unit_hooks(settings: dict):
     holds = scenario_holds(s0)
     st = cs.read_table(REPO / cfg.get("plant_fuel_table", "s0_workflow/data/coal_plant_st_fuel.csv"))
     cap_col = settings.get("capacity_col", "capacity_mw")
-    rec = {"case": settings.get("case_id"), "year": int(settings["model_year"])}
+    rule = pre2030_rule(settings)
+    rec = {"case": settings.get("case_id"), "year": int(settings["model_year"]), "rule": rule}
     orig_group, orig_om = pgg.group_technologies, pgg.atb_fixed_var_om_existing
 
     def group_technologies(df, *a, **k):
@@ -293,7 +334,8 @@ def unit_hooks(settings: dict):
                 df.technology_description.isin(cs.COAL_GROUP).any() and "final" not in rec:
             ov, final = derive_overrides(df, op, rt, holds, cap_col)
             rec.update(overrides=ov, final=final, units=df.copy())
-            df = apply_overrides(df, final, ov, tuple(c for c in (cap_col, "capacity_mw") if c in df))
+            df = apply_overrides(df, final, ov, tuple(c for c in (cap_col, "capacity_mw") if c in df), rule)
+            rec["edited"] = df.copy()
             logger.info("coal spec %s/%s: %d overrides applied before clustering (%s)", rec["case"], rec["year"],
                         len(ov), ov.action.str.split(r" \(|:").str[0].value_counts().to_dict() if len(ov) else {})
         return orig_group(df, *a, **k)
@@ -353,16 +395,18 @@ def check_overrides(ov: pd.DataFrame, expected: pd.DataFrame, scenario: str) -> 
     return m.drop(columns=["_merge"]).sort_values("kn")
 
 
-def holds_by_stage(final: dict, holds_all: pd.DataFrame, stages, scenario: str, expected: pd.DataFrame) -> pd.DataFrame:
-    """Held / retired by unit and stage vs coal_spec_hold_by_stage.csv (exact)."""
+def holds_by_stage(years_held: dict, holds_all: pd.DataFrame, stages, scenario: str, expected: pd.DataFrame
+                   ) -> pd.DataFrame:
+    """Held / retired by unit and stage vs the hold-by-stage table (exact). years_held: hold project -> encoded
+    retirement year (None: beyond the horizon), from hold_years()."""
     e = expected.copy()
     e["kn"] = cs.keys(e.plant_id_eia, e.generator_id)
     col = "S0" if scenario == "s0" else "holds_persist"
     rows = []
     for _, h in holds_all[holds_all.in_S0 | holds_all.in_holds_persist].iterrows():
-        kind, y = final.get(h.kn, ("not held", None))
         for p in stages:
-            held = kind == "held" and (y is None or y >= p)
+            y = years_held.get(h.kn, -1)
+            held = h.kn in years_held and (y is None or y >= p)
             got = "held" if held else ("retired" if h["in_S0" if scenario == "s0" else "in_holds_persist"]
                                        else "retired (not held in S0)")
             x = e[(e.kn == h.kn) & (e.stage == p)]
@@ -378,8 +422,8 @@ def holds_by_stage(final: dict, holds_all: pd.DataFrame, stages, scenario: str, 
 def stage_caps(cu: pd.DataFrame, held: set, rec: dict, stage: int, capacity_col: str, members: dict | None,
                expected: pd.DataFrame | None, tol: float) -> tuple[pd.DataFrame, pd.DataFrame]:
     """(per-BA table with the comparison, per-load-zone caps) for one stage."""
-    hist, nat = cs.stage_history(cu, stage, held)
-    before, after = model_mw(rec["units"], rec["final"], stage, capacity_col)
+    hist, nat = cs.stage_history(cu, stage, held, rec.get("rule"))
+    before, after = model_mw(rec["units"], rec["edited"], stage, capacity_col, rec.get("rule"))
     zv = cs.apply_rule(hist, before, after, nat)
     zv["stage"] = stage
     if expected is not None:
@@ -412,7 +456,8 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     cu = cu[cu.status.isin(cfg.get("cap_statuses", ["OP", "SB"]))]
     holds_all = hold_table(s0)
     held = cs.held_keys(holds_all)
-    exp_caps = pd.read_csv(REPO / cfg.get("expected_caps", "s0_workflow/specs/coal/coal_spec_expected_caps_by_stage.csv"))
+    option = retirement_option(s0)
+    exp_caps = pd.read_csv(expected_path(cfg, "expected_caps", EXPECTED_CAPS, option))
     recs = {}
     for y in years:
         r = state(case, y)
@@ -468,14 +513,19 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
                          pd.read_csv(REPO / cfg.get("expected_overrides", "s0_workflow/specs/coal/coal_spec_overrides.csv"),
                                      dtype={"generator_id": str}), scen)
     ov.to_csv(folder / "coal_overrides_applied.csv", index=False)
-    hb = holds_by_stage(recs[years[0]]["final"], holds_all, years, scen,
-                        pd.read_csv(REPO / cfg.get("expected_holds", "s0_workflow/specs/coal/coal_spec_hold_by_stage.csv"),
-                                    dtype={"generator_id": str}))
+    hb = holds_by_stage(hold_years(recs[years[0]]["edited"]), holds_all, years, scen,
+                        pd.read_csv(expected_path(cfg, "expected_holds", EXPECTED_HOLDS, option), dtype={"generator_id": str}))
     hb.to_csv(folder / "coal_holds_by_stage.csv", index=False)
     hr = recs[years[0]].get("heat_rates", {})
+    bad_hr = pd.DataFrame()
     if hr:
-        pd.DataFrame([{"kn": k, "heat_rate": v, "source": s, "flag": f} for k, (v, s, f) in hr.items()]).to_csv(
-            folder / "coal_converted_heat_rates.csv", index=False)
+        H = pd.DataFrame([{"kn": k, "heat_rate": v, "source": s, "flag": f} for k, (v, s, f) in hr.items()])
+        g = pd.read_csv(REPO / cfg.get("expected_converted", "s0_workflow/specs/coal/coal_spec_converted_gas_units.csv"),
+                        dtype={"generator_id": str})
+        H["spec_heat_rate"] = H.kn.map(dict(zip(cs.keys(g.plant_id_eia, g.generator_id), g.convert_heat_rate)))
+        H["ok"] = (H.heat_rate - H.spec_heat_rate).abs() <= 0.01            # rev. 2.1: latest EIA-923 (+-0.01)
+        H.to_csv(folder / "coal_converted_heat_rates.csv", index=False)
+        bad_hr = H[~H.ok]
 
     bad_caps = T[~T.ok.fillna(False)] if "ok" in T else T.iloc[0:0]
     bad_ov, bad_h = ov[ov.status != "ok"], hb[~hb.ok]
@@ -507,6 +557,9 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
         problems.append(f"{len(bad_h)} hold unit-stages differ from coal_spec_hold_by_stage.csv: "
                         + "; ".join(f"{r.plant_name} {r.generator_id} {r.stage}: {r.build} vs {r.spec}"
                                     for r in bad_h.head(10).itertuples()))
+    if len(bad_hr):
+        problems.append(f"{len(bad_hr)} converted-unit heat rates differ from coal_spec_converted_gas_units.csv: "
+                        + "; ".join(f"{r.kn} {r.heat_rate} vs {r.spec_heat_rate}" for r in bad_hr.itertuples()))
     if problems:
         for p in problems:
             log("COAL SPEC CHECK FAILED: " + p)
@@ -516,3 +569,64 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
 
 
 NO_COAL_LABEL = cs.NO_COAL
+EXPECTED_CAPS = "s0_workflow/specs/coal/by_option/coal_spec_expected_caps_by_stage.{option}.csv"
+EXPECTED_HOLDS = "s0_workflow/specs/coal/by_option/coal_spec_hold_by_stage.{option}.csv"
+
+
+# ---------------------------------------------------------------------------------------------- per-option tables
+CAPS_COLUMNS = ["zone", "model_MW_before", "model_MW_after_overrides", "hist_MW", "n_units", "own_cap", "coverage",
+                "rule", "expected_cap", "stage", "national_N"]
+
+
+def option_tables(option: str, stages=cs.STAGES) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """The coal spec's per-stage validation tables under one pre-2030 retirement option, from the committed public
+    data (cap units, 860M fleet extract, holds) and the public model-basis reconstruction:
+    (expected caps by stage, holds by stage, stage summary). planned_only and unrestricted have the same tables
+    (economic retirement is a solve outcome); block_all pushes coal-group units dated 2026-29 (and the S0 holds'
+    encoded 2029) through the 2030 stage, in the model fleet and in the cap unit set."""
+    if option not in cs.RETIREMENT_OPTIONS:
+        raise ValueError(option)
+    rule = cs.BLOCK_RULE if option == "block_all" else None
+    basis = cs.load_model_basis()
+    op, rt = load_fleet860m()
+    cu = cs.load_cap_units()
+    cu = cu[cu.status.isin(["OP", "SB"])]
+    holds_all = cs.load_holds()
+    held = cs.held_keys(holds_all)
+    edited, hyears = {}, {}
+    for scen in ("s0", "holds_persist"):
+        ov, final = derive_overrides(basis, op, rt, scenario_holds({"coal_holds": {"scenario": scen}}))
+        edited[scen] = apply_overrides(basis, final, ov, rule=rule)
+        hyears[scen] = hold_years(edited[scen])
+    caps, summ = [], []
+    for p in stages:
+        hist, nat = cs.stage_history(cu, p, held, rule)
+        before, after = model_mw(basis, edited["s0"], p, rule=rule)
+        e = cs.apply_rule(hist, before, after, nat).reset_index()
+        e["stage"] = p
+        caps.append(e[CAPS_COLUMNS])
+        w = e.model_MW_after_overrides
+        has = w > 0
+        held_mw = {s: sum(holds_all.set_index("kn").winter_mw.get(k, 0) for k, y in hyears[s].items()
+                          if y is None or y >= p) for s in hyears}
+        summ.append({"option": option, "stage": p, "national_N": round(nat, 4), "zones": len(e),
+                     "zones_with_model_coal": int(has.sum()),
+                     "model_GW_before": round(e.model_MW_before.sum() / 1e3, 2), "model_GW_after_overrides": round(w.sum() / 1e3, 2),
+                     "model_MW_weighted_cap": round(float(np.average(e.expected_cap[has], weights=w[has])), 4),
+                     "zones_own_history": int((e.rule == cs.RULE_OWN).sum()), "zones_national": int((e.rule == cs.RULE_NAT).sum()),
+                     "zones_blend": int((e.rule == cs.RULE_BLEND).sum()), "zones_no_coal_left": int(e.rule.str.endswith(cs.NO_COAL).sum()),
+                     "held_GW_S0": round(held_mw["s0"] / 1e3, 2), "held_GW_holds_persist": round(held_mw["holds_persist"] / 1e3, 2)})
+    hs = []
+    for _, h in holds_all[holds_all.in_S0 | holds_all.in_holds_persist].iterrows():
+        for p in stages:
+            st = {}
+            for scen, col in (("s0", "S0"), ("holds_persist", "holds_persist")):
+                y = hyears[scen].get(h.kn, -1)
+                if h.kn in hyears[scen] and (y is None or y >= p):
+                    st[col] = "held"
+                else:
+                    st[col] = "retired" if (h.in_S0 if scen == "s0" else h.in_holds_persist) else "retired (not held in S0)"
+            hs.append({"plant_id_eia": h.plant_id_eia, "generator_id": h.generator_id, "plant_name": h.plant_name,
+                       "zone": h.zone, "stage": p, "S0": st["S0"], "holds_persist": st["holds_persist"],
+                       "cap_while_held": h.hold_cap, "winter_MW": h.winter_mw})
+    return pd.concat(caps, ignore_index=True), pd.DataFrame(hs), pd.DataFrame(summ)

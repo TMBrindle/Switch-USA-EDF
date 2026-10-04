@@ -107,16 +107,17 @@ s0_production:
     cap_units_table: s0_workflow/data/coal_cap_units_860m.csv
     fleet_table: s0_workflow/data/coal_fleet_860m.csv
     plant_fuel_table: s0_workflow/data/coal_plant_st_fuel.csv
-    # §1.1 lists OP, SB and OA; the validation tables were built with OP and SB (the two OA units, Biron Mill
-    # GEN1 15.3 MW p76 and WE Soda 5 10 MW p21, would move p21's cap by +0.002 in every stage). Add OA to follow
-    # §1.1's text; the cap check against the spec table will then fail in p21.
+    # OP and SB (coal_spec.md rev. 2.1, Tom 2026-10-04, overriding §1.1's OA): the two OA units (Biron Mill GEN1
+    # 15.3 MW p76, WE Soda 5 10 MW p21) are left out
     cap_statuses: [OP, SB]
     # converted units' heat rate: the most recent year with >= 10 GWh of ST/NG (§2.3), on EIA-923 through this
-    # month (YYYY-MM), or the latest data when blank. "2025-05" reproduces the spec's table (PUDL 2025_08 vintage).
+    # month (YYYY-MM), or the latest data when blank (S0, Tom 2026-10-04; coal_spec.md rev. 2.1). "2025-05" gives
+    # the rev. 2 values (PUDL 2025_08 vintage).
     heat_rate_data_through: ~
-    expected_caps: s0_workflow/specs/coal/coal_spec_expected_caps_by_stage.csv
+    # validation tables; {option} = retirements_pre2030 (s0_workflow/scripts/build_coal_option_tables.py)
+    expected_caps: s0_workflow/specs/coal/by_option/coal_spec_expected_caps_by_stage.{option}.csv
     expected_overrides: s0_workflow/specs/coal/coal_spec_overrides.csv
-    expected_holds: s0_workflow/specs/coal/coal_spec_hold_by_stage.csv
+    expected_holds: s0_workflow/specs/coal/by_option/coal_spec_hold_by_stage.{option}.csv
     tolerance: 0.001               # cap; H +-1 MW; same rule label
     fail_on_mismatch: true
 
@@ -168,11 +169,23 @@ s0_production:
   state_policies:
     release: "2026.09.21"          # ReEDS-Model/ReEDS tag 2026.09.21, commit 8a1572331da8 | legacy
 
+  # coal and gas retirements before 2030 (axis retirements_pre2030; scenario_inputs.csv column of that name;
+  # coal_spec.md rev. 2.1):
+  #   block_all     (S0 default, current policy) none before 2030, economic or dated: fedpol's blocked_2030_coal_gas
+  #                 predetermined override for coal and gas (a unit dated 2026-29 is in service through the 2030 stage
+  #                 and first disappears from the 2035 stage), with the coal spec's dated retirements, OS removals and
+  #                 the holds' encoded 2029; plus no economic retirement before 2030 (retirement_rule)
+  #   planned_only  dated retirements (860M, coal spec; coal and gas) as scheduled; no economic retirement before 2030
+  #   unrestricted  dated retirements as scheduled; economic retirement of coal and gas from the first stage
+  #   legacy        the settings as they are, without this option (the regression case, on_pgdays)
+  retirements_pre2030: block_all
+
   # item 6: extra Switch modules on the case's scenario line (not switch/modules.txt)
   extra_modules: [study_modules.gen_amortization_period]
 
   # item 8 prerequisite: no economic retirement of existing coal or gas in periods before 2030,
-  # economic from 2030 (study_modules.retirement_rules, added to the scenario line)
+  # economic from 2030 (study_modules.retirement_rules, added to the scenario line). With retirements_pre2030
+  # block_all or planned_only it applies whatever `enabled` says; unrestricted turns it off; legacy follows `enabled`.
   retirement_rule:
     enabled: true
     no_retirement_before: 2030

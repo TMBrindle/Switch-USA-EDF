@@ -1,0 +1,471 @@
+# public reconstruction of PowerGenome's coal-group fleet (coal_spec.md §2.1): EIA-860 2024 early release
+# Operable, Conventional Steam Coal / IGCC / Petroleum Coke, not OS; retirement_year_basis = planned retirement,
+# or the Retirement Year of 860M july_generator2025.xlsx Retired; zone: plant map, then county; built 2026-10-04 by s0_workflow/scripts/fetch_coal_spec_eia.py from EIA-860M august 2026
+kn,plant_id_eia,generator_id,technology_description,status,model_region,zone_source,winter_capacity_mw,operating_year,retirement_year_basis
+1001|1,1001,1,Conventional Steam Coal,OP,p105,plant map,505.0,1970.0,
+1001|2,1001,2,Conventional Steam Coal,OP,p105,plant map,500.0,1972.0,
+1004|CT1,1004,CT1,Coal Integrated Gasification Combined Cycle,OP,p107,plant map,,2013.0,
+1004|CT2,1004,CT2,Coal Integrated Gasification Combined Cycle,OP,p107,plant map,,2013.0,
+1004|ST,1004,ST,Coal Integrated Gasification Combined Cycle,OP,p107,plant map,578.0,2013.0,
+10113|GEN1,10113,GEN1,Conventional Steam Coal,OP,p122,plant map,80.0,1988.0,
+1012|2,1012,2,Conventional Steam Coal,OP,p107,plant map,90.0,1966.0,2025.0
+1012|3,1012,3,Conventional Steam Coal,OP,p107,plant map,270.0,1973.0,
+10143|COLV,10143,COLV,Conventional Steam Coal,OP,p122,plant map,110.0,1995.0,
+10151|GEN1,10151,GEN1,Conventional Steam Coal,OP,p116,plant map,80.0,1992.0,
+10167|GEN1,10167,GEN1,Petroleum Coke,OP,p65,county,7.6,1983.0,
+10234|GEN1,10234,GEN1,Conventional Steam Coal,OA,p76,county,15.3,1964.0,
+10234|GEN5,10234,GEN5,Conventional Steam Coal,OP,p76,county,20.0,1987.0,
+10343|TG1,10343,TG1,Conventional Steam Coal,OP,p122,plant map,40.0,1990.0,
+10361|GEN3,10361,GEN3,Petroleum Coke,OP,p94,county,42.3,1988.0,
+10361|GEN4,10361,GEN4,Petroleum Coke,OP,p94,county,42.3,1989.0,
+1040|1,1040,1,Conventional Steam Coal,OP,p107,plant map,34.7,1955.0,
+1040|2,1040,2,Conventional Steam Coal,OP,p107,plant map,65.0,1973.0,
+10603|GEN1,10603,GEN1,Conventional Steam Coal,OP,p122,plant map,50.0,1990.0,
+10671|GEN1,10671,GEN1,Conventional Steam Coal,OP,p50,plant map,160.6,1990.0,
+10671|GEN2,10671,GEN2,Conventional Steam Coal,OP,p50,plant map,160.4,1990.0,
+10684|TG8,10684,TG8,Conventional Steam Coal,OP,p10,county,25.0,1978.0,
+10684|TG9,10684,TG9,Conventional Steam Coal,OP,p10,county,25.0,1978.0,
+1073|1,1073,1,Conventional Steam Coal,OP,p70,plant map,3.6,1997.0,2025.0
+1073|3,1073,3,Conventional Steam Coal,OP,p70,plant map,27.7,1958.0,
+10784|GEN1,10784,GEN1,Conventional Steam Coal,OP,p20,plant map,40.5,1990.0,
+1082|3,1082,3,Conventional Steam Coal,OP,p45,plant map,705.9,1978.0,
+1082|4,1082,4,Conventional Steam Coal,OP,p45,plant map,805.8,2007.0,
+10860|1A,10860,1A,Conventional Steam Coal,OP,p70,county,75.0,2009.0,
+10860|2A,10860,2A,Conventional Steam Coal,OP,p70,county,105.0,2009.0,
+10864|GEN1,10864,GEN1,Conventional Steam Coal,OP,p70,county,31.0,1988.0,
+10864|GEN2,10864,GEN2,Conventional Steam Coal,OP,p70,county,31.0,1988.0,
+10864|GEN3,10864,GEN3,Conventional Steam Coal,OP,p70,county,31.0,1988.0,
+10864|GEN4,10864,GEN4,Conventional Steam Coal,OP,p70,county,31.0,1988.0,
+10864|GEN5,10864,GEN5,Conventional Steam Coal,OP,p70,county,31.0,1995.0,
+10864|GEN6,10864,GEN6,Conventional Steam Coal,OP,p70,county,105.0,2000.0,
+10865|GEN2,10865,GEN2,Conventional Steam Coal,OP,p83,county,31.0,1987.0,
+10865|GEN3,10865,GEN3,Conventional Steam Coal,OP,p83,county,31.0,1987.0,
+10865|GEN4,10865,GEN4,Conventional Steam Coal,OP,p83,county,31.0,1987.0,
+10865|GEN5,10865,GEN5,Conventional Steam Coal,OP,p83,county,31.0,1987.0,
+10865|GEN6,10865,GEN6,Conventional Steam Coal,OP,p83,county,31.0,1994.0,
+10865|GEN7,10865,GEN7,Conventional Steam Coal,OP,p83,county,75.0,1997.0,
+10865|GEN8,10865,GEN8,Conventional Steam Coal,OP,p83,county,105.0,2005.0,
+108|1,108,1,Conventional Steam Coal,OP,p52,plant map,358.9,1983.0,
+1091|3,1091,3,Conventional Steam Coal,OP,p45,plant map,514.0,1975.0,
+113|1,113,1,Conventional Steam Coal,OP,p28,plant map,112.0,1962.0,2025.0
+113|3,113,3,Conventional Steam Coal,OP,p28,plant map,268.0,1980.0,2025.0
+1167|7,1167,7,Conventional Steam Coal,OP,p70,plant map,20.1,1958.0,
+1167|8,1167,8,Conventional Steam Coal,OP,p70,plant map,68.0,1969.0,
+1167|9,1167,9,Conventional Steam Coal,OP,p70,plant map,160.8,1983.0,
+1241|1,1241,1,Conventional Steam Coal,OP,p53,plant map,779.19,1973.0,
+1241|2,1241,2,Conventional Steam Coal,OP,p53,plant map,668.7,1977.0,
+1250|4,1250,4,Conventional Steam Coal,OP,p53,plant map,111.3,1960.0,
+1250|5,1250,5,Conventional Steam Coal,OP,p53,plant map,376.68,1971.0,
+130|1,130,1,Conventional Steam Coal,OP,p96,plant map,585.0,1995.0,
+130|2,130,2,Conventional Steam Coal,OP,p96,plant map,570.0,1984.0,
+130|3,130,3,Conventional Steam Coal,OP,p96,plant map,580.0,2007.0,
+130|4,130,4,Conventional Steam Coal,OP,p96,plant map,595.0,2008.0,
+1355|3,1355,3,Conventional Steam Coal,OP,p109,plant map,416.0,1971.0,
+1356|1,1356,1,Conventional Steam Coal,OP,p109,plant map,479.0,1974.0,
+1356|2,1356,2,Conventional Steam Coal,OP,p109,plant map,486.0,1977.0,
+1356|3,1356,3,Conventional Steam Coal,OP,p109,plant map,476.0,1981.0,
+1356|4,1356,4,Conventional Steam Coal,OP,p109,plant map,478.0,1984.0,
+1364|2,1364,2,Conventional Steam Coal,OP,p109,plant map,297.0,1974.0,2027.0
+1364|3,1364,3,Conventional Steam Coal,OP,p109,plant map,394.0,1978.0,
+1364|4,1364,4,Conventional Steam Coal,OP,p109,plant map,486.0,1982.0,
+136|2,136,2,Conventional Steam Coal,OP,p101,plant map,640.0,1984.0,
+1379|1,1379,1,Conventional Steam Coal,OP,p93,plant map,138.0,1953.0,2033.0
+1379|2,1379,2,Conventional Steam Coal,OP,p93,plant map,138.0,1953.0,2033.0
+1379|3,1379,3,Conventional Steam Coal,OP,p93,plant map,138.0,1953.0,
+1379|4,1379,4,Conventional Steam Coal,OP,p93,plant map,138.0,1954.0,2033.0
+1379|5,1379,5,Conventional Steam Coal,OP,p93,plant map,138.0,1954.0,2033.0
+1379|6,1379,6,Conventional Steam Coal,OP,p93,plant map,138.0,1954.0,2033.0
+1379|7,1379,7,Conventional Steam Coal,OP,p93,plant map,138.0,1954.0,2033.0
+1379|8,1379,8,Conventional Steam Coal,OP,p93,plant map,138.0,1955.0,2033.0
+1379|9,1379,9,Conventional Steam Coal,OP,p93,plant map,138.0,1955.0,2033.0
+1384|1,1384,1,Conventional Steam Coal,OP,p93,plant map,116.0,1965.0,
+1384|2,1384,2,Conventional Steam Coal,OP,p93,plant map,225.0,1969.0,
+1393|1,1393,1,Petroleum Coke,OP,p58,plant map,109.0,1959.0,
+1393|2,1393,2,Petroleum Coke,OP,p58,plant map,108.0,1959.0,
+1393|6,1393,6,Conventional Steam Coal,OP,p58,plant map,531.9,1982.0,
+160|ST3,160,ST3,Conventional Steam Coal,OP,p28,plant map,175.0,1979.0,
+165|2,165,2,Conventional Steam Coal,OP,p51,plant map,478.9,1985.0,2026.0
+1710|1,1710,1,Conventional Steam Coal,OP,p103,plant map,260.0,1962.0,2025.0
+1710|2,1710,2,Conventional Steam Coal,OP,p103,plant map,280.0,1967.0,2025.0
+1710|3,1710,3,Conventional Steam Coal,OP,p103,plant map,789.3,1980.0,2025.0
+1733|1,1733,1,Conventional Steam Coal,OP,p103,plant map,758.0,1971.0,2032.0
+1733|2,1733,2,Conventional Steam Coal,OP,p103,plant map,783.0,1973.0,2032.0
+1733|3,1733,3,Conventional Steam Coal,OP,p103,plant map,783.0,1973.0,2028.0
+1733|4,1733,4,Conventional Steam Coal,OP,p103,plant map,762.0,1974.0,2028.0
+1893|3,1893,3,Conventional Steam Coal,OP,p43,plant map,352.0,1973.0,
+1893|4,1893,4,Conventional Steam Coal,OP,p43,plant map,585.0,1980.0,
+1915|1,1915,1,Conventional Steam Coal,OP,p43,plant map,511.0,1958.0,2028.0
+2079|5,2079,5,Conventional Steam Coal,OP,p54,plant map,562.0,1969.0,
+2103|1,2103,1,Conventional Steam Coal,OP,p72,plant map,616.0,1970.0,
+2103|2,2103,2,Conventional Steam Coal,OP,p72,plant map,616.0,1971.0,
+2103|3,2103,3,Conventional Steam Coal,OP,p72,plant map,616.0,1972.0,
+2103|4,2103,4,Conventional Steam Coal,OP,p72,plant map,616.0,1973.0,
+2107|1,2107,1,Conventional Steam Coal,OP,p72,plant map,497.0,1967.0,2028.0
+2107|2,2107,2,Conventional Steam Coal,OP,p72,plant map,497.0,1968.0,2028.0
+2167|1,2167,1,Conventional Steam Coal,OP,p84,plant map,607.0,1972.0,
+2167|2,2167,2,Conventional Steam Coal,OP,p84,plant map,615.0,1977.0,
+2168|1,2168,1,Conventional Steam Coal,OP,p72,plant map,167.0,1966.0,
+2168|2,2168,2,Conventional Steam Coal,OP,p72,plant map,272.0,1969.0,
+2168|3,2168,3,Conventional Steam Coal,OP,p72,plant map,714.0,1982.0,
+2240|6,2240,6,Conventional Steam Coal,OP,p41,plant map,15.5,1957.0,
+2240|7,2240,7,Conventional Steam Coal,OP,p41,plant map,21.0,1963.0,
+2240|8,2240,8,Conventional Steam Coal,OP,p41,plant map,82.0,1976.0,
+2277|1,2277,1,Conventional Steam Coal,OP,p41,plant map,104.0,1961.0,
+2277|2,2277,2,Conventional Steam Coal,OP,p41,plant map,112.0,1965.0,
+2291|4,2291,4,Conventional Steam Coal,OP,p41,plant map,101.8,1963.0,
+2291|5,2291,5,Conventional Steam Coal,OP,p41,plant map,174.9,1968.0,
+2364|1,2364,1,Conventional Steam Coal,OP,p130,plant map,108.0,1960.0,
+2364|2,2364,2,Conventional Steam Coal,OP,p130,plant map,330.0,1968.0,
+2442|4,2442,4,Conventional Steam Coal,OP,p31,plant map,770.0,1969.0,2031.0
+2442|5,2442,5,Conventional Steam Coal,OP,p31,plant map,770.0,1970.0,2031.0
+26|5,26,5,Conventional Steam Coal,OP,p89,plant map,832.0,1974.0,
+2712|1,2712,1,Conventional Steam Coal,OP,p98,plant map,380.0,1966.0,
+2712|2,2712,2,Conventional Steam Coal,OP,p98,plant map,673.0,1968.0,
+2712|3,2712,3,Conventional Steam Coal,OP,p98,plant map,698.0,1973.0,
+2712|4,2712,4,Conventional Steam Coal,OP,p98,plant map,711.0,1980.0,
+2721|5,2721,5,Conventional Steam Coal,OP,p97,plant map,546.0,1972.0,
+2721|6,2721,6,Conventional Steam Coal,OP,p97,plant map,849.0,2012.0,
+2727|2,2727,2,Conventional Steam Coal,OP,p97,plant map,380.0,1966.0,2034.0
+2727|4,2727,4,Conventional Steam Coal,OP,p97,plant map,660.0,1970.0,
+2817|1,2817,1,Conventional Steam Coal,OP,p36,plant map,220.0,1966.0,
+2817|2,2817,2,Conventional Steam Coal,OP,p36,plant map,440.0,1975.0,
+2823|1,2823,1,Conventional Steam Coal,OP,p36,plant map,237.0,1970.0,
+2823|2,2823,2,Conventional Steam Coal,OP,p36,plant map,455.0,1977.0,
+2828|1,2828,1,Conventional Steam Coal,OP,p112,plant map,595.0,1967.0,
+2828|2,2828,2,Conventional Steam Coal,OP,p112,plant map,595.0,1967.0,
+2828|3,2828,3,Conventional Steam Coal,OP,p112,plant map,620.0,1977.0,2028.0
+2832|7,2832,7,Conventional Steam Coal,OP,p114,plant map,510.0,1975.0,2027.0
+2832|8,2832,8,Conventional Steam Coal,OP,p114,plant map,510.0,1978.0,2027.0
+2876|1,2876,1,Conventional Steam Coal,OP,p112,plant map,198.7,1955.0,
+2876|2,2876,2,Conventional Steam Coal,OP,p112,plant map,198.0,1955.0,
+2876|3,2876,3,Conventional Steam Coal,OP,p112,plant map,198.0,1955.0,
+2876|4,2876,4,Conventional Steam Coal,OP,p112,plant map,198.0,1955.0,
+2876|5,2876,5,Conventional Steam Coal,OP,p112,plant map,198.0,1955.0,
+2878|1,2878,1,Petroleum Coke,OP,p111,plant map,137.0,1955.0,
+2914|3,2914,3,Conventional Steam Coal,SB,p112,plant map,8.0,1954.0,
+2914|4,2914,4,Conventional Steam Coal,OP,p112,plant map,15.2,1968.0,
+2935|10,2935,10,Conventional Steam Coal,OP,p112,plant map,23.0,1971.0,
+2935|9,2935,9,Conventional Steam Coal,OP,p112,plant map,20.0,1961.0,
+2936|3,2936,3,Conventional Steam Coal,SB,p111,plant map,7.0,1953.0,
+2936|5,2936,5,Conventional Steam Coal,OP,p111,plant map,15.5,1965.0,
+2936|7,2936,7,Conventional Steam Coal,OP,p111,plant map,17.5,1990.0,
+2936|ST2,2936,ST2,Conventional Steam Coal,SB,p111,plant map,7.0,1949.0,
+2952|6,2952,6,Conventional Steam Coal,OP,p51,plant map,521.0,1984.0,
+2963|3,2963,3,Conventional Steam Coal,OP,p51,plant map,460.0,1979.0,
+298|1,298,1,Conventional Steam Coal,OP,p63,plant map,824.0,1985.0,
+298|2,298,2,Conventional Steam Coal,OP,p63,plant map,836.0,1986.0,
+3118|1,3118,1,Conventional Steam Coal,OP,p122,plant map,850.0,1970.0,
+3118|2,3118,2,Conventional Steam Coal,OP,p122,plant map,850.0,1971.0,
+3130|FB1,3130,FB1,Conventional Steam Coal,OP,p122,plant map,521.0,2004.0,
+3136|1,3136,1,Conventional Steam Coal,OP,p115,plant map,850.0,1967.0,
+3136|2,3136,2,Conventional Steam Coal,OP,p115,plant map,850.0,1968.0,
+3149|1,3149,1,Conventional Steam Coal,OP,p122,plant map,752.0,1972.0,
+3297|1,3297,1,Conventional Steam Coal,OP,p96,plant map,342.0,1970.0,
+3297|2,3297,2,Conventional Steam Coal,OP,p96,plant map,342.0,1971.0,
+3298|ST1,3298,ST1,Conventional Steam Coal,OP,p96,plant map,610.0,1973.0,
+3399|1,3399,1,Conventional Steam Coal,OP,p92,plant map,1265.0,1973.0,2028.0
+3399|2,3399,2,Conventional Steam Coal,OP,p92,plant map,1257.0,1973.0,2026.0
+3403|1,3403,1,Conventional Steam Coal,OP,p92,plant map,228.0,1956.0,2031.0
+3403|2,3403,2,Conventional Steam Coal,OP,p92,plant map,228.0,1957.0,2031.0
+3403|3,3403,3,Conventional Steam Coal,OP,p92,plant map,266.0,1959.0,2031.0
+3403|4,3403,4,Conventional Steam Coal,OP,p92,plant map,266.0,1959.0,2031.0
+3407|1,3407,1,Conventional Steam Coal,OP,p92,plant map,106.0,1954.0,2027.0
+3407|2,3407,2,Conventional Steam Coal,OP,p92,plant map,107.0,1954.0,2027.0
+3407|3,3407,3,Conventional Steam Coal,OP,p92,plant map,107.0,1954.0,2027.0
+3407|4,3407,4,Conventional Steam Coal,OP,p92,plant map,101.0,1954.0,2027.0
+3407|5,3407,5,Conventional Steam Coal,OP,p92,plant map,154.0,1955.0,2027.0
+3407|6,3407,6,Conventional Steam Coal,OP,p92,plant map,144.0,1955.0,2027.0
+3407|7,3407,7,Conventional Steam Coal,OP,p92,plant map,151.0,1955.0,2026.0
+3407|8,3407,8,Conventional Steam Coal,OP,p92,plant map,154.0,1955.0,2026.0
+3407|9,3407,9,Conventional Steam Coal,OP,p92,plant map,151.0,1955.0,2026.0
+3470|5,3470,5,Conventional Steam Coal,OP,p67,plant map,664.0,1977.0,
+3470|6,3470,6,Conventional Steam Coal,OP,p67,plant map,663.0,1978.0,
+3470|7,3470,7,Conventional Steam Coal,OP,p67,plant map,577.0,1980.0,
+3470|8,3470,8,Conventional Steam Coal,OP,p67,plant map,610.0,1982.0,
+3845|2,3845,2,Conventional Steam Coal,OP,p2,plant map,670.0,1973.0,2025.0
+3935|1,3935,1,Conventional Steam Coal,OP,p117,plant map,800.0,1971.0,
+3935|2,3935,2,Conventional Steam Coal,OP,p117,plant map,800.0,1972.0,
+3935|3,3935,3,Conventional Steam Coal,OP,p117,plant map,1299.0,1973.0,
+3943|1,3943,1,Conventional Steam Coal,OP,p116,plant map,552.0,1967.0,
+3943|2,3943,2,Conventional Steam Coal,OP,p116,plant map,546.0,1968.0,
+3944|1,3944,1,Conventional Steam Coal,OP,p116,plant map,662.0,1972.0,
+3944|2,3944,2,Conventional Steam Coal,OP,p116,plant map,661.0,1973.0,
+3944|3,3944,3,Conventional Steam Coal,OP,p116,plant map,661.0,1974.0,
+3948|1,3948,1,Conventional Steam Coal,OP,p116,plant map,770.0,1971.0,
+3948|2,3948,2,Conventional Steam Coal,OP,p116,plant map,790.0,1971.0,
+3954|1,3954,1,Conventional Steam Coal,OP,p116,plant map,549.7,1965.0,
+3954|2,3954,2,Conventional Steam Coal,OP,p116,plant map,559.1,1966.0,
+3954|3,3954,3,Conventional Steam Coal,OP,p116,plant map,527.0,1973.0,
+3|4,3,4,Conventional Steam Coal,OP,p90,plant map,362.0,1969.0,
+3|5,3,5,Conventional Steam Coal,OP,p90,plant map,756.5,1971.0,
+4041|7,4041,7,Conventional Steam Coal,OP,p79,plant map,309.3,1965.0,2025.0
+4041|8,4041,8,Conventional Steam Coal,OP,p79,plant map,312.7,1967.0,2025.0
+4050|5,4050,5,Conventional Steam Coal,OP,p79,plant map,406.9,1985.0,
+4078|3,4078,3,Conventional Steam Coal,OP,p75,plant map,339.8,1981.0,
+4078|4,4078,4,Conventional Steam Coal,OP,p75,plant map,558.5,2008.0,
+4125|9,4125,9,Petroleum Coke,OP,p75,plant map,58.4,2007.0,
+4158|1,4158,1,Conventional Steam Coal,OP,p24,plant map,99.0,1959.0,
+4158|2,4158,2,Conventional Steam Coal,OP,p24,plant map,106.0,1961.0,
+4158|3,4158,3,Conventional Steam Coal,OP,p24,plant map,220.0,1964.0,2027.0
+4158|4,4158,4,Conventional Steam Coal,OP,p24,plant map,330.0,1972.0,
+4162|1,4162,1,Conventional Steam Coal,OP,p21,plant map,156.0,1963.0,
+4162|2,4162,2,Conventional Steam Coal,OP,p21,plant map,201.0,1968.0,
+4271|1,4271,1,Conventional Steam Coal,OP,p46,plant map,392.5,1979.0,
+470|2,470,2,Conventional Steam Coal,OP,p34,plant map,330.0,1975.0,2025.0
+470|3,470,3,Conventional Steam Coal,OP,p34,plant map,766.0,2010.0,
+50121|TG1,50121,TG1,Petroleum Coke,OP,p65,county,26.9,1983.0,
+50121|TG2,50121,TG2,Petroleum Coke,OP,p65,county,26.9,1983.0,
+50305|GE10,50305,GE10,Petroleum Coke,OP,p103,county,3.2,1999.0,
+50305|GEN6,50305,GEN6,Petroleum Coke,OP,p103,county,12.0,1952.0,
+50305|GEN7,50305,GEN7,Petroleum Coke,OP,p103,county,10.0,1955.0,
+50305|GEN8,50305,GEN8,Petroleum Coke,OP,p103,county,11.0,1991.0,
+50305|GEN9,50305,GEN9,Petroleum Coke,OP,p103,county,11.0,1994.0,
+50308|GEN1,50308,GEN1,Conventional Steam Coal,OP,,,4.3,1955.0,
+50308|GEN3,50308,GEN3,Conventional Steam Coal,OP,,,6.2,1955.0,
+50308|GEN4,50308,GEN4,Conventional Steam Coal,OP,,,6.2,1955.0,
+50308|GEN5,50308,GEN5,Conventional Steam Coal,OP,,,6.2,1989.0,
+50392|TG3,50392,TG3,Conventional Steam Coal,OP,,,5.0,1955.0,
+50392|TG4,50392,TG4,Conventional Steam Coal,OP,,,5.0,1969.0,
+50392|TG5,50392,TG5,Conventional Steam Coal,OP,,,9.5,1987.0,
+50397|GEN5,50397,GEN5,Conventional Steam Coal,OP,p122,county,36.1,1989.0,
+50481|TG10,50481,TG10,Conventional Steam Coal,OP,p92,county,6.0,1946.0,
+50481|TG11,50481,TG11,Conventional Steam Coal,OP,p92,county,6.0,1949.0,
+50481|TG12,50481,TG12,Conventional Steam Coal,OP,p92,county,6.0,1953.0,
+50481|TG13,50481,TG13,Conventional Steam Coal,OP,p92,county,7.0,1960.0,
+50481|TG14,50481,TG14,Conventional Steam Coal,OP,p92,county,10.0,1962.0,
+50481|TG15,50481,TG15,Conventional Steam Coal,OP,p92,county,7.5,1963.0,
+50481|TG22,50481,TG22,Conventional Steam Coal,OP,p92,county,15.4,1982.0,
+50481|TG25,50481,TG25,Conventional Steam Coal,OP,p92,county,18.0,1994.0,
+50481|TG26,50481,TG26,Conventional Steam Coal,OP,p92,county,16.6,1994.0,
+50481|TGO7,50481,TGO7,Conventional Steam Coal,OP,p92,county,6.0,1936.0,
+50481|TGO8,50481,TGO8,Conventional Steam Coal,OP,p92,county,6.0,1939.0,
+50481|TGO9,50481,TGO9,Conventional Steam Coal,OP,p92,county,6.0,1941.0,
+50611|GEN1,50611,GEN1,Conventional Steam Coal,OP,p122,plant map,30.0,1987.0,
+50711|GEN5,50711,GEN5,Conventional Steam Coal,OP,,,17.0,2020.0,
+50776|GEN1,50776,GEN1,Conventional Steam Coal,OP,p122,plant map,80.0,1992.0,
+50835|GEN1,50835,GEN1,Conventional Steam Coal,OP,p103,plant map,60.0,1990.0,
+50888|GEN1,50888,GEN1,Conventional Steam Coal,OP,p122,plant map,112.0,1995.0,
+50900|GEN3,50900,GEN3,Conventional Steam Coal,OP,p99,county,10.5,1951.0,
+50900|GEN5,50900,GEN5,Conventional Steam Coal,OP,p99,county,32.5,1989.0,
+50931|GEN1,50931,GEN1,Petroleum Coke,OP,p20,plant map,55.0,1995.0,
+50951|GEN1,50951,GEN1,Conventional Steam Coal,OP,p25,plant map,51.0,1993.0,
+50965|GEN1,50965,GEN1,Petroleum Coke,OP,p111,county,6.0,1986.0,
+50974|GEN1,50974,GEN1,Conventional Steam Coal,OP,p122,plant map,85.2,1993.0,
+525|1,525,1,Conventional Steam Coal,OP,p33,plant map,179.0,1965.0,2028.0
+525|2,525,2,Conventional Steam Coal,OP,p33,plant map,262.0,1976.0,2027.0
+54210|G1,54210,G1,Conventional Steam Coal,OP,p37,county,13.3,1990.0,
+54211|G1,54211,G1,Conventional Steam Coal,OP,p42,county,3.0,1948.0,
+54211|G2,54211,G2,Conventional Steam Coal,OP,p42,county,2.0,1961.0,
+54212|G1,54212,G1,Conventional Steam Coal,OP,p42,county,3.5,1954.0,
+54212|G2,54212,G2,Conventional Steam Coal,OP,p42,county,3.0,1975.0,
+54213|G1,54213,G1,Conventional Steam Coal,OP,p37,county,6.0,1965.0,
+54214|G1,54214,G1,Conventional Steam Coal,OP,p42,county,2.5,1990.0,
+54214|G2,54214,G2,Conventional Steam Coal,OP,p42,county,5.0,1990.0,
+54318|TG1,54318,TG1,Conventional Steam Coal,OP,p21,county,15.0,1968.0,
+54318|TG2,54318,TG2,Conventional Steam Coal,OP,p21,county,15.0,1977.0,
+54533|1,54533,0001,Conventional Steam Coal,OP,p44,county,7.5,1976.0,
+54634|SNCP,54634,SNCP,Conventional Steam Coal,OP,p122,plant map,86.0,1990.0,
+54867|M387,54867,M387,Conventional Steam Coal,SB,p74,county,5.8,1930.0,
+55076|RHGF,55076,RHGF,Conventional Steam Coal,OP,p88,plant map,440.0,2001.0,
+55479|1,55479,0001,Conventional Steam Coal,OP,p23,plant map,86.0,2003.0,
+55749|UNT1,55749,UNT1,Conventional Steam Coal,OP,p18,plant map,107.0,2006.0,
+55856|PC1,55856,PC1,Conventional Steam Coal,OP,p81,plant map,815.0,2012.0,
+55856|PC2,55856,PC2,Conventional Steam Coal,OP,p81,plant map,815.0,2012.0,
+56068|1,56068,1,Conventional Steam Coal,OP,p79,plant map,637.3,2010.0,
+56068|2,56068,2,Conventional Steam Coal,OP,p79,plant map,638.1,2011.0,
+56224|1,56224,001,Conventional Steam Coal,OP,p12,plant map,219.2,2008.0,
+56319|1,56319,0001,Conventional Steam Coal,OP,p23,plant map,91.0,2008.0,
+56456|STG1,56456,STG1,Conventional Steam Coal,OP,p85,plant map,680.0,2010.0,
+564|1,564,1,Conventional Steam Coal,OP,p101,plant map,453.4,1987.0,2025.0
+564|2,564,2,Conventional Steam Coal,OP,p101,plant map,469.3,1996.0,
+56564|1,56564,1,Conventional Steam Coal,OP,p85,plant map,650.0,2012.0,
+56596|5,56596,5,Conventional Steam Coal,OP,p23,plant map,103.0,2010.0,
+56609|1,56609,01,Conventional Steam Coal,OP,p23,plant map,405.0,2011.0,
+56611|S01,56611,S01,Conventional Steam Coal,OP,p63,plant map,932.6,2013.0,
+56671|MKA01,56671,MKA01,Conventional Steam Coal,OP,p116,plant map,710.0,2011.0,
+56808|1,56808,1,Conventional Steam Coal,OP,p118,plant map,626.0,2012.0,
+57046|GEN1,57046,GEN1,Conventional Steam Coal,OP,p40,county,61.0,2010.0,
+57915|1,57915,1,Conventional Steam Coal,OP,p21,county,3.5,1953.0,
+57915|2,57915,2,Conventional Steam Coal,OA,p21,county,3.5,1953.0,
+57915|3,57915,3,Conventional Steam Coal,OP,p21,county,4.0,1964.0,
+57915|4,57915,4,Conventional Steam Coal,OP,p21,county,10.0,1972.0,
+57915|5,57915,5,Conventional Steam Coal,OA,p21,county,10.0,1975.0,
+57915|6,57915,6,Conventional Steam Coal,OP,p21,county,10.0,1975.0,
+57928|GEN5,57928,GEN5,Conventional Steam Coal,OP,p81,county,2.8,1998.0,
+57949|1,57949,1,Conventional Steam Coal,OP,p103,county,1.4,1990.0,
+57953|ST,57953,ST,Petroleum Coke,OP,p70,county,32.0,2007.0,
+594|4,594,4,Conventional Steam Coal,OP,p125,plant map,410.0,1980.0,2025.0
+59|1,59,1,Conventional Steam Coal,OP,p40,plant map,100.0,1982.0,
+6002|1,6002,1,Conventional Steam Coal,OP,p89,plant map,687.8,1978.0,
+6002|2,6002,2,Conventional Steam Coal,OP,p89,plant map,692.7,1985.0,
+6002|3,6002,3,Conventional Steam Coal,OP,p89,plant map,693.0,1989.0,
+6002|4,6002,4,Conventional Steam Coal,OP,p89,plant map,704.0,1991.0,
+6004|1,6004,1,Conventional Steam Coal,OP,p116,plant map,650.0,1979.0,
+6004|2,6004,2,Conventional Steam Coal,OP,p116,plant map,650.0,1980.0,
+6009|1,6009,1,Conventional Steam Coal,OP,p85,plant map,425.3,1980.0,
+6009|2,6009,2,Conventional Steam Coal,OP,p85,plant map,835.9,1981.0,
+6017|1,6017,1,Conventional Steam Coal,OP,p83,plant map,615.0,1977.0,2027.0
+6018|2,6018,2,Conventional Steam Coal,OP,p109,plant map,600.0,1981.0,
+6021|1,6021,1,Conventional Steam Coal,OP,p33,plant map,427.0,1980.0,2025.0
+6021|2,6021,2,Conventional Steam Coal,OP,p33,plant map,410.0,1979.0,2028.0
+6021|3,6021,3,Conventional Steam Coal,OP,p33,plant map,448.0,1984.0,2029.0
+602|1,602,1,Conventional Steam Coal,OP,p123,plant map,635.0,1984.0,2025.0
+602|2,602,2,Conventional Steam Coal,OP,p123,plant map,638.0,1991.0,2025.0
+6030|1,6030,1,Conventional Steam Coal,OP,p37,plant map,568.3,1979.0,
+6030|2,6030,2,Conventional Steam Coal,OP,p37,plant map,573.9,1980.0,
+6034|ST1,6034,ST1,Conventional Steam Coal,OP,p103,plant map,635.0,1984.0,2028.0
+6034|ST2,6034,ST2,Conventional Steam Coal,OP,p103,plant map,635.0,1985.0,2028.0
+6041|1,6041,1,Conventional Steam Coal,OP,p109,plant map,300.0,1977.0,
+6041|2,6041,2,Conventional Steam Coal,OP,p109,plant map,510.0,1981.0,
+6041|3,6041,3,Conventional Steam Coal,OP,p109,plant map,268.0,2005.0,
+6041|4,6041,4,Conventional Steam Coal,OP,p109,plant map,268.0,2009.0,
+6055|1,6055,1,Conventional Steam Coal,OP,p58,plant map,560.1,1981.0,
+6055|3,6055,3,Conventional Steam Coal,OP,p58,plant map,565.9,1983.0,
+6064|1,6064,1,Conventional Steam Coal,OP,p53,plant map,243.0,1981.0,
+6065|1,6065,1,Conventional Steam Coal,OP,p54,plant map,702.5,1980.0,
+6065|2,6065,2,Conventional Steam Coal,OP,p54,plant map,899.7,2010.0,
+6068|1,6068,1,Conventional Steam Coal,OP,p53,plant map,725.2,1978.0,
+6068|2,6068,2,Conventional Steam Coal,OP,p53,plant map,721.8,1980.0,
+6068|3,6068,3,Conventional Steam Coal,OP,p53,plant map,731.8,1983.0,
+6071|1,6071,1,Conventional Steam Coal,OP,p109,plant map,493.0,1990.0,
+6071|2,6071,2,Conventional Steam Coal,OP,p109,plant map,760.0,2011.0,
+6073|1,6073,1,Conventional Steam Coal,OP,p87,plant map,502.0,1977.0,2027.0
+6073|2,6073,2,Conventional Steam Coal,OP,p87,plant map,502.0,1981.0,2027.0
+6076|3,6076,3,Conventional Steam Coal,OP,p20,plant map,740.0,1984.0,
+6076|4,6076,4,Conventional Steam Coal,OP,p20,plant map,740.0,1986.0,
+6077|1,6077,1,Conventional Steam Coal,OP,p40,plant map,665.0,1979.0,
+6077|2,6077,2,Conventional Steam Coal,OP,p40,plant map,700.0,1982.0,
+6085|17,6085,17,Conventional Steam Coal,OP,p105,plant map,361.0,1983.0,2025.0
+6085|18,6085,18,Conventional Steam Coal,OP,p105,plant map,361.0,1986.0,2025.0
+6090|1,6090,1,Conventional Steam Coal,OP,p43,plant map,680.0,1976.0,2026.0
+6090|3,6090,3,Conventional Steam Coal,OP,p43,plant map,876.0,1987.0,2034.0
+6095|1,6095,1,Conventional Steam Coal,OP,p50,plant map,519.0,1979.0,
+6095|2,6095,2,Conventional Steam Coal,OP,p50,plant map,519.0,1980.0,
+6096|1,6096,1,Conventional Steam Coal,OP,p41,plant map,650.3,1979.0,
+6096|2,6096,2,Conventional Steam Coal,OP,p41,plant map,687.2,2009.0,
+6098|1,6098,1,Conventional Steam Coal,OP,p38,plant map,491.29,1975.0,
+60|1,60,1,Conventional Steam Coal,OP,p40,plant map,76.0,1981.0,
+60|2,60,2,Conventional Steam Coal,OP,p40,plant map,220.0,2011.0,
+6101|1,6101,1,Conventional Steam Coal,OP,p23,plant map,335.0,1978.0,
+6113|1,6113,1,Conventional Steam Coal,OP,p107,plant map,635.0,1976.0,
+6113|2,6113,2,Conventional Steam Coal,OP,p107,plant map,635.0,1975.0,
+6113|3,6113,3,Conventional Steam Coal,OP,p107,plant map,635.0,1978.0,
+6113|4,6113,4,Conventional Steam Coal,OP,p107,plant map,627.0,1979.0,
+6113|5,6113,5,Conventional Steam Coal,OP,p107,plant map,625.0,1982.0,
+6138|1,6138,1,Conventional Steam Coal,OP,p56,plant map,494.0,1978.0,
+6139|1,6139,1,Conventional Steam Coal,OP,p57,plant map,500.0,1977.0,
+6139|3,6139,3,Conventional Steam Coal,OP,p57,plant map,500.0,1982.0,
+6146|1,6146,1,Conventional Steam Coal,OP,p63,plant map,815.0,1977.0,
+6146|2,6146,2,Conventional Steam Coal,OP,p63,plant map,820.0,1978.0,
+6146|3,6146,3,Conventional Steam Coal,OP,p63,plant map,820.0,1979.0,
+6165|1,6165,1,Conventional Steam Coal,OP,p25,plant map,446.0,1978.0,
+6165|2,6165,2,Conventional Steam Coal,OP,p25,plant map,446.0,1980.0,
+6165|3,6165,3,Conventional Steam Coal,OP,p25,plant map,471.0,1983.0,
+6166|1,6166,1,Conventional Steam Coal,OP,p107,plant map,1299.0,1984.0,2028.0
+6166|2,6166,2,Conventional Steam Coal,OP,p107,plant map,1299.0,1989.0,2028.0
+6177|CO1,6177,CO1,Conventional Steam Coal,OP,p29,plant map,380.0,1979.0,2032.0
+6177|CO2,6177,CO2,Conventional Steam Coal,OP,p29,plant map,382.0,1980.0,2032.0
+6178|1,6178,1,Conventional Steam Coal,OP,p65,plant map,655.0,1980.0,
+6179|1,6179,1,Conventional Steam Coal,OP,p64,plant map,598.0,1979.0,
+6179|2,6179,2,Conventional Steam Coal,OP,p64,plant map,598.0,1980.0,
+6179|3,6179,3,Conventional Steam Coal,OP,p64,plant map,440.0,1988.0,
+6180|OG1,6180,OG1,Conventional Steam Coal,OP,p63,plant map,855.0,2010.0,
+6180|OG2,6180,OG2,Conventional Steam Coal,OP,p63,plant map,855.0,2011.0,
+6183|1,6183,1,Conventional Steam Coal,OP,p65,plant map,391.0,1982.0,
+6190|2,6190,2,Conventional Steam Coal,OP,p58,plant map,493.0,1982.0,
+6190|3,6190,3,Petroleum Coke,OP,p58,plant map,628.0,2010.0,
+6193|2,6193,2,Conventional Steam Coal,OP,p48,plant map,339.0,1978.0,2038.0
+6193|3,6193,3,Conventional Steam Coal,OP,p48,plant map,340.0,1980.0,2040.0
+6194|1,6194,1,Conventional Steam Coal,OP,p48,plant map,532.0,1982.0,2028.0
+6194|2,6194,2,Conventional Steam Coal,OP,p48,plant map,535.0,1985.0,2028.0
+6195|ST1,6195,ST1,Conventional Steam Coal,OP,p55,plant map,184.0,1976.0,
+6195|ST2,6195,ST2,Conventional Steam Coal,OP,p55,plant map,275.0,2011.0,
+6204|1,6204,1,Conventional Steam Coal,OP,p24,plant map,560.0,1981.0,
+6204|2,6204,2,Conventional Steam Coal,OP,p24,plant map,570.0,1981.0,
+6204|3,6204,3,Conventional Steam Coal,OP,p24,plant map,570.0,1982.0,
+6213|1,6213,1,Conventional Steam Coal,OP,p107,plant map,494.0,1983.0,
+6213|2,6213,2,Conventional Steam Coal,OP,p107,plant map,496.0,1982.0,
+62319|1,62319,1,Conventional Steam Coal,OP,p20,county,1.5,2011.0,
+6248|1,6248,1,Conventional Steam Coal,OP,p33,plant map,505.0,1981.0,
+6249|1,6249,1,Conventional Steam Coal,OP,p96,plant map,280.0,1975.0,2030.0
+6249|2,6249,2,Conventional Steam Coal,OP,p96,plant map,290.0,1977.0,2030.0
+6249|3,6249,3,Conventional Steam Coal,OP,p96,plant map,290.0,1980.0,2030.0
+6249|4,6249,4,Conventional Steam Coal,OP,p96,plant map,290.0,1981.0,2030.0
+6250|1,6250,1,Conventional Steam Coal,OP,p98,plant map,713.0,1983.0,
+6254|1,6254,1,Conventional Steam Coal,OP,p70,plant map,716.3,1981.0,
+6257|1,6257,1,Conventional Steam Coal,OP,p94,plant map,860.0,1982.0,
+6257|2,6257,2,Conventional Steam Coal,OP,p94,plant map,860.0,1984.0,
+6257|3,6257,3,Conventional Steam Coal,OP,p94,plant map,860.0,1987.0,
+6264|1,6264,1,Conventional Steam Coal,OP,p117,plant map,1299.0,1980.0,
+6288|1,6288,1,Conventional Steam Coal,OP,,,25.0,1967.0,
+6288|2,6288,2,Conventional Steam Coal,OP,,,50.0,1998.0,
+628|5,628,5,Conventional Steam Coal,OP,p101,plant map,721.0,1984.0,
+628|ST4,628,ST4,Conventional Steam Coal,OP,p101,plant map,721.0,1982.0,
+6469|1,6469,1,Conventional Steam Coal,OP,p36,plant map,450.0,1984.0,
+6469|2,6469,2,Conventional Steam Coal,OP,p36,plant map,450.0,1986.0,
+6481|1,6481,1,Conventional Steam Coal,OP,p25,plant map,900.0,1986.0,2025.0
+6481|2,6481,2,Conventional Steam Coal,OP,p25,plant map,900.0,1987.0,2025.0
+6641|1,6641,1,Conventional Steam Coal,OP,p85,plant map,836.0,1983.0,
+6641|2,6641,2,Conventional Steam Coal,OP,p85,plant map,842.0,1984.0,
+6664|1,6664,1,Conventional Steam Coal,OP,p70,plant map,755.0,1983.0,
+667|1,667,1,Conventional Steam Coal,OP,p101,plant map,293.0,1966.0,
+667|2,667,2,Conventional Steam Coal,OP,p101,plant map,293.0,1972.0,
+6705|1,6705,1,Conventional Steam Coal,OP,p107,plant map,142.8,1960.0,
+6705|2,6705,2,Conventional Steam Coal,OA,p107,plant map,126.3,1964.0,
+6705|3,6705,3,Conventional Steam Coal,OP,p107,plant map,149.7,1965.0,
+6705|4,6705,4,Conventional Steam Coal,OP,p107,plant map,305.2,1970.0,
+6761|1,6761,1,Conventional Steam Coal,OP,p33,plant map,280.0,1984.0,2029.0
+6768|1,6768,1,Conventional Steam Coal,OP,p72,plant map,240.0,1981.0,
+6772|1,6772,1,Conventional Steam Coal,OP,p50,plant map,440.0,1982.0,
+6823|1,6823,1,Conventional Steam Coal,OP,p108,plant map,417.0,1984.0,
+7030|1,7030,1,Conventional Steam Coal,OP,p63,plant map,153.0,1990.0,
+7030|2,7030,2,Conventional Steam Coal,OP,p63,plant map,154.0,1991.0,
+703|1,703,1,Conventional Steam Coal,OP,p94,plant map,714.0,1971.0,
+703|2,703,2,Conventional Steam Coal,OP,p94,plant map,718.0,1972.0,
+703|3,703,3,Conventional Steam Coal,OP,p94,plant map,883.0,1974.0,
+703|4,703,4,Conventional Steam Coal,OP,p94,plant map,885.0,1975.0,
+7097|1,7097,1,Conventional Steam Coal,OP,p65,plant map,560.0,1992.0,2028.0
+7097|2,7097,2,Conventional Steam Coal,OP,p65,plant map,785.0,2010.0,
+7213|1,7213,1,Conventional Steam Coal,OP,p99,plant map,442.9,1995.0,
+7213|2,7213,2,Conventional Steam Coal,OP,p99,plant map,439.0,1996.0,
+7343|4,7343,4,Conventional Steam Coal,OP,p45,plant map,651.0,1979.0,
+7504|2,7504,2,Conventional Steam Coal,OP,p23,plant map,80.0,1995.0,
+7790|1,7790,1,Conventional Steam Coal,OP,p26,plant map,458.0,1986.0,
+79|1,79,1,Conventional Steam Coal,OP,,,4.3,1952.0,
+79|2,79,2,Conventional Steam Coal,OP,,,2.0,1952.0,
+79|5,79,5,Conventional Steam Coal,OP,,,18.8,1975.0,
+8023|1,8023,1,Conventional Steam Coal,OP,p76,plant map,585.0,1975.0,2029.0
+8023|2,8023,2,Conventional Steam Coal,OP,p76,plant map,579.8,1978.0,2029.0
+8066|3,8066,3,Conventional Steam Coal,OP,p21,plant map,523.0,1976.0,
+8066|4,8066,4,Conventional Steam Coal,OP,p21,plant map,526.0,1979.0,
+8069|1,8069,1,Conventional Steam Coal,OP,p25,plant map,459.0,1977.0,
+8069|2,8069,2,Conventional Steam Coal,OP,p25,plant map,450.0,1974.0,
+8102|1,8102,1,Conventional Steam Coal,OP,p112,plant map,1361.0,1974.0,
+8102|2,8102,2,Conventional Steam Coal,OP,p112,plant map,1361.0,1975.0,
+8219|1,8219,1,Conventional Steam Coal,OP,p34,plant map,195.0,1980.0,2029.0
+8222|1,8222,1,Conventional Steam Coal,OP,p36,plant map,433.3,1981.0,
+8223|1,8223,1,Conventional Steam Coal,OP,p29,plant map,381.0,1985.0,2027.0
+8223|2,8223,2,Conventional Steam Coal,OP,p29,plant map,406.0,1990.0,2032.0
+8223|3,8223,3,Conventional Steam Coal,OP,p29,plant map,417.0,2006.0,
+8223|4,8223,4,Conventional Steam Coal,OP,p29,plant map,415.0,2009.0,
+8224|1,8224,1,Conventional Steam Coal,OP,p12,plant map,254.0,1981.0,
+8224|2,8224,2,Conventional Steam Coal,OP,p12,plant map,268.0,1985.0,
+876|1,876,1,Conventional Steam Coal,OP,p83,plant map,556.0,1967.0,2027.0
+876|2,876,2,Conventional Steam Coal,OP,p83,plant map,556.0,1968.0,2027.0
+879|5,879,5,Conventional Steam Coal,OP,p82,plant map,769.0,1972.0,
+879|6,879,6,Conventional Steam Coal,OP,p82,plant map,769.0,1975.0,
+889|1,889,1,Conventional Steam Coal,OP,p81,plant map,590.0,1970.0,2027.0
+889|2,889,2,Conventional Steam Coal,OP,p81,plant map,595.0,1973.0,2027.0
+963|4,963,4,Conventional Steam Coal,OP,p82,plant map,204.7,2009.0,
+976|1,976,1,Conventional Steam Coal,OP,p81,plant map,40.0,1963.0,
+976|2,976,2,Conventional Steam Coal,OP,p81,plant map,40.0,1963.0,
+976|3,976,3,Conventional Steam Coal,OP,p81,plant map,40.0,1963.0,
+983|1,983,1,Conventional Steam Coal,OP,p107,plant map,199.7,1955.0,
+983|2,983,2,Conventional Steam Coal,OP,p107,plant map,199.7,1955.0,
+983|3,983,3,Conventional Steam Coal,OP,p107,plant map,199.7,1955.0,
+983|4,983,4,Conventional Steam Coal,OP,p107,plant map,199.7,1955.0,
+983|5,983,5,Conventional Steam Coal,OP,p107,plant map,199.7,1955.0,
+983|6,983,6,Conventional Steam Coal,OP,p107,plant map,199.7,1956.0,
+994|4,994,4,Conventional Steam Coal,OP,p107,plant map,534.6,1986.0,
+994|ST3,994,ST3,Conventional Steam Coal,OP,p107,plant map,540.3,1977.0,
+997|12,997,12,Conventional Steam Coal,OP,p105,plant map,455.0,1974.0,2028.0

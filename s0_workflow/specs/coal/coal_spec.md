@@ -1,6 +1,6 @@
 # Coal specification: zonal CF caps and fleet refresh (for the cloud build)
 
-**Version:** final, 2026-10-03 (rev. 2: stage-specific holds and S0 horizon); not committed here. The cloud implements it from a copy committed to its branch, so this file is self-contained. Validation tables are listed in §5.
+**Version:** final, 2026-10-03 (rev. 2: stage-specific holds and S0 horizon), with addendum rev. 2.1 (2026-10-04, at the end); not committed here. The cloud implements it from a copy committed to its branch, so this file is self-contained. Validation tables are listed in §5.
 
 **Scope:** the S0 production build (`pg/settings/s0_production.yml`), stages / periods **2028** (2026–28), **2030** (2029–30), **2035** (2031–35), **2040** (2036–40) and **2045** (2041–45).
 * Mode A runs the stages as a myopic chain.
@@ -309,3 +309,163 @@ Location: `switch/out_ictest/2035/report_tables/emissions/` in the Switch repo (
 | `coal_spec_model_units_2035.csv` | reconstruction of the current case fleet, 2035 (reference only) | — |
 
 Producing scripts (VM, `ic_test_fedpol_work/`): `coalcap_adjudicate.py` (cap unit sets), `coal_holdopen.py` (§3), `coal_spec_build.py` (§1.5, §2, §4). Run them in that order.
+
+
+## Addendum: revision 2.1 (2026-10-04)
+
+Tom's decisions of 2026-10-04 on the cloud implementation of rev. 2. Implemented on `tom/s0-prod-scripts`
+(`s0_workflow/coal_spec.py`, `coal_fleet.py`; `pg/settings/s0_production.yml`). Where this addendum differs
+from the text above, it takes precedence.
+
+### A1. Cap unit set: OP and SB only
+
+The cap unit set (§1.1 rule 2) is status **OP or SB**. This overrides the §1.1 text, which also lists OA.
+- **Effect:** the two OA units are left out: Biron Mill GEN1 (10234, 15.3 MW, p76) and WE Soda 5 (57915,
+  10 MW, p21). Including them would raise p21's cap by 0.002 in every stage.
+- **Tables:** the §5 validation tables were built this way.
+- **Setting:** `coal_spec.cap_statuses: [OP, SB]`.
+
+### A2. Converted units: heat rates from the latest EIA-923
+
+The full-load heat rate of a converted unit (§2.3) comes from the **latest EIA-923**: 2025 final and 2026 through
+July (`f923_2026.zip`, `M_07_2026`), not PUDL 2025_08 (data through May 2025). The rule is unchanged: the
+plant's ST/NG fuel ÷ net generation in the most recent year with ≥ 10 GWh. Every converted plant now qualifies
+in 2026, so North Valmy no longer falls back to its coal heat rate.
+`coal_spec_converted_gas_units.csv` and the conversion rows of `coal_spec_overrides.csv` now carry these values:
+
+| plant (EIA ID) | gens | heat rate rev. 2 (MMBtu/MWh) | **rev. 2.1** | source (rev. 2.1) |
+|---|---|---|---|---|
+| North Valmy (8224) | 1, 2 | 13.98 (coal heat rate, flag) | **11.42** | ST/NG 2026, 7 months, 926 GWh |
+| TalenEnergy Montour (3149) | 1 | 10.12 | **10.11** | ST/NG 2026, 7 months, 3,031 GWh |
+| Pawnee (6248) | 1 | 12.97 | **10.96** | ST/NG 2026, 7 months, 1,294 GWh |
+| Harrington (6193) | 2, 3 | 11.10 | **10.83** | ST/NG 2026, 7 months, 1,640 GWh |
+| James E. Rogers (2721) | 5, 6 | 9.80 | **10.55** | ST/NG 2026, 7 months, 1,032 GWh |
+
+`coal_spec.heat_rate_data_through: "2025-05"` reproduces the rev. 2 values.
+
+**Conversion year (§2.3):** the 2025 record is the **June 2025** 860M, the vintage of PUDL 2025_08's 2025 data.
+It gives every listed conversion year, and is accepted.
+
+### A3. Retirements before 2030: three options
+
+Setting: `s0_production.retirements_pre2030`; axis `retirements_pre2030`; a `scenario_inputs.csv` column of
+the same name. They apply to the S0 new-defaults cases (`s4x1_S0prod_2035_new`, `S0prod_A`, `S0prod_B`).
+The regression case is `legacy`, which leaves its settings as they were. fedpol and every other case are
+unchanged.
+
+| option | dated retirements before 2030 (coal and gas) | economic retirements before 2030 |
+|---|---|---|
+| **block_all** (S0 default, current policy) | none: fedpol's `blocked_2030_coal_gas` predetermined override, for coal and gas | none (§ retirement rule) |
+| planned_only | as scheduled: the 860M and this spec | none |
+| unrestricted | as scheduled | allowed from the first stage |
+
+**block_all, stage by stage.**
+- **Which units:** a unit with a retirement year in 2026-29 is moved to 2030 (fedpol's rule: window 2026-29
+  inclusive, target 2030). This covers coal and gas, and the coal side includes:
+  - this spec's dated retirements and later-than-basis dates (Merrimack 1 2027, Marshall 2 2028, Brandon
+    Shores 1/2 2029, Comanche 2 2026, South Oak Creek 7/8 2027);
+  - the OS removals, encoded 2026: Sandy Creek S01, Big Cajun 2-1, Merrimack 2, Warrick 2, Biron Mill GEN5,
+    1,969 MW;
+  - the S0 holds' encoded 2029.
+- **Which stages:** Switch runs with `--retire early`, so a unit with retirement year Y is in service in the stage
+  whose period ends at p iff Y ≥ p. A unit dated 2026-29 is therefore **in service in the 2028 and 2030 stages
+  and first disappears from the 2035 stage**. With planned_only or unrestricted it is in the 2028 stage only if
+  dated 2028 or 2029, and gone from 2030.
+- **Encoding:** the case build encodes these coal and hold units as **2031**, not 2030, in PowerGenome's unit
+  table, before clustering. PowerGenome counts a unit in model year M only if Y > M, so with 2030 a cluster
+  whose units are all pushed would have no capacity in the 2030 stage and would be dropped (each hold project
+  is such a cluster). 2031 gives the same stages in Switch, and fedpol's rule leaves it alone (outside its
+  window). Gas units are pushed by fedpol's own code, unchanged.
+- **Held units:** with block_all the eight S0 holds are held in the 2028 **and 2030** stages, each with its own
+  unit cap from §3.2, and gone from 2035. holds_persist is unchanged.
+- **Cap unit set:** for consistency with the fleet, block_all also treats a cap unit's planned retirement year in
+  2026-29 as in service through 2030 (§1.1 rule 3). Its 2021-24 history therefore counts in H and N in the 2028
+  and 2030 stages.
+
+**Model basis for these tables.** A public reconstruction of PowerGenome's coal basis:
+- EIA-860 2024 **early release**, the vintage PUDL 2025_08 used: it has Brandon Shores 2025 and Stanton 2025;
+- PowerGenome's July 2025 860M Retired sheet;
+- zone from the plant map, then county (`s0_workflow/data/coal_model_basis_860er2024.csv`).
+
+It reproduces the rev. 2 override list exactly (71 rows) and the rev. 2 caps and rule labels exactly. It differs
+from the rev. 2 model MW only in p99, by +43 MW: plant 50900 (VA, Alleghany County) is not in the plant map, and
+§1.4's county step places it in p99, as the case does (§2.1).
+
+**Validation tables by option** (`s0_workflow/specs/coal/by_option/`, from
+`s0_workflow/scripts/build_coal_option_tables.py`; the case build checks the table of the case's option):
+- `coal_spec_expected_caps_by_stage.<option>.csv`;
+- `coal_spec_hold_by_stage.<option>.csv`;
+- `coal_spec_stage_summary.<option>.csv`.
+
+planned_only and unrestricted have the same tables: economic retirement is a solve outcome, not part of the
+predetermined fleet. block_all differs only in the 2028 and 2030 stages.
+
+**Per-stage figures (August 2026 860M):**
+
+| option | stage | N(p) | zones | zones with model coal | model coal before / after overrides (GW) | model-MW-weighted cap | own / national / blend / no coal left | S0 held (GW) |
+|---|---|---|---|---|---|---|---|---|
+| block_all | 2028 | 0.5785 | 76 | 76 | 167.70 / 166.53 | 0.5783 | 72 / 2 / 2 / 0 | 3.24 |
+| block_all | 2030 | 0.5785 | 76 | 76 | 167.70 / 166.53 | 0.5783 | 72 / 2 / 2 / 0 | 3.24 |
+| block_all | 2035 | 0.5998 | 73 | 68 | 135.71 / 126.45 | 0.5992 | 64 / 3 / 1 / 5 | 0.00 |
+| block_all | 2040 | 0.6001 | 73 | 68 | 135.37 / 124.35 | 0.5996 | 64 / 3 / 1 / 5 | 0.00 |
+| block_all | 2045 | 0.6001 | 72 | 68 | 135.03 / 124.35 | 0.5996 | 64 / 3 / 1 / 4 | 0.00 |
+| planned_only | 2028 | 0.5806 | 75 | 74 | 158.02 / 157.32 | 0.5801 | 71 / 2 / 1 / 1 | 3.24 |
+| planned_only | 2030 | 0.5926 | 74 | 71 | 144.45 / 142.11 | 0.5921 | 67 / 3 / 1 / 3 | 0.00 |
+| planned_only | 2035 | 0.5998 | 73 | 68 | 135.71 / 126.45 | 0.5992 | 64 / 3 / 1 / 5 | 0.00 |
+| planned_only | 2040 | 0.6001 | 73 | 68 | 135.37 / 124.35 | 0.5996 | 64 / 3 / 1 / 5 | 0.00 |
+| planned_only | 2045 | 0.6001 | 72 | 68 | 135.03 / 124.35 | 0.5996 | 64 / 3 / 1 / 4 | 0.00 |
+| unrestricted | 2028 | 0.5806 | 75 | 74 | 158.02 / 157.32 | 0.5801 | 71 / 2 / 1 / 1 | 3.24 |
+| unrestricted | 2030 | 0.5926 | 74 | 71 | 144.45 / 142.11 | 0.5921 | 67 / 3 / 1 / 3 | 0.00 |
+| unrestricted | 2035 | 0.5998 | 73 | 68 | 135.71 / 126.45 | 0.5992 | 64 / 3 / 1 / 5 | 0.00 |
+| unrestricted | 2040 | 0.6001 | 73 | 68 | 135.37 / 124.35 | 0.5996 | 64 / 3 / 1 / 5 | 0.00 |
+| unrestricted | 2045 | 0.6001 | 72 | 68 | 135.03 / 124.35 | 0.5996 | 64 / 3 / 1 / 4 | 0.00 |
+
+Model coal in the zone clusters, 2028 / 2030 stages (GW):
+- **block_all:** 166.53 / 166.53;
+- **planned_only:** 157.32 / 142.11;
+- **unrestricted:** 157.32 / 142.11 before any economic retirements, which the model chooses.
+
+Held projects (S0) come on top: 3.24 GW in 2028, and in 2030 with block_all.
+
+**Zones whose cap or rule changes with block_all** (against planned_only; 2035 and later are unchanged):
+
+| stage | zone | model coal after overrides (MW): planned_only → block_all | H (MW) | rule | cap |
+|---|---|---|---|---|---|
+| 2028 | p111 | 190 → 190 | 47 → 47 | blend → blend | 0.5309 → 0.5290 |
+| 2028 | p130 | 0 → 438 | — → 108 | national (no coal) → blend | 0.5806 → 0.4985 |
+| 2028 | p24 | 2,235 → 2,455 | 2,235 → 2,455 | own → own | 0.6796 → 0.6699 |
+| 2028 | p29 | 2,000 → 2,381 | 2,000 → 2,381 | own → own | 0.5899 → 0.5867 |
+| 2028 | p33 | 1,317 → 1,579 | 1,317 → 1,579 | own → own | 0.7223 → 0.7266 |
+| 2028 | p34 | 961 → 1,291 | 961 → 1,296 | own → own | 0.6910 → 0.6991 |
+| 2028 | p42 | 19 → 19 | — → — | national → national | 0.5806 → 0.5785 |
+| 2028 | p43 | 2,324 → 3,004 | 2,324 → 3,004 | own → own | 0.5003 → 0.5105 |
+| 2028 | p74 | 6 → 6 | — → — | national → national | 0.5806 → 0.5785 |
+| 2028 | p79 | 1,682 → 2,304 | 1,678 → 2,300 | own → own | 0.7314 → 0.6953 |
+| 2028 | p81 | 1,753 → 2,938 | 1,753 → 2,938 | own → own | 0.8755 → 0.7899 |
+| 2028 | p83 | 335 → 2,062 | 335 → 2,062 | own → own | 0.4118 → 0.4936 |
+| 2028 | p87 | — → 1,004 | — → 1,004 | — → own | — → 0.3948 |
+| 2028 | p92 | 4,076 → 4,796 | 4,076 → 4,796 | own → own | 0.5123 → 0.4898 |
+| 2030 | p103 | 1,650 → 4,465 | 1,602 → 4,417 | own → own | 0.6527 → 0.6414 |
+| 2030 | p105 | 1,005 → 1,460 | 1,005 → 1,460 | own → own | 0.5753 → 0.5121 |
+| 2030 | p107 | 7,966 → 10,690 | 7,389 → 9,987 | own → own | 0.5201 → 0.4541 |
+| 2030 | p111 | 190 → 190 | 47 → 47 | blend → blend | 0.5419 → 0.5290 |
+| 2030 | p112 | 4,969 → 5,589 | 4,969 → 5,589 | own → own | 0.6349 → 0.6427 |
+| 2030 | p123 | — → 1,273 | — → 1,273 | — → own | — → 0.2238 |
+| 2030 | p130 | 0 → 438 | — → 108 | national (no coal) → blend | 0.5926 → 0.4985 |
+| 2030 | p24 | 2,235 → 2,455 | 2,235 → 2,455 | own → own | 0.6796 → 0.6699 |
+| 2030 | p29 | 2,000 → 2,381 | 2,000 → 2,381 | own → own | 0.5899 → 0.5867 |
+| 2030 | p33 | 0 → 1,579 | — → 1,579 | national (no coal) → own | 0.5926 → 0.7266 |
+| 2030 | p34 | 766 → 1,291 | 766 → 1,296 | own → own | 0.7024 → 0.6991 |
+| 2030 | p42 | 19 → 19 | — → — | national → national | 0.5926 → 0.5785 |
+| 2030 | p43 | 1,813 → 3,004 | 1,813 → 3,004 | own → own | 0.5596 → 0.5105 |
+| 2030 | p48 | 0 → 1,067 | — → 1,067 | national (no coal) → own | 0.5926 → 0.3132 |
+| 2030 | p65 | 1,892 → 2,452 | 1,831 → 2,391 | own → own | 0.6514 → 0.6483 |
+| 2030 | p72 | 3,857 → 4,851 | 3,857 → 4,851 | own → own | 0.8180 → 0.7419 |
+| 2030 | p74 | 6 → 6 | — → — | national → national | 0.5926 → 0.5785 |
+| 2030 | p76 | 15 → 1,200 | — → 1,127 | national → own | 0.5926 → 0.5795 |
+| 2030 | p79 | 1,682 → 2,304 | 1,678 → 2,300 | own → own | 0.7314 → 0.6953 |
+| 2030 | p81 | 1,753 → 2,938 | 1,753 → 2,938 | own → own | 0.8755 → 0.7899 |
+| 2030 | p83 | 335 → 2,062 | 335 → 2,062 | own → own | 0.4118 → 0.4936 |
+| 2030 | p87 | — → 1,004 | — → 1,004 | — → own | — → 0.3948 |
+| 2030 | p92 | 2,812 → 4,796 | 2,812 → 4,796 | own → own | 0.5207 → 0.4898 |
+| 2030 | p97 | 660 → 1,040 | 660 → 1,040 | own → own | 0.5889 → 0.4930 |

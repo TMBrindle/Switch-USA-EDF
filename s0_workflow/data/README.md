@@ -57,4 +57,5 @@ writes nothing. Used by `s0_production.coal_spec` and `coal_holds` (`s0_workflow
 | `coal_cap_units_860m.csv` | 429 | 860M Operating, Conventional Steam Coal, OP/SB/OA, any planned retirement: zone (plant map, then county), winter MW, max valid annual CF 2021-24 |
 | `coal_fleet_860m.csv` | 2,249 | 860M Operating and Retired rows of every plant with a coal-group unit (EIA-860 2024 or this 860M); `conversion_year` for NG-coded units |
 | `coal_plant_st_fuel.csv` | 404 | monthly ST fuel (MMBtu) and net generation (MWh), NG and coal, 2023-26, plants with a converted unit |
+| `coal_model_basis_860er2024.csv` | 467 | public reconstruction of PowerGenome's coal-group fleet (EIA-860 2024 early release, not OS; retirement from the planned year or the July 2025 860M Retired sheet; zone from plant map, then county), for the per-option validation tables (`scripts/build_coal_option_tables.py` → `s0_workflow/specs/coal/by_option/`) |
 | `coal_holds.csv` | 10 | held units: hold cap (max(CF since the order, 0.001); 0.01 with < 3 months), window, S0 / holds_persist flags, encoded years, order basis |

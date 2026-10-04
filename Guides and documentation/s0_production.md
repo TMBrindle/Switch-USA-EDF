@@ -22,7 +22,7 @@ Cases:
   B6+B8 + NY buyout run, on the legacy settings.
 - `s4x1_S0prod_2035_new` (on_pgdays_new): the same case with the new defaults.
 
-**Defaults since Oct 2026 (CHANGES §45-48), with the legacy setting for each:**
+**Defaults since Oct 2026 (CHANGES §45-49), with the legacy setting for each:**
 
 | Setting | S0 default | Legacy (`on_pgdays`) |
 |---|---|---|
@@ -32,7 +32,8 @@ Cases:
 | `state_policies` | `release: "2026.09.21"`: state RPS/CES files built from the pinned ReEDS release | `release: legacy`: `emission_policies_current.csv` and `regional_resource_tags.yml` |
 | `new_build_rule` | `enabled: true`: no new nuclear before the 2035 stage | `enabled: false` (no rule) |
 | `coal_spec` | `enabled: true`: coal specification rev. 2 (caps by stage, fleet overrides, checks) | `enabled: false`; `coal_cf_caps` (one table, 500 MW / 0.65 fallback) |
-| `coal_holds` | `scenario: s0` (axis `coal_holds`): eight units held in the 2028 stage only | `enabled: false` (no holds) |
+| `coal_holds` | `scenario: s0` (axis `coal_holds`): eight units held in the 2028 stage (and 2030 with block_all) | `enabled: false` (no holds) |
+| `retirements_pre2030` | `block_all` (axis and column `retirements_pre2030`): no coal or gas retirement before 2030; or `planned_only`, `unrestricted` | `legacy` (settings as they were) |
 
 ```bash
 python pg_to_switch.py pg/settings switch/in/s0prod --case-id S0prod_A      # mode A: 5 stage folders
@@ -220,9 +221,10 @@ What changes with the release (`s0_workflow/data/reeds_state_policy_diff_2026.09
 - **Programs added:** `ESR_NS_rps` (Nova Scotia) and `ESR_voluntary_rps`. Neither maps to a US model
   region, so neither appears in the case files.
 
-## Coal specification (rev. 2)
+## Coal specification (rev. 2.1)
 
-The new-defaults cases implement `s0_workflow/specs/coal/coal_spec.md` (Tom, 2026-10-03). It has three
+The new-defaults cases implement `s0_workflow/specs/coal/coal_spec.md` (Tom, 2026-10-03) with its rev. 2.1
+addendum (2026-10-04). It has three
 parts, each checked against the spec's validation tables in the same folder.
 - **Code:** `s0_workflow/coal_spec.py` (rules), `s0_workflow/coal_fleet.py` (the case build), and
   `s0_workflow/scripts/fetch_coal_spec_eia.py` (public EIA data).
@@ -241,12 +243,13 @@ conversion-year rule), EIA-860 2020-24 and EIA-923 2021-26. It writes:
 | `s0_workflow/data/coal_fleet_860m.csv` | 860M Operating and Retired rows of every plant with a coal-group unit, with the conversion year of NG-coded units |
 | `s0_workflow/data/coal_plant_st_fuel.csv` | monthly ST fuel and generation (NG, coal) of the plants with a converted unit |
 | `s0_workflow/data/coal_holds.csv` | the ten held units: zone, winter MW, hold cap, S0 / holds_persist flags, encoded years, order basis |
+| `s0_workflow/data/coal_model_basis_860er2024.csv` | a public reconstruction of PowerGenome's coal basis (EIA-860 2024 early release, the July 2025 860M Retired sheet), used for the per-option tables |
 
 The script checks its results against `coal_cap_units_all.csv`, `coal_spec_hold_online.csv` and
 `coal_spec_converted_gas_units.csv`:
 - **Cap units:** unit max CF within 5e-5 and zones identical.
 - **Holds:** CF and caps exact.
-- **Converted units:** winter MW and conversion years exact.
+- **Converted units:** winter MW and conversion years exact; heat rates (latest EIA-923, rev. 2.1) exact.
 - **Collisions:** the generator-ID collision check finds none among 1,436 coal-group units.
 
 ### Zonal caps by stage (§1)
@@ -262,15 +265,43 @@ The script checks its results against `coal_cap_units_all.csv`, `coal_spec_hold_
   in the zone. A case with more than one period (mode B windows) also gets
   `gen_max_annual_availability_by_period.csv`, read by `study_modules.gen_annual_availability_limits` (new
   optional input), so each period has its own cap.
-- **Output and checks:** the build writes `coal_caps_by_stage.csv` and compares it with
-  `coal_spec_expected_caps_by_stage.csv`. Cap (±0.001), rule label and H (±1 MW) must match; a zone with no
-  model coal on either side needs no cap. Model-MW differences from the spec's reconstruction are logged,
-  not failed: §2.1 expects some, in p107 and p99.
+- **Output and checks:** the build writes `coal_caps_by_stage.csv` and compares it with the table of the case's
+  pre-2030 option, `s0_workflow/specs/coal/by_option/coal_spec_expected_caps_by_stage.<option>.csv`. Cap
+  (±0.001), rule label and H (±1 MW) must match; a zone with no model coal on either side needs no cap.
+  Model-MW differences from the public basis reconstruction are logged, not failed: §2.1 suggests p107.
 
-**Unit statuses.** §1.1 lists OP, SB and OA, but the validation tables were built with OP and SB. The two OA
-units, Biron Mill GEN1 (15.3 MW, p76) and WE Soda 5 (10 MW, p21), would raise p21's cap by 0.002 in every
-stage and fail the check. The default (`cap_statuses: [OP, SB]`) follows the tables; add OA to follow the
-text.
+**Unit statuses.** The cap unit set is OP and SB (rev. 2.1, overriding §1.1's OA). The two OA units, Biron Mill
+GEN1 (15.3 MW, p76) and WE Soda 5 (10 MW, p21), are left out (`cap_statuses: [OP, SB]`).
+
+### Retirements before 2030 (rev. 2.1 §A3)
+
+`s0_production.retirements_pre2030` (axis and `scenario_inputs.csv` column of the same name) has three
+options for the new-defaults cases. The regression case is `legacy`, which leaves its settings as they are.
+
+| Option | Dated coal and gas retirements before 2030 | Economic retirements before 2030 | Coal 2028 / 2030 stage (GW) |
+|---|---|---|---|
+| `block_all` (default) | none: fedpol's `blocked_2030_coal_gas` push (2026-29 → 2030), set by S0 whatever the `retirement_policy` axis says | none (retirement rule) | 166.53 / 166.53 |
+| `planned_only` | as scheduled (predetermined overrides removed) | none (retirement rule) | 157.32 / 142.11 |
+| `unrestricted` | as scheduled | allowed from the first stage (`gen_can_retire_early` 1 on existing coal and gas, no rule) | 157.32 / 142.11, before the model's economic retirements |
+
+**block_all, by stage.**
+- **Which stages:** with `--retire early`, a unit with retirement year Y runs in the stage whose period ends at
+  p iff Y ≥ p. A unit dated 2026-29 is in service in the 2028 and 2030 stages and first gone from the 2035
+  stage.
+- **What it covers:**
+  - the coal spec's dated retirements;
+  - the OS removals (encoded 2026; 1,969 MW kept through 2030);
+  - the eight S0 holds, which are held in the 2028 and 2030 stages with their own unit caps.
+- **Gas:** fedpol's own code pushes gas, unchanged (`apply_predetermined_retirement_override` in
+  `pg_to_switch.py` is back to its original form).
+- **Coal encoding:** the coal hook encodes coal and hold units dated 2026-29 as 2031. PowerGenome counts a unit
+  in model year M only if Y > M, so with 2030 a cluster of pushed units, such as a hold project, would be
+  dropped from the 2030 stage. Switch treats 2031 exactly like 2030 in every S0 stage.
+- **Cap unit set:** cap units with a planned retirement in 2026-29 count in H and N through the 2030 stage
+  too, so the cap unit set follows the fleet.
+
+The per-option figures and the zones whose caps change are in the addendum to `coal_spec.md`.
+`planned_only` and `unrestricted` share tables: economic retirement is a solve outcome.
 
 ### Fleet overrides (§2)
 
@@ -287,13 +318,12 @@ PowerGenome's files are not edited.
   - Held units get their own technology (see Holds).
 - **`atb_fixed_var_om_existing`:** sets the converted units' heat rates. This is the plant's ST/NG fuel ÷
   generation in the latest year with ≥ 10 GWh. With no gas history it is the 2024 coal heat rate, flagged.
-  - With the latest EIA-923 these differ from the spec table, which was built from PUDL data through May 2025.
-  - For example, North Valmy is 11.42 (2026) against 13.98 (coal, flagged), and Rogers 10.55 against 9.80.
-  - `heat_rate_data_through: "2025-05"` reproduces the table; the default uses the latest data.
-- **Exemption from blocked_2030:** coal-group units are exempt from the predetermined-retirement override
-  of `retirement_policy: blocked_2030_coal_gas` (`predetermined_retirement_override_exempt: [coal]`, read
-  in `pg_to_switch.py`). Otherwise their 2026-29 retirements, and the holds' encoded 2029, would move to
-  2030, against the spec's per-stage fleet. Gas units keep the override.
+  - It uses the latest EIA-923 (rev. 2.1): North Valmy 11.42, Montour 10.11, Pawnee 10.96, Harrington
+    10.83, Rogers 10.55, all 2026 ST/NG. These are now the values in `coal_spec_converted_gas_units.csv`.
+  - The build checks them (±0.01). `heat_rate_data_through: "2025-05"` gives the rev. 2 values.
+- **Pre-2030 push:** with `retirements_pre2030: block_all`, coal-group and held units dated 2026-29 are encoded
+  2031 here (see Retirements before 2030). Only units with an override row change their year; a unit the
+  basis already retires by its 860M retirement keeps its basis year.
 - **Check:** the build writes `coal_overrides_applied.csv` and compares it with `coal_spec_overrides.csv`.
   The units and actions must be the same, the effective year exact and MW within 0.1.
   - S0 has 71 rows: the 73 minus the two Intermountain rows, which apply only to `holds_persist`.
@@ -426,6 +456,8 @@ Covers:
   - the case-build caps, hold caps and checks, including a failing check;
   - per-period caps on the toy;
   - settings, axis and column; the legacy case untouched;
+  - the three pre-2030 options: settings, retirement rule, push semantics, per-option tables (committed = fresh
+    build; planned_only = rev. 2 tables), and the case build against each option's tables;
   - the 2045 load entries;
 - toy chains for modes A and B;
 - committed handoff of headroom and build-rate state;

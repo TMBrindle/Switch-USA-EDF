@@ -1895,3 +1895,69 @@ holds. Its case files are still byte-identical to the earlier code (test).
 
 **Not run in the cloud:** PowerGenome (its data is VM-only). The wrappers are tested on a stand-in module and
 the case-build checks on fixtures. Recipe C's build is the first run of the hooks on the real unit table.
+
+---
+
+## 49. S0 Production: Pre-2030 Retirement Options, Coal Specification Rev. 2.1
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:**
+- `s0_workflow/specs/coal/coal_spec.md` (addendum rev. 2.1)
+- `Guides and documentation/s0_production.md`
+- `s0_workflow/VM_RECIPES.md` (recipe C)
+- `SHARED_CHANGES.md` (#30-32)
+
+Tom's decisions on §48. The regression case `s4x1_S0prod_2035` stays byte-identical (test).
+
+1. **Cap unit set:** OP and SB (the default), recorded in the addendum as overriding §1.1's OA.
+2. **Converted-unit heat rates:** the latest EIA-923, as implemented.
+   - `coal_spec_converted_gas_units.csv` and the conversion rows of `coal_spec_overrides.csv` now carry those
+     values: North Valmy 11.42, Montour 10.11, Pawnee 10.96, Harrington 10.83, Rogers 10.55 (all 2026 ST/NG).
+   - The case build checks them (±0.01), and `fetch_coal_spec_eia.py` checks them too.
+3. **Retirements before 2030:** new setting `s0_production.retirements_pre2030`, with axis and
+   `scenario_inputs.csv` column. The options apply to the new-defaults cases; `legacy` is the regression case.
+   - **block_all** (S0 default, current policy): S0 sets fedpol's `blocked_2030_coal_gas` predetermined
+     override, for coal and gas.
+     - A unit dated 2026-29 is in service in the 2028 and 2030 stages and first disappears from the 2035 stage
+       (Switch `--retire early`: in service in period p iff retirement year ≥ p).
+     - It covers the coal spec's dated retirements, the OS removals and the holds' encoded 2029. The S0 holds
+       are therefore held in the 2028 and 2030 stages, with their own caps.
+     - The §48 coal exemption is removed and fedpol's function is restored.
+     - The coal hook encodes coal and held units dated 2026-29 as 2031, so PowerGenome also keeps them in model
+       year 2030; Switch's stages are the same as with 2030.
+     - Cap units with a planned retirement in 2026-29 count in H and N through 2030.
+     - No economic retirement before 2030.
+   - **planned_only:** S0 removes the predetermined overrides, so dated retirements happen as scheduled. No
+     economic retirement before 2030 (retirement rule).
+   - **unrestricted:** dated retirements as scheduled. No retirement rule; `gen_can_retire_early` 1 on existing
+     coal and gas from the first stage.
+   - **Per-option validation tables:** `s0_workflow/scripts/build_coal_option_tables.py` builds them from the
+     committed public data into `s0_workflow/specs/coal/by_option/`: expected caps by stage, holds by stage and
+     the stage summary.
+     - New committed model basis: `s0_workflow/data/coal_model_basis_860er2024.csv` (EIA-860 2024 early
+       release and the July 2025 860M Retired sheet), from `fetch_coal_spec_eia.py`.
+     - It reproduces the rev. 2 override list and the rev. 2 caps and rules exactly; model MW is +43 MW in p99
+       (plant 50900, by county).
+     - The case build checks against its option's tables.
+
+   **Coal in the zone clusters, 2028 / 2030 stages (GW):**
+   - block_all: 166.53 / 166.53 (N 0.5785 / 0.5785);
+   - planned_only and unrestricted: 157.32 / 142.11 (N 0.5806 / 0.5926).
+
+   Caps or rules change in 14 zones in 2028 and 24 in 2030 (table in the addendum). 2035 and later are
+   unchanged.
+4. **Conversion year:** the June 2025 860M, accepted.
+5. **Smaller changes:**
+   - `apply_overrides` now changes only units with an override row (a unit the basis already retires by its 860M
+     retirement keeps its basis year).
+   - Model MW and holds by stage are read from the edited unit table.
+   - The EIA-860 reader finds its header row (the early release has an extra row).
+
+**Tests:** `s0_workflow/tests` 61 (was 56):
+- the three options' settings and retirement rule;
+- the push semantics;
+- the per-option tables (committed = fresh build; planned_only = rev. 2);
+- the case build against each option's tables;
+- updated heat-rate, hook and fedpol-function tests.
+
+Build rate 22, headroom 31.

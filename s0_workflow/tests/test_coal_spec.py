@@ -159,20 +159,23 @@ def test_hold_table_and_cap_rule():
 
 
 def test_holds_by_stage_check():
-    e = spec("coal_spec_hold_by_stage.csv", dtype={"generator_id": str})
     h = cs.load_holds()
-    for scen, enc in (("s0", 2029), ("holds_persist", None)):
-        held = cf.scenario_holds({"coal_holds": {"scenario": scen}})
-        final = {k: ("held", y if pd.notna(y) else None) for k, y in zip(held.kn, held.encoded_year)}
-        hb = cf.holds_by_stage(final, h, cs.STAGES, scen, e)
-        assert hb.ok.all() and len(hb) == 50
-        assert set(hb[(hb.stage == 2030) & (hb.build == "held")].kn if "kn" in hb else []) == set()
-        n2030 = (hb[hb.stage == 2030].build == "held").sum()
-        assert n2030 == (0 if scen == "s0" else 10)
-    # a hold that ran one stage too long is caught
+    for opt in cs.RETIREMENT_OPTIONS:
+        e = pd.read_csv(cs.SPEC / f"by_option/coal_spec_hold_by_stage.{opt}.csv", dtype={"generator_id": str})
+        for scen in ("s0", "holds_persist"):
+            held = cf.scenario_holds({"coal_holds": {"scenario": scen}})
+            y = {k: (None if pd.isna(v) else cs.pushed_year(int(v), cs.BLOCK_RULE if opt == "block_all" else None))
+                 for k, v in zip(held.kn, held.encoded_year)}
+            hb = cf.holds_by_stage(y, h, cs.STAGES, scen, e)
+            assert hb.ok.all() and len(hb) == 50
+            n2030 = (hb[hb.stage == 2030].build == "held").sum()
+            assert n2030 == (10 if scen == "holds_persist" else 8 if opt == "block_all" else 0)
+            assert (hb[(hb.stage == 2035) & (hb.build == "held")].scenario == "holds_persist").all()
+    # rev. 2 table = planned_only and unrestricted; a hold that ran one stage too long is caught
+    rev2 = spec("coal_spec_hold_by_stage.csv", dtype={"generator_id": str})
     held = cf.scenario_holds({"coal_holds": {"scenario": "s0"}})
-    final = {k: ("held", 2030) for k in held.kn}
-    assert not cf.holds_by_stage(final, h, cs.STAGES, "s0", e).ok.all()
+    assert cf.holds_by_stage(dict(zip(held.kn, [2029] * 8)), h, cs.STAGES, "s0", rev2).ok.all()
+    assert not cf.holds_by_stage(dict(zip(held.kn, [2030] * 8)), h, cs.STAGES, "s0", rev2).ok.all()
 
 
 # ------------------------------------------------------------------------------------------------ §2 overrides
@@ -232,7 +235,8 @@ def test_apply_overrides_unit_edits():
     op, rt = cf.load_fleet860m()
     u = model_basis()
     ov, final = cf.derive_overrides(u, op, rt, cf.scenario_holds(s0))
-    e = cf.apply_overrides(u, final, ov).assign(kn=lambda d: cs.keys(d.plant_id_eia, d.generator_id)).set_index("kn")
+    edited = cf.apply_overrides(u, final, ov)
+    e = edited.assign(kn=lambda d: cs.keys(d.plant_id_eia, d.generator_id)).set_index("kn")
     assert e.at["628|ST4", "retirement_year"] == 2034 and e.at["56611|S01", "retirement_year"] == 2026
     assert e.at["564|1", "retirement_year"] > cs.HORIZON                                   # keep online
     assert e.at["564|1", "retirement_year"] - 500 == e.at["564|1", "operating_date"]       # build year = operating year
@@ -242,25 +246,56 @@ def test_apply_overrides_unit_edits():
     assert e.at["3845|2", "technology_description"] == cf.hold_tech(3845, "2") and e.at["3845|2", "retirement_year"] == 2029
     assert e.at["55000|CT1", "retirement_year"] == 2027                                    # other technologies untouched
     # model coal MW by stage: held and converted units out after; Brandon Shores (2029) in 2028, out in 2030
-    b28, a28 = cf.model_mw(u, final, 2028)
-    b30, a30 = cf.model_mw(u, final, 2030)
+    b28, a28 = cf.model_mw(u, edited, 2028)
+    b30, a30 = cf.model_mw(u, edited, 2030)
     assert a28["p123"] - a30.get("p123", 0) == pytest.approx(638 + 635)
     assert "p2" not in a28.index and a28.get("p97", 0) < b28.get("p97", 0) + 1e-9
+    # block_all: coal and held units dated 2026-29 -> 2031 (through the 2030 stage); gas and later years untouched
+    pb = cf.apply_overrides(u, final, ov, rule=cs.BLOCK_RULE).assign(
+        kn=lambda d: cs.keys(d.plant_id_eia, d.generator_id)).set_index("kn")
+    assert pb.at["602|1", "retirement_year"] == 2031 and pb.at["2364|1", "retirement_year"] == 2031   # Brandon, Merrimack 1
+    assert pb.at["56611|S01", "retirement_year"] == 2031                                    # an OS removal (2026) too
+    assert pb.at["3845|2", "retirement_year"] == 2031 and cf.hold_years(pb.reset_index())["3845|2"] == 2031
+    assert pb.at["628|ST4", "retirement_year"] == 2034 and pb.at["470|3", "retirement_year"] == 2030
+    assert pb.at["55000|CT1", "retirement_year"] == 2027                                   # gas: fedpol's own push
+    b30b, a30b = cf.model_mw(u, pb.reset_index(), 2030, rule=cs.BLOCK_RULE)
+    assert a30b["p123"] == pytest.approx(638 + 635) and cf.model_mw(u, pb.reset_index(), 2035)[1].get("p123", 0) == 0
+
+
+def test_pushed_year_semantics():
+    """block_all keeps a unit dated 2026-29 in the 2028 and 2030 stages and drops it from the 2035 stage: Switch
+    (--retire early) runs a unit with retirement year Y in a period iff Y >= its end; PowerGenome counts it in model
+    year M iff Y > M; the encoded 2031 satisfies both through 2030 and neither from 2035."""
+    r = cs.BLOCK_RULE
+    assert [cs.pushed_year(y, r) for y in (2025, 2026, 2029, 2030, 2034)] == [2025, 2031, 2031, 2030, 2034]
+    assert cs.pushed_year(2027, None) == 2027 and cs.pushed_year(None, r) is None
+    for y in (2026, 2027, 2028, 2029):
+        Y = cs.pushed_year(y, r)
+        assert [Y >= p for p in cs.STAGES] == [True, True, False, False, False]          # Switch
+        assert [Y > m for m in cs.STAGES] == [True, True, False, False, False]           # PowerGenome
+    sm = axis()["retirement_policy"]["blocked_2030_coal_gas"]["predetermined_retirement_override"]
+    assert {k: sm[k] for k in ("technologies", "window", "target_year")} == cs.BLOCK_RULE   # fedpol's rule
 
 
 def test_conversion_year_and_heat_rate():
-    assert cf.cs.conversion_year(pd.Series({2020: "BIT", 2022: "NG", 2023: "NG", 2024: "BIT", 2025: "BIT", 2026: "NG"})) == 2026
+    assert cs.conversion_year(pd.Series({2020: "BIT", 2022: "NG", 2023: "NG", 2024: "BIT", 2025: "BIT", 2026: "NG"})) == 2026
     assert cs.conversion_year(pd.Series({2023: "SUB", 2024: "SUB", 2025: "NG", 2026: "NG"})) == 2025
     st = cs.read_table(REPO / "s0_workflow/data/coal_plant_st_fuel.csv")
     g = spec("coal_spec_converted_gas_units.csv", dtype={"generator_id": str})
+    rev2 = {8224: 13.978, 3149: 10.123, 6248: 12.969, 6193: 11.104, 2721: 9.798}     # rev. 2 (PUDL through 2025-05)
+    latest = {8224: 11.416, 3149: 10.109, 6248: 10.962, 6193: 10.833, 2721: 10.552}  # rev. 2.1 (EIA-923 to 2026-07)
     for r in g.drop_duplicates("plant_id_eia").itertuples():
         coal = st[(st.plant == r.plant_id_eia) & (st.fuel == "COAL") & (st.year == 2024)]
         coal_hr = coal.mmbtu.sum() / coal.mwh.sum()
-        hr, src, flag = cs.plant_gas_heat_rate(st, r.plant_id_eia, coal_hr, through="2025-05")
-        assert hr == pytest.approx(r.convert_heat_rate, abs=0.01), r.plant_name          # the spec table's vintage
-        assert flag == r.convert_heat_rate_source.startswith("no gas")
-        latest = cs.plant_gas_heat_rate(st, r.plant_id_eia, coal_hr)                     # S0 default: latest EIA-923
-        assert "2026" in latest[1] and not latest[2]
+        hr, src, flag = cs.plant_gas_heat_rate(st, r.plant_id_eia, coal_hr)              # S0: latest EIA-923
+        assert hr == pytest.approx(r.convert_heat_rate, abs=0.01) == latest[r.plant_id_eia], r.plant_name
+        assert "2026" in src and not flag and r.convert_heat_rate_source == src         # the committed table (rev. 2.1)
+        old = cs.plant_gas_heat_rate(st, r.plant_id_eia, coal_hr, through="2025-05")
+        assert old[0] == pytest.approx(rev2[r.plant_id_eia], abs=0.001) and old[2] == (r.plant_id_eia == 8224)
+    o = spec("coal_spec_overrides.csv", dtype={"generator_id": str})
+    o = o[o.action == "convert to gas"]
+    assert dict(zip(cs.keys(o.plant_id_eia, o.generator_id), o.convert_heat_rate)) == \
+        dict(zip(cs.keys(g.plant_id_eia, g.generator_id), g.convert_heat_rate))
     f, _ = cf.load_fleet860m()
     g["kn"] = cs.keys(g.plant_id_eia, g.generator_id)
     assert (g.kn.map(f.conversion_year) == g.conversion_year).all()
@@ -286,18 +321,26 @@ def test_settings_axis_column_and_legacy_off():
     leg = ax["s0_production"]["on_pgdays"]["s0_production"]
     assert leg["coal_spec"] == {"enabled": False} and leg["coal_holds"] == {"enabled": False}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
-    assert si.columns[-1] == "coal_holds" and (si.coal_holds == "s0").all()
+    assert list(si.columns[-2:]) == ["coal_holds", "retirements_pre2030"] and (si.coal_holds == "s0").all()
+    assert set(si.loc[si.case_id == "s4x1_S0prod_2035", "retirements_pre2030"]) == {"legacy"}
+    assert (si.loc[si.case_id != "s4x1_S0prod_2035", "retirements_pre2030"] == "block_all").all()
+    assert ax["retirements_pre2030"] == {o: {"s0_production": {"retirements_pre2030": o}} for o in cs.RETIREMENT_OPTIONS} \
+        | {"legacy": None}
+    assert s0["retirements_pre2030"] == "block_all"
+    assert ax["s0_production"]["on_pgdays"]["s0_production"]["retirements_pre2030"] == "legacy"
     # the legacy case: no hold technologies, no override exemption, legacy coal caps; new defaults: on
     leg_s = s0_case("on_pgdays")
     before = copy.deepcopy(leg_s)
     s0prod.apply_settings({"c": {2035: leg_s}})
-    assert "predetermined_retirement_override_exempt" not in leg_s and leg_s["num_clusters"] == before["num_clusters"]
+    assert leg_s["num_clusters"] == before["num_clusters"]                              # legacy: no hold technologies
+    assert "predetermined_retirement_override" not in leg_s                              # nor a push set by S0
     for ax_value in ("on", "on_windows", "on_pgdays_new"):
         s = s0_case(ax_value)
         s0prod.apply_settings({"c": {2028: s}})
         t = cf.hold_tech(3845, "2")
         assert s["num_clusters"][t] == 1 and s["tech_fuel_map"][t] == "coal" and s["eia_atb_tech_map"][t] == "Coal_newAvgCF"
-        assert t not in s["tech_groups"] and s["predetermined_retirement_override_exempt"] == ["coal"]
+        assert t not in s["tech_groups"] and "predetermined_retirement_override_exempt" not in s
+        assert s["predetermined_retirement_override"] == cs.BLOCK_RULE                    # block_all (S0 default)
         assert sum(k.startswith(cf.HOLD_TECH) for k in s["num_clusters"]) == 8
     p = s0_case("on", "holds_persist")
     s0prod.apply_settings({"c": {2028: p}})
@@ -365,41 +408,26 @@ def _pg_fn(name):
     return g[name], src
 
 
-def test_pg_to_switch_hooks_and_override_exemption():
+def test_pg_to_switch_hook_and_fedpol_override_unchanged():
+    """fedpol's apply_predetermined_retirement_override is as it was (no coal exemption): block_all relies on it for
+    gas, and the S0 coal push (coal_fleet) encodes 2031, outside its window."""
     fn, src = _pg_fn("apply_predetermined_retirement_override")
+    import subprocess
+    fn_src = lambda s: s[s.index("def apply_predetermined_retirement_override"):s.index("def eia_build_info")]  # noqa: E731
+    before = subprocess.run(["git", "show", "79c5f35:pg_to_switch.py"], cwd=REPO, capture_output=True, text=True,
+                            check=True).stdout
+    assert fn_src(src) == fn_src(before)                                    # as before the coal spec (fedpol's)
     units = pd.DataFrame({"technology": ["Conventional Steam Coal", f"{cf.HOLD_TECH} 3845 2",
                                          "Natural Gas Fired Combined Cycle", "Conventional Steam Coal"],
-                          "retirement_year": [2027, 2029, 2028, 2031]})
-    rule = {"technologies": ["coal", "natural gas"], "window": [2026, 2029], "target_year": 2030}
-    a = fn(units.copy(), {"predetermined_retirement_override": rule})
-    assert list(a.retirement_year) == [2030, 2030, 2030, 2031]                      # legacy behaviour
-    b = fn(units.copy(), {"predetermined_retirement_override": rule, "predetermined_retirement_override_exempt": ["coal"]})
-    assert list(b.retirement_year) == [2027, 2029, 2030, 2031]                      # coal keeps the spec's years
+                          "retirement_year": [2027, 2031, 2028, 2031]})
+    a = fn(units.copy(), {"predetermined_retirement_override": cs.BLOCK_RULE})
+    assert list(a.retirement_year) == [2030, 2031, 2030, 2031]
+    assert list(fn(units.copy(), {}).retirement_year) == [2027, 2031, 2028, 2031]          # planned_only / unrestricted
     i = src.index("with s0coal.unit_hooks(year_settings):")
     assert "gc.create_all_generators()" in src[i:i + 120]
 
 
 # ------------------------------------------------------------------------------------------------ case build
-def _expected_frame(stages):
-    """A coal unit table whose model MW after the overrides equals the spec's in every stage and zone."""
-    e = spec("coal_spec_expected_caps_by_stage.csv")
-    m = e.pivot_table(index="zone", columns="stage", values="model_MW_after_overrides").fillna(0)
-    rows, n = [], 0
-    for z, r in m.iterrows():
-        prev = None
-        for i, p in enumerate(cs.STAGES):
-            nxt = r[cs.STAGES[i + 1]] if i + 1 < len(cs.STAGES) else 0.0
-            mw = r[p] - nxt
-            if mw > 1e-6:
-                n += 1
-                ret = cs.STAGES[i + 1] - 1 if i + 1 < len(cs.STAGES) else 2070
-                rows.append(dict(plant_id_eia=900000 + n, generator_id="1", technology_description=cs.CSC,
-                                 model_region=z, winter_capacity_mw=mw, retirement_year=ret, operating_date=1980))
-    u = pd.DataFrame(rows).assign(retirement_age=500)
-    final = {cs.unit_key(p, g): ("coal", cf._eff(y)) for p, g, y in zip(u.plant_id_eia, u.generator_id, u.retirement_year)}
-    return u, final
-
-
 def _case_folder(folder, zones):
     rows = [dict(GENERATION_PROJECT=f"{z}_conventional_steam_coal_1", gen_tech=cs.CSC, gen_load_zone=z,
                  gen_energy_source="coal", gen_forced_outage_rate="0.1", gen_can_retire_early="1") for z in zones]
@@ -410,52 +438,131 @@ def _case_folder(folder, zones):
     pd.DataFrame(rows).to_csv(folder / "gen_info.csv", index=False)
 
 
-def test_case_build_caps_holds_and_checks(tmp_path):
-    years = [2028, 2030]
-    u, final = _expected_frame(years)
+def _hook_record(option, scen="s0", basis=None):
+    """What the unit hook records for a case on the public model basis (as during the real build)."""
     op, rt = cf.load_fleet860m()
+    basis = cs.load_model_basis() if basis is None else basis
+    ov, final = cf.derive_overrides(basis, op, rt, cf.scenario_holds({"coal_holds": {"scenario": scen}}))
+    rule = cs.BLOCK_RULE if option == "block_all" else None
+    return {"units": basis, "final": final, "overrides": ov, "rule": rule,
+            "edited": cf.apply_overrides(basis, final, ov, rule=rule)}
+
+
+@pytest.mark.parametrize("option", cs.RETIREMENT_OPTIONS)
+def test_case_build_caps_holds_and_checks(tmp_path, option):
+    """The case build on the public model basis passes every check against its option's tables; caps go on the coal
+    clusters (per period with two periods) and hold projects; a missed cap stops the build."""
+    years = [2028, 2030]
     s = s0_case("on_windows")
+    s["s0_production"]["retirements_pre2030"] = option
     s0prod.apply_settings({"c": {2028: s}})
+    assert cf.pre2030_rule(s) == (cs.BLOCK_RULE if option == "block_all" else None)
     s0 = s["s0_production"]
-    held = cf.scenario_holds(s0)
-    basis = model_basis()
-    ov, f2 = cf.derive_overrides(basis, op, rt, held)
-    final.update({k: v for k, v in f2.items() if v[0] == "held"})
     for y in years:
-        cf._State.store[("c", y)] = {"case": "c", "year": y, "units": u, "final": final, "overrides": ov}
-    zones = ["p101", "p111", "p21", "p53"]
+        cf._State.store[("c", y)] = {"case": "c", "year": y, **_hook_record(option)}
+    zones = ["p101", "p111", "p21", "p53", "p130"]
     _case_folder(tmp_path, zones)
     log = s0prod.Log(tmp_path)
     cf.write_case_inputs(tmp_path, s0, {y: dict(s, model_year=y) for y in years}, log)
     t = pd.read_csv(tmp_path / "coal_caps_by_stage.csv")
-    assert t.ok.all() and set(t.stage) == set(years)
+    assert t.ok.all() and set(t.stage) == set(years) and t.M_diff.abs().max() < 1e-6
     gi = pd.read_csv(tmp_path / "gen_info.csv", na_values=".").set_index("GENERATION_PROJECT")
     bp = pd.read_csv(tmp_path / "gen_max_annual_availability_by_period.csv").set_index(["GENERATION_PROJECT", "PERIOD"])
-    e = spec("coal_spec_expected_caps_by_stage.csv").set_index(["stage", "zone"]).expected_cap
+    e = pd.read_csv(cs.SPEC / f"by_option/coal_spec_expected_caps_by_stage.{option}.csv").set_index(["stage", "zone"]).expected_cap
     for z in zones:
         for y in years:
             assert bp.loc[(f"{z}_conventional_steam_coal_1", y)].iloc[0] == pytest.approx(min(1, e[(y, z)] / 0.9), abs=1e-3)
-        assert gi.at[f"{z}_conventional_steam_coal_1", "gen_max_annual_availability"] == pytest.approx(
-            min(1, e[(2028, z)] / 0.9), abs=1e-3)
     h = "p103_conventional_steam_coal_hold_1710_3_1"
-    assert gi.at[h, "gen_max_annual_availability"] == pytest.approx(0.5539 / 0.9, abs=1e-6)
+    assert gi.at[h, "gen_max_annual_availability"] == pytest.approx(0.5539 / 0.9, abs=1e-6)  # its own unit cap
     assert gi.at[h, "gen_can_retire_early"] == 0                                     # held: no economic retirement
     assert pd.isna(gi.at["p97_other_peaker_1", "gen_max_annual_availability"])      # converted gas: no coal cap
     assert (pd.read_csv(tmp_path / "coal_overrides_applied.csv").status == "ok").all()
+    assert pd.read_csv(tmp_path / "coal_converted_heat_rates.csv").ok.all() if (tmp_path / "coal_converted_heat_rates.csv").exists() else True
     hb = pd.read_csv(tmp_path / "coal_holds_by_stage.csv")
-    assert hb.ok.all() and set(hb[hb.build == "held"].stage) == {2028}
-    txt = (tmp_path / "s0_production_log.txt").read_text() if (tmp_path / "s0_production_log.txt").exists() else "\n".join(log.lines)
-    assert "coal caps 2028: N 0.5806" in txt and "71/71 as coal_spec_overrides.csv" in txt
+    assert hb.ok.all() and set(hb[hb.build == "held"].stage) == ({2028, 2030} if option == "block_all" else {2028})
+    txt = "\n".join(log.lines)
+    n = {"block_all": "0.5785", "planned_only": "0.5806", "unrestricted": "0.5806"}[option]
+    assert f"coal caps 2028: N {n}" in txt and "71/71 as coal_spec_overrides.csv" in txt
+    # the wrong option's table is caught
+    if option != "block_all":
+        _case_folder(tmp_path, zones)
+        s0b = dict(s0, retirements_pre2030="block_all")
+        with pytest.raises(ValueError, match="coal spec check failed"):
+            cf.write_case_inputs(tmp_path, s0b, {y: dict(s, model_year=y) for y in years}, s0prod.Log(tmp_path))
     # a cap that misses the spec stops the build, after writing the check files
-    u2 = u.copy()
-    u2.loc[u2.model_region == "p111", "winter_capacity_mw"] *= 0.1                  # p111: blend -> own history
+    rec = _hook_record(option)
+    m = rec["edited"].model_region == "p111"
+    rec["edited"].loc[m, "winter_capacity_mw"] *= 0.1                               # p111: blend -> own history
     for y in years:
-        cf._State.store[("c", y)]["units"] = u2
+        cf._State.store[("c", y)] = {"case": "c", "year": y, **rec}
     _case_folder(tmp_path, zones)
     with pytest.raises(ValueError, match="p111"):
         cf.write_case_inputs(tmp_path, s0, {y: dict(s, model_year=y) for y in years}, s0prod.Log(tmp_path))
     with pytest.raises(RuntimeError, match="unit hook"):
         cf.write_case_inputs(tmp_path, s0, {2035: dict(s, model_year=2035, case_id="other")}, s0prod.Log(tmp_path))
+
+
+def test_option_tables_committed_and_figures():
+    """The committed per-option tables are what option_tables() builds; planned_only (= unrestricted) reproduces the
+    rev. 2 tables (model MW +43 MW in p99: plant 50900, mapped by county); block_all changes only 2028 and 2030."""
+    import subprocess
+    r = subprocess.run([sys.executable, str(REPO / "s0_workflow/scripts/build_coal_option_tables.py"), "--check"],
+                       capture_output=True, text=True, cwd=REPO)
+    assert r.returncode == 0, r.stdout + r.stderr
+    D = cs.SPEC / "by_option"
+    caps = {o: pd.read_csv(D / f"coal_spec_expected_caps_by_stage.{o}.csv").set_index(["stage", "zone"]) for o in cs.RETIREMENT_OPTIONS}
+    summ = {o: pd.read_csv(D / f"coal_spec_stage_summary.{o}.csv").set_index("stage") for o in cs.RETIREMENT_OPTIONS}
+    holds = {o: pd.read_csv(D / f"coal_spec_hold_by_stage.{o}.csv", dtype={"generator_id": str}) for o in cs.RETIREMENT_OPTIONS}
+    pd.testing.assert_frame_equal(caps["planned_only"], caps["unrestricted"])
+    pd.testing.assert_frame_equal(holds["planned_only"], holds["unrestricted"])
+    rev2 = spec("coal_spec_expected_caps_by_stage.csv").set_index(["stage", "zone"])
+    j = rev2.join(caps["planned_only"], rsuffix="_o", how="outer")
+    assert len(j) == len(rev2) and (j.rule == j.rule_o).all() and (j.expected_cap - j.expected_cap_o).abs().max() <= 1e-4
+    dm = (j.model_MW_after_overrides - j.model_MW_after_overrides_o).abs()
+    assert set(dm[dm > 1].index.get_level_values("zone")) == {"p99"} and dm.max() == pytest.approx(43.0)
+    pd.testing.assert_frame_equal(holds["planned_only"].drop(columns="cap_while_held"),
+                                  spec("coal_spec_hold_by_stage.csv", dtype={"generator_id": str}).drop(columns="cap_while_held"))
+    s, b = summ["planned_only"], summ["block_all"]
+    assert list(s.national_N) == [0.5806, 0.5926, 0.5998, 0.6001, 0.6001]
+    assert list(s.model_GW_after_overrides) == [157.32, 142.11, 126.45, 124.35, 124.35]
+    assert list(b.national_N[[2028, 2030]]) == [0.5785, 0.5785]
+    assert list(b.model_GW_after_overrides[[2028, 2030]]) == [166.53, 166.53]
+    assert list(b.held_GW_S0) == [3.24, 3.24, 0, 0, 0] and list(s.held_GW_S0) == [3.24, 0, 0, 0, 0]
+    later = [2035, 2040, 2045]
+    pd.testing.assert_frame_equal(caps["block_all"].loc[later], caps["planned_only"].loc[later])
+    assert (b.loc[later].drop(columns="option") == s.loc[later].drop(columns="option")).all().all()
+
+
+def test_retirement_option_settings_and_rules(tmp_path):
+    """block_all sets fedpol's rule and the per-period rule; planned_only removes the dated push but keeps the rule;
+    unrestricted removes both and allows economic retirement from the first stage; legacy leaves the settings."""
+    for opt, rule, module in (("block_all", cs.BLOCK_RULE, True), ("planned_only", None, True), ("unrestricted", None, False)):
+        s = s0_case("on")
+        s["predetermined_retirement_override"] = {"technologies": ["coal"], "window": [2026, 2029], "target_year": 2030}
+        s["clean_power_regs_retirement_override"] = {"technologies": ["coal"], "mode": "x"}
+        s["s0_production"]["retirements_pre2030"] = opt
+        s0prod.apply_settings({"c": {2028: s}})
+        assert s.get("predetermined_retirement_override") == rule
+        assert ("clean_power_regs_retirement_override" in s) == (opt == "block_all")
+        assert ("study_modules.retirement_rules" in s0prod.scenario_options(s)) == module
+        d = tmp_path / opt
+        d.mkdir()
+        pd.DataFrame({"GENERATION_PROJECT": ["coal_old", "gas_old", "gas_new"], "gen_energy_source": ["coal", "naturalgas", "naturalgas"],
+                      "gen_can_retire_early": [0, 0, 0]}).to_csv(d / "gen_info.csv", index=False)
+        pd.DataFrame({"GENERATION_PROJECT": ["coal_old", "gas_old"], "build_year": [1990, 2000],
+                      "build_gen_predetermined": [1, 1]}).to_csv(d / "gen_build_predetermined.csv", index=False)
+        s0prod.write_retirement_rules(d, s["s0_production"], s0prod.Log(d))
+        gi = pd.read_csv(d / "gen_info.csv").set_index("GENERATION_PROJECT").gen_can_retire_early
+        assert list(gi) == [1, 1, 0] and (d / "retirement_rules.csv").exists() == module
+    leg = s0_case("on_pgdays")
+    leg["predetermined_retirement_override"] = dict(cs.BLOCK_RULE)
+    before = copy.deepcopy(leg)
+    s0prod.apply_settings({"c": {2035: leg}})
+    assert leg["predetermined_retirement_override"] == before["predetermined_retirement_override"]
+    assert cf.retirement_option(leg["s0_production"]) == "legacy"
+    assert "study_modules.retirement_rules" in s0prod.scenario_options(leg)          # legacy: retirement_rule.enabled
+    with pytest.raises(ValueError, match="retirements_pre2030"):
+        cf.retirement_option({"retirements_pre2030": "sometimes"})
 
 
 def test_annual_availability_by_period_on_toy(tmp_path):

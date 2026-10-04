@@ -170,19 +170,25 @@ the October 2026 defaults:
 - $100/MWh buyouts on every state RPS and CES;
 - state RPS/CES targets from ReEDS release 2026.09.21
   (`rggi_carbon/emission_policies_reeds_2026.09.21.csv`; committed, built from the pinned copies);
-- the retirement rule; no new nuclear before the 2035 stage;
-- the coal specification rev. 2 (`s0_workflow/specs/coal/coal_spec.md`): zonal coal caps by stage, the
+- retirements before 2030: `block_all` (S0 default; column `retirements_pre2030`). No coal or gas retirement
+  before 2030, economic or dated: fedpol's `blocked_2030_coal_gas` push for coal and gas, plus the retirement
+  rule. A unit dated 2026-29 is in service in the 2028 and 2030 stages and first gone from 2035. The other
+  options (`planned_only`, `unrestricted`) are for sensitivities;
+- no new nuclear before the 2035 stage;
+- the coal specification rev. 2.1 (`s0_workflow/specs/coal/coal_spec.md` and its addendum): zonal coal caps by stage, the
   fleet overrides from the August 2026 860M, and the S0 order holds (eight units, 2028 stage only);
 - wind loss, build rate central, headroom atts_s0.
 
-**The coal checks stop the build.** For each stage, the case build compares three things with the spec's
-validation tables (`s0_workflow/specs/coal/`):
+**The coal checks stop the build.** For each stage, the case build compares four things with the spec's
+validation tables (`s0_workflow/specs/coal/`; caps and holds from `by_option/` for the case's
+`retirements_pre2030`):
 - the zonal caps (±0.001, same rule, H ±1 MW);
 - the overrides it applied (same units and actions, effective year exact, MW ±0.1);
-- the holds by stage (exact).
+- the holds by stage (exact);
+- the converted units' heat rates (±0.01).
 
 A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrides_applied.csv` and
-`coal_holds_by_stage.csv` in the stage folder. Don't patch around it: send Tom those three files and
+`coal_holds_by_stage.csv` (and `coal_converted_heat_rates.csv`) in the stage folder. Don't patch around it: send Tom those three files and
 `s0_production_log.txt`.
 
 1. Check the pinned state-policy files, then build into a fresh folder. The build writes all five stage
@@ -233,34 +239,44 @@ A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrid
    - `gas_turbine_cap_gens.csv`: CC weight 0.65 × 1.049 = 0.682, CT and aeroderivative 1.0 × 1.090 =
      1.090, for planned units and new builds alike (nameplate basis); no reciprocating engines.
    - `time_sampling/<year>/fi_target_errors.csv`: every row within tolerance.
-   - `retirement_rules.csv`: coal and naturalgas, 2030.
+   - `retirement_rules.csv`: coal and naturalgas, 2030 (block_all and planned_only; none with unrestricted).
+   - Console log (block_all): `predetermined_retirement_override: pushing back <n> unit(s) ... to 2030` for gas.
+     Coal units dated 2026-29 are already encoded 2031 by the coal hook: in service through the 2030 stage, as
+     the push intends, and kept by PowerGenome in model year 2030.
    - `build_rules.csv`: `uranium`, 2035 (no new nuclear before the 2035 stage).
-   - **Coal caps by stage:** in `coal_caps_by_stage.csv`, every row has `ok` True. The log line
-     `coal caps <year>: N ...` should match:
+   - **Coal caps by stage (block_all):** in `coal_caps_by_stage.csv`, every row has `ok` True (checked against
+     `by_option/coal_spec_expected_caps_by_stage.block_all.csv`). The log line `coal caps <year>: N ...`
+     should match:
 
      | Stage | N | Zones with model coal | Model coal after overrides (GW) |
      |---|---|---|---|
-     | 2028 | 0.5806 | 74 | 157.28 |
-     | 2030 | 0.5926 | 71 | 142.06 |
-     | 2035 | 0.5998 | 68 | 126.40 |
-     | 2040 | 0.6001 | 68 | 124.31 |
-     | 2045 | 0.6001 | 68 | 124.31 |
+     | 2028 | 0.5785 | 76 | 166.53 |
+     | 2030 | 0.5785 | 76 | 166.53 |
+     | 2035 | 0.5998 | 68 | 126.45 |
+     | 2040 | 0.6001 | 68 | 124.35 |
+     | 2045 | 0.6001 | 68 | 124.35 |
 
-     p111 is the blend zone (cap 0.531 / 0.542 / 0.548 / 0.549 / 0.549). The log also lists any zone
-     whose model MW differs from the spec's reconstruction by more than 1 MW. The spec expects p107 and
-     p99 (§2.1). This is reported, not a failure: report the list. Coal clusters'
-     `gen_max_annual_availability` = cap / (1 − forced outage), capped at 1.
+     - **Blend zones:** p111 in every stage (0.529 / 0.529 / 0.548 / 0.549 / 0.549), and p130 in 2028 and
+       2030 (0.4985: Merrimack 1 and the out-of-service Merrimack 2 are kept through 2030 by block_all).
+     - **Model-MW differences:** the log lists any zone whose model MW differs from the public basis
+       reconstruction by more than 1 MW. §2.1 suggests p107 (about 481 MW). This is reported, not a
+       failure: report the list.
+     - **Coal clusters:** `gen_max_annual_availability` = cap / (1 − forced outage), capped at 1.
+     - **Other options:** for a `planned_only` or `unrestricted` sensitivity, the expected values are 2028
+       0.5806 / 74 / 157.32 GW and 2030 0.5926 / 71 / 142.11 GW (`by_option/coal_spec_stage_summary.*.csv`).
    - **Applied overrides:** `coal_overrides_applied.csv` has 71 rows, all `ok`: 15 retire, 9 retire later,
      8 convert to gas, 5 remove, 5 keep online, 8 hold, and 21 no-change / review rows. Converted
-     units are in the zone's `other_peaker` cluster, not the coal clusters. `coal_converted_heat_rates.csv`
-     gives their heat rates from the latest EIA-923, e.g. North Valmy 11.42 (2026 ST/NG), James E.
-     Rogers 10.55. The spec table's values (PUDL vintage) need `heat_rate_data_through: "2025-05"`.
+     units are in the zone's `other_peaker` cluster, not the coal clusters.
+   - **Converted heat rates:** `coal_converted_heat_rates.csv` is all `ok` against
+     `coal_spec_converted_gas_units.csv` (rev. 2.1, latest EIA-923, all 2026 ST/NG). The values are North Valmy
+     11.42, Montour 10.11, Pawnee 10.96, Harrington 10.83 and James E. Rogers 10.55.
    - **Holds by stage:** `coal_holds_by_stage.csv` is all `ok`.
-     - 2028 stage: eight hold projects, 3,238 MW, named `p<zone>_conventional_steam_coal_hold_<plant>_<gen>_1`
-       (Centralia 2, Campbell 1/2/3, Schahfer 17/18, Culley 2, Craig 1).
+     - 2028 **and 2030** stages (block_all): eight hold projects, 3,238 MW, named
+       `p<zone>_conventional_steam_coal_hold_<plant>_<gen>_1` (Centralia 2, Campbell 1/2/3, Schahfer 17/18,
+       Culley 2, Craig 1). With planned_only or unrestricted, 2028 only.
      - In `gen_info.csv`, each has `gen_max_annual_availability` = hold cap / (1 − forced outage), for
        example Campbell 3 0.5539, and `gen_can_retire_early` 0.
-     - From the 2030 stage: no hold projects.
+     - No hold projects from the 2035 stage (block_all), or from the 2030 stage with the other options.
    - **2045 stage:** the folder `2045/S0prod_A/` exists with a complete case (`gen_info.csv`,
      `loads.csv`, `scenarios` line). The build reports no `flexible_demand_resources` error: the 2045
      load entries are now in the settings.

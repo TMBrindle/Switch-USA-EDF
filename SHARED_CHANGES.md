@@ -68,6 +68,26 @@ entries and remove a comment block; no existing value changes.
 | 28 | `pg/settings/flexible_load.yml` | `flexible_demand_resources` gains 2040 and 2045 `us_exports` entries (fraction 0, as the other years). | As #27(c). | only cases with those model years read them |
 | 29 | `pg/extra_inputs/scenario_inputs.csv` | New column `coal_holds`, `s0` in every row. | Coal spec §3.4 (blank would also mean s0 but makes PowerGenome warn for every row). | none (inert unless `s0_production.enabled` with the coal spec) |
 
+### Added in §49 (Oct 2026: pre-2030 retirement options, coal spec rev. 2.1)
+
+**Flagged for Ollie:**
+- **New setting:** `s0_production.retirements_pre2030` (#30-31) sets the pre-2030 policy of the S0 new-defaults
+  cases. Its default, `block_all`, applies fedpol's `blocked_2030_coal_gas` rule to coal and gas alike.
+- **fedpol's block is back to its own code:** the coal exemption added in §48 (#25b) is removed, and
+  `apply_predetermined_retirement_override` is byte-for-byte fedpol's again.
+- **Encoding difference to note:** for the coal spec, the S0 coal hook encodes coal and held units dated
+  2026-29 as 2031 rather than 2030. Switch behaviour is the same (in service through the 2030 stage, gone from
+  2035). PowerGenome otherwise drops a cluster whose units are all dated ≤ 2030 from a 2030 model year, because
+  it treats retirement_year ≤ model year as retired.
+- **The same limit applies to fedpol's own push:** for gas, and for any other case with a single 2030 model
+  year, a cluster whose units are all pushed to 2030 gets no capacity in that year. Not changed here.
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 30 | `pg_to_switch.py` | #25(b) withdrawn: the `predetermined_retirement_override_exempt` key and its three lines in `apply_predetermined_retirement_override` are removed; the function is identical to fedpol's (tested against 79c5f35). | Tom: block_all applies fedpol's block to coal and gas alike. | none (the function is as before §48) |
+| 31 | `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv` | New axis `retirements_pre2030` (block_all / planned_only / unrestricted, touching only `s0_production.retirements_pre2030`; `legacy: ~`). New column `retirements_pre2030`: `block_all` in every row, `legacy` in the regression row. `on_pgdays` sets `retirements_pre2030: legacy`. | Rev. 2.1 §A3. | none: inert unless `s0_production.enabled`; the regression case is unchanged (byte-identical test) |
+| 32 | `s0_workflow/specs/coal/coal_spec_converted_gas_units.csv`, `coal_spec_overrides.csv`, `coal_spec.md` | Converted-unit heat rates replaced by the latest-EIA-923 values (rev. 2.1); addendum rev. 2.1; new `by_option/` validation tables. | Tom's decisions, 2026-10-04. | none (S0 coal spec only) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

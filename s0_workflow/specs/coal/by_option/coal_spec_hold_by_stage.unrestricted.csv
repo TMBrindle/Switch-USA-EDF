@@ -1,0 +1,51 @@
+plant_id_eia,generator_id,plant_name,zone,stage,S0,holds_persist,cap_while_held,winter_MW
+3845,2,TransAlta Centralia,p2,2028,held,held,0.001,670.0
+3845,2,TransAlta Centralia,p2,2030,retired,held,0.001,670.0
+3845,2,TransAlta Centralia,p2,2035,retired,held,0.001,670.0
+3845,2,TransAlta Centralia,p2,2040,retired,held,0.001,670.0
+3845,2,TransAlta Centralia,p2,2045,retired,held,0.001,670.0
+1710,1,J.H. Campbell,p103,2028,held,held,0.5674,260.0
+1710,1,J.H. Campbell,p103,2030,retired,held,0.5674,260.0
+1710,1,J.H. Campbell,p103,2035,retired,held,0.5674,260.0
+1710,1,J.H. Campbell,p103,2040,retired,held,0.5674,260.0
+1710,1,J.H. Campbell,p103,2045,retired,held,0.5674,260.0
+1710,2,J.H. Campbell,p103,2028,held,held,0.0375,280.0
+1710,2,J.H. Campbell,p103,2030,retired,held,0.0375,280.0
+1710,2,J.H. Campbell,p103,2035,retired,held,0.0375,280.0
+1710,2,J.H. Campbell,p103,2040,retired,held,0.0375,280.0
+1710,2,J.H. Campbell,p103,2045,retired,held,0.0375,280.0
+1710,3,J.H. Campbell,p103,2028,held,held,0.5539,789.3
+1710,3,J.H. Campbell,p103,2030,retired,held,0.5539,789.3
+1710,3,J.H. Campbell,p103,2035,retired,held,0.5539,789.3
+1710,3,J.H. Campbell,p103,2040,retired,held,0.5539,789.3
+1710,3,J.H. Campbell,p103,2045,retired,held,0.5539,789.3
+6085,17,R.M. Schahfer,p105,2028,held,held,0.1708,361.0
+6085,17,R.M. Schahfer,p105,2030,retired,held,0.1708,361.0
+6085,17,R.M. Schahfer,p105,2035,retired,held,0.1708,361.0
+6085,17,R.M. Schahfer,p105,2040,retired,held,0.1708,361.0
+6085,17,R.M. Schahfer,p105,2045,retired,held,0.1708,361.0
+6085,18,R.M. Schahfer,p105,2028,held,held,0.001,361.0
+6085,18,R.M. Schahfer,p105,2030,retired,held,0.001,361.0
+6085,18,R.M. Schahfer,p105,2035,retired,held,0.001,361.0
+6085,18,R.M. Schahfer,p105,2040,retired,held,0.001,361.0
+6085,18,R.M. Schahfer,p105,2045,retired,held,0.001,361.0
+1012,2,F.B. Culley,p107,2028,held,held,0.1057,90.0
+1012,2,F.B. Culley,p107,2030,retired,held,0.1057,90.0
+1012,2,F.B. Culley,p107,2035,retired,held,0.1057,90.0
+1012,2,F.B. Culley,p107,2040,retired,held,0.1057,90.0
+1012,2,F.B. Culley,p107,2045,retired,held,0.1057,90.0
+6021,1,Craig Station,p33,2028,held,held,0.0356,427.0
+6021,1,Craig Station,p33,2030,retired,held,0.0356,427.0
+6021,1,Craig Station,p33,2035,retired,held,0.0356,427.0
+6021,1,Craig Station,p33,2040,retired,held,0.0356,427.0
+6021,1,Craig Station,p33,2045,retired,held,0.0356,427.0
+6481,1,Intermountain Power Project,p25,2028,retired (not held in S0),held,0.001,900.0
+6481,1,Intermountain Power Project,p25,2030,retired (not held in S0),held,0.001,900.0
+6481,1,Intermountain Power Project,p25,2035,retired (not held in S0),held,0.001,900.0
+6481,1,Intermountain Power Project,p25,2040,retired (not held in S0),held,0.001,900.0
+6481,1,Intermountain Power Project,p25,2045,retired (not held in S0),held,0.001,900.0
+6481,2,Intermountain Power Project,p25,2028,retired (not held in S0),held,0.001,900.0
+6481,2,Intermountain Power Project,p25,2030,retired (not held in S0),held,0.001,900.0
+6481,2,Intermountain Power Project,p25,2035,retired (not held in S0),held,0.001,900.0
+6481,2,Intermountain Power Project,p25,2040,retired (not held in S0),held,0.001,900.0
+6481,2,Intermountain Power Project,p25,2045,retired (not held in S0),held,0.001,900.0

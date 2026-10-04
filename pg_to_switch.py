@@ -1673,11 +1673,6 @@ def apply_predetermined_retirement_override(units: pd.DataFrame, settings) -> pd
             raise ValueError(f"Unrecognized predetermined_retirement_override mode: {mode}")
 
         to_override = tech_match & in_scope
-        # technologies exempt from every rule (S0 coal spec: coal-group units retire in the year the spec
-        # encodes; s0_workflow/coal_fleet.py); empty for other cases
-        exempt = [t.lower() for t in settings.get("predetermined_retirement_override_exempt") or []]
-        if exempt:
-            to_override &= ~units["technology"].str.lower().apply(lambda tech: any(t in tech for t in exempt))
         if to_override.any():
             logger.info(
                 f"predetermined_retirement_override: {verb} {to_override.sum()} "
