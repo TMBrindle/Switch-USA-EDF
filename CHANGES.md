@@ -1997,3 +1997,52 @@ Tom's decisions on §49 (other choices accepted). The regression case stays byte
 - fedpol's function leaves 2031 alone.
 
 Build rate 22, headroom 31.
+
+## 51. S0 Production: pandas 1.4.4 Compatibility; OS Removals Deleted Before Clustering; Recipe C Years
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `s0_workflow/VM_RECIPES.md` (recipe C, env table), `s0_workflow/specs/coal/coal_spec.md` (addendum
+rev. 2.1), `SHARED_CHANGES.md` (#34, #35)
+
+The VM build at c4a19f8 failed. Three fixes; the regression case stays byte-identical (test).
+
+1. **pandas 1.4.4.** The case-build env `switch-pg-reeds-fedpol` has pandas 1.4.4.
+   - **What broke:** `coal_spec.stage_history` and `coal_cf.zone_caps` used `groupby.apply(..., include_groups=False)`
+     (pandas ≥ 2.2).
+   - **Fix:** both, and `case_aliases/b8_coalcf.py`, now use plain aggregations (new `coal_spec.weighted_by`).
+   - **Also pandas ≥ 1.5 only:** `to_csv(lineterminator=)` in the table writers, now replaced by
+     `coal_spec.csv_text`, which works on both.
+   - **Merge order:** inner-merge row order differs between 1.4 and 2.2. The eligibility merge in
+     `build_reeds_state_policies.py` now sorts explicitly.
+   - **Check:** both `--check` scripts reproduce the committed files on pandas 1.4.4 and 3.0.6.
+   - **Not changed:** the provenance scripts in `specs/coal/reference/` aren't part of the build.
+2. **The five out-of-service removals are deleted, not encoded 2026.**
+   - **What went wrong:** fedpol's `blocked_2030` function runs on the clusters after the hook and moved coal dated
+     2026-29 to 2030. Sandy Creek S01, Big Cajun 2-1 and Warrick 2 (about 1.62 GW) ended up online in 2028-30.
+   - **Fix:** the hook (`coal_fleet.unit_hooks`) deletes all five from PowerGenome's unit tables before clustering,
+     in every pre-2030 option. fedpol's function is unchanged and has nothing of theirs to push.
+   - **Two tables:** they are deleted from PowerGenome's EIA-860 units and from the 860M generators that
+     `import_new_generators` adds for Operating-sheet units missing from those. Without the second, the deleted
+     units would come back: all five are OP / OA in the July 2025 860M.
+   - **Why the VM logged 4 remove overrides:** Biron Mill (plant 10234) is not in `reeds_plant_map.csv`. It is
+     therefore not among PowerGenome's EIA-860 units (they keep only plants with a region), so no override is
+     derived for it. PowerGenome adds it from the 860M by location, online with an age-based retirement. The
+     override check accepts its spec row (`ok (removal: not in PowerGenome's EIA-860 units)`). This is inferred
+     from PowerGenome's code and the plant map: the PowerGenome database is VM-only.
+   - **Log and check:** `coal removals: 5 removed before clustering (...)`, with the tables each was deleted from;
+     `coal_removals.csv` in each stage folder. Any count other than 5, or a removal not in the spec, stops the
+     build.
+   - **Tables:** `apply_overrides` drops the removal rows too. The `by_option` tables are unchanged, since the
+     removals were already out of every stage.
+3. **Recipe C:** the build command has `--year 2028 --year 2030 --year 2035 --year 2040 --year 2045`. Without
+   them the build asks for 2024, 2025 and 2029 too.
+   - **Recipe 0:** the `s0_workflow` tests must also be run in `switch-pg-reeds-fedpol`.
+
+**Tests:** `s0_workflow/tests` 65 (was 62):
+- fedpol's function receives none of the five, in all three options; on the c4a19f8 encoding it would have
+  pushed them to 2030;
+- the "5 removed" log line, and a count other than 5 stops the build (hook and case-input check);
+- the coal-spec steps on the installed pandas reproduce the committed tables byte for byte.
+
+Run on pandas 3.0.6 (Python 3.11) and pandas 1.4.4 (Python 3.10, numpy 1.23.5). Build rate 22, headroom 31.
+

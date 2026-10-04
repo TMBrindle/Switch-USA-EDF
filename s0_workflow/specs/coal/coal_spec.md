@@ -368,6 +368,12 @@ unchanged.
 - **Not pushed: the OS removals** (Tom, 2026-10-04). Sandy Creek S01, Big Cajun 2-1, Merrimack 2, Warrick 2 and
   Biron Mill GEN5 (1,969 MW, encoded 2026) are out-of-service status, not retirement decisions, so they are
   removed in every option, block_all included.
+  - **How (2026-10-04, after the VM build at c4a19f8):** the case build deletes them from PowerGenome's unit
+    tables before clustering, in every option. Encoding them 2026 was not enough: fedpol's own push runs on the
+    clusters afterwards and moved them to 2030. They are deleted from PowerGenome's EIA-860 units and from the 860M
+    generators PowerGenome adds for Operating-sheet units missing from those units (all five are OP / OA in the
+    July 2025 860M). Biron Mill (plant 10234) has no `reeds_plant_map.csv` region, so it enters only that second way
+    and has no derived override row. The build logs `coal removals: 5 removed` and stops on any other count.
 - **Which stages:** Switch runs with `--retire early`, so a unit with retirement year Y is in service in the stage
   whose period ends at p iff Y ≥ p. A unit dated 2026-29 is therefore **in service in the 2028 and 2030 stages
   and first disappears from the 2035 stage**. With planned_only or unrestricted it is in the 2028 stage only if

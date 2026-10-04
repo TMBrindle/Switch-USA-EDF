@@ -153,7 +153,11 @@ def eligibility(esr_long: pd.DataFrame, region_info: pd.DataFrame) -> pd.DataFra
             for ast in partners:
                 dfs.append(local.assign(st=ast, program=local["program"] + "_" + tag))
     el = pd.concat(dfs, ignore_index=True)
-    el = el.merge(pd.read_csv(EXTRA / "pg_reeds_tech_map.csv"), on="reeds_tech")
+    # row order as an order-preserving inner merge (pandas >= 2.2): left rows, then the map's rows; pandas 1.4 groups by
+    # key, which would reorder the tags in the yml
+    tmap = pd.read_csv(EXTRA / "pg_reeds_tech_map.csv").reset_index().rename(columns={"index": "_r"})
+    el = (el.reset_index(drop=True).reset_index().rename(columns={"index": "_l"}).merge(tmap, on="reeds_tech")
+          .sort_values(["_l", "_r"], kind="mergesort").drop(columns=["_l", "_r"]).reset_index(drop=True))
     return el.merge(region_info, on="st")
 
 
@@ -214,7 +218,7 @@ def build() -> tuple[pd.DataFrame, dict]:
 
 
 def csv_text(ep: pd.DataFrame) -> str:
-    return ep.to_csv(index=True, lineterminator="\n")           # as make_emission_policies.py writes it
+    return ep.to_csv(index=True).replace("\r\n", "\n")         # as make_emission_policies.py writes it (any pandas)
 
 
 HEADER = ("# S0 state-policy eligibility from ReEDS release {release} (commit {commit}).\n"

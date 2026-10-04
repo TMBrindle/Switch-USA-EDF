@@ -93,10 +93,12 @@ def zone_caps(gens_by_year: dict[int, pd.DataFrame], latest: pd.DataFrame, retir
     zmap = dict(zip(c2z["key"], c2z["ba"]))
     units["zone"] = (units["State"].str.upper() + "|" + units["County"].map(_norm_county)).map(zmap)
     h = units[units["zone"].notna() & units["cf_max"].notna()]
-    zc = h.groupby("zone").apply(lambda x: pd.Series({
-        "hist_mw": x["Winter Capacity (MW)"].sum(), "n_units": len(x),
-        "cap_cf": np.average(x["cf_max"], weights=x["Winter Capacity (MW)"]),
-        "cap_cf_nameplate": np.average(x["cf_max_np"], weights=x["Nameplate Capacity (MW)"])}),
-        include_groups=False).reset_index().rename(columns={"zone": "ba"})
+    # plain aggregations (no groupby.apply include_groups): pandas 1.4 and 2.x
+    w = h.assign(_wcf=h["cf_max"] * h["Winter Capacity (MW)"], _ncf=h["cf_max_np"] * h["Nameplate Capacity (MW)"])
+    zc = w.groupby("zone").agg(hist_mw=("Winter Capacity (MW)", "sum"), n_units=("cf_max", "size"),
+                               _wcf=("_wcf", "sum"), _np=("Nameplate Capacity (MW)", "sum"), _ncf=("_ncf", "sum"))
+    zc["cap_cf"] = zc._wcf / zc.hist_mw
+    zc["cap_cf_nameplate"] = zc._ncf / zc._np
+    zc = zc[["hist_mw", "n_units", "cap_cf", "cap_cf_nameplate"]].reset_index().rename(columns={"zone": "ba"})
     zc["n_units"] = zc["n_units"].astype(int)
     return zc, units

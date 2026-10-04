@@ -270,17 +270,86 @@ def apply_overrides(units: pd.DataFrame, final: dict, ov: pd.DataFrame, capacity
         elif kind == "held":
             p, g = k.split("|")
             df.loc[m, "technology_description"] = hold_tech(p, g)
+    df = drop_removals(df, removal_keys(ov))[0]
     if rule is not None:
         td = df.technology_description.astype(str)
         coal = df.technology_description.isin(cs.COAL_GROUP) | td.str.startswith(HOLD_TECH)
-        df = push_pre2030(df, rule, td.where(~df.technology_description.isin(cs.COAL_GROUP), cs.CSC).where(coal, ""),
-                          removal_keys(ov))
+        df = push_pre2030(df, rule, td.where(~df.technology_description.isin(cs.COAL_GROUP), cs.CSC).where(coal, ""))
     return df
 
 
 def removal_keys(ov: pd.DataFrame) -> set:
-    """Units the spec removes as out of service (encoded 2026): never pushed (rev. 2.1)."""
+    """Units the spec removes as out of service (rev. 2.1: physical status, removed in every option)."""
     return set(ov.loc[ov.action == A_REMOVE, "kn"]) if len(ov) else set()
+
+
+EXPECTED_REMOVALS = 5      # coal_spec.md §2.2: Sandy Creek S01, Big Cajun 2-1, Merrimack 2, Warrick 2, Biron Mill GEN5
+
+
+def spec_removals(path: Path | None = None) -> pd.DataFrame:
+    """The spec's out-of-service removals (coal_spec_overrides.csv, action remove): kn, plant, generator, zone, MW."""
+    e = pd.read_csv(path or REPO / "s0_workflow/specs/coal/coal_spec_overrides.csv", dtype={"generator_id": str})
+    e = e[e.action == A_REMOVE]
+    return pd.DataFrame({"kn": cs.keys(e.plant_id_eia, e.generator_id), "plant_id_eia": e.plant_id_eia.astype(int).values,
+                         "generator_id": e.generator_id.values, "plant_name": e.plant_name.values, "zone": e.zone.values,
+                         "winter_MW": e.model_winter_MW.values})
+
+
+def _frame_keys(df: pd.DataFrame) -> pd.Series | None:
+    """plant|generator keys of a PowerGenome frame (plant_id_eia and generator_id as columns or index levels), or
+    None for a frame without generator ids (plant-level tables)."""
+    names = set(df.columns) | {n for n in df.index.names if n}
+    if not {"plant_id_eia", "generator_id"} <= names:
+        return None
+    col = lambda c: df[c].values if c in df.columns else df.index.get_level_values(c)  # noqa: E731
+    return pd.Series(cs.keys(pd.Series(col("plant_id_eia")), pd.Series(col("generator_id")))).set_axis(df.index)
+
+
+def drop_removals(df: pd.DataFrame, keys) -> tuple[pd.DataFrame, set]:
+    """A PowerGenome unit table without the out-of-service removals (rows deleted before clustering, so neither
+    the clusters nor fedpol's apply_predetermined_retirement_override, which runs on the clusters, ever see them).
+    Returns (table, the keys that were in it)."""
+    kn = _frame_keys(df)
+    if kn is None:
+        return df, set()
+    m = kn.isin(set(keys)).values
+    return df.loc[~m].copy(), set(kn[m])
+
+
+T860, T860M = "EIA-860 units", "860M new generators"
+
+
+def removals_record(spec: pd.DataFrame, derived: set, where: dict) -> pd.DataFrame:
+    """One row per removal (the spec's, plus any the build derives that the spec doesn't list) with the PowerGenome
+    tables it was deleted from: its EIA-860 units (the table the overrides are derived on) and the 860M generators
+    PowerGenome adds for 860M Operating units missing from that table (which a deleted unit would otherwise come
+    back as, and a plant without a plant-map region only ever enters as); none: never in either."""
+    r = spec.copy()
+    extra = sorted(set(derived) - set(r.kn))
+    if extra:
+        r = pd.concat([r, pd.DataFrame({"kn": extra})], ignore_index=True)
+    r["in_spec"] = r.kn.isin(set(spec.kn))
+    r["derived_override"] = r.kn.isin(set(derived))
+    r["status"] = ["deleted from " + " and ".join(where[k]) if where.get(k) else "not in PowerGenome's unit tables"
+                   for k in r.kn]
+    return r
+
+
+def removals_problems(r: pd.DataFrame) -> list[str]:
+    """The removal count check: exactly EXPECTED_REMOVALS, all in the spec, none left in the unit table."""
+    p = []
+    if len(r) != EXPECTED_REMOVALS:
+        p.append(f"{len(r)} out-of-service removals, expected {EXPECTED_REMOVALS} (coal_spec.md §2.2)")
+    if (~r.in_spec).any():
+        p.append("removals not in coal_spec_overrides.csv: " + ", ".join(r.kn[~r.in_spec]))
+    return p
+
+
+def removals_line(r: pd.DataFrame) -> str:
+    """The build log's removal line: "coal removals: 5 removed (...)" with where each was deleted."""
+    by = r.groupby("status", sort=False).kn.apply(list)
+    return (f"coal removals: {len(r)} removed before clustering (" + "; ".join(
+        f"{len(v)} {st}: " + ", ".join(v) for st, v in by.items()) + ")")
 
 
 def push_pre2030(df: pd.DataFrame, rule: dict, cluster_tech: pd.Series, exclude=()) -> pd.DataFrame:
@@ -347,26 +416,35 @@ def unit_hooks(settings: dict):
     cfg = spec_settings(s0) or {}
     op, rt = load_fleet860m(REPO / cfg.get("fleet_table", "s0_workflow/data/coal_fleet_860m.csv"))
     holds = scenario_holds(s0)
+    removals = spec_removals(REPO / cfg["expected_overrides"] if cfg.get("expected_overrides") else None)
     st = cs.read_table(REPO / cfg.get("plant_fuel_table", "s0_workflow/data/coal_plant_st_fuel.csv"))
     cap_col = settings.get("capacity_col", "capacity_mw")
     rec = {"case": settings.get("case_id"), "year": int(settings["model_year"]), "rule": rule}
+    derived, where = set(), {}
     orig_group, orig_om = pgg.group_technologies, pgg.atb_fixed_var_om_existing
 
     def group_technologies(df, *a, **k):
         if "technology_description" in df and "plant_id_eia" in df and "retirement_year" in df and "done" not in rec:
             rec["done"] = True                                  # the existing-unit table: the first such frame
-            exclude = set()
             if cfg.get("enabled") and df.technology_description.isin(cs.COAL_GROUP).any():
                 ov, final = derive_overrides(df, op, rt, holds, cap_col)
                 rec.update(overrides=ov, final=final, units=df.copy())
-                df = apply_overrides(df, final, ov, tuple(c for c in (cap_col, "capacity_mw") if c in df))
-                exclude = removal_keys(ov)
+                derived.update(removal_keys(ov))
+            # the out-of-service removals: deleted in every pre-2030 option, before clustering (so fedpol's push,
+            # which runs on the clusters afterwards, has nothing of theirs to move into 2030)
+            df, gone = drop_removals(df, set(removals.kn) | derived)
+            for key in gone:
+                where.setdefault(key, []).append(T860)
+            if "final" in rec:
+                df = apply_overrides(df, rec["final"], rec["overrides"],
+                                     tuple(c for c in (cap_col, "capacity_mw") if c in df))
+                ov = rec["overrides"]
                 logger.info("coal spec %s/%s: %d overrides applied before clustering (%s)", rec["case"], rec["year"],
                             len(ov), ov.action.str.split(r" \(|:").str[0].value_counts().to_dict() if len(ov) else {})
             if rule is not None:
                 cluster_tech = orig_group(df.copy(), *a, **k).technology_description     # as fedpol's rule sees it
                 before = pd.to_numeric(df.retirement_year, errors="coerce")
-                df = push_pre2030(df, rule, cluster_tech, exclude)
+                df = push_pre2030(df, rule, cluster_tech)
                 moved = pd.to_numeric(df.retirement_year, errors="coerce") != before
                 rec["pushed"] = df.loc[moved, ["plant_id_eia", "generator_id", "technology_description"]].assign(
                     cluster_technology=cluster_tech[moved], from_year=before[moved], to_year=df.retirement_year[moved])
@@ -375,6 +453,12 @@ def unit_hooks(settings: dict):
                             cluster_tech[moved].value_counts().to_dict())
             if "final" in rec:
                 rec["edited"] = df.copy()
+        elif "done" in rec:
+            # later unit tables: the 860M Operating units PowerGenome adds because they aren't in its EIA-860 units
+            # (import_new_generators; the removals deleted above, and plants without a plant-map region), proposed
+            df, gone = drop_removals(df, set(removals.kn) | derived)
+            for key in gone:
+                where.setdefault(key, []).append(T860M)
         return orig_group(df, *a, **k)
 
     def atb_fixed_var_om_existing(units, *a, **k):
@@ -403,8 +487,14 @@ def unit_hooks(settings: dict):
         yield rec
     finally:
         pgg.group_technologies, pgg.atb_fixed_var_om_existing = orig_group, orig_om
+        if "done" in rec:
+            rec["removals"] = removals_record(removals, derived, where)
+            logger.info("%s/%s: %s", rec["case"], rec["year"], removals_line(rec["removals"]))
         if "final" in rec:
             _State.store[(str(rec["case"]), rec["year"])] = rec
+    bad = removals_problems(rec["removals"]) if "removals" in rec else []
+    if bad:
+        raise ValueError(f"coal spec {rec['case']}/{rec['year']}: " + "; ".join(bad))
 
 
 # ---------------------------------------------------------------------------------------------- case inputs and checks
@@ -412,9 +502,10 @@ def _hold_class(a) -> str:
     return "hold online" if isinstance(a, str) and a.startswith("hold online") else a
 
 
-def check_overrides(ov: pd.DataFrame, expected: pd.DataFrame, scenario: str) -> pd.DataFrame:
+def check_overrides(ov: pd.DataFrame, expected: pd.DataFrame, scenario: str, absent=()) -> pd.DataFrame:
     """Applied overrides vs coal_spec_overrides.csv (§5: same plant/generator/action set, effective year exact,
-    MW +-0.1). Hold actions compare as one class; persist-only rows are expected only in holds_persist."""
+    MW +-0.1). Hold actions compare as one class; persist-only rows are expected only in holds_persist. `absent`:
+    removals that aren't in PowerGenome's unit table (no override row to derive; out of the model either way)."""
     e = expected.copy()
     if scenario == "s0":
         e = e[e.action != A_HOLD_PERSIST]
@@ -429,6 +520,8 @@ def check_overrides(ov: pd.DataFrame, expected: pd.DataFrame, scenario: str) -> 
                   | (m.model_winter_MW.isna() & m.model_winter_MW_spec.isna())))
     m["status"] = np.where(m._merge == "left_only", "only in build", np.where(m._merge == "right_only", "only in spec",
                                                                               np.where(m.ok, "ok", "differs")))
+    gone = (m._merge == "right_only") & (m.action_spec == A_REMOVE) & m.kn.isin(set(absent))
+    m.loc[gone, "ok"], m.loc[gone, "status"] = True, "ok (removal: not in PowerGenome's EIA-860 units)"
     return m.drop(columns=["_merge"]).sort_values("kn")
 
 
@@ -545,10 +638,12 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     if len(years) > 1:                                             # one cap per period (mode B windows)
         bp.round(6).to_csv(folder / "gen_max_annual_availability_by_period.csv", index=False)
 
-    # checks: overrides (from the first stage's unit table; the same basis every year), holds by stage
+    # checks: removals, overrides (from the first stage's unit table; the same basis every year), holds by stage
+    rem = recs[years[0]]["removals"]
+    rem.to_csv(folder / "coal_removals.csv", index=False)
     ov = check_overrides(recs[years[0]]["overrides"],
                          pd.read_csv(REPO / cfg.get("expected_overrides", "s0_workflow/specs/coal/coal_spec_overrides.csv"),
-                                     dtype={"generator_id": str}), scen)
+                                     dtype={"generator_id": str}), scen, absent=set(rem.kn[~rem.derived_override]))
     ov.to_csv(folder / "coal_overrides_applied.csv", index=False)
     hb = holds_by_stage(hold_years(recs[years[0]]["edited"]), holds_all, years, scen,
                         pd.read_csv(expected_path(cfg, "expected_holds", EXPECTED_HOLDS, option), dtype={"generator_id": str}))
@@ -565,7 +660,7 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
         bad_hr = H[~H.ok]
 
     bad_caps = T[~T.ok.fillna(False)] if "ok" in T else T.iloc[0:0]
-    bad_ov, bad_h = ov[ov.status != "ok"], hb[~hb.ok]
+    bad_ov, bad_h = ov[~ov.ok.astype(bool)], hb[~hb.ok]
     m_diff = T[T.M_diff.abs() > 1.0] if "M_diff" in T else T.iloc[0:0]
     for y in years:
         t = T[T.stage == y]
@@ -573,7 +668,8 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
             f"({t.model_MW_after_overrides.sum() / 1e3:.2f} GW after overrides, {t.model_MW_before.sum() / 1e3:.2f} GW "
             f"before); rules {t.rule.str.replace(NO_COAL_LABEL, '', regex=False).value_counts().to_dict()}; "
             f"vs spec: {int(t.ok.sum())}/{len(t)} zones ok (cap +-{tol}, rule, H +-1 MW)")
-    log(f"coal overrides: {int((ov.status == 'ok').sum())}/{len(ov)} as coal_spec_overrides.csv "
+    log(removals_line(rem))
+    log(f"coal overrides: {int(ov.ok.sum())}/{len(ov)} as coal_spec_overrides.csv "
         f"({recs[years[0]]['overrides'].action.map(_hold_class).value_counts().to_dict()}); holds ({scen}): "
         f"{int(hb.ok.sum())}/{len(hb)} unit-stages as coal_spec_hold_by_stage.csv; "
         f"{int(is_hold.sum())} hold projects in the case")
@@ -581,7 +677,7 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
         log(f"coal caps: model MW differs from the spec's reconstruction by > 1 MW in {len(m_diff)} zone-stages "
             f"(reported, not failed; coal_spec.md §2.1): "
             + "; ".join(f"{r.zone} {r.stage} {r.M_diff:+.0f}" for r in m_diff.itertuples()))
-    problems = []
+    problems = removals_problems(rem)
     if len(bad_caps):
         problems.append(f"{len(bad_caps)} zone-stage caps differ from coal_spec_expected_caps_by_stage.csv: "
                         + "; ".join(f"{r.zone} {r.stage}: {r.expected_cap:.4f} vs {r.expected_cap_spec:.4f} "

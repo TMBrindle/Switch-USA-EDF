@@ -293,7 +293,9 @@ options for the new-defaults cases. The regression case is `legacy`, which leave
   - the eight S0 holds, which are held in the 2028 and 2030 stages with their own unit caps;
   - gas units whose cluster technology matches "natural gas" (combined cycle, combustion turbine).
 - **Not covered:** the five out-of-service removals (Sandy Creek, Big Cajun 2-1, Merrimack 2, Warrick 2, Biron
-  Mill GEN5; 1,969 MW). They are physical status, removed in every option.
+  Mill GEN5; 1,969 MW). They are physical status, removed in every option. The case build deletes them from PowerGenome's
+  unit tables before clustering (its EIA-860 units and the 860M generators it adds back), so fedpol's push never
+  sees them. The build log says `coal removals: 5 removed`; any other count stops the build (§51).
 - **Encoding:** in the S0 new-defaults cases the hook (`coal_fleet.unit_hooks`, `push_pre2030`) encodes the
   pushed coal, held and gas units as 2031, before clustering.
   - It matches on the cluster technology after PowerGenome's grouping, as fedpol's rule does, so gas in

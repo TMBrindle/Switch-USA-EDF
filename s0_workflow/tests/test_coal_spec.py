@@ -21,6 +21,8 @@ from s0_workflow import coal_spec as cs  # noqa: E402
 from s0_workflow import production as s0prod  # noqa: E402
 
 SPEC = cs.SPEC
+# the spec's out-of-service removals: Sandy Creek S01, Big Cajun 2-1, Merrimack 2, Warrick 2, Biron Mill GEN5
+REMOVALS = ["56611|S01", "6055|1", "2364|2", "6705|2", "10234|GEN5"]
 
 
 def spec(name, **kw):
@@ -237,7 +239,7 @@ def test_apply_overrides_unit_edits():
     ov, final = cf.derive_overrides(u, op, rt, cf.scenario_holds(s0))
     edited = cf.apply_overrides(u, final, ov)
     e = edited.assign(kn=lambda d: cs.keys(d.plant_id_eia, d.generator_id)).set_index("kn")
-    assert e.at["628|ST4", "retirement_year"] == 2034 and e.at["56611|S01", "retirement_year"] == 2026
+    assert e.at["628|ST4", "retirement_year"] == 2034 and "56611|S01" not in e.index        # Sandy Creek: deleted
     assert e.at["564|1", "retirement_year"] > cs.HORIZON                                   # keep online
     assert e.at["564|1", "retirement_year"] - 500 == e.at["564|1", "operating_date"]       # build year = operating year
     v = e.loc["2721|6"]
@@ -254,9 +256,8 @@ def test_apply_overrides_unit_edits():
     pb = cf.apply_overrides(u, final, ov, rule=cs.BLOCK_RULE).assign(
         kn=lambda d: cs.keys(d.plant_id_eia, d.generator_id)).set_index("kn")
     assert pb.at["602|1", "retirement_year"] == 2031 and pb.at["2364|1", "retirement_year"] == 2031   # Brandon, Merrimack 1
-    for k in ["56611|S01", "6055|1", "2364|2", "6705|2", "10234|GEN5"]:                     # the OS removals: never pushed (rev. 2.1, Tom 2026-10-04)
-        assert pb.at[k, "retirement_year"] == 2026
-    assert cf.removal_keys(ov) == set(["56611|S01", "6055|1", "2364|2", "6705|2", "10234|GEN5"])
+    assert not pb.index.isin(REMOVALS).any() and not e.index.isin(REMOVALS).any()          # the OS removals: deleted
+    assert cf.removal_keys(ov) == set(REMOVALS)
     a28b = cf.model_mw(u, pb.reset_index(), 2028, rule=cs.BLOCK_RULE)[1]
     assert a28b.get("p130", 0) == pytest.approx(108.0)                                      # Merrimack 1 only
     assert pb.at["3845|2", "retirement_year"] == 2031 and cf.hold_years(pb.reset_index())["3845|2"] == 2031
@@ -441,7 +442,7 @@ def test_block_all_pushes_gas_to_2031_in_the_hook():
         assert y["55001|CC1"] == 2031 and y["55002|CT1"] == 2031                         # gas CC / CT: 2031
         assert y["55003|ST1"] == 2027 and y["55004|IC1"] == 2028                         # Other_peaker: as fedpol
         assert y["55005|CT2"] == 2033 and y["55000|CT1"] == 2031                         # outside / inside the window
-        assert y["602|1"] == 2031 and y["3845|2"] == 2031 and y["56611|S01"] == 2026     # coal, hold, OS removal
+        assert y["602|1"] == 2031 and y["3845|2"] == 2031 and "56611|S01" not in y.index  # coal, hold, OS removal
         assert set(rec["pushed"].cluster_technology) >= {"Conventional Steam Coal", "Natural Gas Fired Combined Cycle"}
         assert not rec["pushed"].technology_description.isin(["Natural Gas Steam Turbine"]).any()
         # what PowerGenome then sees: in model year 2030 (Y > 2030) and gone in 2035; fedpol's function leaves it
@@ -463,6 +464,148 @@ def test_block_all_pushes_gas_to_2031_in_the_hook():
                 sys.modules.pop(k, None)
             else:
                 sys.modules[k] = v
+
+
+def _pg_sequence(fake, tech_groups, basis, operating_860m):
+    """PowerGenome's unit tables in create_all_generators' order, as far as the removals are concerned: its EIA-860
+    units (gens_860_model: plants with a plant-map region; retirement years labelled, then grouped), then the 860M
+    Operating units missing from that table (import_new_generators: placed by location, index plant/prime mover/fuel,
+    grouped, then retirement years labelled by age), then all_units with the cluster technology, which fedpol's
+    apply_predetermined_retirement_override gets (pg_to_switch.eia_build_info)."""
+    g860 = fake.group_technologies(basis.copy(), tech_groups)
+    have = set(cs.keys(g860.plant_id_eia, g860.generator_id))
+    new = operating_860m[~pd.Series(cs.keys(operating_860m.plant_id_eia, operating_860m.generator_id)).isin(have).values]
+    new = new.drop(columns="retirement_year").set_index(["plant_id_eia", "prime_mover_code", "energy_source_code_1"])
+    g_new = fake.group_technologies(new, tech_groups).reset_index()
+    g_new["retirement_year"] = g_new.operating_date + 500                        # label_retirement_year: by age
+    allu = pd.concat([g860, g_new], ignore_index=True)
+    return allu.rename(columns={"technology_description": "technology"})
+
+
+def test_removals_deleted_before_fedpol_push(caplog):
+    """The five out-of-service removals are deleted from PowerGenome's unit tables before clustering in every pre-2030
+    option: from its EIA-860 units and from the 860M generators PowerGenome would otherwise add back for them (all five
+    are OP/OA in the July 2025 860M Operating sheet; Biron Mill, plant 10234, has no plant-map region, so it only ever
+    enters that way: why the VM's hook derived 4 remove overrides). fedpol's function receives none of them, so it
+    has nothing to push into 2030; the build log says "5 removed"; another count fails the build."""
+    tech_groups = {cs.CSC: list(cs.COAL_GROUP)}
+
+    def group_technologies(df, groups=None, *a, **k):
+        df = df.copy()
+        for tech, members in (groups or {}).items():
+            df.loc[df["technology_description"].isin(members), "technology_description"] = tech
+        return df
+
+    fake = types.ModuleType("powergenome.generators")
+    fake.group_technologies, fake.atb_fixed_var_om_existing = group_technologies, lambda u, *a, **k: u
+    pkg = types.ModuleType("powergenome")
+    pkg.generators = fake
+    saved = {k: sys.modules.get(k) for k in ("powergenome", "powergenome.generators")}
+    sys.modules["powergenome"], sys.modules["powergenome.generators"] = pkg, fake
+    basis = model_basis().assign(prime_mover_code="ST")
+    kn = pd.Series(cs.keys(basis.plant_id_eia, basis.generator_id))
+    biron = kn == "10234|GEN5"
+    operating = basis[kn.isin(REMOVALS).values].copy()                       # 860M July 2025 Operating: OP / OA
+    eia860 = basis[~biron.values]                                            # plant 10234: no plant-map region
+    fn, _ = _pg_fn("apply_predetermined_retirement_override")
+    try:
+        # without the hook (as at c4a19f8: removals encoded 2026), fedpol's function pushes them to 2030
+        old = basis[kn.isin(REMOVALS).values].assign(technology=cs.CSC, retirement_year=2026)
+        assert (fn(old.copy(), {"predetermined_retirement_override": cs.BLOCK_RULE}).retirement_year == 2030).all()
+        for opt in ("block_all", "planned_only", "unrestricted"):
+            s = s0_case("on")
+            s["s0_production"]["retirements_pre2030"] = opt
+            s0prod.apply_settings({"c": {2028: s}})
+            caplog.clear()
+            with caplog.at_level("INFO", logger=cf.logger.name):
+                with cf.unit_hooks(s) as rec:
+                    allu = _pg_sequence(fake, tech_groups, eia860, operating)
+            got = set(cs.keys(allu.plant_id_eia, allu.generator_id))
+            assert not got & set(REMOVALS), (opt, got & set(REMOVALS))     # fedpol's function receives none of them
+            out = fn(allu.copy(), s)                                          # with the option's own rule (if any)
+            assert not set(cs.keys(out.plant_id_eia, out.generator_id)) & set(REMOVALS)
+            r = rec["removals"].set_index("kn")
+            assert len(r) == 5 and r.in_spec.all()
+            both = f"deleted from {cf.T860} and {cf.T860M}"
+            assert (r.status.drop("10234|GEN5") == both).all() and r.at["10234|GEN5", "status"] == f"deleted from {cf.T860M}"
+            assert list(r.derived_override) == [k != "10234|GEN5" for k in r.index]
+            assert len(rec["overrides"]) == 70 and set(cf.removal_keys(rec["overrides"])) == set(REMOVALS) - {"10234|GEN5"}
+            assert "coal removals: 5 removed before clustering (4 deleted from EIA-860 units and 860M new generators: " \
+                   "6705|2, 2364|2, 6055|1, 56611|S01; 1 deleted from 860M new generators: 10234|GEN5)" in caplog.text
+            assert "10234|GEN5" not in set(cs.keys(rec["edited"].plant_id_eia, rec["edited"].generator_id))
+            # the build's override check: Biron Mill has no override row (not in the EIA-860 units), and is accepted
+            chk = cf.check_overrides(rec["overrides"], spec("coal_spec_overrides.csv", dtype={"generator_id": str}), "s0",
+                                     absent=set(r.index[~r.derived_override]))
+            assert chk.ok.all() and chk.set_index("kn").at["10234|GEN5", "status"].startswith("ok (removal")
+            assert not cf.check_overrides(rec["overrides"], spec("coal_spec_overrides.csv", dtype={"generator_id": str}),
+                                          "s0").ok.all()
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                sys.modules.pop(k, None)
+            else:
+                sys.modules[k] = v
+
+
+def test_removal_count_fails_the_build(tmp_path):
+    """A removal count other than 5 (here: a spec table with one remove row less, so the build derives one the spec
+    doesn't list) stops the build, in the hook and in the case-input check."""
+    e = spec("coal_spec_overrides.csv", dtype={"generator_id": str})
+    e = e[np.array(cs.keys(e.plant_id_eia, e.generator_id)) != "6705|2"]
+    e.to_csv(tmp_path / "ov.csv", index=False)
+    r = cf.removals_record(cf.spec_removals(tmp_path / "ov.csv"), set(REMOVALS), {k: [cf.T860] for k in REMOVALS})
+    assert len(r) == 5 and cf.removals_problems(r) == ["removals not in coal_spec_overrides.csv: 6705|2"]
+    r4 = cf.removals_record(cf.spec_removals(tmp_path / "ov.csv"), set(), {})
+    assert cf.removals_problems(r4) == ["4 out-of-service removals, expected 5 (coal_spec.md §2.2)"]
+    fake = types.ModuleType("powergenome.generators")
+    fake.group_technologies, fake.atb_fixed_var_om_existing = (lambda df, *a, **k: df), (lambda u, *a, **k: u)
+    pkg = types.ModuleType("powergenome")
+    pkg.generators = fake
+    saved = {k: sys.modules.get(k) for k in ("powergenome", "powergenome.generators")}
+    sys.modules["powergenome"], sys.modules["powergenome.generators"] = pkg, fake
+    try:
+        s = s0_case("on")
+        s["s0_production"]["coal_spec"]["expected_overrides"] = str(tmp_path / "ov.csv")
+        s0prod.apply_settings({"c": {2028: s}})
+        with pytest.raises(ValueError, match="6705"):
+            with cf.unit_hooks(s):
+                fake.group_technologies(model_basis())
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                sys.modules.pop(k, None)
+            else:
+                sys.modules[k] = v
+    # the case-input check: a record with 4 removals fails
+    years = [2028]
+    s = s0_case("on_windows")
+    s0prod.apply_settings({"c": {2028: s}})
+    rec = _hook_record("block_all")
+    rec["removals"] = rec["removals"][rec["removals"].kn != "6705|2"]
+    cf._State.store[("c", 2028)] = {"case": "c", "year": 2028, **rec}
+    _case_folder(tmp_path, ["p101"])
+    with pytest.raises(ValueError, match="4 out-of-service removals, expected 5"):
+        cf.write_case_inputs(tmp_path, s["s0_production"], {y: dict(s, model_year=y) for y in years}, s0prod.Log(tmp_path))
+
+
+def test_coal_spec_steps_on_installed_pandas(tmp_path):
+    """The coal-spec steps run on the installed pandas (the case build runs in switch-pg-reeds-fedpol, pandas 1.4.4;
+    the tests also run on pandas 2/3) and reproduce the committed tables byte for byte: per-option tables
+    (option_tables -> stage_history, model_mw, apply_rule), the zone caps of coal_cf and the csv writer."""
+    for o in cs.RETIREMENT_OPTIONS:
+        caps, holds, summ = cf.option_tables(o)
+        for name, df in (("coal_spec_expected_caps_by_stage", caps.round(4)), ("coal_spec_hold_by_stage", holds),
+                         ("coal_spec_stage_summary", summ)):
+            assert cs.csv_text(df, index=False) == (SPEC / f"by_option/{name}.{o}.csv").read_text(), (pd.__version__, o, name)
+    cu = cap_units()
+    cu = cu[cu.status.isin(["OP", "SB"])]
+    h, nat = cs.stage_history(cu, 2035, cs.held_keys(cs.load_holds()))
+    e = spec("coal_spec_expected_caps_by_stage.csv").query("stage == 2035").set_index("zone")
+    j = h.join(e[["hist_MW", "national_N"]], rsuffix="_spec", how="inner")
+    assert (j.hist_MW - j.hist_MW_spec).abs().max() <= 1.0 and nat == pytest.approx(e.national_N.iloc[0], abs=1e-4)
+    w = cs.weighted_by(pd.DataFrame({"z": ["a", "a", "b"], "v": [1.0, 0.0, 0.5], "w": [1.0, 3.0, 2.0]}), "z", "v", "w")
+    assert list(w.weight) == [4.0, 2.0] and list(w.n_units) == [2, 1] and list(w["mean"]) == [0.25, 0.5]
+    assert cs.csv_text(pd.DataFrame({"a": [1]}), index=False) == "a\n1\n"
 
 
 def _pg_fn(name):
@@ -512,8 +655,10 @@ def _hook_record(option, scen="s0", basis=None):
     basis = cs.load_model_basis() if basis is None else basis
     ov, final = cf.derive_overrides(basis, op, rt, cf.scenario_holds({"coal_holds": {"scenario": scen}}))
     rule = cs.BLOCK_RULE if option == "block_all" else None
+    derived = cf.removal_keys(ov)
     return {"units": basis, "final": final, "overrides": ov, "rule": rule,
-            "edited": cf.apply_overrides(basis, final, ov, rule=rule)}
+            "edited": cf.apply_overrides(basis, final, ov, rule=rule),
+            "removals": cf.removals_record(cf.spec_removals(), derived, {k: [cf.T860] for k in derived})}
 
 
 @pytest.mark.parametrize("option", cs.RETIREMENT_OPTIONS)
@@ -551,6 +696,8 @@ def test_case_build_caps_holds_and_checks(tmp_path, option):
     txt = "\n".join(log.lines)
     n = {"block_all": "0.5785", "planned_only": "0.5806", "unrestricted": "0.5806"}[option]
     assert f"coal caps 2028: N {n}" in txt and "71/71 as coal_spec_overrides.csv" in txt
+    assert "coal removals: 5 removed before clustering (5 deleted from EIA-860 units: " in txt
+    assert len(pd.read_csv(tmp_path / "coal_removals.csv")) == 5
     # the wrong option's table is caught
     if option != "block_all":
         _case_folder(tmp_path, zones)

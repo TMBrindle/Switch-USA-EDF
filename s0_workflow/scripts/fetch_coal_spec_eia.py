@@ -269,7 +269,7 @@ def main():
 def write(path: Path, df: pd.DataFrame, head: str) -> None:
     with open(path, "w", newline="") as f:
         f.write(head)
-        df.to_csv(f, index=False, lineterminator="\n")
+        f.write(cs.csv_text(df, index=False))
     print("wrote", path.relative_to(REPO), len(df), "rows")
 
 

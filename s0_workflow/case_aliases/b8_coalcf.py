@@ -66,9 +66,10 @@ cov = {"units": len(units), "GW (winter)": units.winter_capacity_mw.sum() / 1e3,
        "GW with CF history": units[units.cf_max.notna()].winter_capacity_mw.sum() / 1e3,
        "latest EIA-860 year in PUDL": int(latest)}
 h = units[units.zone.notna() & units.cf_max.notna()]
-zc = h.groupby("zone").apply(lambda x: pd.Series({"hist_GW": x.winter_capacity_mw.sum() / 1e3,
-                                                   "cap_winter": np.average(x.cf_max, weights=x.winter_capacity_mw),
-                                                   "cap_nameplate": np.average(x.cf_max_np, weights=x.capacity_mw)}), include_groups=False)
+_w = h.assign(_wc=h.cf_max * h.winter_capacity_mw, _nc=h.cf_max_np * h.capacity_mw)   # pandas 1.4 and 2.x
+zc = _w.groupby("zone").agg(_win=("winter_capacity_mw", "sum"), _wc=("_wc", "sum"), _np=("capacity_mw", "sum"),
+                            _nc=("_nc", "sum"))
+zc = pd.DataFrame({"hist_GW": zc._win / 1e3, "cap_winter": zc._wc / zc._win, "cap_nameplate": zc._nc / zc._np})
 # model coal clusters
 gi = pd.read_csv(D / A.base_gen_info, dtype=str, keep_default_na=False)
 m = gi.gen_energy_source == "coal"

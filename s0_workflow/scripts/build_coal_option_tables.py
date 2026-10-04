@@ -29,7 +29,7 @@ def texts() -> dict:
         caps, holds, summ = cf.option_tables(o)
         for name, df in (("coal_spec_expected_caps_by_stage", caps.round(4)), ("coal_spec_hold_by_stage", holds),
                          ("coal_spec_stage_summary", summ)):
-            out[OUT / f"{name}.{o}.csv"] = df.to_csv(index=False, lineterminator="\n")
+            out[OUT / f"{name}.{o}.csv"] = cs.csv_text(df, index=False)
     return out
 
 

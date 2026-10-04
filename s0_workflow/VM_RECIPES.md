@@ -38,8 +38,8 @@ Environment checks. The headroom pipeline needs `h5py` (VM env `ic-pipeline`). `
 PowerGenome, `typer`, `scipy` and `sklearn` (VM env `switch-pg-reeds-fedpol`). Check each import in its
 own env; do not install anything.
 
-**Which env runs each step** (all recipes). `switch-pg-reeds-fedpol` has an old pandas, so only the
-case build and the solve run there:
+**Which env runs each step** (all recipes). `switch-pg-reeds-fedpol` has an old pandas (1.4.4). The case
+build and the solve run there, and so do the `s0_workflow` tests, because that env builds the cases:
 
 | Step | Env | Why |
 |---|---|---|
@@ -47,7 +47,8 @@ case build and the solve run there:
 | `icsc.cli run` (headroom tables) | `ic-pipeline` | needs `h5py` |
 | `brc.cli run` (build-rate tables) | `ic-pipeline` | fails in `switch-pg-reeds-fedpol` (old pandas) |
 | `pytest` (all three suites) | the env with `pytest` | no VM env has both `pytest` and `scikit-learn`: the day-selection test skips with a message where `sklearn` is missing |
-| `build_reeds_state_policies.py --check` (C step 1) | `ic-pipeline` | pandas and PyYAML only; writes with `lineterminator=` (pandas ≥ 1.5) |
+| `pytest s0_workflow/tests` **again** | `switch-pg-reeds-fedpol` | it builds the cases, with pandas 1.4.4: the coal-spec code must run there (the c4a19f8 build failed on a pandas ≥ 2.2 call that the other env accepted) |
+| `build_reeds_state_policies.py --check` (C step 1) | `ic-pipeline` | pandas and PyYAML only (runs on pandas 1.4.4 too) |
 | `fetch_coal_spec_eia.py --check-only` (C step 1, optional) | `ic-pipeline` | pandas, openpyxl, PyYAML |
 | `pg_to_switch.py` (case builds: A, B, C) | `switch-pg-reeds-fedpol` | PowerGenome, `scipy`, `sklearn` |
 | `"<SWITCH_EXE>" solve` | `switch-pg-reeds-fedpol` (its `switch`) | Pyomo, Switch, Gurobi |
@@ -72,6 +73,14 @@ Tests, in the env with `pytest`. Expect all to pass except one skip:
 SWITCH_SRC="<switch checkout>" "<pytest env python>" -m pytest -q -rs s0_workflow/tests
 (cd interconnection_headroom && SWITCH_SRC="<switch checkout>" "<pytest env python>" -m pytest -q)
 (cd build_rate && SWITCH_SRC="<switch checkout>" "<pytest env python>" -m pytest -q)
+```
+
+Then the `s0_workflow` tests in `switch-pg-reeds-fedpol`, the env that builds the cases (pandas 1.4.4). They
+must all pass there too, except the same skip. Check `pytest` first; if the import fails, stop and tell Tom
+(don't install it):
+```bash
+"<switch-pg-reeds-fedpol python>" -c "import pytest, pandas; print(pandas.__version__)"
+SWITCH_SRC="<switch checkout>" "<switch-pg-reeds-fedpol python>" -m pytest -q -rs s0_workflow/tests
 ```
 
 ## A. Regression: s4x1 2035 new-stack base through the settings (legacy settings)
@@ -187,8 +196,8 @@ validation tables (`s0_workflow/specs/coal/`; caps and holds from `by_option/` f
 - the holds by stage (exact);
 - the converted units' heat rates (±0.01).
 
-A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrides_applied.csv` and
-`coal_holds_by_stage.csv` (and `coal_converted_heat_rates.csv`) in the stage folder. Don't patch around it: send Tom those three files and
+A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrides_applied.csv`,
+`coal_holds_by_stage.csv` and `coal_removals.csv` (and `coal_converted_heat_rates.csv`) in the stage folder. Don't patch around it: send Tom those files and
 `s0_production_log.txt`.
 
 1. Check the pinned state-policy files, then build into a fresh folder. The build writes all five stage
@@ -199,8 +208,11 @@ A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrid
    "<ic-pipeline python>" s0_workflow/scripts/build_reeds_state_policies.py --check; echo "check exit $?"
    # only if the check printed "check exit 0":
    test -e switch/in/s0prod_A && echo "exists: pick another name" || \
-   "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_A --case-id S0prod_A
+   "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_A --case-id S0prod_A \
+       --year 2028 --year 2030 --year 2035 --year 2040 --year 2045
    ```
+   One `--year` per stage. Without them the build takes every model year in the settings and asks for
+   2024, 2025 and 2029 as well.
    Optional, to re-verify the committed coal tables from public EIA data (downloads about 250 MB into
    `s0_workflow/data/raw/`, gitignored). It must end with `CHECK OK`:
    ```bash
@@ -246,7 +258,16 @@ A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrid
      - These units are in service through the 2030 stage and kept by PowerGenome in model year 2030.
      - Expect **no** `predetermined_retirement_override: pushing back ...` line: fedpol's function finds nothing
        left in its window.
-     - The five out-of-service coal removals are not pushed.
+   - **Coal removals (every option):** the console log and `s0_production_log.txt` say
+     `coal removals: 5 removed before clustering (...)`, and `coal_removals.csv` lists the five: Sandy Creek S01,
+     Big Cajun 2-1, Merrimack 2, Warrick 2, Biron Mill GEN5. They are deleted from PowerGenome's unit tables
+     before clustering, so fedpol's `blocked_2030` push never sees them (at c4a19f8 it moved them to 2030).
+     - Expected breakdown: 4 `deleted from EIA-860 units and 860M new generators` (PowerGenome would otherwise
+       add them back from the 860M Operating sheet, where they are OP / OA) and 1, `10234|GEN5`, `deleted from 860M
+       new generators`. Biron Mill (plant 10234) is not in `reeds_plant_map.csv`, so it is not among
+       PowerGenome's EIA-860 units; PowerGenome adds it from the 860M by location. That is why the hook logged
+       4 remove overrides at c4a19f8. Report the breakdown if it differs.
+     - Any count other than 5 stops the build.
    - `build_rules.csv`: `uranium`, 2035 (no new nuclear before the 2035 stage).
    - **Coal caps by stage (block_all):** in `coal_caps_by_stage.csv`, every row has `ok` True (checked against
      `by_option/coal_spec_expected_caps_by_stage.block_all.csv`). The log line `coal caps <year>: N ...`
@@ -270,7 +291,9 @@ A mismatch raises an error after writing `coal_caps_by_stage.csv`, `coal_overrid
      - **Other options:** for a `planned_only` or `unrestricted` sensitivity, the expected values are 2028
        0.5806 / 74 / 157.32 GW and 2030 0.5926 / 71 / 142.11 GW (`by_option/coal_spec_stage_summary.*.csv`).
    - **Applied overrides:** `coal_overrides_applied.csv` has 71 rows, all `ok`: 15 retire, 9 retire later,
-     8 convert to gas, 5 remove, 5 keep online, 8 hold, and 21 no-change / review rows. Converted
+     8 convert to gas, 5 remove, 5 keep online, 8 hold, and 21 no-change / review rows. Biron Mill GEN5's
+     row is expected to read `ok (removal: not in PowerGenome's EIA-860 units)`, with 70 derived overrides (log
+     line `70 overrides applied`), because that unit isn't among those units (71 and a plain `ok` if it is). Converted
      units are in the zone's `other_peaker` cluster, not the coal clusters.
    - **Converted heat rates:** `coal_converted_heat_rates.csv` is all `ok` against
      `coal_spec_converted_gas_units.csv` (rev. 2.1, latest EIA-923, all 2026 ST/NG). The values are North Valmy

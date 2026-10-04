@@ -251,11 +251,25 @@ def stage_history(cu: pd.DataFrame, stage: int, held: set, rule: dict | None = N
     h = stage_units(cu, stage, held, rule)
     h = h[h.zone.notna() & h.cf_max.notna()]
     nat = float(np.average(h.cf_max, weights=h.winter_mw))
-    z = h.groupby("zone").apply(lambda x: pd.Series({
-        "hist_MW": x.winter_mw.sum(), "n_units": len(x), "own_cap": np.average(x.cf_max, weights=x.winter_mw)}),
-        include_groups=False)
-    z.index.name = "zone"
-    return z, nat
+    z = weighted_by(h, "zone", "cf_max", "winter_mw").rename(columns={"weight": "hist_MW", "mean": "own_cap"})
+    return z[["hist_MW", "n_units", "own_cap"]], nat
+
+
+def weighted_by(df: pd.DataFrame, by: str, value: str, weight: str) -> pd.DataFrame:
+    """Per group: sum of weights, row count and weighted mean of `value` (np.average per group). Plain aggregations
+    rather than groupby.apply, for pandas 1.4 (the case-build env) and 2.x alike."""
+    d = pd.DataFrame({by: df[by].values, "weight": df[weight].values.astype(float),
+                      "vw": (df[value] * df[weight]).values.astype(float)})
+    g = d.groupby(by).agg(weight=("weight", "sum"), n_units=("weight", "size"), vw=("vw", "sum"))
+    g["mean"] = g.vw / g.weight
+    g.index.name = by
+    return g.drop(columns="vw")
+
+
+def csv_text(df: pd.DataFrame, **kw) -> str:
+    """df.to_csv as text with "\n" line ends on every platform and pandas version (to_csv's line-terminator argument
+    was renamed in pandas 1.5)."""
+    return df.to_csv(**kw).replace("\r\n", "\n")
 
 
 def apply_rule(hist: pd.DataFrame, model_before: pd.Series, model_after: pd.Series, nat: float) -> pd.DataFrame:
