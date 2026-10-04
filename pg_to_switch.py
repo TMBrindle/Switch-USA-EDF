@@ -24,6 +24,7 @@ from build_rate.brc import turbine_cap as gtc_case
 from s0_workflow import production as s0prod
 from s0_workflow import coal_fleet as s0coal
 from s0_workflow import day_selection as s0days
+from s0_workflow import prm as s0prm
 import pandas as pd
 import numpy as np
 import scipy
@@ -670,6 +671,17 @@ def operational_files(
                     ),
                 )
             logger.info("Finished clustering timeseries.")
+            # S0 regional planning reserve (s0_production.prm.design: regional): append the
+            # model year's stress days at zero weight (s0_workflow/prm.py)
+            n_stress = 0
+            if s0prm.year_prm(year_settings) is not None:
+                results, representative_point, weights, n_stress = s0prm.add_stress_days(
+                    results, representative_point, weights, period_lc, period_variability,
+                    period_gens, year_settings,
+                    out_folder / s0prm.year_prm(year_settings)["stress_days"]["diag_dir"] / str(model_year),
+                    variable_resources_only=year_settings.get("variable_resources_only", True),
+                )
+                logger.info(f"Added {n_stress} zero-weight stress days ({model_year}).")
             period_lc_sampled = results["load_profiles"]
             period_variability_sampled = results["resource_profiles"]
 
@@ -696,7 +708,12 @@ def operational_files(
                 year_settings["model_year"],
                 year_settings["model_first_planning_year"],
             )
+            timeseries_df, timepoints_df = s0prm.rename_stress_rows(
+                timeseries_df, timepoints_df, n_stress
+            )
         else:
+            if s0prm.year_prm(year_settings) is not None:
+                raise ValueError("s0_production.prm regional needs time sampling (reduce_time_domain)")
             # note: period_variability has 0-based index and period_lc has
             # 1-based index when not using time reduction, but should be the
             # same length, so

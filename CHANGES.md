@@ -2178,3 +2178,57 @@ except `forced_tx`, each equal to `s4x1_S0prod_2035_new` but for the id (recipe 
 - Run on pandas 3.0.6 and 1.4.4 (both: s0_workflow 71, build_rate 22, three `--check` scripts); headroom 31
   (pandas 3.0.6).
 
+## 55. S0 Production: Regional Planning Reserve Requirement
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("Planning reserve requirement"), `s0_workflow/VM_RECIPES.md`
+(recipe E; recipe C), `SHARED_CHANGES.md` (#41-#44, review point 9)
+
+Tom's decisions (items 1-10), as settings: `s0_production.prm.design: regional` (S0 default; S0prod_A/B and the new
+`s4x1_S0prod_2035_prm`) or `legacy` (today's per-zone reserve and extreme-day block; the regression case and the other
+2035 comparison cases). The regression case stays byte-identical (tests). Inputs: Tom's research config, committed as
+`s0_workflow/specs/prm/prm_redesign_config.yaml` (its murphy2019 curves checked against ReEDS 2026.09.21).
+
+1. **Regions:** 16 (ReEDS nercr; WECC_NW by transgrp), zones pooled with deliverability over internal lines.
+2. **Margins:** NERC 2025 LTRA RMLs, linear 2026-30 and flat after, on derated capacity: (1 + RML)(1 - FOR_w) - 1,
+   FOR_w the region's capacity-weighted normal-weather (ReEDS static) rate of its existing thermal fleet. On the
+   committed s4x1_fedpol_current fleet, 2035: PJM 0.198, MISO 0.024, SPP 0.120, ERCOT 0.077, NY 0.095, NE 0.075, CA
+   0.129 (table in s0_production.md).
+3. **Stress days:** 10-12 real days per model year from 2007-2013, greedy coverage of each region's worst summer peak,
+   winter peak and low wind/solar (stylised net load) day; zero weight; the requirement holds in their hours only (the
+   legacy modules are excluded on the S0 line, the extreme-day script dropped). Diagnostics `prm/<year>/stress_days.csv`
+   and `stress_coverage.csv` say which day covers which region.
+4. **Thermal** at nameplate x (1 - FOR(T)) with the murphy2019 curves: ReEDS's hourly temperatures
+   (`inputs/profiles_temperature/temperature_state.h5`, by state) are not in the release's git tree or here, so the
+   default is seasonal (Nov-Mar at -15 C, May-Sep at 35 C, Apr/Oct static); `method: hourly` reads the h5 (state ->
+   zone) when supplied. **Hydro** at its dispatch on the day (water-limited), not nameplate.
+5. **Imports:** reserve transfers delivered after line losses, new lines at 85%; net imports capped in every stress hour
+   at the ReEDS 99.9th-percentile share of the region's peak (flat; `relaxed` / `none` for transmission scenarios). No
+   CAISO 1e-6 workaround (a share of 0 is enforced; tested).
+6. **Storage:** net dispatch, backed by state of charge through each stress day (cyclic within the day), charging
+   counted against the requirement.
+7. **Shortfall:** per region and period at $300/kW-yr (2028$) = $271.79/kW-yr in the model's 2024$ (CPI-U to 2024,
+   2.5%/yr after); `penalty: low` = $106 (2025$) = $103.41; `prm_shortfall.csv`.
+8. **Diagnostics every run:** reserve and import-cap duals (from `write_dual_costs`' suffix; Gurobi barrier without
+   crossover returns them for the LP), implied capacity credit by class and region against PJM / NYISO / ISO-NE / SPP,
+   margin achieved and import use by region and period.
+9. **Losses and deliverability** (a) imports after the energy balance's line losses, plus the 15% new-line derate;
+   (b) each zone's requirement met by local credit plus net inflows over internal lines (limits, losses), margin and
+   import cap at the region; (c) the requirement on the energy balance's central-node load (every distributed
+   withdrawal / (1 - T&D loss)), distributed PV at its stress-hour output. What `planning_reserves.py` does today is
+   documented in s0_production.md.
+10. **Imports and storage:** the cap holds in every stress hour, so storage can't launder imports (test: with the cap
+    only at the peak hour storage meets the peak from uncapped imports; with it in every hour the shortfall is 1.70 MW).
+    The in-state generation rule (`gen_zone_ratio.py`) has the same issue (P-11, not implemented; S0 doesn't use it).
+
+Also: `test_forced_tx.py` reads files as UTF-8.
+
+**Case:** `s4x1_S0prod_2035_prm`, identical to `s4x1_S0prod_2035_txreeds` except `prm_design` (recipe E).
+
+**Tests:** `s0_workflow` 85 (was 71): `test_prm.py` (14: regions, margins, imports and penalty, FOR classes and
+seasons, the hourly-temperature path, stress-day coverage, stress-day ids, settings and legacy, benchmarks, case
+inputs, and Switch toys for stress-hours-only enforcement, deliverability with losses, the import cap (incl. a share of
+0) and the new-line derate, storage state of charge, storage laundering, shortfall cost and capacity credit); legacy
+assertions in the regression test. Run on pandas 3.0.6 (85 passed) and 1.4.4 (84 passed, 1 skipped: h5py not in that
+env); build_rate 22 on both; headroom 31.
+

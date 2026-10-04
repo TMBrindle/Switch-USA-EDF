@@ -1,0 +1,99 @@
+# Switch-USA-PG-ReEDS — planning reserve redesign inputs
+# Compiled 2026-10-04. Fractions unless stated. Tags:
+#   [src]  value read from the cited source
+#   [inf]  inference / design choice by the compiler — not a published number
+#   [nc]   cited but not confirmed against the primary table (secondary or summarised fetch)
+# Region key = ReEDS `nercr` (inputs/hierarchy.csv, ReEDS-2.0 main @ 2026-04-22).
+# (Committed verbatim from Tom's research config, 2026-10-04; read by s0_workflow/prm.py. CHANGES §55.)
+
+sources:
+  ltra2025: "NERC 2025 LTRA, Table 2 (pp.14-15), released 2026-01-29 — https://prod.nerc.com/globalassets/our-work/assessments/nerc_ltra_2025.pdf"
+  reeds_hier: "ReEDS-2.0 inputs/hierarchy.csv, main 2026-04-22 — https://github.com/NREL/ReEDS-2.0/blob/main/inputs/hierarchy.csv"
+  reeds_imports: "ReEDS-2.0 inputs/reserves/peak_net_imports.csv (99.9th pct coincident net imports 2019-23) — https://github.com/NREL/ReEDS-2.0/blob/main/inputs/reserves/peak_net_imports.csv"
+  reeds_for: "ReEDS-2.0 inputs/plant_characteristics/outage_forced_temperature_murphy2019.csv (Murphy et al. 2019, doi:10.1016/j.apenergy.2019.113513)"
+  pjm_elcc_2930: "PJM ELCC class ratings, 2029/30 BRA (posted with params 2026-08-31) — https://www.pjm.com/-/media/DotCom/planning/res-adeq/elcc/29-30-bra-elcc-class-ratings.pdf"
+  pjm_fpr_2930: "PJM MC 2026-08-19, 2029/30 IRM/FPR — https://www.pjm.com/-/media/DotCom/committees-groups/committees/mc/2026/20260819/20260819-item-05---2029-2030-bra-irm-fpr---presentation.pdf"
+  nyiso_caf: "NYISO final CAFs 2026/27, 2026-02-17 — https://www.nyiso.com/documents/20142/41593818/Final-Capacity-Accreditation-Factors-for-the-2026-2027-capability-year.pdf"
+  isone_prelim: "ISO-NE CAR-SA impact analysis (preliminary), Mar 2026 — https://www.iso-ne.com/static-assets/documents/100033/a07.1.h_mc_rc_2026_03_10-12_car-sa_ia_ram.pdf"
+  spp_elcc: "SPP 2024 ELCC report (final draft 2024-09-10) — https://www.spp.org/documents/72346/2024%20spp%20elcc%20wind%20solar%20&%20esr%20report.pdf"
+  spp_prm: "SPP PRM recommendation 2025-04-04 — https://www.spp.org/documents/73589/prm%20recommendation%204-4-25.pdf"
+  miso_pra: "MISO status update to MO PSC, 2026-05-28 — https://psc.mo.gov/CMSInternetData/Agenda%20Presentations/2026%20Presentations/5-28-26%20MISO%20Status%20Update.pdf"
+  cpuc_prm: "CPUC D.25-06-048 fact sheet, 2025-06-27 — https://www.cpuc.ca.gov/-/media/cpuc-website/divisions/energy-division/documents/resource-adequacy-homepage/oga-fact-sheet-on-track-3-decision-final.pdf"
+
+prm:
+  default_rule: "2028-2029: linear between LTRA 2026 and 2030 RML; 2030-2045: hold 2030 RML flat"  # [inf]
+  regions:
+    MISO:      {ltra_area: MISO,            rml_2026: 0.081, rml_2030: 0.085, season: summer, alt: "MISO 2026/27 PRA targets (UCAP): summer 0.079, winter 0.189 [src miso_pra]"}
+    SPP:       {ltra_area: MRO-SPP,         rml_2026: 0.190, rml_2030: 0.190, season: summer, alt: "SPP own PRM 0.16 summer / 0.36 winter from 2026; 0.17 / 0.38 from 2029 [src spp_prm]"}
+    PJM:       {ltra_area: PJM,             rml_2026: 0.186, rml_2030: 0.263, season: summer, alt: "PJM IRM 0.204 (ICAP), FPR 0.9232 (UCAP) for 2029/30 [src pjm_fpr_2930]"}
+    ERCOT:     {ltra_area: Texas RE-ERCOT,  rml_2026: 0.1375, rml_2030: 0.1375, season: summer, note: "ERCOT has no PRM requirement; 13.75% is the PUCT/ERCOT reliability-study value [nc]"}
+    NPCC_NY:   {ltra_area: NPCC-New York,   rml_2026: 0.150, rml_2030: 0.150, season: summer, alt: "NYSRC 2026/27 base-case IRM 0.253 (adopted value nc)"}
+    NPCC_NE:   {ltra_area: NPCC-New England, rml_2026: 0.134, rml_2030: 0.130, season: summer}
+    SERC_C:    {ltra_area: SERC-Central,    rml_2026: 0.150, rml_2030: 0.150, season: summer, alt: "TVA draft 2026 IRP: 0.26 winter / 0.18 summer [nc, Utility Dive]"}
+    SERC_E:    {ltra_area: SERC-East,       rml_2026: 0.150, rml_2030: 0.150, season: summer, alt: "Duke 0.22 winter [nc]"}
+    SERC_SE:   {ltra_area: SERC-Southeast,  rml_2026: 0.150, rml_2030: 0.150, season: summer, alt: "Georgia Power 2025 IRP: 0.26 winter / 0.20 summer [src GPC docket overview]"}
+    SERC_F:    {ltra_area: SERC-Florida Peninsula, rml_2026: 0.150, rml_2030: 0.150, season: summer, alt: "FL IOUs plan to 0.20 [nc]"}
+    WECC_CA:   {ltra_area: WECC-California, rml_2026: 0.203, rml_2030: 0.193, season: summer, alt: "CPUC PRM 0.18 for 2026-27, ~0.225 effective Jun-Oct [src cpuc_prm]"}
+    WECC_SW:   {ltra_area: WECC-Southwest,  rml_2026: 0.133, rml_2030: 0.122, season: summer}
+    WECC_NW:   # ReEDS lumps three LTRA areas; set PRM at transgrp level to separate them [inf mapping]
+      by_transgrp:
+        NorthernGrid_West:  {ltra_area: WECC-Northwest (winter-peaking), rml_2026: 0.178, rml_2030: 0.155}
+        NorthernGrid_South: {ltra_area: WECC-Basin,          rml_2026: 0.135, rml_2030: 0.123}
+        NorthernGrid_East:  {ltra_area: "WECC-Northwest/Basin (ID, MT, WY) — ambiguous", rml_2026: 0.135, rml_2030: 0.123, note: "[inf] Basin used; check"}
+        WestConnect_North:  {ltra_area: WECC-Rocky Mountain, rml_2026: 0.178, rml_2030: 0.157}
+
+thermal_derate:
+  method: "available = nameplate x (1 - FOR(T)), FOR from stress-day temperature in each zone"  # [inf]
+  forced_outage_vs_temp_C:   # [src reeds_for]; values at listed temps, interpolate between
+    #               -15    -10    -5     0     25    30    35
+    combined_cycle:     [0.149, 0.081, 0.048, 0.033, 0.035, 0.041, 0.072]
+    combustion_turbine: [0.199, 0.099, 0.051, 0.031, 0.031, 0.039, 0.066]
+    steam_coal_ogs:     [0.133, 0.112, 0.099, 0.091, 0.094, 0.114, 0.140]
+    nuclear:            [0.019, 0.018, 0.017, 0.018, 0.037, 0.066, 0.124]
+    diesel:             [0.212, 0.170, 0.137, 0.116, 0.135, 0.143, 0.175]
+    hydro_and_psh:      [0.070, 0.043, 0.031, 0.027, 0.024, 0.029, 0.082]
+  static_fallback:   # ReEDS outage_forced_static.csv [src]
+    {gas_ct: 0.05, gas_cc: 0.05, coal_old: 0.08, coal_new: 0.06, o_g_s: 0.05, nuclear: 0.03, geothermal: 0.129, biopower: 0.09}
+  benchmark_class_accreditation:   # validation only [inf]
+    PJM_2029_30: {nuclear: 0.96, gas_cc: 0.75, gas_ct: 0.59, gas_ct_dual: 0.76, coal: 0.84, oil_ct: 0.81, steam: 0.75, diesel: 0.92}   # [src pjm_elcc_2930]
+    ISONE_prelim_summer_winter: {gas_only: [0.919, 0.910], oil_dual: [0.821, 0.793], nuclear_other_thermal: [0.869, 0.887]}      # [src isone_prelim]
+    NYISO_2026_27: {generator: 1.00, note: "applied to UCAP already net of EFORd"}  # [src nyiso_caf]
+
+accreditation:
+  PJM_2029_30:  {onshore_wind: 0.37, offshore_wind: 0.65, solar_fixed: 0.06, solar_tracking: 0.07, storage_4h: 0.57, storage_6h: 0.66, storage_8h: 0.69, storage_10h: 0.76, dr: 0.90}  # [src pjm_elcc_2930]
+  NYISO_2026_27_ROS: {onshore_wind: 0.2020, solar: 0.1385, storage_4h: 0.8456, storage_8h: 0.9596, scr_dr: 0.7417}   # [src nyiso_caf]
+  NYISO_2026_27_NYC: {offshore_wind: 0.4272, solar: 0.1124, storage_4h: 0.8439, scr_dr: 0.7024}                      # [src nyiso_caf]
+  ISONE_prelim_summer_winter: {onshore_wind: [0.199, 0.361], solar: [0.241, 0.071], storage_4h: ["~0.76", "~0.27"], active_dr: [0.225, 0.343], imports: [0.915, 0.884]}  # [src isone_prelim; storage read from chart]
+  SPP_2024_summer_winter: {wind: [0.154, 0.251], solar: [0.622, 0.391], storage_4h: [0.652, 0.477], storage_6h: [0.944, 0.749], storage_8h: [1.00, 0.749]}  # [src spp_elcc]
+  MISO: "2026/27 class values nc; DLOL from PY2028/29 — illustrative only (summer solar 0.36, wind 0.11; winter solar 0.02, wind 0.16) [nc, IURC Jun 2024]"
+  ERCOT: "CDR Dec 2025 uses ELCC; summer 2026 MW given, % in workbook 'ELCCs' tab [nc]"
+  CAISO: "slice-of-day: exceedance profiles for wind/solar, SOC test for storage; no single % [src D.24-06-004 / D.26-07-008]"
+  WRAP: "zonal monthly ELCC; winter wind ~0.05-0.20, solar ~0.08-0.10, storage 0.40-1.00 [nc, WPP 2024 webinar]"
+
+import_limit:
+  recommendation: "cap net firm imports into each nercr during stress hours at historical 99.9th-pct share; hold flat in base case; relax only in transmission sensitivities"  # [inf]
+  basis: reeds_imports
+  share_of_peak:   # MW / MW_TotalDemand, computed from the ReEDS file [src-derived]
+    {MISO: 0.132, NPCC_NE: 0.073, NPCC_NY: 0.155, PJM: 0.079, SERC_E: 0.064, SERC_C: 0.104, SERC_F: 0.055, SERC_SE: 0.104, SPP: 0.075, ERCOT: 0.009, WECC_CA: 0.220, WECC_NW: 0.140, WECC_SW: 0.273}
+  mw_2024: {MISO: 16100, NPCC_NE: 1800, NPCC_NY: 5000, PJM: 11800, SERC_E: 2800, SERC_C: 4400, SERC_F: 2900, SERC_SE: 4800, SPP: 4000, ERCOT: 800, WECC_CA: 12600, WECC_NW: 8800, WECC_SW: 7300}
+  new_transmission_derate: 0.15   # ReEDS GSw_TransInvPRMderate default [src]
+  reeds_default_for_reference: "2031_hist/2050_100 (relaxes to 100% by 2050)"
+
+penalty:
+  recommendation:
+    value_usd_per_kw_yr: 300          # [inf] just above the highest gross CT CONE found (PJM $283 UCAP, nominal 2028$)
+    rationale: "Switch sees full capex and energy margins, so compare to GROSS CONE; penalty must exceed the cheapest firm build so shortfall appears only when building is infeasible"
+    sensitivity_low: 106              # [inf] PJM RTO Net CONE
+  reference_values:
+    PJM_gross_cone_ct_2028_29: {usd_kw_yr: 283.2, basis: UCAP, dollar_year: "nominal 2028 online", src: "Brattle affidavit Att. E, 2025-11-07 [nc]"}
+    PJM_gross_cone_ict_ferc:   {usd_kw_yr: "215-248", basis: ICAP, dollar_year: "2028/29", src: "FERC 194 FERC ¶61,049, 2026-01-21"}
+    PJM_net_cone_rto_2028_29:  {usd_kw_yr: 105.5, basis: UCAP, dollar_year: "2025$", src: "PJM MIC 2025-08-22 [final BRA value nc]"}
+    PJM_price_cap_2029_30:     {usd_kw_yr: 123.3, src: "PJM 2029/30 planning parameters, 2026-09-03"}
+    MISO_cone_2026_27:         {usd_kw_yr: "123.3-143.0 by LRZ", dollar_year: "2026$", src: "MISO ER26-139, 2025-10-15"}
+    MISO_net_cone_2026_27:     {usd_kw_yr: "74.6-90.2", dollar_year: "2026$", src: "MISO ER26-139, 2025-10-15"}
+    NYISO_net_cone_2025_26:    {usd_kw_yr: {NYC: 130.74, LI: 43.92, ROS_C: 66.52}, gross: {NYC: 212.99, ROS_C: 121.90}, dollar_year: "2025$", ref_tech: "2-hr BESS", src: "Analysis Group DCR final report, Oct 2024"}
+    ISONE_cone_fca18:          {usd_kw_yr: 170.6, net: 108.9, period: "2027/28", src: "ISO-NE FCM page [dollar year nc]"}
+    SPP_deficiency_cone:       {usd_kw_yr: 139.85, effective: "summer 2026", src: "SPP update to MO PSC 2026-05-28 [nc]"}
+    ERCOT_cone:                {usd_kw_yr: 140, src: "PUCT 54584 / Brattle 2024 study"}
+    WRAP_cone:                 {usd_kw_yr: 91.81, dollar_year: "2022 design value", src: "WPP CONE proposal 2022-02-10 [current value nc]"}
+    CPUC_system_ra_penalty:    {usd_kw_yr: 79.9, src: "CPUC RA penalties page (D.20-06-031)"}

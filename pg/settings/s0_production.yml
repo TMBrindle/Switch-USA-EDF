@@ -194,6 +194,39 @@ s0_production:
   #   legacy  left out of trans_path_expansion_limit.csv, so unlimited in Switch (the regression case)
   forced_tx_expansion_limit: minimum
 
+  # planning reserve requirement (axis prm_design; scenario_inputs.csv column of that name; CHANGES §55;
+  # s0_workflow/prm.py, switch/study_modules/prm_regional.py, Guides and documentation/s0_production.md):
+  #   regional (S0 default) 16 reserve regions (nercr; WECC_NW by transgrp) on ~10-12 zero-weight stress days per
+  #            model year; NERC 2025 LTRA margins on derated capacity; thermal at 1 - FOR(T); hydro, storage and DR at
+  #            their dispatch; imports capped in every stress hour at the ReEDS 99.9th-percentile share (losses, new
+  #            lines -15%); zone-level deliverability over internal lines; shortfall at the penalty below
+  #   legacy   today's per-zone planning_reserves + the extreme-day block (the regression case)
+  prm:
+    design: regional
+    config: s0_workflow/specs/prm/prm_redesign_config.yaml   # Tom's research config block (2026-10-04)
+    stress_days:
+      max_days: 12                 # greedy coverage stops here (the tolerance widens until it fits)
+      cover_tolerance: 0.02        # a day covers a need within 2% of the region's worst value
+      tolerance_step: 0.02
+      max_tolerance: 0.20
+      summer_months: [6, 7, 8, 9]  # summer peak-load needs
+      winter_months: [12, 1, 2]    # winter peak-load needs
+      first_weather_year: 2007     # PowerGenome's 7 weather years (2007-2013, 365-day years)
+      diag_dir: prm                # <case>/prm/<model year>/stress_days.csv, stress_coverage.csv
+    thermal_derate:
+      method: seasonal             # seasonal | hourly (needs temperature_h5)
+      temperature_h5: ~            # ReEDS inputs/profiles_temperature/temperature_state.h5 (repo-relative), if supplied
+      temperature_tz: Etc/GMT+6    # time zone of the weather-year hours (ReEDS's convention)
+      cold_c: -15                  # winter stress days: the cold end of the murphy2019 curves
+      hot_c: 35                    # summer stress days: the hot end
+      winter_months: [11, 12, 1, 2, 3]
+      summer_months: [5, 6, 7, 8, 9]   # other months (Apr, Oct): normal-weather (static) rates
+    imports:
+      mode: flat                   # flat (S0) | relaxed (ReEDS 2031_hist/2050_100) | none
+    new_tx_derate: 0.15            # new transmission, reserve purposes (ReEDS GSw_TransInvPRMderate)
+    penalty: central               # central ($300/kW-yr, 2028$) | low ($106/kW-yr, 2025$, PJM RTO Net CONE)
+    inflation_after_cpi: 0.025     # dollar-year conversion past the last CPI-U year in the repo (2024)
+
   # item 6: extra Switch modules on the case's scenario line (not switch/modules.txt)
   extra_modules: [study_modules.gen_amortization_period]
 

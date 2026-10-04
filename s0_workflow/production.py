@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 
 from s0_workflow import coal_fleet
+from s0_workflow import prm
 
 logger = logging.getLogger(__name__)
 REPO = Path(__file__).resolve().parents[1]
@@ -88,6 +89,9 @@ def apply_settings(case_settings: dict) -> None:
                                  f"not {mode!r}")
             apply_retirement_option(s, s0)
             apply_forced_tx(s, s0, case, year)
+            if prm.apply_settings(s, s0):
+                logger.info("s0_production %s/%s: regional planning reserve (prm_regional; extreme-day script off)",
+                            case, year)
             if coal_fleet.spec_settings(s0):            # coal spec rev. 2: hold technologies
                 techs = coal_fleet.apply_settings(s, s0)
                 logger.info("s0_production %s/%s: coal spec; hold projects %s", case, year, techs)
@@ -524,6 +528,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     write_retirement_rules(out_folder, s0, log)
     write_build_rules(out_folder, s0, log)
     coal_fleet.write_case_inputs(out_folder, s0, scen_settings_dict, log)   # coal spec rev. 2 (after the retirement rule)
+    prm.write_case_inputs(out_folder, s0, scen_settings_dict, log)          # regional planning reserve (§55)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))
@@ -540,4 +545,4 @@ def scenario_options(settings: dict) -> str:
         mods.append("study_modules.retirement_rules")
     if (s0.get("new_build_rule") or {}).get("enabled") and "study_modules.build_rules" not in mods:
         mods.append("study_modules.build_rules")
-    return "".join(f"--include-module {m} " for m in mods)
+    return "".join(f"--include-module {m} " for m in mods) + prm.scenario_options(s0)

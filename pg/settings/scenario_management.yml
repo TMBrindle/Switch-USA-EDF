@@ -1294,6 +1294,7 @@ settings_management:
           retirements_pre2030: legacy
           forced_tx: named_projects
           forced_tx_expansion_limit: legacy
+          prm: {design: legacy}
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}
@@ -1326,6 +1327,15 @@ settings_management:
       named_projects:
         s0_production: {forced_tx: named_projects}
       legacy: ~
+    # Planning reserve design for S0 production cases (pg/settings/s0_production.yml prm; CHANGES §55). Inert unless
+    # s0_production.enabled. Column `prm_design` in scenario_inputs.csv: regional for S0prod_A/B and
+    # s4x1_S0prod_2035_prm, legacy elsewhere (the regression case and the earlier 2035 comparison cases keep the
+    # per-zone reserve).
+    prm_design:
+      regional:
+        s0_production: {prm: {design: regional}}
+      legacy:
+        s0_production: {prm: {design: legacy}}
     policies:
       current:
         # Per-program costs and hard RGGI cap; CCR prices are year-specific below.

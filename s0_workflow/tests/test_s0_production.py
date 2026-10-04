@@ -205,6 +205,7 @@ def test_new_defaults_premium_buyouts_and_cap(tmp_path):
         s0prod.write_case_inputs(tmp_path, {2028: s, 2030: s, 2035: s})
     _case(tmp_path)
     s["s0_production"]["coal_spec"]["enabled"] = False
+    s["s0_production"]["prm"] = {"design": "legacy"}      # regional reserve: needs stress days (test_prm.py)
     s0prod.write_case_inputs(tmp_path, {2028: s, 2030: s, 2035: s})
     bc = pd.read_csv(tmp_path / "gen_build_costs.csv").set_index(["GENERATION_PROJECT", "build_year"])["gen_overnight_cost"]
     # periods 2028 = 2026-28, 2030 = 2029-30, 2035 = 2031-35; premium = mean over the in-service years
@@ -328,6 +329,10 @@ def test_legacy_settings_build_as_before(tmp_path):
     assert sorted(p.name for p in (tmp_path / "new").glob("*.csv")) == \
         sorted(p.name for p in (tmp_path / "old").glob("*.csv"))
     assert "build_rules" not in s0prod.scenario_options(new_s)
+    # planning reserve: legacy design (per-zone planning_reserves + the extreme-day script), as before
+    assert "prm_regional" not in s0prod.scenario_options(new_s) and "exclude-module" not in s0prod.scenario_options(new_s)
+    from s0_workflow import prm as s0prm
+    assert s0prm.year_prm(new_s) is None and "model_adjustment_scripts" not in new_s
 
 
 def test_coal_table_and_method():

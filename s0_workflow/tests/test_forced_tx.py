@@ -21,7 +21,7 @@ REGIONS = list(pd.read_csv(REPO / "hierarchy.csv").ba)
 
 
 def _fns(path, names, g):
-    tree = ast.parse(Path(path).read_text())
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
     nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
     assert {n.name for n in nodes} == set(names)
     exec(compile(ast.Module(nodes, []), str(path), "exec"), g)

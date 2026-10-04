@@ -400,6 +400,158 @@ PowerGenome's files are not edited.
   this, forced lines were left out of the file, so they could expand without limit. Other cases keep that.
 - **Comparison pair:** `s4x1_S0prod_2035_txreeds` / `s4x1_S0prod_2035_txnamed` (VM_RECIPES recipe D).
 
+## Planning reserve requirement (§55)
+
+`s0_production.prm.design`: **regional** (S0 default; `S0prod_A`, `S0prod_B`, `s4x1_S0prod_2035_prm`) or **legacy**.
+Legacy is today's per-zone `planning_reserves` plus the extreme-day block. The regression case and the other 2035
+comparison cases keep legacy (column `prm_design`). Code:
+- `s0_workflow/prm.py` (case build);
+- `switch/study_modules/prm_regional.py` (Switch);
+- inputs from Tom's research config, committed verbatim as `s0_workflow/specs/prm/prm_redesign_config.yaml`.
+
+### What the current design does (items 9 and 10)
+
+Today's `planning_reserves.py` (the legacy design, unchanged):
+- **Regions:** 134 single-zone regions; `prr_enforcement_timescale: peak_load` checks one timepoint per region and
+  period. That timepoint is the region's highest `zone_demand_mw` among all timepoints, so it can be a weighted
+  sample hour rather than the extreme-day block.
+- **Requirement:** (1 + margin) × `zone_demand_mw` / (1 − local T&D loss rate).
+  - (c) This is the energy balance's central-node load for base demand, T&D losses included. Other loads that
+    modules add to the energy balance are left out.
+  - Distributed generators count at their hourly capacity value (PV: its CF) × the T&D gross-up, so distributed PV
+    already counts at its output in that hour.
+- **Credit:** thermal and hydro at full nameplate; wind and solar at the hourly CF; storage at net scheduled
+  dispatch.
+- **Imports:** `TXPowerNet`, the zone's scheduled net flow in that hour.
+  - (a) After line losses (received = dispatch × efficiency), with no derate on new lines.
+  - Capped at `prr_max_tx_import_share` of the requirement (0.5; 1e-6 for CAISO's three zones, a workaround for
+    a 0.0 that dropped out of the constraint).
+- **(b) Pooled regions:** with more than one zone, capacity is summed and internal flows cancel (except their
+  losses). There is no per-zone deliverability check.
+- **10. Storage and imports:** the import cap applies only in the one checked timepoint. Storage can charge from
+  imports in the block's other hours and count as local capacity at the peak.
+- **`planning_reserves_extreme_days.py`:** adds margin × load as a withdrawal in the energy balance on the duplicated
+  national-peak block, so the model must dispatch to serve inflated load there. It is not a capacity constraint.
+
+### The regional design
+
+1. **Regions:** 16. ReEDS `nercr` from `hierarchy.csv`, with WECC_NW split by transgrp (NorthernGrid_West,
+   NorthernGrid_South, NorthernGrid_East, WestConnect_North). Canada and Mexico zones have no region.
+   Zones per region: MISO 32, PJM 22, SPP 17, NorthernGrid_East 9, NorthernGrid_West 7, ERCOT 7, WECC_SW 6,
+   NPCC_NE 6, NorthernGrid_South 5, WestConnect_North 5, SERC_SE 4, SERC_E 4, WECC_CA 3, SERC_C 3, SERC_F 2, NPCC_NY 2.
+2. **Margins:** `margin(r, p) = (1 + RML(r, p)) × (1 − FOR_w(r, p)) − 1`.
+   - **RML:** the NERC 2025 LTRA reference margin level, linear from 2026 to 2030 and flat after.
+   - **FOR_w:** the region's capacity-weighted normal-weather forced-outage rate. It uses ReEDS static rates (gas
+     0.05, coal 0.08, oil/gas steam 0.05, nuclear 0.03, geothermal 0.129, biopower 0.09) over the existing thermal
+     fleet in service in period p.
+   - **Why this form:** RML applies to nameplate (ICAP), and thermal capacity counts here at 1 − FOR, so
+     (1 + RML) × ICAP ≈ (1 + RML) / (1 − FOR_w) × derated capacity. The margin on derated capacity is therefore
+     (1 + RML)(1 − FOR_w) − 1. Simply subtracting FOR_w from RML differs from this by RML × FOR_w (about 0.01).
+   - **Values on the committed `s4x1_fedpol_current` fleet** (each build recomputes FOR_w from its own fleet; file
+     `prm_margin_basis.csv`):
+
+     | region | RML 2028 / 2030+ | thermal GW | FOR_w | margin 2028 / 2030 / 2035 | import share |
+     |---|---|---|---|---|---|
+     | PJM | 0.2245 / 0.263 | 172.6 | 0.0517 | 0.1607 / 0.1976 / 0.1976 | 0.079 |
+     | MISO | 0.083 / 0.085 | 144.7 | 0.0559 | 0.0205 / 0.0241 / 0.0244 | 0.132 |
+     | SPP | 0.190 | 60.6 | 0.0589 | 0.1200 / 0.1200 / 0.1199 | 0.075 |
+     | ERCOT | 0.1375 | 81.5 | 0.0536 | 0.0763 / 0.0765 / 0.0765 | 0.009 |
+     | NPCC_NY | 0.150 | 31.7 | 0.0481 | 0.0947 | 0.155 |
+     | NPCC_NE | 0.132 / 0.130 | 27.1 | 0.0487 | 0.0768 / 0.0749 / 0.0749 | 0.073 |
+     | SERC_C | 0.150 | 18.5 | 0.0467 | 0.0889 / 0.0924 / 0.0963 | 0.104 |
+     | SERC_E | 0.150 | 45.8 | 0.0507 | 0.0906 / 0.0914 / 0.0917 | 0.064 |
+     | SERC_SE | 0.150 | 62.9 | 0.0516 | 0.0907 | 0.104 |
+     | SERC_F | 0.150 | 59.8 | 0.0508 | 0.0916 | 0.055 |
+     | WECC_CA | 0.198 / 0.193 | 39.3 | 0.0533 | 0.1342 / 0.1294 / 0.1294 | 0.220 |
+     | WECC_SW | 0.1275 / 0.122 | 23.5 | 0.0480 | 0.0693 / 0.0645 / 0.0682 | 0.273 |
+     | NorthernGrid_West | 0.1665 / 0.155 | 9.3 | 0.0485 | 0.1099 / 0.0990 / 0.0990 | 0.140 |
+     | NorthernGrid_South | 0.129 / 0.123 | 15.1 | 0.0626 | 0.0592 / 0.0531 / 0.0527 | 0.140 |
+     | NorthernGrid_East | 0.129 / 0.123 | 6.4 | 0.0653 | 0.0552 / 0.0496 / 0.0496 | 0.140 |
+     | WestConnect_North | 0.1675 / 0.157 | 12.2 | 0.0614 | 0.0930 / 0.0860 / 0.0860 | 0.140 |
+
+3. **Stress days:** about 10-12 real days per model year from the 7 weather years (2007-2013, 365-day years). They
+   are chosen by greedy coverage of three needs per region:
+   - its worst summer peak-load day (Jun-Sep, daily maximum load);
+   - its worst winter peak-load day (Dec-Feb);
+   - its worst low wind/solar high-load day: daily maximum net load with the fleet-independent day selector's
+     stylised fleet (wind and solar sized to supply 20% of the region's load each).
+
+   A day covers a need when it is within 2% of the worst value. The tolerance widens in 2% steps until at most 12
+   days cover every need. `<case>/prm/<year>/stress_days.csv` lists which day covers which region and need, and
+   `stress_coverage.csv` gives each need's worst day and the covering day(s).
+   - **Weight:** zero (capacity only).
+   - **IDs:** timeseries `<year>_pN_prm`, timepoints `9<id>`, so a stress day can also be a sample day.
+   - **Enforcement:** the requirement is checked in every stress hour and only there. The S0 scenario line
+     excludes `planning_reserves` and `planning_reserves_extreme_days`, and the case drops the extreme-day script.
+   - **Samplers:** works with both PowerGenome's k-means days and the fleet-independent selector.
+4. **Thermal and hydro:**
+   - **Thermal:** nameplate × (1 − FOR) in each stress hour, using the murphy2019 curves (checked against ReEDS
+     2026.09.21's `outage_forced_temperature_murphy2019.csv`; the config's `steam_coal_ogs` is ReEDS's `steam`).
+   - **Curve per class:** CC → combined_cycle; CT, aeroderivative, ICE and Other_peaker → combustion_turbine;
+     coal and gas steam → steam (coal / o-g-s); nuclear → nuclear; petroleum liquids → diesel. Geothermal,
+     biopower and other thermal use their static rate.
+   - **Temperatures:** ReEDS reads hourly temperatures by state from `inputs/profiles_temperature/temperature_state.h5`.
+     That file is not in the release's git tree, and neither the repo nor PowerGenome's data here has hourly
+     temperatures, so the default is the **seasonal** fallback:
+
+     | stress day's month | temperature | e.g. CT / CC / coal / nuclear |
+     |---|---|---|
+     | Nov-Mar (winter) | the cold end, -15 °C | 0.199 / 0.149 / 0.133 / 0.019 |
+     | May-Sep (summer) | the hot end, 35 °C | 0.066 / 0.072 / 0.140 / 0.124 |
+     | Apr, Oct | normal weather (static) | 0.05 / 0.05 / 0.08 / 0.03 |
+
+   - **Hourly option:** `thermal_derate.method: hourly` with `temperature_h5:` set. It reads the file as ReEDS does,
+     converts it to `temperature_tz` (Etc/GMT+6), maps zone → state (`hierarchy.csv` `st`), and interpolates the
+     curve per stress hour, capped at 0.4 as in ReEDS.
+   - **Hydro:** its dispatch in each stress hour, which the hydro module limits to the day's water. Storage counts
+     its net dispatch; demand response (`load_growth`, `us_exports`) and cross-border import generators count their
+     dispatch; wind and solar count CF × capacity; distributed PV counts at its CF × the T&D gross-up.
+5. **Imports and deliverability:** reserve transfers (`PrmFlow`) on every line, separate from energy dispatch.
+   - **Losses:** delivered = PrmFlow × the line's efficiency (the energy balance's).
+   - **Limits:** (existing + 0.85 × new builds) × derating factor, and the NARIS directional limits where set.
+   - **Zone check:** each zone's requirement is met by local credit plus net inflows over its lines, and the margin
+     applies to each zone's load.
+   - **Import cap:** net imports from other regions ≤ share × the region's peak load in the period, in **every**
+     stress hour. Shares are ReEDS's 99.9th percentile from the config; WECC_NW's 0.140 is used for all four of its
+     parts.
+   - **Relax setting:** `imports.mode: flat` (S0) | `relaxed` (ReEDS's 2031_hist/2050_100) | `none`.
+   - **CAISO workaround:** the 1e-6 isn't needed; a blank share means no cap, and any share, including 0, is
+     enforced.
+6. **Storage:** credit = discharge − charge in each stress hour. The storage module tracks state of charge through
+   each stress day (cyclic within the day), so storage can only discharge energy it charged that day, and the
+   charging counts against the requirement in the hours it happens. Tests show storage can't help with a deficit in
+   every hour, and can't "launder" imports (below).
+7. **Shortfall:** `PrmZoneShortfall[z, p]` (MW) in every stress hour of the period, summed by region. It costs
+   $300/kW-yr (`penalty: central`; the config's value, set just above PJM's gross CT CONE of $283, nominal
+   2028$).
+   - **Conversion:** treated as 2028$ and converted to the model's 2024$ with CPI-U to 2024
+     (`interconnection_headroom/data/reference/cpi_u_annual.csv`) and 2.5%/yr after that:
+     $300 / 1.025^4 = **$271.79/kW-yr**.
+   - **Sensitivity:** `penalty: low` = $106/kW-yr (PJM RTO Net CONE, 2025$) = **$103.41/kW-yr** in 2024$.
+   - **Output:** `prm_shortfall.csv` by region and period.
+   - **Note:** the slack applies in every stress hour, so in hours when storage charges it also relaxes the
+     requirement. A shortfall therefore reads as "MW short in the worst hour, given storage could also charge on it".
+8. **Diagnostics** (post_solve, every run):
+   - `prm_zone_hours.csv`: requirement, local credit, net inflow, dual, and price in $/kW-yr.
+   - `prm_region_hours.csv`: margin achieved = (local + net imports) / load − 1, import use, and import-cap duals.
+   - `prm_summary.csv`: by region and period, the minimum margin achieved, the hour, the maximum import use and the
+     reserve price.
+   - `prm_capacity_credit.csv`: implied capacity credit by class and region, Σ_t |dual_t| × credited MW_t /
+     (Σ_t |dual_t| × capacity). It is blank when no stress hour has a price. Next to it are PJM 2029/30, NYISO
+     2026/27 (ROS and NYC), ISO-NE preliminary (summer and winter) and SPP 2024 (summer and winter) values from the
+     config.
+   - **Duals:** they come from `study_modules.write_dual_costs` (in `modules.txt`, so every run gets the `dual`
+     suffix). With S0's Gurobi barrier (`method=2 crossover=0`), LP duals are returned from the interior solution.
+     The S0 cases are LPs (no unit sizes or minimum builds); a MIP would give none, and `prm_summary.csv` reports
+     `duals_available`.
+   - **Sign:** solvers differ in the sign they report for ≥ constraints, so prices and weights use the magnitude.
+
+### Related: the in-state generation rule
+
+`study_modules.gen_zone_ratio` has the same laundering issue: it counts battery discharge as in-state generation
+even when the battery charged from imports. A fix was proposed in `docs/plans/gen_zone_ratio_import_cap.md` (P-11,
+on the VM checkout) and not implemented. S0 doesn't use `gen_zone_ratio`, so it is left as is.
+
 ## 2045 load entries
 
 PowerGenome needs a `flexible_demand_resources` entry for every model year. The 2045 stage needed:

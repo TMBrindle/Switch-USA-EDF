@@ -192,6 +192,9 @@ the October 2026 defaults:
 - forced transmission (`forced_tx: reeds_certain`, CHANGES §54): ReEDS 2026.09.21's certain additions only,
   SunZia p28-p31 3,000 MW (2028 stage) and TransWest Express p24-p25 3,000 MW (2035 stage), instead of the
   72-line project list (245,857 MW); each forced line is limited to its minimum in its forced period;
+- the regional planning reserve (`prm_design = regional`, CHANGES §55): 16 reserve regions on 10-12 zero-weight stress
+  days per stage, instead of the per-zone requirement and the extreme-day block (recipe E has the details and the
+  checks);
 - wind loss, build rate central, headroom atts_s0.
 
 **The coal checks stop the build.** For each stage, the case build compares four things with the spec's
@@ -277,6 +280,9 @@ in the stage folder. Don't patch around it: send Tom those files and
        4 remove overrides at c4a19f8. Report the breakdown if it differs.
      - Any count other than 5 stops the build.
    - `build_rules.csv`: `uranium`, 2035 (no new nuclear before the 2035 stage).
+   - **Planning reserve (regional):** as recipe E steps 2-3. Per stage: `prm/<year>/stress_days.csv`; the
+     `prm_*.csv` inputs; no `planning_reserve_margin.csv`; the scenario line excludes `planning_reserves` and
+     `planning_reserves_extreme_days` and includes `prm_regional`.
    - **Forced transmission (reeds_certain):** console log `forced transmission reeds_certain
      (pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv); forced-line expansion limit minimum`.
      - `trans_build_minimum.csv`: one row in the 2028 stage (the p28-p31 line, 3,000 MW) and one in the 2035 stage (the
@@ -394,6 +400,61 @@ forced lines at their minimum.
 4. Report for each case: total and interregional new transmission (MW, MW-km), CO2, new wind / solar / storage /
    gas by transreg, and system cost. Compare with `pg/extra_inputs/transmission/forced_tx_comparison_2026.09.21.csv`
    (forced MW, MW-km and interregional share by period for both options).
+
+## E. Regional planning reserve: 2035 s4x1 case vs s4x1_S0prod_2035_txreeds
+
+**Case:** `s4x1_S0prod_2035_prm` (`prm_design = regional`). It is identical to `s4x1_S0prod_2035_txreeds` (recipe D,
+per-zone reserve) except `prm_design`. Design: `Guides and documentation/s0_production.md`, "Planning reserve
+requirement".
+
+1. Build into a fresh folder (txreeds is built in recipe D; reuse that build if it exists):
+   ```bash
+   test -e switch/in/s0prod_prm && echo "exists: pick another name" || \
+   "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_prm --case-id s4x1_S0prod_2035_prm --year 2035
+   ```
+2. **Build log and stage folder** `switch/in/s0prod_prm/2035/s4x1_S0prod_2035_prm/`:
+   - The console says `Added <n> zero-weight stress days (2035).` with n between 10 and 12. The "Add extreme day"
+     script does not run, and there is no `planning_reserve_margin.csv`.
+   - `prm/2035/stress_days.csv`: one row per day, with date, season and the needs it covers.
+     `prm/2035/stress_coverage.csv`: all 48 needs (16 regions × summer peak, winter peak, low wind/solar) covered,
+     no `NOT COVERED`. `stress_info.txt` gives the tolerance used (0.02 if 12 days sufficed). **Report the list.**
+   - `timeseries.csv`: the stress timeseries `2035_pN_prm`, with `ts_scale_to_period` 0. Their timepoints start
+     with 9.
+   - `prm_zones.csv` has 134 zones in 16 regions. `prm_margin_basis.csv` has RML, FOR_w, margin and import share by
+     region. The 2035 margins should be close to the s0_production.md table (PJM about 0.198, MISO 0.024, ERCOT
+     0.077), since that table was computed on the same kind of fleet.
+   - `prm_gen_availability.csv`: thermal units in the stress hours. A winter-day CT is 0.801 and a summer-day CT
+     0.934 (seasonal method).
+   - `prm_params.csv`: `prm_new_tx_derate` 0.15, `prm_shortfall_cost_per_mw_yr` 271785.19.
+   - `s0_production_log.txt`: the line `prm regional: 16 regions; margins ...`.
+   - `scenarios_s4x1_S0prod_2035_prm.txt`: the line has `--exclude-module study_modules.planning_reserves
+     --exclude-module study_modules.planning_reserves_extreme_days --include-module study_modules.prm_regional`.
+3. **Input check against txreeds:**
+   ```bash
+   "<ic-pipeline python>" s0_workflow/scripts/compare_s0_runs.py inputs \
+     switch/in/s0prod_prm/2035/s4x1_S0prod_2035_prm switch/in/s0prod_txreeds/2035/s4x1_S0prod_2035_txreeds > s0prod_prm_inputs.txt
+   ```
+   - **Expected differences:**
+     - the time files: `timeseries.csv`, `timepoints.csv`, `loads.csv`, `variable_capacity_factors.csv`,
+       `hydro_*`, `water_node_tp_flows.csv`, `graph_timestamp_map.csv`, `dr_data.csv` and `ee_data.csv`. prm has the
+       stress days; txreeds has the extreme-day copy of the national peak block;
+     - the new `prm_*.csv` files;
+     - `planning_reserve_margin.csv`, in txreeds only;
+     - the scenario line.
+   - The sampled (weighted) days should be identical. Anything else is unexpected: report it.
+4. Solve both with recipe A's solver options, into fresh output folders (the same command as recipe D step 3).
+   Gurobi's barrier without crossover still returns duals; `prm_summary.csv` says `duals_available`.
+5. Report for `s4x1_S0prod_2035_prm`:
+   - `prm_shortfall.csv`: MW by region; expect 0 or small. A large shortfall means a region can't build enough.
+   - `prm_summary.csv`: by region, the target margin, minimum margin achieved and at which stress hour, maximum
+     import use (1.0 = at the cap), and reserve price ($/kW-yr).
+   - `prm_capacity_credit.csv`: implied capacity credit by class and region, next to the PJM, NYISO, ISO-NE and SPP
+     columns.
+   - `prm_region_hours.csv`: which stress days bind. A price on a day means it binds.
+
+   Against txreeds: new gas CC/CT, storage, wind and solar by region; coal and gas retirements; CO2; system
+   cost; interregional transmission builds. txreeds's per-zone margins (8%) and its extreme-day block versus the
+   regional margins and stress days explain most differences.
 
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 

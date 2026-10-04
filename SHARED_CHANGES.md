@@ -119,6 +119,31 @@ as before, and a test checks that transmission_tables writes byte-identical file
 | 39 | `pg/settings/s0_production.yml`, `s0_workflow/production.py` (`apply_forced_tx`), `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv`, `pg/extra_inputs/transmission/reeds_2026.09.21/` (new, pinned copies), `forced_tx_reeds_certain_2026.09.21.csv`, `forced_tx_comparison_2026.09.21.csv`, `s0_workflow/scripts/build_reeds_forced_tx.py` (new) | New S0 settings `forced_tx` (reeds_certain default / named_projects) and `forced_tx_expansion_limit` (minimum default / legacy). New axis and column `forced_tx` (reeds_certain in every existing row, legacy in the regression row; `on_pgdays` pins named_projects + legacy). New rows `s4x1_S0prod_2035_txreeds` / `_txnamed` (the 2035 comparison pair). | §54. | none (inert unless `s0_production.enabled`; the regression case keeps the named list and no limit) |
 | 40 | `s0_workflow/coal_spec.py` (`cap_unit_set`), `coal_fleet.py`, `specs/coal/by_option/*`, `coal_spec.md` (A5) (S0 only) | The coal cap unit set (H, own, N) keeps plants in `reeds_plant_map.csv` only. N moves +0.0006 to +0.0010; the largest cap changes are p70 +0.038, p99 −0.025, p103 +0.019 (2035-45), p83 +0.016, p21 −0.009. | Tom, 2026-10-04. | none outside S0 cases with the coal spec |
 
+### Added in §55 (Oct 2026: regional planning reserve for S0)
+
+**Flagged for Ollie** (S0 cases with `prm.design: regional` only; the legacy design, the regression case, fedpol and
+every other case build as before — tests check the legacy settings and that the hooks do nothing without the key):
+- **pg_to_switch.py time sampling (#41).** After either sampler (PowerGenome k-means or the fleet-independent
+  selector), `s0_workflow/prm.py` can append stress days at zero weight; after `ts_tp_pg_kmeans` their timeseries and
+  timepoints get their own ids (`<year>_pN_prm`, `9<id>`). Both are no-ops unless the year's settings select the
+  regional design. The full-record path (no time reduction) raises if the regional design is asked for.
+- **Reserve modules swapped on the S0 scenario line, not in modules.txt (#42).** The case's line gets
+  `--exclude-module study_modules.planning_reserves --exclude-module study_modules.planning_reserves_extreme_days
+  --include-module study_modules.prm_regional`, and the case drops the "Add extreme day" adjustment script.
+  `switch/modules.txt`, `planning_reserves.py` and `planning_reserves_extreme_days.py` are unchanged.
+- **New module `switch/study_modules/prm_regional.py` (#42)**: not loaded by any case without the scenario option.
+- **Worth a look generally:** the legacy design's import cap applies only in the one checked hour (storage can charge
+  from uncapped imports in the others), and its CAISO 1e-6 workaround is not needed by the new module (a share of 0
+  is enforced; tested). The same storage laundering exists in `gen_zone_ratio.py` (P-11, not implemented; S0 doesn't
+  use it).
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 41 | `pg_to_switch.py` (`operational_files`) | Imports `s0_workflow.prm`; appends stress days after time sampling and renames their ids after `ts_tp_pg_kmeans` when `s0_production.prm.design: regional` (`s0prm.year_prm`). | §55 item 3. | none (no-op without the S0 key; regression byte identity tested) |
+| 42 | `switch/study_modules/prm_regional.py` (new), `s0_workflow/prm.py` (new), `s0_workflow/production.py` (`apply_settings`, `write_case_inputs`, `scenario_options`), `s0_workflow/specs/prm/prm_redesign_config.yaml` (new) | Regional reserve: 16 regions, LTRA margins on derated capacity, stress days, thermal 1 - FOR(T), hydro/storage/DR at dispatch, reserve transfers with losses, line limits and a 15% new-line derate, zone-level deliverability, import cap in every stress hour, shortfall at $271.79/kW-yr (2024$), diagnostics. | §55, Tom's decisions 2026-10-04. | none outside S0 regional cases |
+| 43 | `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml`, `pg/extra_inputs/scenario_inputs.csv` | New `prm` block (design regional by default); `on_pgdays` pins `prm: {design: legacy}`; axis and column `prm_design` (regional for S0prod_A/B and the new `s4x1_S0prod_2035_prm`, legacy elsewhere). | §55. | none (inert unless `s0_production.enabled`; the regression row is legacy) |
+| 44 | `s0_workflow/tests/test_forced_tx.py` | Reads source files as UTF-8. | Windows default encoding. | none |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -147,4 +172,8 @@ as before, and a test checks that transmission_tables writes byte-identical file
 8. (§54) The forced-line expansion limit (#38) is S0-only. The same gap applies to every other case, where forced
    lines have no expansion limit in Switch. Consider `forced_tx_expansion_limit: minimum` (or its logic) for
    fedpol's cases too.
+9. (§55) The legacy planning reserve (every non-S0 case) has the gaps listed under "What the current design does" in
+   `Guides and documentation/s0_production.md`: one checked hour per zone (which can be a weighted hour), thermal and
+   hydro at nameplate, imports capped only in that hour (storage can launder uncapped imports), no deliverability
+   within multi-zone regions, and the CAISO 1e-6 workaround. `prm_regional` addresses each; consider it for fedpol.
 
