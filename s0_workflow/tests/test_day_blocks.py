@@ -125,7 +125,7 @@ def test_block_timeseries_ids_and_stress_days(tmp_path):
     t, p = ds.ts_tp_blocks(rep2, w2, 2035, 2031)
     t, p = prm.rename_stress_rows(t, p, n)
     assert list(t.ts_num_tps) == [72, 72, 24] + [24] * n and len(p) == (7 + n) * 24
-    assert t.timeseries.is_unique and p.timepoint_id.is_unique and p.timepoint_id.astype(int).is_unique
+    assert t.timeseries.is_unique and p.timepoint_id.is_unique and p.timepoint_id.astype("int64").is_unique
     assert list(t.ts_scale_to_period.iloc[:3]) == [300.0, 305.0, 2.5] and (t.ts_scale_to_period.iloc[-n:] == 0).all()
     blk = p[p.timeseries == "2035_p100x3"].timepoint_id
     assert len(blk) == 72 and blk.iloc[0] == "20351041000" and blk.iloc[-1] == "20351041223"   # weather year 1, Apr 10-12
@@ -161,3 +161,20 @@ def test_hooked_into_pg_to_switch():
     i = src.index("s0days.sample_is_blocks(representative_point)")
     assert src.index("s0prm.add_stress_days(") < i < src.index("s0days.ts_tp_blocks(", i) < src.index(
         "s0prm.rename_stress_rows(", i)
+
+
+def test_ids_beyond_int32_and_the_windows_guard():
+    """Timepoint ids are wider than int32 (they already were: PowerGenome's multi-weather-year ids are 11 digits, e.g.
+    the committed fedpol cases), so they must never go through the platform C long (`astype(int)`), which is 32-bit
+    on Windows. conftest.py's autouse guard makes `astype(int)` raise there on every platform."""
+    rep = pd.DataFrame({"slot": ["p2550x3", "p101"], "start_day": [2549, np.nan], "n_days": [3, np.nan]})
+    t, p = ds.ts_tp_blocks(rep, [100.0, 0.0], 2035, 2031)
+    t, p = prm.rename_stress_rows(t, p, 1)
+    ids = p.timepoint_id.astype("int64")
+    assert ids.max() >= 2 ** 31 and ids.is_unique and p.timepoint_id.iloc[-1].startswith("9")
+    assert int(p.timepoint_id.iloc[-1]) == 920351041123 and ids.max() < 2 ** 63
+    with pytest.raises(OverflowError, match="C long"):
+        p.timepoint_id.astype(int)
+    with pytest.raises(OverflowError, match="C long"):
+        p[["timepoint_id"]].astype({"timepoint_id": int})
+    assert pd.Series(["2147483647"]).astype(int).iloc[0] == 2 ** 31 - 1          # within int32: allowed

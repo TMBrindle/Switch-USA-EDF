@@ -2381,3 +2381,31 @@ Also from this request:
   safeguard). With the script's aliases, each forced line is built exactly once with no extra build on it, in modes A
   and B; without the aliases, the lines are rebuilt.
 - Results: s0_workflow 101; pandas 3.0.6 123 passed with build_rate; 1.4.4 122 passed and 1 skipped.
+
+## 59. S0 Tests: Timepoint Ids Wider Than int32 (Windows Fix)
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+
+**VM at 0820fc6** (Windows, pandas 1.4.4): `test_day_blocks::test_block_timeseries_ids_and_stress_days` and
+`test_prm::test_add_stress_days_and_ids` failed with "OverflowError: Python int too large to convert to C long".
+
+**Cause:** both tests checked id uniqueness with `timepoint_id.astype(int)`. With numpy < 2 on Windows, `int` is the
+32-bit C long, and the ids are wider:
+- stress days: 9-prefixed 12 digits, e.g. `920351041123`;
+- PowerGenome's own multi-weather-year format: 11 digits. The committed fedpol cases already reach 20,357,030,223,
+  and Switch handles them on the VM.
+
+Shrinking the format to int32 would change every case's ids and break the regression case. So the ids stay as they
+are, and nothing converts them through the C long.
+
+**Changes:**
+- **Tests:** both use `astype("int64")`. No production code converts timepoint ids to int: the stress-day and block
+  ids are built and renamed as strings. Every other `astype(int)` in s0_workflow converts plant ids, years or counts.
+- **`s0_workflow/tests/conftest.py` (new, autouse):** emulates the Windows C long on every platform. `astype(int)`
+  (also "int" / "long") on a pandas Series, DataFrame or Index raises the same OverflowError when a value is outside
+  int32, so this class of bug fails on Linux too.
+- **New test:** `test_day_blocks::test_ids_beyond_int32_and_the_windows_guard`. Block and stress ids reach at least
+  2^31, are unique as int64, and the guard raises on `astype(int)`.
+
+**Tests:** s0_workflow 102. pandas 3.0.6: 124 passed with build_rate; 1.4.4: 123 passed and 1 skipped. With the guard
+active, nothing else in the suite trips it.

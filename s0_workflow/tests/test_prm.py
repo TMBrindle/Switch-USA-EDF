@@ -214,7 +214,7 @@ def test_add_stress_days_and_ids():
     ts, tp = prm.rename_stress_rows(ts, tp, n)
     assert ts.timeseries.is_unique and tp.timepoint_id.is_unique and len(tp) == (3 + n) * 24
     assert ts.timeseries.iloc[-n:].str.endswith("_prm").all() and (ts.ts_scale_to_period.iloc[-n:] == 0).all()
-    assert tp.timepoint_id.iloc[-24:].str.startswith("9").all() and tp.timepoint_id.astype(int).is_unique
+    assert tp.timepoint_id.iloc[-24:].str.startswith("9").all() and tp.timepoint_id.astype("int64").is_unique
 
 
 # ------------------------------------------------------------------------------------------------ settings, legacy
