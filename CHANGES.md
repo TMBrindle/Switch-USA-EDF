@@ -2341,3 +2341,43 @@ derate would have applied only in the stage that built the line.
   `--suffixes dual`.
 
 Tests after both parts: `s0_workflow` 98. pandas 3.0.6: 120 passed with build_rate; 1.4.4: 119 passed and 1 skipped.
+
+## 58. S0 Production: Forced-Transmission Aliases for Chains Built Before §57
+
+**Date:** 2026-10-04 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `s0_workflow/VM_RECIPES.md` (recipe C-fix), CHANGES §57, `SHARED_CHANGES.md` #52
+
+The VM has S0prod_A's five stages built at 1eab1ac, before §57. Rather than rebuild,
+`s0_workflow/scripts/fix_forced_tx_aliases.py <case root> --case <case>` writes, for every stage, the
+`trans_build_minimum` and `trans_path_expansion_limit` files the fixed build writes, as input aliases:
+- **Minimum:** each forced line only in the period whose span holds its in-service year (`forced_tx_period` over the
+  chain's years, read from the stage folders' `periods.csv` and `stage_info.csv`).
+- **Limit:** every wrongly forced row goes back to the policy's normal limit (zero: 0; nerc_growth: recomputed;
+  unlimited: removed). The forced period stays capped at the minimum.
+- **Nothing forced in a stage:** where the fixed build writes no file, the alias is `<file>.csv=none`.
+- **Outputs:**
+  - `scenarios_<case>.fixed.txt`: the stage lines with the aliases added, replacing any alias of the two files;
+  - `forced_tx_aliases.<case>.csv`: per stage, for `run_chain_A.py`, which is not in the repo;
+  - `forced_tx_fix_report.<case>.csv`.
+- **Checks:** every fixed minimum row must be one of the built rows (same line, period and MW), and with zero every
+  unforced built limit must be 0. Otherwise the script stops before writing anything. It never replaces files
+  without `--overwrite`.
+
+Also from this request:
+- outside its forced period, a forced line gets the policy's normal limit (now tested: zero gives 0; unlimited gives no
+  row);
+- `prepare_next_stage`'s safeguard (§57) stays as a secondary guard.
+
+**Tests:**
+- `test_forced_tx.py`: the script on pre-§57 stage builds gives files byte-identical to a fresh fixed build of each
+  stage (or `=none` where the fixed build writes none). Covered:
+  - reeds_certain under zero, nerc_growth and unlimited;
+  - named_projects (all 72 lines) under zero;
+  - modes A and B.
+
+  It also checks the scenario lines, the report (6 removed, 2 kept for S0prod_A's schedule), the no-overwrite rule
+  and that a wrong forced list is caught.
+- `test_forced_tx_chain.py`: the 5-stage toy built the old way and run with the 1eab1ac `prepare_next_stage` (no
+  safeguard). With the script's aliases, each forced line is built exactly once with no extra build on it, in modes A
+  and B; without the aliases, the lines are rebuilt.
+- Results: s0_workflow 101; pandas 3.0.6 123 passed with build_rate; 1.4.4 122 passed and 1 skipped.

@@ -46,7 +46,7 @@ def stage_files(d: Path, stage_years, rule: str):
                   for line in FORCED for p in stage_years]).to_csv(d / "trans_path_expansion_limit.csv", index=False)
 
 
-def chain(tmp_path, name, mode, rule):
+def chain(tmp_path, name, mode, rule, pns_source=None, before_run=None):
     run = toy_inputs(tmp_path, name, ["trans_build_minimum", "trans_path_expansion_limit"], five_periods)
     stages = s0prod.plan_stages(YEARS, mode, 2)
     for st in stages:
@@ -56,9 +56,10 @@ def chain(tmp_path, name, mode, rule):
         s0prod.write_stage_info(d, st)
         stage_files(d, st["years"], rule)
     (run / "mods/prepare_next_stage.py").write_text(
-        (REPO / "switch/study_modules/prepare_next_stage.py").read_text())
+        pns_source or (REPO / "switch/study_modules/prepare_next_stage.py").read_text())
+    aliases = before_run(run, stages) if before_run else None
     outs = run_chain(run, stages, modules=["trans_build_minimum", "trans_path_expansion_limit"],
-                     extra=["--include-module", "switch_model.generators.extensions.storage"])
+                     extra=["--include-module", "switch_model.generators.extensions.storage"], aliases=aliases)
     return run, stages, outs
 
 
@@ -163,3 +164,39 @@ def test_scenario_lines_alias_chained_forced_files(tmp_path):
         assert has == (st["name"] == "2035"), (st["name"], ln)       # stage 1 has no chained files
         assert ("trans_built_to_date.csv=trans_built_to_date.chained.A.csv" in al) == (st["name"] != "2028")
         assert ("trans_path_expansion_limit.csv=trans_path_expansion_limit.chained.A.csv" in al) == has
+
+
+@pytest.mark.parametrize("mode", ["myopic", "windows"])
+def test_fix_aliases_on_a_pre_fix_build(tmp_path, mode):
+    """The VM case: stages built before §57 (every later stage re-forces each line) and run with the
+    prepare_next_stage of that build (1eab1ac: no safeguard). The aliases from fix_forced_tx_aliases.py alone make
+    each forced line build once, with no extra build on those lines."""
+    import importlib.util
+    import subprocess
+    old_pns = subprocess.run(["git", "show", "1eab1ac:switch/study_modules/prepare_next_stage.py"], cwd=REPO,
+                             capture_output=True, text=True, check=True).stdout
+    assert "chain_forced_tx" not in old_pns
+    spec = importlib.util.spec_from_file_location("fixal", REPO / "s0_workflow/scripts/fix_forced_tx_aliases.py")
+    fixal = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fixal)
+    table = tmp_path / "forced_toy.csv"
+    pd.DataFrame([{"from_zone": "North", "to_zone": "Central", "new_cap_mw": 4.0, "new_cap_year": 2018},
+                  {"from_zone": "Central", "to_zone": "South", "new_cap_mw": 5.0, "new_cap_year": 2035}]).to_csv(
+        table, index=False)
+    got = {}
+
+    def fix(run, stages):
+        assert fixal.main([str(run / "in"), "--case", "case", "--forced-table", str(table)]) == 0
+        al = pd.read_csv(run / "in/forced_tx_aliases.case.csv", dtype={"stage": str}).set_index("stage")
+        got.update(al.aliases.to_dict())
+        return {k: v.split() for k, v in al.aliases.items()}
+    run, stages, outs = chain(tmp_path, f"fix_{mode}", mode, "stage", pns_source=old_pns, before_run=fix)
+    assert_once(committed_tx(stages, outs))
+    if mode == "myopic":
+        assert got["2030"] == "trans_build_minimum.csv=none trans_path_expansion_limit.csv=trans_path_expansion_limit.fixed.csv"
+        fx = pd.read_csv(run / "in/2060/case/trans_path_expansion_limit.fixed.csv")
+        assert (fx.trans_path_expansion_limit_mw == 0).all()                  # re-forced rows back at the normal 0
+    # the same chain without the aliases builds the lines again (the bug)
+    run2, stages2, outs2 = chain(tmp_path, f"nofix_{mode}", mode, "stage", pns_source=old_pns)
+    tot = committed_tx(stages2, outs2).groupby("line").mw.sum()
+    assert tot["N-C"] > FORCED["N-C"][0] + 1 and tot["C-S"] > FORCED["C-S"][0] + 1

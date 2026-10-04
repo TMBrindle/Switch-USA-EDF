@@ -199,6 +199,74 @@ def test_chained_stages_force_each_line_once(tmp_path):
         per_window[st["name"]] = [] if bm is None else sorted((name[r.TRANSMISSION_LINE], r.PERIOD) for r in bm.itertuples())
     assert per_window == {"2028_2030": [("p28-p31", 2028)], "2030_2035": [("p24-p25", 2035)],
                           "2035_2040": [("p24-p25", 2035)], "2040_2045": []}
+    # outside its forced period a forced line gets the policy's normal limit (zero: 0; unlimited: no row)
+    for pol, want in (("zero", 0.0), ("unlimited", None)):
+        for y in (2030, 2040):
+            _, bm, lim, name = build(tmp_path, years=[y], _chain_years=chain, forced_tx_table=table,
+                                     trans_expansion_policy=pol, forced_tx_expansion_limit="minimum")
+            L = {} if lim is None else {(name[r.TRANSMISSION_LINE], r.PERIOD): r.trans_path_expansion_limit_mw
+                                        for r in lim.itertuples()}
+            assert bm is None and L.get(("p28-p31", y)) == want and L.get(("p24-p25", y)) == want, (pol, y)
     # the bug this fixes: without _chain_years a 2040 stage re-forces both lines at 2040
     _, bm, _, name = build(tmp_path, years=[2040], forced_tx_table=table)
     assert sorted(name[x] for x in bm.TRANSMISSION_LINE) == ["p24-p25", "p28-p31"]
+
+
+def test_fix_aliases_script_matches_fixed_build(tmp_path):
+    """s0_workflow/scripts/fix_forced_tx_aliases.py on a chain built before §57 (every stage re-forces earlier lines)
+    writes, for every stage, exactly the trans_build_minimum / trans_path_expansion_limit files a fresh build under
+    the fix writes (byte-compared), or a `=none` alias where the fixed build writes no file; and adds the aliases
+    to the scenario lines."""
+    import importlib.util
+    import shutil
+    spec = importlib.util.spec_from_file_location("fixal", REPO / "s0_workflow/scripts/fix_forced_tx_aliases.py")
+    fixal = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fixal)
+    chain = [2028, 2030, 2035, 2040, 2045]
+    reeds = "pg/extra_inputs/transmission/forced_tx_reeds_certain_2026.09.21.csv"
+    combos = [("reeds_certain", pol, mode) for pol in ("zero", "nerc_growth", "unlimited") for mode in ("myopic", "windows")]
+    combos += [("named_projects", "zero", "myopic"), ("named_projects", "zero", "windows")]
+    (tmp_path / "b").mkdir()
+    for opt, pol, mode in combos:
+        kw = dict(trans_expansion_policy=pol, forced_tx_expansion_limit="minimum")
+        if opt == "reeds_certain":
+            kw["forced_tx_table"] = reeds
+        root = tmp_path / f"{opt}_{pol}_{mode}"
+        stages = s0prod.plan_stages(chain, mode, 2)
+        lines = []
+        for st in stages:
+            old = build(tmp_path / "b", years=st["years"], source=REPO / "pg_to_switch.py", **kw)    # pre-§57 stage
+            d = root / st["name"] / "C"
+            shutil.copytree(old, d)
+            pd.DataFrame({"INVESTMENT_PERIOD": st["years"]}).to_csv(d / "periods.csv", index=False)
+            s0prod.write_stage_info(d, st)
+            lines.append(f"--scenario-name C_{st['name']} --inputs-dir {st['name']}/C --outputs-dir out/{st['name']}/C"
+                         + (" --input-aliases gen_build_costs.csv=gen_build_costs.chained.C.csv" if lines else ""))
+        (root / "scenarios_C.txt").write_text("\n".join(lines) + "\n")
+        assert fixal.main([str(root), "--case", "C", "--forced-tx", opt, "--trans-expansion", pol]) == 0
+        al = pd.read_csv(root / "forced_tx_aliases.C.csv", dtype={"stage": str}).set_index("stage")
+        fixed_lines = (root / "scenarios_C.fixed.txt").read_text().splitlines()
+        for st, ln in zip(stages, fixed_lines):
+            new = build(tmp_path / "b", years=st["years"], source=REPO / "pg_to_switch.py", _chain_years=chain, **kw)
+            d = root / st["name"] / "C"
+            for f in ("trans_build_minimum", "trans_path_expansion_limit"):
+                if (new / f"{f}.csv").exists():
+                    assert (d / f"{f}.fixed.csv").read_bytes() == (new / f"{f}.csv").read_bytes(), (opt, pol, mode, st, f)
+                    pair = f"{f}.csv={f}.fixed.csv"
+                else:
+                    assert not (d / f"{f}.fixed.csv").exists(), (opt, pol, mode, st, f)
+                    pair = f"{f}.csv=none"
+                assert pair in al.at[st["name"], "aliases"].split() and pair in ln.split(), (st, ln)
+            assert ("gen_build_costs.csv=gen_build_costs.chained.C.csv" in ln) == (st is not stages[0])
+            assert ln.count("--input-aliases") == 1
+        rep = pd.read_csv(root / "forced_tx_fix_report.C.csv")
+        if opt == "reeds_certain" and mode == "myopic":
+            # SunZia re-forced in 2030-2045, TransWest in 2040 and 2045: 6 rows removed; 2 kept
+            assert (rep.action == "kept").sum() == 2 and (rep.action != "kept").sum() == 6, rep
+        # existing outputs are never replaced without --overwrite
+        with pytest.raises(SystemExit, match="exists"):
+            fixal.main([str(root), "--case", "C", "--forced-tx", opt, "--trans-expansion", pol])
+    # a wrong forced list is caught before anything is written
+    root = tmp_path / "reeds_certain_zero_myopic"
+    with pytest.raises(SystemExit, match="not in the built"):
+        fixal.main([str(root), "--case", "C", "--forced-tx", "named_projects", "--overwrite"])

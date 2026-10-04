@@ -156,7 +156,7 @@ def subset_periods(src: Path, dst: Path, periods):
                                                   index=bc.index)].to_csv(dst / "gen_build_costs.csv", index=False)
 
 
-def run_chain(run: Path, stages: list, case="case", modules=(), extra=()) -> list[Path]:
+def run_chain(run: Path, stages: list, case="case", modules=(), extra=(), aliases=None) -> list[Path]:
     """Solve the stages of a chain in order (stages from s0_workflow.production.plan_stages; inputs in
     run/in/<stage>/<case> with stage_info.csv). Returns the outputs folders. Later stages read the chained
     files as pg_to_switch's scenario lines do (forced-line files only when the stage has trans_build_minimum.csv)."""
@@ -172,8 +172,18 @@ def run_chain(run: Path, stages: list, case="case", modules=(), extra=()) -> lis
             d = run / "in" / st["name"] / case
             if (d / f"trans_built_to_date.chained.{case}.csv").exists():
                 files.append("trans_built_to_date")
-            if (d / "trans_build_minimum.csv").exists():
-                files += [f for f in ("trans_build_minimum", "trans_path_expansion_limit") if (d / f"{f}.csv").exists()]
-            args += ["--input-aliases"] + [f"{f}.csv={f}.chained.{case}.csv" for f in files]
+            # (pg_to_switch adds these when the stage has trans_build_minimum.csv; prepare_next_stage then writes
+            # them. Here: when written, so a chain run with an older prepare_next_stage works too.)
+            files += [f for f in ("trans_build_minimum", "trans_path_expansion_limit")
+                      if (d / f"{f}.chained.{case}.csv").exists()]
+            pairs = {f"{f}.csv": f"{f}.chained.{case}.csv" for f in files}
+        else:
+            pairs = {}
+        # aliases: {stage name: ["file.csv=target", ...]} replacing the chained pairs of the same files
+        for pair in (aliases or {}).get(st["name"], []):
+            k, v = pair.split("=", 1)
+            pairs[k] = v
+        if pairs:
+            args += ["--input-aliases"] + [f"{k}={v}" for k, v in pairs.items()]
         outs.append(solve(run, f"in/{st['name']}/{case}", f"out/{st['name']}/{case}", args))
     return outs

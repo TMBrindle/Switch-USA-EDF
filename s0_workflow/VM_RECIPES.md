@@ -385,6 +385,51 @@ in the stage folder. Don't patch around it: send Tom those files and
 Optional: build and solve `s4x1_S0prod_2035_new` (the regression case with the new defaults). Compare
 it with recipe A's run to see what the new defaults change in 2035 on the same days.
 
+## C-fix. The S0prod_A chain already built at 1eab1ac: forced transmission without a rebuild
+
+The build at 1eab1ac re-forces forced lines in every later stage. Each stage's `trans_build_minimum.csv` has every
+certain line dated at or before it, with the expansion limit capped at that minimum. Solved as built, SunZia
+would be built 5 times and TransWest 3 times. `fix_forced_tx_aliases.py` writes the files a fixed build would
+write as `*.fixed.csv` aliases (CHANGES §58). Don't rebuild.
+
+1. In the worktree at the current head (the script only reads the stage folders and the forced-line table):
+   ```bash
+   "<ic-pipeline python>" s0_workflow/scripts/fix_forced_tx_aliases.py switch/in/s0prod_A --case S0prod_A \
+     --forced-tx reeds_certain --trans-expansion zero
+   ```
+   It writes:
+   - `trans_build_minimum.fixed.csv` and `trans_path_expansion_limit.fixed.csv` in the stage folders;
+   - `scenarios_S0prod_A.fixed.txt`, `forced_tx_aliases.S0prod_A.csv` and `forced_tx_fix_report.S0prod_A.csv` next
+     to `scenarios_S0prod_A.txt`.
+
+   It changes nothing else, and it stops if any of those files exists (`--overwrite` replaces them). Expected output:
+   ```
+   S0prod_A: 5 stages, chain [2028, 2030, 2035, 2040, 2045]; 6 re-forced minimum rows removed; ...
+     2028: --input-aliases trans_build_minimum.csv=trans_build_minimum.fixed.csv trans_path_expansion_limit.csv=trans_path_expansion_limit.fixed.csv
+     2030: --input-aliases trans_build_minimum.csv=none trans_path_expansion_limit.csv=trans_path_expansion_limit.fixed.csv
+     2035: --input-aliases trans_build_minimum.csv=trans_build_minimum.fixed.csv trans_path_expansion_limit.csv=trans_path_expansion_limit.fixed.csv
+     2040: --input-aliases trans_build_minimum.csv=none trans_path_expansion_limit.csv=trans_path_expansion_limit.fixed.csv
+     2045: --input-aliases trans_build_minimum.csv=none trans_path_expansion_limit.csv=trans_path_expansion_limit.fixed.csv
+   ```
+   **Report** `forced_tx_fix_report.S0prod_A.csv`. It should keep 2 rows (p28-p31 in 2028, p24-p25 in 2035, 3,000 MW
+   each) and remove 6: p28-p31 in 2030, 2035, 2040 and 2045, and p24-p25 in 2040 and 2045. Each removed row's limit
+   goes from 3,000 to 0. If the script stops ("not in the built ..."), report its message.
+2. Solve with the fixed lines, which are the built lines with the two aliases added to each stage's
+   `--input-aliases`:
+   ```bash
+   cd switch
+   while read -r line; do "<SWITCH_EXE>" solve $line \
+       --solver-options-string "method=2 crossover=0 BarConvTol=1e-6 ScaleFlag=2 Threads=8" --tempdir /d/tmp || break
+   done < in/s0prod_A/scenarios_S0prod_A.fixed.txt
+   cd ..
+   ```
+   **run_chain_A.py** (VM-only, not in the repo): point it at `scenarios_S0prod_A.fixed.txt`. If it builds its own
+   alias list, append each stage's `aliases` column of `forced_tx_aliases.S0prod_A.csv` to that stage's
+   `--input-aliases`. Each stage's console log shows `Applying alias ...trans_build_minimum.csv=...` (none for
+   `=none`).
+3. Check after solving: `BuildTx.csv` has p28-p31 3,000 MW in 2028 only and p24-p25 3,000 MW in 2035 only, with
+   nothing on either line in any other stage.
+
 ## D. Forced transmission: 2035 s4x1 pair (reeds_certain vs named_projects)
 
 **Cases:** `s4x1_S0prod_2035_txreeds` (`forced_tx = reeds_certain`) and `s4x1_S0prod_2035_txnamed`
