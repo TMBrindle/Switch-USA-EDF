@@ -364,22 +364,23 @@ def chain_stage(m, in_path, out_path, next_in_path, case_name, commit=None, comm
 def chain_forced_tx(in_path, next_in_path, trans_built, chained, read_csv, to_csv):
     """Safeguard for forced lines in S0 chains (pg_to_switch forces each line only in its own period).
 
-    Keeps trans_built_to_date.chained.<case>.csv, the new transmission each line has had over the chain
-    (committed builds), and writes the next stage's trans_build_minimum and trans_path_expansion_limit as
+    Keeps trans_built_to_date.chained.<case>.csv (TRANSMISSION_LINE, trans_built_to_date_mw), the new transmission
+    each line has had over the chain (committed builds; prm_regional derates it as new), and writes the next stage's trans_build_minimum and trans_path_expansion_limit as
     .chained.<case>.csv: each minimum less what the line already has (floored at 0), and in the forced
     period a limit equal to that minimum (the cap-at-minimum rows) reduced by the same amount. Total new
     capacity on a forced line then never exceeds its forced MW because of a repeated minimum. Nothing is
     written when the next stage has no trans_build_minimum.csv."""
     prev_path = chained(in_path, "trans_built_to_date.csv")          # absent in the first stage
-    to_date = (read_csv(prev_path) if prev_path.exists()
-               else pd.DataFrame(columns=["TRANSMISSION_LINE", "BuildTx"]))
-    to_date = (pd.concat([to_date, trans_built[["TRANSMISSION_LINE", "BuildTx"]]], ignore_index=True)
-               .groupby("TRANSMISSION_LINE", as_index=False)["BuildTx"].sum())
+    col = "trans_built_to_date_mw"                 # also read by study_modules.prm_regional (new-line derate)
+    to_date = (read_csv(prev_path) if prev_path.exists() else pd.DataFrame(columns=["TRANSMISSION_LINE", col]))
+    to_date = (pd.concat([to_date, trans_built[["TRANSMISSION_LINE", "BuildTx"]].rename(columns={"BuildTx": col})],
+                         ignore_index=True)
+               .groupby("TRANSMISSION_LINE", as_index=False)[col].sum())
     to_csv(to_date, chained(next_in_path, "trans_built_to_date.csv"))
     min_path = Path(next_in_path, "trans_build_minimum.csv")
     if not min_path.exists():
         return
-    built = dict(zip(to_date["TRANSMISSION_LINE"].astype(str), to_date["BuildTx"].astype(float)))
+    built = dict(zip(to_date["TRANSMISSION_LINE"].astype(str), to_date[col].astype(float)))
     mins = read_csv(min_path)
     orig = {(str(line), int(pr)): float(v) for line, pr, v in
             zip(mins["TRANSMISSION_LINE"], mins["PERIOD"], mins["trans_build_minimum_mw"])}

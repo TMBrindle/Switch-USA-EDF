@@ -553,6 +553,8 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
 5. **Imports and deliverability:** reserve transfers (`PrmFlow`) on every line, separate from energy dispatch.
    - **Losses:** delivered = PrmFlow × the line's efficiency (the energy balance's).
    - **Limits:** (existing + 0.85 × new builds) × derating factor, and the NARIS directional limits where set.
+     In a chain, lines built by earlier stages arrive as existing capacity; `trans_built_to_date.csv` (written by
+     `prepare_next_stage`, §57) keeps them at 0.85 too.
    - **Zone check:** each zone's requirement is met by local credit plus net inflows over its lines, and the margin
      applies to each zone's load.
    - **Import cap:** net imports from other regions ≤ share × the region's peak load in the period, in **every**

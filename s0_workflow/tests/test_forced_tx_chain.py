@@ -119,7 +119,7 @@ def test_mode_a_safeguard_when_minimum_repeats(tmp_path):
     lim = pd.read_csv(run / "in/2060/case/trans_path_expansion_limit.chained.case.csv")
     assert (lim.trans_path_expansion_limit_mw == 0).all()
     todate = pd.read_csv(run / "in/2060/case/trans_built_to_date.chained.case.csv").set_index("TRANSMISSION_LINE")
-    assert todate.BuildTx.to_dict() == pytest.approx({k: v[0] for k, v in FORCED.items()}, abs=1e-4)
+    assert todate.trans_built_to_date_mw.to_dict() == pytest.approx({k: v[0] for k, v in FORCED.items()}, abs=1e-4)
     assert_once(committed_tx(stages, outs))
 
 
@@ -161,4 +161,5 @@ def test_scenario_lines_alias_chained_forced_files(tmp_path):
         al = args[args.index("--input-aliases") + 1:] if "--input-aliases" in args else []
         has = "trans_build_minimum.csv=trans_build_minimum.chained.A.csv" in al
         assert has == (st["name"] == "2035"), (st["name"], ln)       # stage 1 has no chained files
+        assert ("trans_built_to_date.csv=trans_built_to_date.chained.A.csv" in al) == (st["name"] != "2028")
         assert ("trans_path_expansion_limit.csv=trans_path_expansion_limit.chained.A.csv" in al) == has

@@ -2328,3 +2328,16 @@ capacity, so SunZia would have been built 5 times and TransWest 3 times. The exp
 - `test_forced_tx.py`: `transmission_tables` per stage over a mode-A chain forces each line once (both options; all
   72 named projects), and mode B only in the windows holding its period.
 - `s0_workflow` 98 (was 91): pandas 3.0.6 98 passed; 1.4.4 97 passed and 1 skipped. build_rate 22 on both.
+
+**Follow-on (reserve redesign on top of the fix):** in a chain, transmission built by earlier stages becomes existing
+capacity in later stages. Before this change, `prm_regional` would then count it at full capacity, so the 15% new-line
+derate would have applied only in the stage that built the line.
+- `prepare_next_stage` already writes `trans_built_to_date.chained.<case>.csv` (`trans_built_to_date_mw`).
+- S0 stage lines after the first alias that file, and `prm_regional` derates those MW as new: (existing − earlier new
+  + 0.85 × (earlier new + this stage's new)) × derating factor.
+- Toy (`test_prm.py`): a 4/0.9 MW line from an earlier stage delivers 3.4 MW of reserve, not 4, so the shortfall is
+  0.6 MW; without the file it is 0.
+- The `prm_regional` docstring now says duals come from `write_dual_costs`' suffix. The S0 scenario line adds no
+  `--suffixes dual`.
+
+Tests after both parts: `s0_workflow` 98. pandas 3.0.6: 120 passed with build_rate; 1.4.4: 119 passed and 1 skipped.

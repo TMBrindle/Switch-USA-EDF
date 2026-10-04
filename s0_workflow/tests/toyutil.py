@@ -170,6 +170,8 @@ def run_chain(run: Path, stages: list, case="case", modules=(), extra=()) -> lis
         if i > 0:
             files = ["gen_build_predetermined", "gen_build_costs", "transmission_lines"]
             d = run / "in" / st["name"] / case
+            if (d / f"trans_built_to_date.chained.{case}.csv").exists():
+                files.append("trans_built_to_date")
             if (d / "trans_build_minimum.csv").exists():
                 files += [f for f in ("trans_build_minimum", "trans_path_expansion_limit") if (d / f"{f}.csv").exists()]
             args += ["--input-aliases"] + [f"{f}.csv={f}.chained.{case}.csv" for f in files]

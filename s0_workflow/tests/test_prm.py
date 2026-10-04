@@ -313,7 +313,7 @@ GI_COLS = ["GENERATION_PROJECT", "gen_tech", "gen_load_zone", "gen_connect_cost_
 
 
 def mini_case(tmp_path, name, gens, loads, lines, regions, periods_rows, credit, params, stress_hours=(6, 6, 6, 6),
-              cf=None, storage=False, new_tx=False):
+              cf=None, storage=False, new_tx=False, built_before=None):
     """A one-period (2020) toy: timeseries 2020_norm (weighted, 2 x 12 h) and 2020_stress (zero weight, 4 x 6 h).
     gens: (name, zone, kind, MW[, MWh]) with kind thermal | backup | wind | storage; loads: {zone: ([norm x2],
     [stress x4])}; lines: (name, z1, z2, MW, efficiency)."""
@@ -381,6 +381,9 @@ def mini_case(tmp_path, name, gens, loads, lines, regions, periods_rows, credit,
                                                    "storage": "storage"}[g[2]]) for g in gens])]).to_csv(
             inp / "prm_gen_credit.csv", index=False)
         pd.DataFrame([params]).to_csv(inp / "prm_params.csv", index=False)
+        if built_before:                                  # chained stage: new lines of earlier stages
+            pd.DataFrame({"TRANSMISSION_LINE": list(built_before), "trans_built_to_date_mw": list(built_before.values())}
+                         ).to_csv(inp / "trans_built_to_date.csv", index=False)
         for f in ("zone_coincident_peak_demand.csv",):
             (inp / f).unlink(missing_ok=True)
     run = toy_inputs(tmp_path, name, ["prm_regional"], edit)
@@ -464,6 +467,13 @@ def test_toy_import_cap_losses_and_new_line_derate(tmp_path):
     b = _read(out2, "BuildTx.csv")
     assert b[b.TRANS_BLD_YRS_1 == "N-C"].BuildTx.sum() == pytest.approx(4 / (0.85 * 0.9), rel=1e-5)
     assert _read(out2, "prm_shortfall.csv").shortfall_mw.max() == pytest.approx(0, abs=1e-6)
+    # a chained stage: the line was built by an earlier stage (now existing capacity, trans_built_to_date.csv);
+    # it still counts 85%: 4/0.9 MW delivers 0.85 x 4 = 3.4 MW, shortfall 0.6 (without the file it would be 0)
+    lines3 = [("N-C", "North", "Central", 4 / 0.9, 0.9), ("C-S", "Central", "South", 0, 1.0)]
+    out3 = mini_case(tmp_path, "chained", gens, loads, lines3, reg, per2, {}, PEN, built_before={"N-C": 4 / 0.9})
+    assert _read(out3, "prm_shortfall.csv").set_index("PRM_REGION").at["A", "shortfall_mw"] == pytest.approx(0.6, abs=1e-6)
+    out4 = mini_case(tmp_path, "chained0", gens, loads, lines3, reg, per2, {}, PEN)
+    assert _read(out4, "prm_shortfall.csv").set_index("PRM_REGION").at["A", "shortfall_mw"] == pytest.approx(0, abs=1e-6)
 
 
 def test_toy_storage_backed_by_state_of_charge(tmp_path):

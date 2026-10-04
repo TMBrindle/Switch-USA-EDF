@@ -291,7 +291,9 @@ in the stage folder. Don't patch around it: send Tom those files and
        build predates §57: rebuild.
      - Scenario lines: the 2035 stage's `--input-aliases` include
        `trans_build_minimum.csv=trans_build_minimum.chained.S0prod_A.csv` and the same for
-       `trans_path_expansion_limit.csv`. No other stage aliases them.
+       `trans_path_expansion_limit.csv`. No other stage aliases them. Every stage after 2028 aliases
+       `trans_built_to_date.csv=trans_built_to_date.chained.S0prod_A.csv`; `prm_regional` keeps earlier stages' new
+       lines at 85% for reserves.
      - `trans_path_expansion_limit.csv`: those two lines are now in the file. Each has 3,000 in its forced stage and the
        case's limit (0, `trans_expansion: zero`) in the other stages.
      - `transmission_lines.csv`: p24-p25 is added as a new line (666.3 km), and the named projects' other new corridors

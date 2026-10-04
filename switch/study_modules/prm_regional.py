@@ -25,8 +25,9 @@ For each zone z of region r and stress timepoint t of period p:
                local_td is used, else zone_demand_mw.
   PrmFlow      reserve (capacity) transfers over each direction of each transmission line, separate
                from energy dispatch: delivered MW = PrmFlow * trans_efficiency (the energy balance's
-               line losses); limited by existing capacity + (1 - prm_new_tx_derate) x new builds,
-               times trans_derating_factor, and by trans_directional_cap_mw where that module sets one.
+               line losses); limited by existing capacity + (1 - prm_new_tx_derate) x new builds (in a
+               chain, new lines of earlier stages too: trans_built_to_date.csv), times
+               trans_derating_factor, and by trans_directional_cap_mw where that module sets one.
                Within a region this is the deliverability check (each zone's requirement is met by
                local capacity plus net inflows over internal lines); flows across a region boundary
                are imports.
@@ -46,7 +47,7 @@ prm_shortfall_cost_per_mw_yr in each year of the period; PrmShortfall[r, p] sums
 Outputs (post_solve): prm_shortfall.csv, prm_zone_hours.csv (with duals), prm_region_hours.csv
 (margin achieved, import use, import-cap duals), prm_summary.csv and prm_capacity_credit.csv
 (implied capacity credit by class and region against the benchmarks in prm_benchmarks.csv). Duals
-need `--suffixes dual` (the S0 scenario line adds it) and an LP solution with duals (Gurobi barrier
+need the `dual` suffix (switch/modules.txt's write_dual_costs declares it for every run) and an LP solution with duals (Gurobi barrier
 gives them with or without crossover; a MIP gives none, and the files then say so).
 
 Inputs:
@@ -56,6 +57,7 @@ Inputs:
     prm_gen_credit.csv*         GENERATION_PROJECT, prm_credit*, prm_class*
     prm_gen_availability.csv*   GENERATION_PROJECT, TIMEPOINT, prm_avail_frac
     prm_params.csv*             prm_new_tx_derate, prm_shortfall_cost_per_mw_yr, prm_import_cap_all_hours
+    trans_built_to_date.csv*    TRANSMISSION_LINE, trans_built_to_date_mw (chained stages; prepare_next_stage)
     prm_benchmarks.csv*         PRM_REGION, prm_class, benchmark, benchmark_value
 """
 
@@ -165,11 +167,18 @@ def define_components(m):
     )
     m.PrmFlow = Var(m.PRM_TX_TPS, within=NonNegativeReals)
 
+    # new transmission earlier stages of a chain built (carried into existing_trans_cap by
+    # prepare_next_stage; trans_built_to_date.csv): still derated as new
+    m.trans_built_to_date_mw = Param(m.TRANSMISSION_LINES, within=NonNegativeReals, default=0.0)
+
     def tx_cap(m, tx, p):
         new = sum(
             m.BuildTx[tx, b] for b in m.PERIODS if b <= p and (tx, b) in m.TRANS_BLD_YRS
         )
-        return (m.existing_trans_cap[tx] + (1 - m.prm_new_tx_derate) * new) * m.trans_derating_factor[tx]
+        before = min(value(m.trans_built_to_date_mw[tx]), value(m.existing_trans_cap[tx]))
+        return (
+            m.existing_trans_cap[tx] - before + (1 - m.prm_new_tx_derate) * (before + new)
+        ) * m.trans_derating_factor[tx]
 
     m.PrmTxCapacity = Expression(m.TRANSMISSION_LINES, m.PERIODS, rule=tx_cap)
     m.Prm_Flow_Limit = Constraint(
@@ -360,6 +369,11 @@ def load_inputs(m, switch_data, inputs_dir):
         optional=True,
         index=m.PRM_GEN_AVAIL_TPS,
         param=(m.prm_avail_frac,),
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "trans_built_to_date.csv"),
+        optional=True,
+        param=(m.trans_built_to_date_mw,),
     )
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "prm_params.csv"),

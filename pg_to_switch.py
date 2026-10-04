@@ -3534,7 +3534,9 @@ def scenario_files(results_folder, case_settings, myopic, case_stages=None):
                 aliases += [f"{f}.csv={f}.chained.{scen_name}.csv" for f in ("ic_zones", "ic_tranches", "ic_uprates")]
             if (settings.get("build_rate") or {}).get("enabled"):
                 aliases.append(f"build_rate_prev_build.csv=build_rate_prev_build.chained.{scen_name}.csv")
-            # forced lines less what the chain already built (prepare_next_stage.chain_forced_tx)
+            # new transmission the chain has built so far (prepare_next_stage.chain_forced_tx writes it for every
+            # later stage; prm_regional derates it as new), and forced lines less what the chain already built
+            aliases.append(f"trans_built_to_date.csv=trans_built_to_date.chained.{scen_name}.csv")
             stage_in = Path(results_folder) / stage["name"] / case
             if (stage_in / "trans_build_minimum.csv").exists():
                 for f in ("trans_build_minimum", "trans_path_expansion_limit"):
