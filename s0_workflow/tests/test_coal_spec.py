@@ -352,8 +352,8 @@ def test_settings_axis_column_and_legacy_off():
     leg = ax["s0_production"]["on_pgdays"]["s0_production"]
     assert leg["coal_spec"] == {"enabled": False} and leg["coal_holds"] == {"enabled": False}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
-    assert list(si.columns[-8:]) == ["coal_holds", "retirements_pre2030", "forced_tx", "prm_design", "time_sample",
-                                     "tx_bill", "tx_sens", "ca_wa_price"] and (si.coal_holds == "s0").all()
+    assert list(si.columns[-9:]) == ["coal_holds", "retirements_pre2030", "forced_tx", "prm_design", "time_sample",
+                                     "tx_bill", "tx_sens", "ca_wa_price", "retirement_sens"] and (si.coal_holds == "s0").all()
     assert set(si.loc[si.case_id == "s4x1_S0prod_2035", "retirements_pre2030"]) == {"legacy"}
     assert (si.loc[si.case_id != "s4x1_S0prod_2035", "retirements_pre2030"] == "block_all").all()
     assert ax["retirements_pre2030"] == {o: {"s0_production": {"retirements_pre2030": o}} for o in cs.RETIREMENT_OPTIONS} \
@@ -826,7 +826,9 @@ def test_option_tables_committed_and_figures():
 def test_retirement_option_settings_and_rules(tmp_path):
     """block_all sets fedpol's rule and the per-period rule; planned_only removes the dated push but keeps the rule;
     unrestricted removes both and allows economic retirement from the first stage; legacy leaves the settings."""
-    for opt, rule, module in (("block_all", cs.BLOCK_RULE, True), ("planned_only", None, True), ("unrestricted", None, False)):
+    # the module is on in every option with the retirement friction (S0 default 0.5, §66); unrestricted adds it only
+    # for the friction (no retirement_rules.csv)
+    for opt, rule, module in (("block_all", cs.BLOCK_RULE, True), ("planned_only", None, True), ("unrestricted", None, True)):
         s = s0_case("on")
         s["predetermined_retirement_override"] = {"technologies": ["coal"], "window": [2026, 2029], "target_year": 2030}
         s["clean_power_regs_retirement_override"] = {"technologies": ["coal"], "mode": "x"}
@@ -843,7 +845,7 @@ def test_retirement_option_settings_and_rules(tmp_path):
                       "build_gen_predetermined": [1, 1]}).to_csv(d / "gen_build_predetermined.csv", index=False)
         s0prod.write_retirement_rules(d, s["s0_production"], s0prod.Log(d))
         gi = pd.read_csv(d / "gen_info.csv").set_index("GENERATION_PROJECT").gen_can_retire_early
-        assert list(gi) == [1, 1, 0] and (d / "retirement_rules.csv").exists() == module
+        assert list(gi) == [1, 1, 0] and (d / "retirement_rules.csv").exists() == (opt != "unrestricted")
     leg = s0_case("on_pgdays")
     leg["predetermined_retirement_override"] = dict(cs.BLOCK_RULE)
     before = copy.deepcopy(leg)

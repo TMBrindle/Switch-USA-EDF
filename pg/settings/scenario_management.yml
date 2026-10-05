@@ -1297,6 +1297,10 @@ settings_management:
           prm: {design: legacy}
           rggi: {mode: legacy}
           ca_wa_carbon: {mode: legacy}
+          tx_policy: {mode: legacy}
+          lifetime_backstop: {enabled: false}
+          retirement_friction: {fraction: 0.0}
+          existing_fixed_om: mean
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}
@@ -1350,7 +1354,9 @@ settings_management:
     # Guides and documentation/transmission_bill_scenarios.md). Inert unless s0_production.enabled. Column `tx_bill`
     # in scenario_inputs.csv: legacy (sets nothing: today's behaviour) in every row that predates it.
     tx_bill:
-      legacy: ~
+      # the case's trans_expansion policy (zero), as before §66 made the national cap the S0 default
+      legacy:
+        s0_production: {tx_policy: {mode: legacy}}
       s0_tx:
         s0_production:
           tx_policy: {mode: national_cap, moratorium_first_period: 2040, cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}}
@@ -1408,6 +1414,19 @@ settings_management:
         s0_production: {tx_policy: {capex_multiplier: 1.5}}
       br_high:                     # generator build rate "high" in every period
         s0_production: {level_overrides: {build_rate: high}}
+    # Retirement sensitivities for S0 cases (pg/settings/s0_production.yml lifetime_backstop, retirement_friction;
+    # CHANGES §66). Inert unless s0_production.enabled. Column `retirement_sens`: none (sets nothing: coal 65 / gas 55
+    # years, friction 0.5) in every row but the sensitivity rows.
+    retirement_sens:
+      none: ~
+      life_coal60:
+        s0_production: {lifetime_backstop: {coal_years: 60}}
+      life_coal70:
+        s0_production: {lifetime_backstop: {coal_years: 70}}
+      lifetime_off:
+        s0_production: {lifetime_backstop: {enabled: false}}
+      friction_off:
+        s0_production: {retirement_friction: {fraction: 0.0}}
     # Fleet-independent sample shape for S0 production cases (pg/settings/s0_production.yml time_sampling.sample;
     # CHANGES §56). Inert unless the fleet-independent selector runs. Column `time_sample` in scenario_inputs.csv:
     # days24 (sets nothing: n_days single days) in every row but s4x1_S0prod_2035_fi4x3.

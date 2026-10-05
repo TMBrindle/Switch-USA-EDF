@@ -144,7 +144,7 @@ def _synthetic_year(regions=("A", "B", "C"), days=7 * 365, seed=0):
 
 
 def test_stress_day_greedy_coverage():
-    sd = dict(P["stress_days"])
+    sd = dict(P["stress_days"], rule="greedy")
     sd["summer_months"], sd["winter_months"] = [6, 7, 8, 9], [12, 1, 2]
     # plant days in the right months
     cal = prm.day_dates(7 * 365, 2007)
@@ -227,7 +227,8 @@ def test_settings_axis_column_and_legacy():
     assert ax["s0_production"]["on_pgdays"]["s0_production"]["prm"] == {"design": "legacy"}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
     regional = set(si.loc[si.prm_design == "regional", "case_id"])
-    assert {c for c in regional if not ("S0_tx" in c or "BILL" in c)} == {"S0prod_A", "S0prod_B", "s4x1_S0prod_2035_prm"}
+    assert {c for c in regional if not ("S0_tx" in c or "BILL" in c)} == {"S0prod_A", "S0prod_B", "s4x1_S0prod_2035_prm",
+                                                                                "s4x1_S0prod_2035_new"}
     a = si[si.case_id == "s4x1_S0prod_2035_prm"].iloc[0]
     b = si[si.case_id == "s4x1_S0prod_2035_txreeds"].iloc[0]
     assert [c for c in si.columns if a[c] != b[c]] == ["case_id", "prm_design"] and a.year == 2035

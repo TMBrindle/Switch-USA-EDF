@@ -55,8 +55,15 @@ def test_settings_file_axis_and_rows():
     assert set(diff) == {"case_id", "build_rate", "s0_production", "retirements_pre2030", "forced_tx"}
     assert reg.s0_production == "on_pgdays" and reg.retirements_pre2030 == "legacy" and reg.forced_tx == "legacy"
     new = si[si.case_id == "s4x1_S0prod_2035_new"].iloc[0]
-    assert [c for c in si.columns if new[c] != reg[c]] == ["case_id", "s0_production", "retirements_pre2030", "forced_tx"]
-    assert new.s0_production == "on_pgdays_new" and new.retirements_pre2030 == "block_all"
+    # §66: _new carries the final S0 configuration (fleet-independent days, regional reserve, S0_tx transmission)
+    assert [c for c in si.columns if new[c] != reg[c]] == ["case_id", "s0_production", "retirements_pre2030", "forced_tx",
+                                                           "prm_design", "tx_bill"]
+    assert new.s0_production == "on_single" and new.retirements_pre2030 == "block_all"
+    assert new.forced_tx == "reeds_certain_plus_A" and new.prm_design == "regional" and new.tx_bill == "s0_tx"
+    for c in ("S0prod_A", "S0prod_B"):
+        r = si[si.case_id == c]
+        assert (r.forced_tx == "reeds_certain_plus_A").all() and (r.tx_bill == "s0_tx").all()
+        assert (r.prm_design == "regional").all() and (r.time_sample == "days24").all()
     md = yaml.safe_load(open(REPO / "pg/settings/model_definition.yml"))
     spans = {int(k): v for k, v in s0["period_spans"].items()}
     for y, (first, last) in spans.items():
@@ -205,6 +212,8 @@ def test_new_defaults_premium_buyouts_and_cap(tmp_path):
         s0prod.write_case_inputs(tmp_path, {2028: s, 2030: s, 2035: s})
     _case(tmp_path)
     s["s0_production"]["coal_spec"]["enabled"] = False
+    s["s0_production"]["lifetime_backstop"] = {"enabled": False}  # also needs the unit table (test_final_s0.py)
+    s["s0_production"]["tx_policy"] = {"mode": "legacy"}  # national cap: needs the transmission files (test_tx_policy.py)
     s["s0_production"]["prm"] = {"design": "legacy"}      # regional reserve: needs stress days (test_prm.py)
     s0prod.write_case_inputs(tmp_path, {2028: s, 2030: s, 2035: s})
     bc = pd.read_csv(tmp_path / "gen_build_costs.csv").set_index(["GENERATION_PROJECT", "build_year"])["gen_overnight_cost"]

@@ -309,8 +309,14 @@ def test_bill_case_rows():
                       ("osw", "offshore_wind_policy", "capped_2025_released")):
         r = si[si.case_id == f"s4x1_S0_tx_2035_{k}"].iloc[0]
         assert [c for c in si.columns if c != "case_id" and str(r[c]) != str(base[c])] == [col] and r[col] == v
-    # every older row: legacy / none
-    old = si[~si.case_id.str.contains("S0_tx|BILL")]
+    for k, v in (("life60", "life_coal60"), ("life70", "life_coal70"), ("nofriction", "friction_off")):   # §66
+        r = si[si.case_id == f"s4x1_S0_tx_2035_{k}"].iloc[0]
+        assert [c for c in si.columns if c != "case_id" and str(r[c]) != str(base[c])] == ["retirement_sens"]
+        assert r.retirement_sens == v
+    # S0 defaults (§66): S0prod_A / B and s4x1_S0prod_2035_new on the S0_tx baseline; every older row: legacy / none
+    final = si.case_id.isin(["S0prod_A", "S0prod_B", "s4x1_S0prod_2035_new"])
+    assert (si[final].tx_bill == "s0_tx").all() and (si[final].forced_tx == "reeds_certain_plus_A").all()
+    old = si[~si.case_id.str.contains("S0_tx|BILL") & ~final]
     assert (old.tx_bill == "legacy").all() and (old.tx_sens == "none").all()
 
 

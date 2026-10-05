@@ -723,6 +723,12 @@ def operational_files(
             timeseries_df, timepoints_df = s0prm.rename_stress_rows(
                 timeseries_df, timepoints_df, n_stress
             )
+            if n_stress:
+                n_st_tp = int(timeseries_df.ts_num_tps.iloc[-n_stress:].sum())
+                logger.info(
+                    f"Model size {model_year}: {len(timepoints_df)} timepoints "
+                    f"({len(timepoints_df) - n_st_tp} sample, {n_st_tp} on {n_stress} stress days)."
+                )
         else:
             if s0prm.year_prm(year_settings) is not None:
                 raise ValueError("s0_production.prm regional needs time sampling (reduce_time_domain)")

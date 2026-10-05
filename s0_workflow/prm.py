@@ -45,7 +45,8 @@ EXTREME_DAY_SCRIPT = "Add extreme day"
 DEFAULTS = {
     "design": "legacy",
     "config": "s0_workflow/specs/prm/prm_redesign_config.yaml",
-    "stress_days": {"max_days": 12, "cover_tolerance": 0.02, "tolerance_step": 0.02, "max_tolerance": 0.20,
+    "stress_days": {"rule": "greedy", "top_load_share": 0.01,
+                    "max_days": 12, "cover_tolerance": 0.02, "tolerance_step": 0.02, "max_tolerance": 0.20,
                     "summer_months": [6, 7, 8, 9], "winter_months": [12, 1, 2], "first_weather_year": 2007,
                     "diag_dir": "prm"},
     "thermal_derate": {"method": "seasonal", "temperature_h5": None, "temperature_tz": "Etc/GMT+6",
@@ -323,9 +324,11 @@ def day_dates(n_days: int, first_year: int) -> pd.DataFrame:
 
 
 def region_series(L: pd.DataFrame, R: pd.DataFrame, gens: pd.DataFrame, regions: dict, wind_factor=1.0,
-                  stylised=None) -> tuple[dict, dict]:
+                  stylised=None, wind=None) -> tuple[dict, dict]:
     """Per reserve region: hourly load and stylised net load (each region's wind and solar sized to supply the
-    stylised shares of its load, as the fleet-independent day selector's low-net-load tail)."""
+    stylised shares of its load, as the fleet-independent day selector's low-net-load tail). When `wind` is a dict,
+    it also gets each region's hourly onshore-wind CF (mean over the region's onshore-wind profiles; the national
+    mean for a region without any, recorded under the key ("_national", r))."""
     from s0_workflow.day_selection import kind
     sty = stylised or {"wind_energy_share": 0.20, "solar_energy_share": 0.20}
     g = pd.DataFrame({"Resource": list(gens["Resource"]), "k": [kind(t) for t in gens["technology"]],
@@ -342,11 +345,74 @@ def region_series(L: pd.DataFrame, R: pd.DataFrame, gens: pd.DataFrame, regions:
                 if cf.mean() > 0:
                     nl = nl - float(share) * x.mean() / cf.mean() * cf
         load[r], net[r] = x, nl
+        if wind is not None:
+            cols = g[(g.r == r) & (g.k == "onwind")].index
+            if len(cols):
+                wind[r] = R[cols].mean(axis=1).to_numpy(dtype=float)
+            else:
+                allw = g[g.k == "onwind"].index
+                if not len(allw):
+                    raise ValueError("stress days: no onshore-wind profiles for the low-wind need")
+                wind[r] = R[allw].mean(axis=1).to_numpy(dtype=float)
+                wind[("_national", r)] = True
     return load, net
 
 
-def select_stress_days(load: dict, net: dict, sd: dict) -> tuple[pd.DataFrame, pd.DataFrame, float]:
-    """Greedy coverage: each region's worst summer peak-load day, worst winter peak-load day and worst
+def select_stress_days(load: dict, net: dict, sd: dict, wind: dict | None = None
+                       ) -> tuple[pd.DataFrame, pd.DataFrame, float]:
+    """Stress days, by stress_days.rule: guaranteed (guaranteed_stress_days) or greedy (below)."""
+    if sd.get("rule", "greedy") == "guaranteed":
+        if wind is None:
+            raise ValueError("stress_days.rule guaranteed needs the regions' wind CFs")
+        return guaranteed_stress_days(load, wind, sd)
+    if sd.get("rule", "greedy") != "greedy":
+        raise ValueError(f"stress_days.rule must be guaranteed or greedy, not {sd.get('rule')!r}")
+    return greedy_stress_days(load, net, sd)
+
+
+def guaranteed_stress_days(load: dict, wind: dict, sd: dict) -> tuple[pd.DataFrame, pd.DataFrame, float]:
+    """The stated rule, on weather alone (S0 default, CHANGES §66): for each reserve region, its worst summer
+    peak-load day (highest daily peak load in summer_months), its worst winter peak-load day (winter_months) and its
+    lowest-wind day among its top-load days (the top_load_share of the record's days by daily peak load; lowest daily
+    mean onshore-wind CF). Every such day is in the set, whatever the count (no max_days); a day that is several
+    needs' worst day appears once. Returns (days, coverage, 0.0)."""
+    any_r = next(iter(load))
+    H = len(load[any_r])
+    D = H // 24
+    if H != D * 24:
+        raise ValueError("stress-day selection needs whole days of hourly data")
+    cal = day_dates(D, int(sd["first_weather_year"]))
+    summer = cal.month.isin(sd["summer_months"]).to_numpy()
+    winter = cal.month.isin(sd["winter_months"]).to_numpy()
+    n_top = max(1, int(np.ceil(float(sd.get("top_load_share", 0.01)) * D)))
+    pick, cov = {}, []
+    for r in load:
+        dmax = load[r].reshape(D, 24).max(axis=1)
+        wcf = np.asarray(wind[r], dtype=float).reshape(D, 24).mean(axis=1)
+        top = np.argsort(-dmax, kind="stable")[:n_top]
+        low_wind = int(top[np.argmin(wcf[top])])
+        for need, d, val in (("summer_peak_load", int(np.argmax(np.where(summer, dmax, -np.inf))), None),
+                             ("winter_peak_load", int(np.argmax(np.where(winter, dmax, -np.inf))), None),
+                             ("low_wind_top_load", low_wind, wcf[low_wind])):
+            pick.setdefault(d, []).append(f"{r} {need}")
+            cov.append({"PRM_REGION": r, "need": need, "worst_date": days_label(cal, d),
+                        "worst_mw": round(float(dmax[d]), 1), "covered_by": days_label(cal, d),
+                        "covering_value_ratio": 1.0,
+                        "wind_cf": round(float(val), 4) if val is not None else float("nan"),
+                        "wind_basis": ("national" if wind.get(("_national", r)) else "region")
+                        if val is not None else "",
+                        "top_load_days": n_top if val is not None else float("nan")})
+    chosen = sorted(pick)
+    days = cal.loc[chosen].copy()
+    days["slot"] = [f"p{d + 1}" for d in chosen]
+    days["date"] = [f"{y:04d}-{m:02d}-{dd:02d}" for y, m, dd in zip(days.year, days.month, days.dom)]
+    days["covers"] = ["; ".join(pick[d]) for d in chosen]
+    days["n_needs_covered"] = [len(pick[d]) for d in chosen]
+    return days.reset_index(drop=True), pd.DataFrame(cov), 0.0
+
+
+def greedy_stress_days(load: dict, net: dict, sd: dict) -> tuple[pd.DataFrame, pd.DataFrame, float]:
+    """Greedy coverage (S0 before §66; rule greedy): each region's worst summer peak-load day, worst winter peak-load day and worst
     low-wind/solar high-load day (daily maximum stylised net load). A day covers a need if its value is within
     `tol` of the worst; tol widens by tolerance_step until max_days suffice. Returns (days, coverage, tol)."""
     any_r = next(iter(load))
@@ -416,9 +482,10 @@ def add_stress_days(results: dict, representative_point: pd.DataFrame, weights, 
     wl = s0.get("wind_loss") or {}
     wf = float(wl.get("factor", (1 - 0.134) / (1 - 0.017))) if wl.get("enabled") else 1.0
     regions = zone_regions(list(period_lc.columns), year_settings.get("_zone_map"))
+    wind = {} if p["stress_days"].get("rule", "greedy") == "guaranteed" else None
     load, net = region_series(period_lc.reset_index(drop=True), period_variability.reset_index(drop=True),
-                              period_gens, regions, wf, ts.get("stylised_fleet"))
-    days, cov, tol = select_stress_days(load, net, p["stress_days"])
+                              period_gens, regions, wf, ts.get("stylised_fleet"), wind)
+    days, cov, tol = select_stress_days(load, net, p["stress_days"], wind)
     year = int(year_settings["model_year"])
     days["TIMESERIES"] = [f"{year}_{s}_prm" for s in days.slot]
     td = p["thermal_derate"]
@@ -427,9 +494,12 @@ def add_stress_days(results: dict, representative_point: pd.DataFrame, weights, 
     diag_dir.mkdir(parents=True, exist_ok=True)
     days.to_csv(diag_dir / "stress_days.csv", index=False)
     cov.to_csv(diag_dir / "stress_coverage.csv", index=False)
+    rule = p["stress_days"].get("rule", "greedy")
     (diag_dir / "stress_info.txt").write_text(
-        f"{len(days)} stress days for {year}; cover tolerance {tol:.3f}; {len(load)} regions x 3 needs; "
-        f"not covered: {int((cov.covered_by == 'NOT COVERED').sum())}\n")
+        f"{len(days)} stress days for {year} (rule {rule}"
+        + (f"; cover tolerance {tol:.3f}" if rule == "greedy" else
+           f"; top-load days for the low-wind need: {p['stress_days'].get('top_load_share', 0.01):g} of the record")
+        + f"); {len(load)} regions x 3 needs; not covered: {int((cov.covered_by == 'NOT COVERED').sum())}\n")
     hrs = np.concatenate([np.arange(d * 24, d * 24 + 24) for d in days.day])
     L = period_lc.reset_index(drop=True).iloc[hrs].reset_index(drop=True)
     R = period_variability.reset_index(drop=True).iloc[hrs].reset_index(drop=True)

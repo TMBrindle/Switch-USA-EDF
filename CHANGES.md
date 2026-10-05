@@ -2699,3 +2699,93 @@ economy-wide caps. Their zero cap made every power-sector tonne pay it.
 - a Switch toy charges delivered imports one way inside the hurdle component, and without the file nothing changes.
 
 **Results:** s0_workflow 134. pandas 3.0.6: 156 passed with build_rate; 1.4.4: 155 passed and 1 skipped.
+
+## 66. S0 Production: Final S0 Configuration
+
+**Date:** 2026-10-05 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("Final configuration (§66)", "The regional design" item 3
+and the implied-credit notes), recipes C and H, `SHARED_CHANGES.md` #69-#76, review points 16-18
+
+Tom's decisions, as S0 defaults for `S0prod_A`, `S0prod_B`, `s4x1_S0prod_2035_new` and the S0_tx-based bill and
+S-scenario cases. Each is a setting in `pg/settings/s0_production.yml`, pinned off or legacy for the regression case
+(`on_pgdays`), which builds byte-identically.
+
+1. **Defaults:**
+   - the regional reserve (demand response stays off) on 24 fleet-independent single days plus the stress days;
+   - the S0_tx transmission baseline: `reeds_certain_plus_A` forced, national discretionary cap 0 in 2028 and
+     1.4 TW-mi/yr from 2030, interregional moratorium to 2040. The yml defaults are now `tx_policy.mode: national_cap`
+     and `forced_tx: reeds_certain_plus_A`;
+   - RGGI 3PR with Virginia (item 5) and the CA/WA central price.
+
+   Row changes in `scenario_inputs.csv`:
+   - `S0prod_A` / `S0prod_B`: `forced_tx` → `reeds_certain_plus_A`, `tx_bill` → `s0_tx`;
+   - `s4x1_S0prod_2035_new`: `s0_production` → `on_single`, plus `prm_design regional`, `reeds_certain_plus_A` and
+     `s0_tx`.
+
+   `tx_bill = legacy` now sets `tx_policy: legacy` explicitly, so the 2035 comparison rows keep today's transmission.
+2. **Stress days, the stated rule** (`prm.stress_days.rule: guaranteed`; `greedy` kept):
+   - For each reserve region: its worst summer peak-load day, its worst winter peak-load day, and its lowest-wind day
+     among its top-load days. "Top-load days" are the top 1% of 2007-2013 days by daily peak load (26). "Lowest wind"
+     is the lowest daily mean onshore-wind CF, using the national CF for a region without wind profiles. All on
+     weather alone.
+   - Every such day is kept, with no 12-day cap: at most 48, and a shared day counts once.
+   - The count and model size are logged per model year (`Model size <year>: ...`) and written to `stress_info.txt`.
+   - Not tuned toward ISO credits. The implied-credit diagnostic stays; the guide now says it is a marginal model
+     credit that differs from ISO accreditation by design, and that gas is credited above PJM's class values because
+     winter fuel-supply failures aren't modelled.
+3. **Lifetime backstop** (`lifetime_backstop`; `coal_fleet.apply_lifetime` in `unit_hooks`):
+   - Unit by unit, from the EIA operating year: coal 65 years, gas CC/CT/steam/engines 55 years. Each unit retires
+     at the earlier of its planned date and operating year + lifetime.
+   - Under block_all, a unit due by 2030 is encoded 2031, through the 2030 stage. Otherwise one past its lifetime
+     retires at the first stage (2026).
+   - Applied after the coal spec's overrides and push. The spec's caps and checks are on the fleet before the
+     backstop. Hold projects are untouched.
+   - Not the `retirement_ages` hook.
+   - Sensitivities: column `retirement_sens` (`life_coal60`, `life_coal70`, `lifetime_off`).
+   - Report: `lifetime_retirements.csv` and `lifetime_retirements_by_stage.csv`.
+   - Coal GW out by lifetime on the committed model basis (block_all), 2028-2045: 0 / 0 / 12.78 / 37.06 / 61.92
+     (coal 60: 0 / 0 / 37.06 / 61.92 / 91.96; coal 70: 0 / 0 / 3.67 / 12.78 / 37.06). Gas comes from the build.
+4. **Retirement friction** (`retirement_friction`, `study_modules.retirement_rules`, `retirement_friction.csv`):
+   - Retiring existing coal or gas from 2030 avoids only (1 − 0.5) of its fixed O&M, which includes the age-based
+     capital additions. `RetirementFrictionCost` = f × fixed O&M × SuspendGen on existing capacity.
+   - 0 = off (`friction_off`).
+   - It doesn't apply to lifetime or planned retirements, or before 2030 (the block).
+   - Toy: coal at 400 k$/MW-yr retires in 2030 without friction and stays with it.
+5. **Virginia in RGGI from 2028** (`rggi.virginia`, `s0_workflow/specs/rggi/va_budget.csv`):
+   - Virginia's four zones join ETS 1 with its budget on top of the RGGI10 3PR cap, equally split, with ETS 1's floor.
+   - Each CCR tier grows by 10% of the budget.
+   - Budget: 22.96M short t (2026) × the RGGI10 3PR path relative to 2026, held after 2037.
+   - Combined cap (metric t): 2028 71.62M, 2030 51.15M, 2035 16.18M, 2040/45 10.59M.
+   - The 2027 value is 20,413,052 short t, against DEQ's reported proposed 20,408,889 (unverified; +0.02%).
+   - The build stops if Virginia is already in ETS 1.
+6. **Imports generators in CA/WA zones** (`ca_wa_carbon.import_gens`):
+   - Mexico into p11: price × 0.428 per MWh on output (`gen_om_by_period.csv`).
+   - Canada into p1/p3: 0, documented as an assumption. No primary-source ACS factor could be cited: CARB's ACS page
+     was unreachable from the session. Powerex reports 0.0233 t/MWh for data year 2019.
+7. **Fixed O&M by period** (`existing_fixed_om: by_period`):
+   - Within a stage, gen_om_by_period already varied it.
+   - The gap was the chain: `prepare_next_stage` carried the earlier stage's `gen_fixed_om`, so existing units kept
+     the 2028 value.
+   - The case now lists existing-only generators (`existing_fom_by_period.csv`), and `prepare_next_stage` gives them
+     the next stage's own value.
+
+**Model size (timepoints per stage, mode A):**
+- 600 sample timepoints (24 days + the peak day) + 24 × the stress days. The stress days come to at most 48, so at
+  most 1,752 timepoints.
+- The count needs the weather data (VM; recipe C reports it).
+- Memory at about 65 MB per timepoint (the foresight test runs): about 76 GB at 24 stress days, 92 GB at 34, 114 GB at
+  48 (was about 58 GB with 12).
+- Mode B windows hold two periods: roughly double.
+
+**Tests:** `test_final_s0.py` (11):
+- defaults and regression pins;
+- the guaranteed rule, the national wind fallback;
+- the lifetime backstop and report;
+- the friction toy and writer;
+- the Virginia budget file and ETS 1 rows;
+- the imports-generator cost;
+- fixed O&M by period.
+
+Existing tests were updated for the new defaults, rows and column.
+
+**Results:** pandas 3.0.6: 167 passed with build_rate; 1.4.4: 166 passed and 1 skipped.

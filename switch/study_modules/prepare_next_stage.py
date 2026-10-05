@@ -99,6 +99,19 @@ def read_stage_info(in_path):
     return pd.read_csv(p, dtype=str, keep_default_na=False).iloc[0].to_dict()
 
 
+def existing_fom_from_next_stage(costs, next_costs, projects):
+    """gen_fixed_om of the listed (existing-only) projects from the next stage's own gen_build_costs.csv (one value
+    per project there: pg_to_switch gives every build year of an existing cluster the same fixed O&M). Projects the
+    next stage has no own row for (e.g. a cluster PowerGenome no longer counts in that model year while Switch
+    still runs it there) keep this stage's value. Returns (costs, number of projects updated)."""
+    g, nc = costs.columns[0], next_costs.rename(columns={next_costs.columns[0]: costs.columns[0]})
+    own = nc.dropna(subset=["gen_fixed_om"]).drop_duplicates(subset=[g]).set_index(g)["gen_fixed_om"]
+    m = costs[g].astype(str).isin(projects) & costs[g].isin(own.index)
+    costs = costs.copy()
+    costs.loc[m, "gen_fixed_om"] = costs.loc[m, g].map(own)
+    return costs, int(costs.loc[m, g].nunique())
+
+
 def chain_stage(m, in_path, out_path, next_in_path, case_name, commit=None, commit_end=None):
     """Write the next stage's chained inputs. commit / commit_end: the period this stage commits and
     its last calendar year (None = everything this stage built, the legacy behaviour)."""
@@ -315,6 +328,14 @@ def chain_stage(m, in_path, out_path, next_in_path, case_name, commit=None, comm
     # (this will use data from this model for projects/build_years from this
     # model and data from the next model for additional projects/build_years)
     costs = merge_build_data(costs, "gen_build_costs.csv")
+    # S0 existing_fixed_om by_period (CHANGES §66): the existing generators the next stage lists in
+    # existing_fom_by_period.csv take the next stage's own fixed O&M (its period's value) instead of this stage's
+    if Path(next_in_path, "existing_fom_by_period.csv").exists():
+        costs, n = existing_fom_from_next_stage(
+            costs, read_csv(next_in_path, "gen_build_costs.csv"),
+            set(read_csv(next_in_path, "existing_fom_by_period.csv").iloc[:, 0].astype(str)))
+        print(f"{__name__}: fixed O&M of {n} existing generators from the next stage's own gen_build_costs.csv "
+              f"(existing_fom_by_period.csv)")
     # Switch's GEN_BLD_YRS validation only accepts (gen, build_year) pairs that
     # are either in the predetermined set or whose build_year is one of the
     # next stage's own model periods. merge_build_data() above pulls forward

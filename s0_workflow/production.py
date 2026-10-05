@@ -290,6 +290,90 @@ def rggi_3pr_values(year: int, r: dict | None = None) -> dict:
             "ccr_volumes": [float(row.ccr_t1_volume_metric_tonnes), float(row.ccr_t2_volume_metric_tonnes)]}
 
 
+VA_DEFAULTS = {"enabled": False, "budget": "s0_workflow/specs/rggi/va_budget.csv", "first_year": 2028,
+               "state": "VA", "ccr_share_per_tier": 0.10}
+
+
+def va_settings(s0: dict) -> dict:
+    """s0_production.rggi.virginia (CHANGES §66)."""
+    r = rggi_settings(s0)
+    return {**VA_DEFAULTS, **(r.get("virginia") or {})}
+
+
+def va_budget_short_tons(year: int, v: dict | None = None) -> float:
+    """Virginia's budget for a year from va_budget.csv (short tons; the last year's value after the file ends)."""
+    t = pd.read_csv(REPO / (v or VA_DEFAULTS)["budget"]).set_index("year")["va_budget_short_tons"]
+    y = int(year)
+    if y < int(t.index.min()):
+        raise ValueError(f"va_budget.csv starts in {int(t.index.min())}; no budget for {y}")
+    return float(t.loc[min(y, int(t.index.max()))])
+
+
+def write_va_rggi(folder: Path, s0: dict, scen_settings_dict: dict, log) -> None:
+    """Virginia in RGGI (ETS 1) from first_year: Virginia's zones (hierarchy.csv st) join ETS 1 with Virginia's budget
+    (va_budget.csv, short tons -> metric x 0.907185, split equally over its zones) on top of the RGGI10 cap; the
+    rows take ETS 1's floor and cost (the Model Rule floor; hard cap). carbon_policies.csv (the ETS 1 total) gets the
+    budget too, and each ETS 1 CCR tier in carbon_policies_ccr.csv grows by ccr_share_per_tier of the budget (same
+    trigger prices). Stops if a Virginia zone is already in ETS 1 (rggi_va_fraction, RGGI10+VA). Writes
+    rggi_va_budget.csv (budget and combined cap by period)."""
+    r, v = rggi_settings(s0), va_settings(s0)
+    folder = Path(folder)
+    if r["mode"] != "3pr" or not v["enabled"] or not (folder / "carbon_policies_regional.csv").exists():
+        return
+    prog = r["program"]
+    c = pd.read_csv(folder / "carbon_policies_regional.csv")
+    zones = set(pd.read_csv(folder / "load_zones.csv").iloc[:, 0].astype(str))
+    h = pd.read_csv(REPO / "hierarchy.csv")
+    va = sorted((set(h.ba[h.st == v["state"]]) & zones), key=lambda z: (len(z), z))
+    if not va:
+        raise ValueError(f"rggi.virginia: no {v['state']} zones in the case")
+    dup = c[(c.CO2_PROGRAM == prog) & c.LOAD_ZONE.isin(va)]
+    if len(dup):
+        raise ValueError(f"rggi.virginia: {sorted(set(dup.LOAD_ZONE))} already in {prog} (rggi_va_fraction?); "
+                         f"Virginia would be counted twice")
+    add, report = [], []
+    for year in sorted(int(y) for y in scen_settings_dict):
+        e = c[(c.CO2_PROGRAM == prog) & (c.PERIOD == year)]
+        if year < int(v["first_year"]) or e.empty:
+            continue
+        short = va_budget_short_tons(year, v)
+        metric = short * SHORT_TON_PER_TONNE
+        for z in va:
+            add.append({"CO2_PROGRAM": prog, "PERIOD": year, "LOAD_ZONE": z,
+                        "carbon_cap_tco2_per_yr": metric / len(va),
+                        "carbon_cost_dollar_per_tco2": e.carbon_cost_dollar_per_tco2.iloc[0],
+                        "carbon_floor_price_dollar_per_tco2": e.carbon_floor_price_dollar_per_tco2.iloc[0]})
+        rggi10 = float(pd.to_numeric(e.carbon_cap_tco2_per_yr).sum())
+        report.append({"PERIOD": year, "va_budget_short_tons": short, "va_budget_metric_tonnes": round(metric, 1),
+                       "rggi10_cap_metric_tonnes": round(rggi10, 1),
+                       "combined_cap_metric_tonnes": round(rggi10 + metric, 1),
+                       "combined_cap_short_tons": round((rggi10 + metric) / SHORT_TON_PER_TONNE, 1),
+                       "va_ccr_per_tier_metric_tonnes": round(float(v["ccr_share_per_tier"]) * metric, 1)})
+    if not add:
+        return
+    pd.concat([c, pd.DataFrame(add)], ignore_index=True).to_csv(folder / "carbon_policies_regional.csv", index=False)
+    rep = pd.DataFrame(report)
+    if (folder / "carbon_policies.csv").exists():
+        cp = pd.read_csv(folder / "carbon_policies.csv")
+        extra = cp.PERIOD.map(rep.set_index("PERIOD").va_budget_metric_tonnes).fillna(0)
+        cp["carbon_cap_tco2_per_yr"] = pd.to_numeric(cp.carbon_cap_tco2_per_yr) + extra
+        cp.to_csv(folder / "carbon_policies.csv", index=False)
+    rep["ccr_pools_metric_tonnes"] = ""
+    if (folder / "carbon_policies_ccr.csv").exists():
+        ccr = pd.read_csv(folder / "carbon_policies_ccr.csv")
+        m = ccr.CO2_PROGRAM == prog
+        extra = ccr.PERIOD.map(rep.set_index("PERIOD").va_ccr_per_tier_metric_tonnes).fillna(0)
+        ccr.loc[m, "ccr_pool_tco2_per_yr"] = ccr.loc[m, "ccr_pool_tco2_per_yr"] + extra[m]
+        ccr.to_csv(folder / "carbon_policies_ccr.csv", index=False)
+        pools = ccr[m].groupby("PERIOD").ccr_pool_tco2_per_yr.apply(lambda x: "/".join(f"{v:.0f}" for v in x))
+        rep["ccr_pools_metric_tonnes"] = rep.PERIOD.map(pools).fillna("")
+    rep.to_csv(folder / "rggi_va_budget.csv", index=False)
+    log(f"RGGI + Virginia ({prog}, zones {va}, budget {v['budget']}): "
+        + "; ".join(f"{r.PERIOD}: VA {r.va_budget_short_tons / 1e6:.2f}M short t ({r.va_budget_metric_tonnes / 1e6:.2f}M t), "
+                    f"combined cap {r.combined_cap_metric_tonnes / 1e6:.2f}M t, CCR tiers {r.ccr_pools_metric_tonnes}"
+                    for r in rep.itertuples()) + " (rggi_va_budget.csv)")
+
+
 def apply_rggi(s: dict, s0: dict, case=None, year=None) -> None:
     """s0_production.rggi (CHANGES §62): with mode 3pr (S0 default) every S0 case gets the Third Program Review
     auction reserve price (carbon_floor_price_by_program) and both CCR tiers (carbon_ccr_prices, carbon_ccr pools)
@@ -409,6 +493,47 @@ def write_ca_wa_import_cost(folder: Path, s0: dict, scen_settings_dict: dict, lo
                         for y in sorted({x["PERIOD"] for x in rows})))
 
 
+def write_imports_carbon_cost(folder: Path, s0: dict, scen_settings_dict: dict, log) -> None:
+    """Imports generators inside CA / WA zones (CHANGES §66): their output pays the linked price x the zone's
+    import_gens factor (tCO2/MWh) per MWh, as gen_variable_om_by_period (gen_om_by_period.csv; added to any value
+    already there). S0: Mexico into p11 (CA) at the unspecified-import 0.428; Canada into p1 and p3 (WA) as specified
+    low-emission hydro (BC Hydro / Powerex, an asset-controlling supplier) at 0 (no primary-source ACS factor cited;
+    an assumption). Imports generators = gen_tech containing "imports"."""
+    r = ca_wa_settings(s0)
+    folder = Path(folder)
+    fac = {str(z): float(f) for z, f in (r.get("import_gens") or {}).items()}
+    if r["mode"] != "linked" or not fac:
+        return
+    gi = _read(folder, "gen_info.csv", usecols=["GENERATION_PROJECT", "gen_tech", "gen_load_zone"])
+    g = gi[gi.gen_tech.astype(str).str.lower().str.contains("imports") & gi.gen_load_zone.astype(str).isin(fac)]
+    rows = []
+    for year in sorted(int(y) for y in scen_settings_dict):
+        price = ca_wa_price(year, r)
+        if price is None:
+            continue
+        for gen, z in zip(g.GENERATION_PROJECT, g.gen_load_zone):
+            if fac[str(z)] > 0:
+                rows.append({"GENERATION_PROJECT": gen, "PERIOD": year, "add": round(price * fac[str(z)], 4)})
+    found = ", ".join(f"{z} ({fac[z]:g} t/MWh): {sorted(g.GENERATION_PROJECT[g.gen_load_zone == z])}"
+                      for z in sorted(fac)) or "none"
+    if not rows:
+        log(f"ca_wa_carbon imports generators: {found}; no cost (factor 0 or no price)")
+        return
+    path = folder / "gen_om_by_period.csv"
+    cols = ["GENERATION_PROJECT", "PERIOD", "gen_fixed_om_by_period", "gen_variable_om_by_period",
+            "gen_storage_energy_fixed_om_by_period"]
+    om = pd.read_csv(path, na_values=["."]) if path.exists() else pd.DataFrame(columns=cols)
+    a = pd.DataFrame(rows)
+    om = om.merge(a, on=["GENERATION_PROJECT", "PERIOD"], how="outer")
+    om["gen_variable_om_by_period"] = pd.to_numeric(om.gen_variable_om_by_period).fillna(0) + om["add"].fillna(0)
+    om = om.drop(columns="add")[cols]
+    om["PERIOD"] = om.PERIOD.astype("int64")
+    om.to_csv(path, index=False, na_rep=".")
+    log(f"ca_wa_carbon imports generators: {found}; $/MWh on output by period "
+        + ", ".join(f"{y}: {sorted(set(a[a.PERIOD == y]['add']))}" for y in sorted(set(a.PERIOD)))
+        + " (gen_om_by_period.csv)")
+
+
 LEVEL_KEYS = {"interconnection_headroom": "scenario", "build_rate": "level"}
 
 
@@ -460,6 +585,30 @@ def forced_tx_period(in_service_year: int, chain_years, stage_years):
     stage_years (pg_to_switch's behaviour before)."""
     period = next((p for p in sorted(chain_years) if p >= int(in_service_year)), None)
     return period if period is not None and period in set(stage_years) else None
+
+
+def write_existing_fom_by_period(folder: Path, s0: dict, log: Log) -> None:
+    """s0_production.existing_fixed_om (CHANGES §66). by_period (S0 default): existing_fom_by_period.csv lists the
+    case's existing-only generators (every gen_build_costs row predetermined), and in a chain prepare_next_stage
+    gives them the next stage's own fixed O&M. Within a stage pg_to_switch already charges each period its own
+    value (gen_fixed_om = the mean over the stage's model years, gen_om_by_period.csv the deviations), but the next
+    stage kept this stage's gen_fixed_om for carried capacity, so in a mode-A chain an existing unit's fixed O&M
+    stayed at the first stage's value (and in mode B at the first window's mean). mean (legacy, the regression
+    case): as before."""
+    mode = (s0 or {}).get("existing_fixed_om", "mean")
+    if mode not in ("mean", "by_period"):
+        raise ValueError(f"s0_production.existing_fixed_om must be mean or by_period, not {mode!r}")
+    if mode != "by_period":
+        return
+    bc = _read(folder, "gen_build_costs.csv")
+    pre = _read(folder, "gen_build_predetermined.csv")
+    keys = set(zip(pre.iloc[:, 0].astype(str), pd.to_numeric(pre.iloc[:, 1]).astype("int64")))
+    bc["predet"] = [(g, int(b)) in keys for g, b in zip(bc.iloc[:, 0].astype(str), pd.to_numeric(bc.iloc[:, 1]))]
+    only = bc.groupby(bc.columns[0]).predet.all()
+    gens = sorted(only.index[only])
+    pd.DataFrame({"GENERATION_PROJECT": gens}).to_csv(Path(folder) / "existing_fom_by_period.csv", index=False)
+    log(f"existing fixed O&M by period: {len(gens)} existing generators take each stage's own fixed O&M in a chain "
+        f"(existing_fom_by_period.csv; prepare_next_stage)")
 
 
 def economic_rule_on(s0: dict) -> bool:
@@ -733,6 +882,43 @@ def write_retirement_rules(folder: Path, s0: dict, log: Log) -> None:
         f"gen_can_retire_early = 1 on {int(m.sum())} existing generators ({before} already had it)")
 
 
+FRICTION_DEFAULTS = {"fraction": 0.0, "from_period": 2030, "energy_sources": ["coal", "naturalgas"]}
+
+
+def friction_settings(s0: dict) -> dict:
+    """s0_production.retirement_friction (CHANGES §66): the fraction of an existing unit's fixed O&M that retiring
+    it does not avoid (0 off, 0.5 the S0 default), from from_period on, for these energy sources."""
+    f = {**FRICTION_DEFAULTS, **((s0 or {}).get("retirement_friction") or {})}
+    if not 0.0 <= float(f["fraction"]) <= 1.0:
+        raise ValueError(f"s0_production.retirement_friction.fraction must be in [0, 1], not {f['fraction']!r}")
+    return f
+
+
+def friction_on(s0: dict) -> bool:
+    return float(friction_settings(s0)["fraction"]) > 0
+
+
+def write_retirement_friction(folder: Path, s0: dict, log: Log) -> None:
+    """retirement_friction.csv for study_modules.retirement_rules: retiring existing coal or gas from from_period on
+    avoids only (1 - fraction) of its fixed O&M (the rest stays in the objective). Economic retirement itself is
+    allowed by write_retirement_rules (gen_can_retire_early; no retirement before 2030 under block_all and
+    planned_only), so before 2030 there is nothing to charge."""
+    f = friction_settings(s0)
+    if not friction_on(s0):
+        return
+    sources = [str(x).lower() for x in f["energy_sources"]]
+    gi = _read(folder, "gen_info.csv", dtype=str, keep_default_na=False)
+    pre = _read(folder, "gen_build_predetermined.csv")
+    m = gi["gen_energy_source"].str.lower().isin(sources) & gi["GENERATION_PROJECT"].isin(set(pre["GENERATION_PROJECT"]))
+    found = sorted(set(gi.loc[m, "gen_energy_source"]))
+    pd.DataFrame({"gen_energy_source": found, "rf_fraction": float(f["fraction"]),
+                  "rf_from_period": int(f["from_period"])}).to_csv(Path(folder) / "retirement_friction.csv", index=False)
+    can = gi.get("gen_can_retire_early", pd.Series("0", index=gi.index)).isin(["1", "1.0"])
+    log(f"retirement friction: retiring existing {found} from period {int(f['from_period'])} avoids "
+        f"{1 - float(f['fraction']):.0%} of its fixed O&M ({float(f['fraction']):.0%} stays in the objective); "
+        f"{int(m.sum())} existing generators, {int((m & can).sum())} of them can retire economically")
+
+
 def write_build_rules(folder: Path, s0: dict, log: Log) -> None:
     """build_rules.csv for study_modules.build_rules: no NEW capacity of the rule's technologies (gen_tech
     containing one of `technologies`, case-insensitive; e.g. nuclear, large and SMR) in periods before
@@ -770,12 +956,17 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     apply_rps_acp(out_folder, s0, log)
     apply_ic_slack(out_folder, s0, log)
     write_retirement_rules(out_folder, s0, log)
+    write_retirement_friction(out_folder, s0, log)                          # after the rule (gen_can_retire_early)
     write_build_rules(out_folder, s0, log)
+    write_existing_fom_by_period(out_folder, s0, log)                       # fixed O&M by period in chains (§66)
     coal_fleet.write_case_inputs(out_folder, s0, scen_settings_dict, log)   # coal spec rev. 2 (after the retirement rule)
+    coal_fleet.write_lifetime_report(out_folder, s0, scen_settings_dict, log)  # lifetime backstop (§66)
     prm.write_case_inputs(out_folder, s0, scen_settings_dict, log)          # regional planning reserve (§55)
     tx_policy.write_case_inputs(out_folder, s0, scen_settings_dict, log)    # moratorium, national cap (§60)
     write_level_switch(out_folder, s0, scen_settings_dict, log)             # headroom scenario by period (§60)
     write_ca_wa_import_cost(out_folder, s0, scen_settings_dict, log)       # CA/WA import carbon cost (§65)
+    write_imports_carbon_cost(out_folder, s0, scen_settings_dict, log)     # imports generators in CA/WA (§66)
+    write_va_rggi(out_folder, s0, scen_settings_dict, log)                 # Virginia in ETS 1 (§66)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))
@@ -788,7 +979,7 @@ def scenario_options(settings: dict) -> str:
     if s0 is None:
         return ""
     mods = list(s0.get("extra_modules") or [])
-    if economic_rule_on(s0) and "study_modules.retirement_rules" not in mods:
+    if (economic_rule_on(s0) or friction_on(s0)) and "study_modules.retirement_rules" not in mods:
         mods.append("study_modules.retirement_rules")
     if (s0.get("new_build_rule") or {}).get("enabled") and "study_modules.build_rules" not in mods:
         mods.append("study_modules.build_rules")

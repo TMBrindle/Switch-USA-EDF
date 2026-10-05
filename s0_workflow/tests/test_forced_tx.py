@@ -91,7 +91,7 @@ def test_reeds_certain_table_and_comparison():
 
 def test_settings_options_and_legacy():
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert s0["forced_tx"] == "reeds_certain" and s0["forced_tx_expansion_limit"] == "minimum"
+    assert s0["forced_tx"] == "reeds_certain_plus_A" and s0["forced_tx_expansion_limit"] == "minimum"   # §66
     ax = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))["settings_management"]["all_years"]
     assert ax["forced_tx"] == {"reeds_certain": {"s0_production": {"forced_tx": "reeds_certain"}},
                                "named_projects": {"s0_production": {"forced_tx": "named_projects"}},
@@ -117,9 +117,11 @@ def test_settings_options_and_legacy():
     assert [c for c in si.columns if a[c] != b[c]] == ["case_id", "forced_tx"] and a.year == 2035
     assert a.forced_tx == "reeds_certain" and b.forced_tx == "named_projects" and a.s0_production == "on_pgdays_new"
     new = si[si.case_id == "s4x1_S0prod_2035_new"].iloc[0]
-    assert [c for c in si.columns if a[c] != new[c]] == ["case_id"]
+    # §66: _new has the final S0 configuration (one stage, fleet-independent days, regional reserve, S0_tx)
+    assert [c for c in si.columns if a[c] != new[c]] == ["case_id", "s0_production", "forced_tx", "prm_design", "tx_bill"]
     assert set(si.loc[si.case_id == "s4x1_S0prod_2035", "forced_tx"]) == {"legacy"}
-    bill = si.case_id.str.contains("S0_tx|BILL")                     # §60: the new S0 transmission baseline
+    bill = si.case_id.str.contains("S0_tx|BILL") | si.case_id.isin(["S0prod_A", "S0prod_B", "s4x1_S0prod_2035_new"])
+    # §60: the S0 transmission baseline; §66: the S0 default
     assert (si[bill].forced_tx == "reeds_certain_plus_A").all()
     rest = si[~si.case_id.isin(["s4x1_S0prod_2035", "s4x1_S0prod_2035_txnamed"]) & ~bill]
     assert (rest.forced_tx == "reeds_certain").all()                  # inert where s0_production is off

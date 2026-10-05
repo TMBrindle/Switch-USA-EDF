@@ -1,6 +1,8 @@
 # Transmission-bill scenarios and the S0 transmission baseline
 
-Branch `tom/s0-prod-scripts`, CHANGES §60. Every mechanism below is a setting in
+Branch `tom/s0-prod-scripts`, CHANGES §60. Since §66 the S0_tx baseline is the S0 default: `S0prod_A`, `S0prod_B`
+and `s4x1_S0prod_2035_new` use `tx_bill = s0_tx` and `reeds_certain_plus_A` (so `S0prod_A` equals `S0_tx`), and the
+yml default is `tx_policy.mode: national_cap`; `tx_bill = legacy` sets `tx_policy: legacy` explicitly. Every mechanism below is a setting in
 `pg/settings/s0_production.yml`, switched per case through two scenario axes (`tx_bill`, `tx_sens`) and the
 `forced_tx` axis. All older rows use `tx_bill = legacy` and `tx_sens = none`, which set nothing, so every existing
 case (the regression case `s4x1_S0prod_2035` included) builds as before.

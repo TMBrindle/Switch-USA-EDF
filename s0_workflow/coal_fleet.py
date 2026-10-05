@@ -228,10 +228,9 @@ def derive_overrides(units: pd.DataFrame, op: pd.DataFrame, rt: pd.DataFrame, ho
     return pd.DataFrame(rows), final
 
 
-def _no_retirement_year(df: pd.DataFrame) -> pd.Series:
-    """retirement_year that encodes "no retirement in the horizon" the way PowerGenome does for a unit without a
-    planned date: operating year + retirement age (so pg_to_switch's build year = the operating year)."""
-    age = pd.to_numeric(df.get("retirement_age", pd.Series(500, index=df.index)), errors="coerce").fillna(500)
+def operating_year(df: pd.DataFrame) -> pd.Series:
+    """Each unit's EIA operating year (the first of PowerGenome's operating-date columns that has one; NaN if none).
+    Not the build_year of pg_to_switch, which encodes a planned retirement as retirement year - 500."""
     op = None
     for c in ("operating_date", "generator_operating_date", "current_planned_operating_date",
               "original_planned_operating_date"):
@@ -239,8 +238,80 @@ def _no_retirement_year(df: pd.DataFrame) -> pd.Series:
             v = df[c]
             yr = v.dt.year if hasattr(v, "dt") else pd.to_numeric(v, errors="coerce")
             op = yr if op is None else op.fillna(yr)
-    op = (op if op is not None else pd.Series(np.nan, index=df.index)).fillna(cs.HORIZON + 1 - 500)
+    return (op if op is not None else pd.Series(np.nan, index=df.index)).astype(float)
+
+
+def _no_retirement_year(df: pd.DataFrame) -> pd.Series:
+    """retirement_year that encodes "no retirement in the horizon" the way PowerGenome does for a unit without a
+    planned date: operating year + retirement age (so pg_to_switch's build year = the operating year)."""
+    age = pd.to_numeric(df.get("retirement_age", pd.Series(500, index=df.index)), errors="coerce").fillna(500)
+    op = operating_year(df).fillna(cs.HORIZON + 1 - 500)
     return (op + age).clip(lower=cs.HORIZON + 1)
+
+
+# ---------------------------------------------------------------------------------------------- lifetime backstop
+GAS_TECHS = ("Natural Gas Fired Combined Cycle", "Natural Gas Fired Combustion Turbine", GAS_STEAM,
+             "Natural Gas Internal Combustion Engine")
+LIFETIME_DEFAULTS = {"enabled": False, "coal_years": 65, "gas_years": 55, "floor_year": 2026}
+
+
+def lifetime_settings(s0: dict) -> dict | None:
+    """s0_production.lifetime_backstop (CHANGES §66) when on, else None."""
+    lt = {**LIFETIME_DEFAULTS, **((s0 or {}).get("lifetime_backstop") or {})}
+    if not ((s0 or {}).get("enabled") and lt.get("enabled")):
+        return None
+    for k in ("coal_years", "gas_years"):
+        if int(lt[k]) <= 0:
+            raise ValueError(f"s0_production.lifetime_backstop.{k} must be positive")
+    return lt
+
+
+def apply_lifetime(df: pd.DataFrame, lt: dict, rule: dict | None, capacity_col: str = "capacity_mw"
+                   ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Unit-level lifetime backstop on PowerGenome's unit table (before clustering): an existing coal-group unit
+    (coal_years) or gas CC, CT, steam or engine unit (gas_years) retires at the earlier of its retirement year (the
+    planned date, or PowerGenome's no-date encoding) and its EIA operating year + lifetime. A lifetime year up to
+    2030 is held to the 2030 stage under block_all (`rule`: encoded target + 1 = 2031, as the push of planned
+    dates); otherwise one before floor_year is floor_year (the first year of the first stage's span: the unit
+    retires at the first stage). Hold projects (their own technology) and units without an operating year are left
+    alone. Returns (edited copy, record of the units moved)."""
+    df = df.copy()
+    td = df.technology_description.astype(str)
+    cls = pd.Series(np.where(td.isin(cs.COAL_GROUP), "coal", np.where(td.isin(GAS_TECHS), "gas", "")), index=df.index)
+    life = cls.map({"coal": float(lt["coal_years"]), "gas": float(lt["gas_years"])})
+    op = operating_year(df)
+    due = op + life
+    if rule is not None:
+        target = int(rule["target_year"])
+        floored = due.where(~(due <= target), target + 1)     # due by 2030: through the 2030 stage, encoded 2031
+    else:
+        floored = due.clip(lower=float(lt["floor_year"]))
+    cur = pd.to_numeric(df.retirement_year, errors="coerce")
+    moved = floored.notna() & (cur.isna() | (floored < cur))
+    rec = df.loc[moved, ["plant_id_eia", "generator_id", "technology_description"]].assign(
+        lifetime_class=cls[moved], operating_year=op[moved], lifetime_years=life[moved], due_year=due[moved],
+        from_year=cur[moved], to_year=floored[moved],
+        capacity_mw=pd.to_numeric(df.loc[moved, capacity_col], errors="coerce") if capacity_col in df else np.nan)
+    if "model_region" in df:
+        rec["model_region"] = df.loc[moved, "model_region"]
+    df.loc[moved, "retirement_year"] = floored[moved].astype(int).values
+    return df, rec.reset_index(drop=True)
+
+
+def lifetime_by_stage(rec: pd.DataFrame, stages=cs.STAGES) -> pd.DataFrame:
+    """GW out of service in each stage because of the lifetime backstop (in service there by the planned date, not
+    by the lifetime year; Switch --retire early: retirement year Y runs in stage p iff Y >= p), by class."""
+    rows = []
+    for p in stages:
+        for c in ("coal", "gas"):
+            r = rec[rec.lifetime_class == c]
+            m = (r.from_year.isna() | (r.from_year >= p)) & (r.to_year < p)
+            rows.append({"stage": p, "lifetime_class": c, "units": int(m.sum()),
+                         "gw_retired_by_lifetime": round(float(r.capacity_mw[m].sum()) / 1e3, 3)})
+    out = pd.DataFrame(rows)
+    out["gw_new_in_stage"] = out.groupby("lifetime_class").gw_retired_by_lifetime.diff().fillna(
+        out.gw_retired_by_lifetime).round(3)
+    return out
 
 
 def apply_overrides(units: pd.DataFrame, final: dict, ov: pd.DataFrame, capacity_cols=("winter_capacity_mw",),
@@ -391,8 +462,10 @@ def hold_years(edited: pd.DataFrame) -> dict:
 
 # ---------------------------------------------------------------------------------------------- PowerGenome hooks
 class _State:
-    """Per (case, model year): the derived overrides, final states and the unit table after the edits."""
+    """Per (case, model year): the derived overrides, final states and the unit table after the edits; the lifetime
+    backstop's record."""
     store: dict = {}
+    lifetime: dict = {}
 
 
 def state(case: str, year: int) -> dict | None:
@@ -408,7 +481,8 @@ def unit_hooks(settings: dict):
     including the legacy regression case."""
     s0 = (settings.get("s0_production") or {})
     rule = pre2030_rule(settings) if s0.get("enabled") and retirement_option(s0) == "block_all" else None
-    if not (s0.get("enabled") and (spec_settings(s0) or rule)):
+    lt = lifetime_settings(s0)
+    if not (s0.get("enabled") and (spec_settings(s0) or rule or lt)):
         yield None
         return
     import powergenome.generators as pgg
@@ -452,7 +526,15 @@ def unit_hooks(settings: dict):
                             rec["year"], int(moved.sum()), *rule["window"], int(rule["target_year"]) + 1,
                             cluster_tech[moved].value_counts().to_dict())
             if "final" in rec:
-                rec["edited"] = df.copy()
+                rec["edited"] = df.copy()                       # the coal spec's fleet (caps, holds: before lifetime)
+            if lt is not None:
+                df, rec["lifetime"] = apply_lifetime(df, lt, rule, cap_col)
+                by = lifetime_by_stage(rec["lifetime"])
+                logger.info("lifetime backstop %s/%s (coal %s, gas %s yr): %d units moved earlier; GW out by lifetime "
+                            "per stage %s", rec["case"], rec["year"], lt["coal_years"], lt["gas_years"],
+                            len(rec["lifetime"]), {(r.stage, r.lifetime_class): r.gw_retired_by_lifetime
+                                                   for r in by.itertuples()})
+                _State.lifetime[(str(rec["case"]), rec["year"])] = (rec["lifetime"], lt)
         elif "done" in rec:
             # later unit tables: the 860M Operating units PowerGenome adds because they aren't in its EIA-860 units
             # (import_new_generators; the removals deleted above, and plants without a plant-map region), proposed
@@ -505,6 +587,29 @@ def unit_hooks(settings: dict):
 
 
 # ---------------------------------------------------------------------------------------------- case inputs and checks
+def write_lifetime_report(folder: Path, s0: dict, scen_settings_dict: dict, log) -> None:
+    """lifetime_retirements.csv (units moved earlier, from the case's first model year's unit table) and
+    lifetime_retirements_by_stage.csv (coal and gas GW out of service by lifetime per stage), with a log line."""
+    if lifetime_settings(s0) is None:
+        return
+    first = next(iter(scen_settings_dict.values()))
+    case, years = first.get("case_id"), sorted(int(y) for y in scen_settings_dict)
+    got = _State.lifetime.get((str(case), years[0]))
+    if got is None:
+        raise RuntimeError(f"lifetime backstop: no unit record for {case}/{years[0]}; the unit hook "
+                           f"(coal_fleet.unit_hooks) did not run")
+    rec, lt = got
+    folder = Path(folder)
+    rec.to_csv(folder / "lifetime_retirements.csv", index=False)
+    by = lifetime_by_stage(rec)
+    by.to_csv(folder / "lifetime_retirements_by_stage.csv", index=False)
+    piv = by.pivot(index="stage", columns="lifetime_class", values="gw_retired_by_lifetime")
+    log(f"lifetime backstop (coal {lt['coal_years']} yr, gas {lt['gas_years']} yr from the EIA operating year; "
+        f"{len(rec)} units retire earlier than planned): GW out of service by lifetime per stage "
+        + "; ".join(f"{p}: coal {piv.at[p, 'coal']:.2f}, gas {piv.at[p, 'gas']:.2f}" for p in piv.index)
+        + " (lifetime_retirements_by_stage.csv)")
+
+
 def _hold_class(a) -> str:
     return "hold online" if isinstance(a, str) and a.startswith("hold online") else a
 

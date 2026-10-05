@@ -203,6 +203,19 @@ every other case build as before — tests check the legacy settings and that th
 | 67 | `switch/study_modules/trans_hurdle_cost.py` | Optional `trans_import_cost.csv` (trans_lz_from, trans_lz_to, PERIOD, $/MWh): a directional charge on delivered MWh, added inside `TxHurdleCostPerTP` (no new cost component); `trans_import_cost_results.csv` when used. | §65 item 2. | none (no file: same model and outputs) |
 | 68 | `s0_workflow/production.py` (`apply_ca_wa_carbon`, `write_ca_wa_import_cost`), `pg/settings/s0_production.yml` (`ca_wa_carbon`), `pg/settings/scenario_management.yml` (`on_pgdays` pins `ca_wa_carbon: {mode: legacy}`; axis `ca_wa_price`), `pg/extra_inputs/scenario_inputs.csv` (column `ca_wa_price`, central everywhere) | S0 cases: ETS 2 / ETS 3 `carbon_cost_by_program` = the linked price by model year (2024$; central/low/high), replacing the presets' $33.43; import cost into CA/WA zones. | §65 item 1. | none outside S0 (S0 layer, not a preset edit); regression pinned legacy |
 
+### Added in §66 (Oct 2026: final S0 configuration) — please review, Ollie
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 69 | `switch/study_modules/retirement_rules.py` | Optional `retirement_friction.csv` (gen_energy_source, rf_fraction, rf_from_period): new cost component `RetirementFrictionCost` = fraction × (gen_fixed_om + gen_fixed_om_by_period) × SuspendGen on predetermined capacity from rf_from_period; `retirement_rules_check.csv` gains `friction_fraction`, `friction_cost_per_yr` only when the file exists. | §66 item 4 (ReEDS-style retirement friction). | none (no file: same model and the same output columns) |
+| 70 | `switch/study_modules/prepare_next_stage.py` | When the next stage has `existing_fom_by_period.csv`, the listed generators' `gen_fixed_om` in the chained `gen_build_costs` comes from the next stage's own file (`existing_fom_from_next_stage`). | §66 item 7: in a chain, existing units' fixed O&M stayed at the first stage's value. | none without the file (only S0 cases with `existing_fixed_om: by_period` write it) |
+| 71 | `pg_to_switch.py` (`operational_files`) | Log line `Model size <year>: <n> timepoints (...)` when stress days are added. | §66 item 2: report the model size. | log only |
+| 72 | `s0_workflow/coal_fleet.py` (`unit_hooks`, `apply_lifetime`) | The PowerGenome unit hook also runs when `lifetime_backstop` is on and moves coal / gas units' retirement years earlier (operating year + lifetime). | §66 item 3. | S0 cases only; the regression case pins it off |
+| 73 | `pg/settings/scenario_management.yml` | `tx_bill: legacy` now sets `s0_production.tx_policy.mode: legacy` (was `~`); new axis `retirement_sens`; `on_pgdays` pins `tx_policy`, `lifetime_backstop`, `retirement_friction`, `existing_fixed_om`. | §66 item 1: national_cap is the S0 default, so `legacy` must say so to keep the comparison rows as they were. | none outside S0 (inert unless s0_production.enabled) |
+| 74 | `pg/extra_inputs/scenario_inputs.csv` | New column `retirement_sens` (`none` everywhere but three new rows `s4x1_S0_tx_2035_life60/_life70/_nofriction`); `S0prod_A`/`S0prod_B` and `s4x1_S0prod_2035_new` rows changed (above). | §66 items 1, 3, 4. | none for non-S0 rows |
+| 75 | `pg/settings/s0_production.yml` | New defaults: `tx_policy.mode national_cap`, `forced_tx reeds_certain_plus_A`, `prm.stress_days.rule guaranteed`, `rggi.virginia`, `ca_wa_carbon.import_gens`, `lifetime_backstop`, `retirement_friction`, `existing_fixed_om`. | §66. | S0 cases only |
+| 76 | `s0_workflow/prm.py` | `select_stress_days` dispatches on `stress_days.rule` (`guaranteed` new; `greedy` as before, the code default); `region_series` can return regional wind CFs. | §66 item 2. | none outside S0 regional cases |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -260,3 +273,14 @@ every other case build as before — tests check the legacy settings and that th
     year in its presets and write `trans_import_cost.csv` (or reuse `apply_ca_wa_carbon` / `write_ca_wa_import_cost`).
     `trans_hurdle_cost.py` gained an optional input; without it nothing changes. `scenario_inputs.csv` has one more
     column (`ca_wa_price`).
+16. (§66) **Shared Switch modules:** `retirement_rules.py` gained an optional friction cost (#69), and
+    `prepare_next_stage.py` an optional fixed-O&M handoff (#70). Each is inert without its new input file, which only
+    S0 cases write. If fedpol's myopic chains should stop freezing existing units' fixed O&M at the first stage, they
+    can write `existing_fom_by_period.csv` the same way (`production.write_existing_fom_by_period`).
+17. (§66) `scenario_inputs.csv` has one more column (`retirement_sens`); merging with `ollie/fedpol` adds `none` to its
+    rows. `tx_bill: legacy` now writes `tx_policy: {mode: legacy}`. This is a no-op for non-S0 rows, but it differs from
+    the `~` a merge might keep.
+18. (§66) **Virginia:** S0 cases add Virginia to ETS 1 through `va_budget.csv` (production post-step), not through
+    the `RGGI10+VA` preset (`rggi_va_fraction` 0.25 × the 10-state cap). The build stops if both are on. The
+    `RGGI10` preset's alias file `carbon_policies_regional_va.csv` is still written (its own, older Virginia
+    treatment); don't combine it with an S0 case.

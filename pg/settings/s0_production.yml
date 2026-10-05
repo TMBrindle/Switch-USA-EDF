@@ -202,7 +202,7 @@ s0_production:
   #                   transmission status review (forced_tx_status_review below; placeholder until the list is
   #                   supplied: the build stops while it has no class-A rows)
   #   reeds_certain_plus_AB  the same with class A and class B (sensitivity)
-  forced_tx: reeds_certain
+  forced_tx: reeds_certain_plus_A   # S0 default from §66 (the scenario_inputs.csv column sets it per row)
   forced_tx_release: "2026.09.21"
   # status-review projects, one row per project: from_zone, to_zone (model zones), project_name, status_class (A|B),
   # new_cap_mw (MW of transfer capability), mw_basis (must be transfer_capability), new_cap_year (in-service year),
@@ -225,8 +225,18 @@ s0_production:
     design: regional
     config: s0_workflow/specs/prm/prm_redesign_config.yaml   # Tom's research config block (2026-10-04)
     stress_days:
-      max_days: 12                 # greedy coverage stops here (the tolerance widens until it fits)
-      cover_tolerance: 0.02        # a day covers a need within 2% of the region's worst value
+      # guaranteed (S0 default, CHANGES §66): for each reserve region, its worst summer peak-load day, its worst winter
+      #   peak-load day and its lowest-wind day among its top-load days (the top_load_share of the 2007-2013 days by
+      #   daily peak load; lowest daily mean onshore-wind CF, the national CF for a region without wind profiles),
+      #   chosen on weather alone; every one of them is in the set, whatever the count (no day cap; a day that is
+      #   several needs' worst day counts once). The count and model size are logged per model year and in
+      #   <case>/prm/<year>/stress_info.txt.
+      # greedy (S0 before §66): greedy coverage of the three needs (low-wind/solar = daily max stylised net load)
+      #   within cover_tolerance of each worst value, at most max_days days (the tolerance widens until it fits)
+      rule: guaranteed
+      top_load_share: 0.01         # guaranteed: top 1% of days (26 of 2,555) by daily peak load, per region
+      max_days: 12                 # greedy only
+      cover_tolerance: 0.02        # greedy only: a day covers a need within 2% of the region's worst value
       tolerance_step: 0.02
       max_tolerance: 0.20
       summer_months: [6, 7, 8, 9]  # summer peak-load needs
@@ -263,6 +273,17 @@ s0_production:
     parameters: pg/extra_inputs/rggi_carbon/rggi_3pr_parameters.csv
     program: "ETS 1"
     escalation_after_last_year: 0.07
+    # Virginia in RGGI from 2028 (CHANGES §66; s0_workflow/specs/rggi/README.md): Virginia's zones (hierarchy.csv st VA:
+    # p99, p100, p118, p124) join ETS 1 with Virginia's budget on top of the RGGI10 3PR cap (RGGI: Virginia's budget
+    # and CCR are additional to the published RGGI10 volumes), with ETS 1's floor and trigger prices; each CCR tier
+    # grows by 10% of Virginia's budget (as in 2026). Budget: va_budget.csv (year, short tons; swap in DEQ's numbers
+    # when Revision D26 is adopted); initial values 22.96M short tons (2026) x the RGGI10 3PR cap path relative to
+    # 2026, held after 2037. Report: <case>/rggi_va_budget.csv. Off with mode legacy (the regression case).
+    virginia:
+      enabled: true
+      budget: s0_workflow/specs/rggi/va_budget.csv
+      first_year: 2028
+      ccr_share_per_tier: 0.10
 
   # California-Washington carbon (CHANGES §65; Guides and documentation/s0_production.md "California-Washington carbon"):
   #   linked  (S0 default) from 2028 one linked-market price for CA (ETS 2) and WA (ETS 3) on all their power-sector
@@ -275,15 +296,21 @@ s0_production:
   ca_wa_carbon:
     mode: linked
     path: central                  # central (CARB ISOR Jan 2026 Table 21) | low (floor) | high (Bushnell, Feb 2026)
+    # imports generators inside CA / WA zones (CHANGES §66): output pays price x factor (tCO2/MWh) per MWh
+    # (gen_om_by_period.csv). Mexico into p11 (CA): unspecified import, 0.428. Canada into p1 and p3 (WA): specified
+    # low-emission hydro, largely BC Hydro (Powerex, an asset-controlling supplier): 0, an assumption. No primary-source
+    # ACS factor could be cited (CARB's ACS page was not reachable; Powerex reports 0.0233 t/MWh for data year 2019,
+    # about $1.2/MWh at the 2030 price: a candidate value once confirmed against CARB's table).
+    import_gens: {p11: 0.428, p1: 0.0, p3: 0.0}
 
   # transmission policy (axis tx_bill; scenario_inputs.csv column of that name; CHANGES §60; s0_workflow/tx_policy.py,
   # switch/study_modules/tx_build_cap.py, Guides and documentation/transmission_bill_scenarios.md):
-  #   legacy        the case's trans_expansion policy as before (zero: no discretionary transmission); every
-  #                 existing row, including the regression case
-  #   national_cap  S0_tx and the bill cases: per-line limits of the expansion policy replaced by a national cap on
+  #   legacy        the case's trans_expansion policy as before (zero: no discretionary transmission); the regression
+  #                 case and the 2035 comparison rows (tx_bill legacy)
+  #   national_cap  (S0 default from §66) S0prod_A/B, s4x1_S0prod_2035_new, S0_tx and the bill cases: per-line limits of the expansion policy replaced by a national cap on
   #                 discretionary additions (MW-km, forced lines excluded), with an interregional moratorium
   tx_policy:
-    mode: legacy
+    mode: national_cap             # S0 default (S0_tx baseline, CHANGES §66); rows with tx_bill legacy set legacy
     moratorium_first_period: 2040  # first period new lines between transmission planning regions (transreg) can be built
     cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}   # national, intra + interregional; each key holds until the next
     no_bill:                       # lines with an end in these transregs (ERCOT ties and ERCOT-internal lines) keep
@@ -308,6 +335,38 @@ s0_production:
   # hours (through served load) and is reported as class "dr". Off: S0 cases have had no demand response so far.
   demand_response:
     enabled: false
+
+  # lifetime backstop (CHANGES §66; s0_workflow/coal_fleet.py apply_lifetime): unit by unit on PowerGenome's unit table,
+  # before clustering, from each unit's EIA operating year (not pg_to_switch's build_year, which encodes a planned
+  # retirement as year - 500): existing coal-group units retire at the earlier of their planned date and operating
+  # year + coal_years, existing gas CC, CT, steam and engines at operating year + gas_years. Under retirements_pre2030
+  # block_all a unit due by 2030 is held through the 2030 stage (encoded 2031, as the push of planned dates);
+  # otherwise one due before floor_year retires at the first stage. Hold projects keep their order dates. The coal
+  # spec's caps and checks are on the fleet before the backstop. Report: lifetime_retirements.csv,
+  # lifetime_retirements_by_stage.csv (coal and gas GW out by lifetime per stage). Sensitivities (column
+  # retirement_sens): coal 60 or 70 years. Not the technology-wide retirement_ages hook (it would break the
+  # planned-retirement encoding).
+  lifetime_backstop:
+    enabled: true
+    coal_years: 65
+    gas_years: 55
+    floor_year: 2026
+
+  # retirement friction, ReEDS-style (CHANGES §66; study_modules.retirement_rules): retiring an existing coal or gas
+  # unit economically (SuspendGen) from from_period on avoids only (1 - fraction) of its fixed O&M (which includes
+  # PowerGenome's age-based capital additions): the unit retires only if it recovers less than half of its fixed
+  # costs. Before 2030 there is no economic retirement under block_all / planned_only (retirement_rule); lifetime and
+  # planned retirements are not economic and carry none. 0 = off (column retirement_sens friction_off).
+  retirement_friction:
+    fraction: 0.5
+    from_period: 2030
+    energy_sources: [coal, naturalgas]
+
+  # existing generators' fixed O&M by period (CHANGES §66, mode B prep): by_period (S0 default) lists the existing-only
+  # generators in existing_fom_by_period.csv, and prepare_next_stage gives them each stage's own fixed O&M instead of
+  # carrying the first stage's (within a stage gen_om_by_period.csv already varies it by period); mean (legacy) as
+  # before
+  existing_fixed_om: by_period
 
   # item 6: extra Switch modules on the case's scenario line (not switch/modules.txt)
   extra_modules: [study_modules.gen_amortization_period]

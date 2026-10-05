@@ -20,7 +20,20 @@ Cases:
   use the new defaults.
 - `s4x1_S0prod_2035` (on_pgdays): the s4x1 2035 new-stack base for the regression against the ic_v4
   B6+B8 + NY buyout run, on the legacy settings.
-- `s4x1_S0prod_2035_new` (on_pgdays_new): the same case with the new defaults.
+- `s4x1_S0prod_2035_new` (`on_single` since §66): the 2035 case on the final S0 configuration (one stage).
+
+**Final S0 configuration (CHANGES §66, Tom's decisions, Oct 2026):** `S0prod_A`, `S0prod_B`, `s4x1_S0prod_2035_new` and
+the S0_tx-based bill and S-scenario cases build with:
+- the regional reserve (demand response off) on 24 fleet-independent single days plus the stress days, chosen by the
+  guaranteed rule (below);
+- the S0_tx transmission baseline: `reeds_certain_plus_A` forced, national discretionary cap 0 in 2028 and 1.4 TW-mi/yr
+  from 2030, interregional moratorium to 2040 (`tx_bill = s0_tx`);
+- RGGI 3PR with Virginia from 2028; the CA/WA central linked price, with the imports generators in p11 / p1 / p3;
+- the lifetime backstop (coal 65, gas 55 years), retirement friction 0.5 and existing units' fixed O&M by period.
+
+See "Final configuration (§66)" below. The 2035 comparison rows (`_txreeds`, `_txnamed`, `_prm`, `_fi24`, `_fi4x3`) keep
+their own transmission and reserve columns (`tx_bill = legacy` now sets `tx_policy: legacy` explicitly) and take the
+other §66 defaults.
 
 **Defaults since Oct 2026 (CHANGES §45-49), with the legacy setting for each:**
 
@@ -593,16 +606,25 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
      | NorthernGrid_East | 0.129 / 0.123 | 6.4 | 0.0653 | 0.0552 / 0.0496 / 0.0496 | 0.140 |
      | WestConnect_North | 0.1675 / 0.157 | 12.2 | 0.0614 | 0.0930 / 0.0860 / 0.0860 | 0.140 |
 
-3. **Stress days:** about 10-12 real days per model year from the 7 weather years (2007-2013, 365-day years). They
-   are chosen by greedy coverage of three needs per region:
-   - its worst summer peak-load day (Jun-Sep, daily maximum load);
-   - its worst winter peak-load day (Dec-Feb);
-   - its worst low wind/solar high-load day: daily maximum net load with the fleet-independent day selector's
-     stylised fleet (wind and solar sized to supply 20% of the region's load each).
+3. **Stress days** (`stress_days.rule`), real days from the 7 weather years (2007-2013, 365-day years), chosen on
+   weather alone (load and wind/solar profiles, not the fleet):
+   - **`guaranteed` (S0 default since §66):** for each reserve region, the stated rule exactly:
+     - its worst summer peak-load day (Jun-Sep, highest daily peak load);
+     - its worst winter peak-load day (Dec-Feb);
+     - its lowest-wind day among its top-load days: of the region's top 1% of days by daily peak load
+       (`top_load_share` 0.01: 26 of 2,555), the one with the lowest daily mean onshore-wind CF (the mean over the
+       region's onshore-wind profiles; the national mean for a region without any, flagged `wind_basis national`).
 
-   A day covers a need when it is within 2% of the worst value. The tolerance widens in 2% steps until at most 12
-   days cover every need. `<case>/prm/<year>/stress_days.csv` lists which day covers which region and need, and
-   `stress_coverage.csv` gives each need's worst day and the covering day(s).
+     Every one of these days is in the set, however many that makes (16 regions × 3 needs: at most 48; a day that is
+     the worst for several needs or regions counts once). There is no day cap and no tolerance. The count and the
+     model size are in the build log (`Model size <year>: <n> timepoints (<sample> sample, <stress> on <n> stress
+     days)`) and in `<case>/prm/<year>/stress_info.txt`.
+   - **`greedy` (S0 before §66):** greedy coverage of the same summer and winter needs and a low wind/solar need
+     (daily maximum net load with a stylised fleet), within 2% of each worst value, the tolerance widening until at
+     most 12 days (`max_days`) cover every need.
+
+   `<case>/prm/<year>/stress_days.csv` lists which day covers which region and need, and `stress_coverage.csv` gives
+   each need's worst day (with the low-wind day's CF and the top-load-day count).
    - **Weight:** zero (capacity only).
    - **IDs:** timeseries `<year>_pN_prm`, timepoints `9<id>`, so a stress day can also be a sample day.
    - **Enforcement:** the requirement is checked in every stress hour and only there. The S0 scenario line
@@ -679,6 +701,15 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
      (Σ_t |dual_t| × capacity). It is blank when no stress hour has a price. Next to it are PJM 2029/30, NYISO
      2026/27 (ROS and NYC), ISO-NE preliminary (summer and winter) and SPP 2024 (summer and winter) values from the
      config.
+     - **What it is:** a marginal model credit. It weights each class's credited MW by the reserve duals of the
+       stress hours, so it measures how much a MW of the class counts in the hours that bind in this solution. It
+       differs from ISO accreditation (ELCC or class UCAP ratings over many simulated years and outage draws) by
+       design. The comparison columns are context, not targets: the stress days are not tuned toward ISO values
+       (§66).
+     - **Gas is credited above PJM's class values.** Thermal capacity counts at 1 − FOR(T) on the stress day's
+       temperature, but correlated winter fuel-supply failures (gas curtailment, frozen equipment beyond the
+       temperature curves) are not modelled. PJM's ELCC class ratings for gas include them, so model credits for gas
+       CC / CT, especially in winter stress hours, come out higher.
    - **Duals:** they come from `study_modules.write_dual_costs` (in `modules.txt`, so every run gets the `dual`
      suffix). With S0's Gurobi barrier (`method=2 crossover=0`), LP duals are returned from the interior solution.
      The S0 cases are LPs (no unit sizes or minimum builds); a MIP would give none, and `prm_summary.csv` reports
@@ -690,6 +721,109 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
 `study_modules.gen_zone_ratio` has the same laundering issue: it counts battery discharge as in-state generation
 even when the battery charged from imports. A fix was proposed in `docs/plans/gen_zone_ratio_import_cap.md` (P-11,
 on the VM checkout) and not implemented. S0 doesn't use `gen_zone_ratio`, so it is left as is.
+
+## Final configuration (§66)
+
+Settings in `pg/settings/s0_production.yml`; each is off or legacy in the regression case (`on_pgdays` pins).
+
+### Lifetime backstop (`lifetime_backstop`)
+
+- **Rule:** unit by unit, on PowerGenome's unit table before clustering (`coal_fleet.unit_hooks` →
+  `apply_lifetime`). An existing coal-group unit retires at the earlier of its planned date and its EIA operating
+  year + 65; an existing gas CC, CT, steam or engine unit at operating year + 55. The operating year is the unit's
+  EIA operating date, not pg_to_switch's `build_year`, which encodes a planned retirement as year − 500 (e.g. 1530).
+  The technology-wide `retirement_ages` hook is not used: it would break that encoding.
+- **Before 2030:** under `retirements_pre2030 block_all`, a unit due by 2030 is held through the 2030 stage and
+  encoded 2031, the same as the pushed planned dates. Otherwise a unit already past its lifetime retires at the
+  first stage (`floor_year` 2026).
+- **Not touched:** hold projects (their order dates), units without an operating year, and non-coal/gas units.
+  Converted coal-to-gas units count as gas steam. The coal spec's caps and checks are computed on the fleet before
+  the backstop, so the zonal CF caps and the spec tables are unchanged.
+- **Encoding:** a retirement year Y runs in stage p if Y ≥ p (Switch `--retire early`), as for planned dates. A
+  unit due in 2035 therefore runs in the 2035 stage and is gone from 2040.
+- **Report:** `lifetime_retirements.csv` (units moved earlier) and `lifetime_retirements_by_stage.csv` (coal and gas
+  GW out of service by lifetime per stage), plus a log line.
+- **Sensitivities:** column `retirement_sens`: `life_coal60`, `life_coal70`, `lifetime_off`.
+- **Coal, on the committed model basis (block_all; GW out of service because of the lifetime, of the spec's model
+  coal):**
+
+  | Coal lifetime | 2028 | 2030 | 2035 | 2040 | 2045 |
+  |---|---|---|---|---|---|
+  | 60 | 0 | 0 | 37.06 | 61.92 | 91.96 |
+  | 65 (S0) | 0 | 0 | 12.78 | 37.06 | 61.92 |
+  | 70 | 0 | 0 | 3.67 | 12.78 | 37.06 |
+
+  Model coal in service with 65 years: 163.59 / 163.59 / 112.70 / 86.32 / 61.46 GW (before the backstop: 163.59 /
+  163.59 / 125.48 / 123.38 / 123.38). Gas comes from PowerGenome's unit table at the build.
+
+### Retirement friction (`retirement_friction`)
+
+- **Rule (ReEDS-style):** retiring an existing coal or gas unit economically (SuspendGen) from 2030 avoids only half
+  of its fixed O&M. The other half stays in the objective (`RetirementFrictionCost`, `study_modules.retirement_rules`,
+  input `retirement_friction.csv`). A unit therefore retires only if it recovers less than 50% of its fixed costs.
+  Fixed O&M includes PowerGenome's age-based capital additions for existing units; no separate capex is charged on
+  existing capacity. With `existing_fixed_om: by_period`, the per-period value counts.
+- **Settings:** `fraction` 0.5 (S0) or 0 (off; `retirement_sens friction_off`), `from_period` 2030, energy sources
+  coal and naturalgas.
+- **Interactions:**
+  - the pre-2030 block (`retirement_rule`) forbids economic retirement before 2030, so there is nothing to charge then;
+  - lifetime and planned retirements are not economic (build-year encoding), so they pay no friction and don't count;
+  - in a mode-A chain a stage that retires a unit pays the friction in its own period; later stages no longer carry
+    the capacity. In a mode-B window the friction persists in both periods.
+- **Output:** `retirement_rules_check.csv` adds `friction_fraction` and `friction_cost_per_yr` (only when the file is
+  there).
+- **Toy:** at a fixed O&M of 400 k$/MW-yr, coal retires in 2030 without friction and stays with friction 0.5.
+
+### Existing units' fixed O&M by period (`existing_fixed_om`)
+
+- **Within a stage**, pg_to_switch already charged each period its own fixed O&M: `gen_fixed_om` holds the mean over
+  the stage's model years and `gen_om_by_period.csv` the deviations.
+- **Across stages** the next stage kept the earlier stage's `gen_fixed_om` for carried capacity
+  (`prepare_next_stage`). So in a mode-A chain an existing unit's fixed O&M stayed at the 2028 value, and in mode B
+  at the first window's mean.
+- **`by_period` (S0):** the case writes `existing_fom_by_period.csv` (existing-only generators), and
+  `prepare_next_stage` gives those generators the next stage's own value. A cluster that PowerGenome no longer counts
+  in the next model year keeps the earlier value. `mean` is the legacy behaviour.
+
+### Virginia in RGGI (`rggi.virginia`)
+
+- **Membership:** from 2028, Virginia's zones (p99, p100, p118, p124; `hierarchy.csv` st VA) join ETS 1. They bring
+  Virginia's budget on top of the RGGI10 3PR cap; RGGI confirms Virginia's budget and CCR are additional to the
+  published RGGI10 volumes.
+- **Budget:** `s0_workflow/specs/rggi/va_budget.csv` (year, short tons), converted to metric tonnes (× 0.907185) and
+  split equally over the four zones. The rows take ETS 1's floor and cost (the 3PR Model Rule floor; hard cap).
+  `carbon_policies.csv` gets the budget too.
+- **CCR:** each ETS 1 tier grows by 10% of Virginia's budget, as in 2026. The trigger prices are the Model Rule's.
+- **Initial budget:** 22.96M short tons (2026) × the RGGI10 3PR cap path relative to 2026, held after 2037. Replace
+  it with DEQ's numbers when Revision D26 is adopted (`s0_workflow/specs/rggi/README.md`).
+- **Checks:** the build stops if a Virginia zone is already in ETS 1 (`rggi_va_fraction`, RGGI10+VA), so Virginia is
+  never counted twice. Report: `rggi_va_budget.csv`.
+
+| Model year | VA budget (short t) | VA (metric t) | RGGI10 3PR cap (metric t) | Combined (metric t) | CCR per tier (metric t) |
+|---|---|---|---|---|---|
+| 2027 (reference) | 20,413,052 | | | | |
+| 2028 | 17,861,420 | 16,203,612 | 55,411,816 | 71,615,428 | 12,276,481 |
+| 2030 | 12,758,157 | 11,574,009 | 39,579,868 | 51,153,877 | 11,813,521 |
+| 2035 | 4,035,939 | 3,661,343 | 12,520,768 | 16,182,111 | 11,022,254 |
+| 2040, 2045 | 2,640,384 | 2,395,317 | 8,191,313 | 10,586,630 | 10,895,652 |
+
+(The RGGI10 column is `rggicon_3pr.csv`; the case's ETS 1 total comes from the policy file.)
+
+For reference, DEQ's reported proposed 2027 figure is 20,408,889 short tons (unverified; the file is 0.02% above). The
+current regulation has 22.12M (2027) to 19.60M (2030); the file's 2030 value, 12.76M, follows the much steeper 3PR
+path.
+
+### Imports generators inside CA / WA zones (`ca_wa_carbon.import_gens`)
+
+- **Mexico into p11 (California):** an unspecified import. Its output pays price × 0.428 tCO2/MWh per MWh, as
+  `gen_variable_om_by_period` (central: $20.80 in 2028, $22.86 in 2030, $29.02 in 2035, $36.81 in 2040, $46.74 in
+  2045).
+- **Canada into p1 and p3 (Washington):** treated as specified low-emission hydro, largely BC Hydro (Powerex, an
+  asset-controlling supplier), at **0 tCO2/MWh, an assumption**. CARB's ACS factor table could not be reached to cite
+  a primary source. Powerex reports 0.0233 t/MWh for data year 2019, about $1.2/MWh at the 2030 price; it is a
+  candidate value once confirmed against CARB's table (set `import_gens: {p1: <factor>, p3: <factor>}`).
+- **Scope:** imports generators are `gen_tech` containing "imports". Imports over lines still pay the §65 import
+  cost; this covers the generators that sit inside the zones.
 
 ## 2045 load entries
 

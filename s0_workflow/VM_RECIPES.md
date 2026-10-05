@@ -172,7 +172,13 @@ PowerGenome's s4x1 days and no chain.
    - `gas_turbine_cap_results.csv` (cap 557,777.5 MW; binding as before);
    - `ic_headroom.csv` (slack).
 
-## C. Full S0prod_A chain (mode A, 2028-2045, new defaults)
+## C. Full S0prod_A chain (mode A, 2028-2045, final S0 configuration)
+
+**§66 (final S0 configuration):** S0prod_A now has `forced_tx = reeds_certain_plus_A` and `tx_bill = s0_tx` (the
+S0_tx baseline: it equals `S0_tx`), the guaranteed stress-day rule, the lifetime backstop, retirement friction 0.5,
+Virginia in RGGI, the CA/WA imports generators and fixed O&M by period. The new checks are in "§66 checks" at the end
+of step 2; the forced-transmission checks below for `reeds_certain` now apply to the certain lines plus the class-A
+projects (recipe G has the S0_tx checks).
 
 **Case:** `S0prod_A` (`s0_production = on`). Five single-year stages (2028, 2030, 2035, 2040, 2045) on
 the October 2026 defaults:
@@ -361,6 +367,29 @@ in the stage folder. Don't patch around it: send Tom those files and
    - **2045 stage:** the folder `2045/S0prod_A/` exists with a complete case (`gen_info.csv`,
      `loads.csv`, `scenarios` line). The build reports no `flexible_demand_resources` error: the 2045
      load entries are now in the settings.
+   - **§66 checks (each stage):**
+     - **Stress days (guaranteed rule):** `prm/<year>/stress_info.txt` says `rule guaranteed`; `stress_coverage.csv`
+       has 48 rows (16 regions × 3 needs: `summer_peak_load`, `winter_peak_load`, `low_wind_top_load`), every
+       `covered_by` = its `worst_date`, `top_load_days` 26. Any `wind_basis national` row: report the region.
+       **Report** the number of stress days and the console line `Model size <year>: <n> timepoints (<a> sample,
+       <b> on <c> stress days)`. Expected: 600 sample timepoints (24 days + the peak day); stress days at most 48 (a
+       day that is the worst for several regions counts once), so 600 + 24 × days, at most 1,752.
+     - **Lifetime backstop:** `lifetime_retirements_by_stage.csv` and the log line `lifetime backstop (coal 65 yr,
+       gas 55 yr ...)`. Coal GW out of service by lifetime (block_all; the committed model basis): 0 / 0 / 12.78 /
+       37.06 / 61.92 for 2028 / 2030 / 2035 / 2040 / 2045. The build's own unit table may differ slightly (860M
+       re-adds; capacity column): report both rows, coal and gas, for every stage. No unit in
+       `lifetime_retirements.csv` has `to_year` below 2031 (block_all holds everything due by 2030 through the 2030
+       stage). The coal caps and spec checks are unchanged (they are on the fleet before the backstop).
+     - **Retirement friction:** `retirement_friction.csv`: coal and naturalgas, `rf_fraction` 0.5, `rf_from_period`
+       2030; log line `retirement friction: retiring existing ... avoids 50% of its fixed O&M`. The scenario line
+       includes `retirement_rules`.
+     - **Fixed O&M by period:** `existing_fom_by_period.csv` lists the existing-only generators; from the 2030 stage
+       on, the solve log has `fixed O&M of <n> existing generators from the next stage's own gen_build_costs.csv`
+       (printed by the previous stage's `prepare_next_stage`). **Report** n per stage.
+     - **Transmission (S0_tx):** `tx_cap_periods.csv` 0.0 in 2028 and 1.4 from 2030 (no-bill the same);
+       interregional lines have `trans_path_expansion_limit` 0 rows in every stage before 2040; the scenario line
+       includes `tx_build_cap`. Recipe G has the rest.
+     - **Virginia and imports generators:** recipe H.
 3. Solve the lines of `scenarios_S0prod_A.txt` in order, each with the solver options of recipe A,
    into fresh output folders. Stages 2-5 read the `*.chained.S0prod_A.csv` files that the previous
    stage's `prepare_next_stage` wrote. Check they exist before starting each stage.
@@ -382,9 +411,14 @@ in the stage folder. Don't patch around it: send Tom those files and
      against `coal_caps_by_stage.csv`.
    - `ic_headroom.csv` slack.
    - Wall time and peak memory per stage (`measure_run.py`).
+   - §66: `retirement_rules_check.csv` `suspended_mw` and `friction_cost_per_yr` by source and period; coal and gas
+     GW retired by lifetime per stage (from the build); the stress-day count and timepoints per stage. **Memory
+     estimate** (65 MB per timepoint, the foresight test runs): 24 stress days → 1,176 timepoints, about 76 GB; 34 →
+     1,416, about 92 GB; the maximum 48 → 1,752, about 114 GB. Compare with the measured peak.
 
-Optional: build and solve `s4x1_S0prod_2035_new` (the regression case with the new defaults). Compare
-it with recipe A's run to see what the new defaults change in 2035 on the same days.
+Optional: build and solve `s4x1_S0prod_2035_new` (now the 2035 stage on the final configuration, `on_single`; the
+same inputs as `s4x1_S0_tx_2035`). Compare it with recipe A's run. The retirement sensitivities on S0_tx 2035:
+`s4x1_S0_tx_2035_life60`, `_life70`, `_nofriction` (column `retirement_sens`).
 
 ## C-fix. The S0prod_A chain already built at 1eab1ac: forced transmission without a rebuild
 
@@ -642,12 +676,22 @@ import sys, pandas as pd
 d = sys.argv[1]
 c = pd.read_csv(f"{d}/carbon_policies_regional.csv")
 e = c[c.CO2_PROGRAM == "ETS 1"]
+VA = ["p99", "p100", "p118", "p124"]
 for p, g in e.groupby("PERIOD"):
-    print(p, "cap", round(g.carbon_cap_tco2_per_yr.sum()), "floor", sorted(set(g.carbon_floor_price_dollar_per_tco2)))
+    print(p, "cap", round(g.carbon_cap_tco2_per_yr.sum()), "of which VA", round(g[g.LOAD_ZONE.isin(VA)].carbon_cap_tco2_per_yr.sum()),
+          "floor", sorted(set(g.carbon_floor_price_dollar_per_tco2)))
 print(pd.read_csv(f"{d}/carbon_policies_ccr.csv").to_string(index=False))
+import os
+if os.path.exists(f"{d}/rggi_va_budget.csv"):
+    print(pd.read_csv(f"{d}/rggi_va_budget.csv").to_string(index=False))
+om = f"{d}/gen_om_by_period.csv"
+gi = pd.read_csv(f"{d}/gen_info.csv")
+imp = gi[gi.gen_tech.astype(str).str.lower().str.contains("imports") & gi.gen_load_zone.isin(["p1", "p3", "p11"])]
+o = pd.read_csv(om, na_values=["."])
+print(o[o.GENERATION_PROJECT.isin(imp.GENERATION_PROJECT)].to_string(index=False))
 PY
 ```
-Expected (S0, RGGI10):
+Expected (S0 before §66, RGGI10 only; the 2035 comparison rows still look like this except for Virginia, below):
 
 | Period | ETS 1 cap (t) | Floor | CCR rows (tier: pool t, trigger $) |
 |---|---|---|---|
@@ -666,6 +710,25 @@ Expected (S0, RGGI10):
     109.2 for 2028–2045 (central); 33.43 in the regression case.
   - **`trans_import_cost.csv`:** rows only into p1–p4 / p8–p11 from outside them, at price × 0.437 (WA) or × 0.428 (CA).
   - **After solving:** `trans_import_cost_results.csv` gives the delivered MWh and the cost.
+- **Virginia (§66; every S0 case but the regression case):** ETS 1 also has p99, p100, p118 and p124, each with a
+  quarter of Virginia's budget; the floor is the same on every row, and each CCR tier grows by 10% of the budget:
+
+  | Period | ETS 1 cap (t) | of which Virginia | CCR pool per tier (t) |
+  |---|---|---|---|
+  | 2028 | 71,615,428 | 16,203,612 (4,050,903 per zone) | 12,276,481 |
+  | 2030 | 51,153,877 | 11,574,009 | 11,813,521 |
+  | 2035 | 16,182,111 | 3,661,343 | 11,022,254 |
+  | 2040 | 10,586,630 | 2,395,317 | 10,895,652 |
+  | 2045 | 10,586,630 | 2,395,317 | 10,895,652 |
+
+  The ETS 1 cap is the RGGI10 cap (the table above) + Virginia's. `rggi_va_budget.csv` lists the budget in short
+  tons: 17,861,420 / 12,758,157 / 4,035,939 / 2,640,384 / 2,640,384. **Report** the combined cap by period. A build
+  that stops with "already in ETS 1 ... counted twice" means the case also has `rggi_va_fraction` (RGGI10+VA): report
+  it. The regression case has no Virginia rows.
+- **Imports generators (§66):** `gen_om_by_period.csv` has `gen_variable_om_by_period` on p11's imports generator(s):
+  20.8008 (2028), 22.8552 (2030), 29.0184 (2035), 36.808 (2040), 46.7376 (2045) $/MWh (central × 0.428). There are no
+  rows for p1 and p3 (Canada at 0). The build log line `ca_wa_carbon imports generators: ...` names them; **report**
+  the generator names.
 
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 

@@ -74,7 +74,7 @@ def test_settings_s0_regression_and_paths():
     with pytest.raises(ValueError, match="target_usd_year"):
         s0prod.apply_settings({"c": {2035: s}})
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
-    assert list(si.columns)[-1] == "ca_wa_price" and (si.ca_wa_price == "central").all()
+    assert "ca_wa_price" in si.columns and (si.ca_wa_price == "central").all()
 
 
 def test_ca_wa_zones_are_the_priced_programs():
