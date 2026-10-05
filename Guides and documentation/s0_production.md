@@ -24,8 +24,8 @@ Cases:
 
 **Final S0 configuration (CHANGES §66, Tom's decisions, Oct 2026):** `S0prod_A`, `S0prod_B`, `s4x1_S0prod_2035_new` and
 the S0_tx-based bill and S-scenario cases build with:
-- the regional reserve (demand response off) on 24 fleet-independent single days plus the stress days, chosen by the
-  guaranteed rule (below);
+- the regional reserve (demand response off) on 24 fleet-independent single days plus the stress days, chosen by
+  `cover_plus_interconnect_wind` since §68 (below; the guaranteed rule of §66 is an option);
 - the S0_tx transmission baseline: `reeds_certain_plus_A` forced, national discretionary cap 0 in 2028 and 1.4 TW-mi/yr
   from 2030, interregional moratorium to 2040 (`tx_bill = s0_tx`);
 - RGGI 3PR with Virginia from 2028; the CA/WA central linked price, with the imports generators in p11 / p1 / p3;
@@ -608,7 +608,19 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
 
 3. **Stress days** (`stress_days.rule`), real days from the 7 weather years (2007-2013, 365-day years), chosen on
    weather alone (load and wind/solar profiles, not the fleet):
-   - **`guaranteed` (S0 default since §66):** for each reserve region, the stated rule exactly:
+   - **`cover_plus_interconnect_wind` (S0 default since §68):**
+     - **Cover part:** recipe E's greedy cover rule at `cover_plus_tolerance` 0.06. A day covers a region's need if
+       it is within 6% of that region's worst value, for each region's summer peak, winter peak and low wind/solar
+       needs below. The tolerance widens only if more than `max_days` (12) would be needed.
+     - **Interconnection part:** for each interconnection (Eastern, Western, ERCOT; `hierarchy.csv` `interconnect`),
+       its lowest-wind high-load day. That is, of the top 1% of 2007-2013 days by interconnection-wide daily peak
+       load, the one with the lowest daily mean onshore-wind CF across the interconnection's profiles, chosen on
+       weather alone.
+     - **Duplicates:** a day already in the set is not added again; `stress_coverage.csv` marks it
+       `no (already in the set)`.
+     - **Count:** at most 12 + 3 = 15 days per model year.
+     - **Why:** the guaranteed rule gave 36 days (864 of 1,464 timepoints) and the 2035 test hit the VM's 120 GB stop.
+   - **`guaranteed` (S0 default in §66, now an option):** for each reserve region, the stated rule exactly:
      - its worst summer peak-load day (Jun-Sep, highest daily peak load);
      - its worst winter peak-load day (Dec-Feb);
      - its lowest-wind day among its top-load days: of the region's top 1% of days by daily peak load

@@ -2846,3 +2846,40 @@ every option (`fuel_price_options_by_stage.csv`).
 Existing tests were updated for the new column.
 
 **Results:** pandas 3.0.6: 173 passed with build_rate; 1.4.4: 172 passed and 1 skipped.
+
+## 68. S0 Production: Stress Days, Greedy Cover plus Interconnection Low-Wind Days
+
+**Date:** 2026-10-05 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("The regional design" item 3), recipe C,
+`SHARED_CHANGES.md` #80
+
+**Why:** on the VM, the §66 guaranteed rule gave 36 stress days (864 of 1,464 timepoints), and the 2035 test hit the
+VM's 120 GB stop.
+
+**Tom's decision:** a new `prm.stress_days.rule`, `cover_plus_interconnect_wind`, is now the S0 default.
+`guaranteed` and `greedy` stay as options.
+- **Cover part:** recipe E's greedy cover rule. A day covers a region's need if it is within 6% of that region's
+  worst value (`cover_plus_tolerance` 0.06), for the summer peak, winter peak and low wind/solar needs. The tolerance
+  widens only if more than 12 days would be needed.
+- **Interconnection part:** for each interconnection (Eastern, Western, ERCOT; `hierarchy.csv` `interconnect`), its
+  lowest-wind day among its top 1% of 2007-2013 days by interconnection-wide daily peak load. Wind is the daily mean
+  onshore-wind CF over the interconnection's profiles; weather alone. A day already in the set is skipped and marked.
+- **Diagnostics:** `stress_coverage.csv` gains three `interconnection:<name>` rows (date, wind CF, `added`).
+  `stress_info.txt` gives the tolerance and the interconnection days added.
+
+**Expected size (24 sample days + the peak day = 600 sample timepoints):**
+- at most 12 + 3 = 15 stress days, so at most 960 timepoints per stage (840-960 for 10-15 days);
+- the guaranteed rule's 1,464 timepoints come down by about 34-43%;
+- memory: about 62 GB at the foresight runs' 65 MB per timepoint. Scaled from the 2035 test (1,464 timepoints, stopped
+  at 120 GB, so at least that), at least about 79 GB. The count itself comes from the build (recipe C reports it).
+
+The regression case uses the legacy reserve (no stress days), so it is unchanged.
+
+**Tests** (`test_final_s0.py` +2):
+- the rule on planted data: tolerance 0.06; each interconnection's day is the lowest-wind top-1% day; a duplicate is
+  skipped and labelled; at most 15 days; errors for a missing interconnection input or an unknown rule;
+- `add_stress_days` end to end with `hierarchy.csv` interconnections and the info line.
+
+Default-setting test updated.
+
+**Results:** pandas 3.0.6: 175 passed with build_rate; 1.4.4: 174 passed and 1 skipped.

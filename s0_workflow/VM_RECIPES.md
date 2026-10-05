@@ -368,12 +368,15 @@ in the stage folder. Don't patch around it: send Tom those files and
      `loads.csv`, `scenarios` line). The build reports no `flexible_demand_resources` error: the 2045
      load entries are now in the settings.
    - **§66 checks (each stage):**
-     - **Stress days (guaranteed rule):** `prm/<year>/stress_info.txt` says `rule guaranteed`; `stress_coverage.csv`
-       has 48 rows (16 regions × 3 needs: `summer_peak_load`, `winter_peak_load`, `low_wind_top_load`), every
-       `covered_by` = its `worst_date`, `top_load_days` 26. Any `wind_basis national` row: report the region.
-       **Report** the number of stress days and the console line `Model size <year>: <n> timepoints (<a> sample,
-       <b> on <c> stress days)`. Expected: 600 sample timepoints (24 days + the peak day); stress days at most 48 (a
-       day that is the worst for several regions counts once), so 600 + 24 × days, at most 1,752.
+     - **Stress days (§68, `cover_plus_interconnect_wind`):**
+       - `prm/<year>/stress_info.txt` says `rule cover_plus_interconnect_wind; cover tolerance 0.060` (higher only if
+         12 days did not suffice: report it) and `interconnection low-wind days: <a> added, <b> already in the set`.
+       - `stress_coverage.csv`: 48 region rows, no `NOT COVERED`, plus three `interconnection:<eastern|western|ercot>`
+         rows with `top_load_days` 26 and `added`.
+       - **Report** the number of stress days and the console line `Model size <year>: <n> timepoints (<a> sample,
+         <b> on <c> stress days)`.
+       - **Expected:** 600 sample timepoints; at most 12 + 3 = 15 stress days, so at most 960 timepoints (840-960 for
+         10-15 days), against 1,464 with the guaranteed rule (36 days).
      - **Lifetime backstop:** `lifetime_retirements_by_stage.csv` and the log line `lifetime backstop (coal 65 yr,
        gas 55 yr ...)`. Coal GW out of service by lifetime (block_all; the committed model basis): 0 / 0 / 12.78 /
        37.06 / 61.92 for 2028 / 2030 / 2035 / 2040 / 2045. The build's own unit table may differ slightly (860M
@@ -418,8 +421,9 @@ in the stage folder. Don't patch around it: send Tom those files and
    - Wall time and peak memory per stage (`measure_run.py`).
    - §66: `retirement_rules_check.csv` `suspended_mw` and `friction_cost_per_yr` by source and period; coal and gas
      GW retired by lifetime per stage (from the build); the stress-day count and timepoints per stage. **Memory
-     estimate** (65 MB per timepoint, the foresight test runs): 24 stress days → 1,176 timepoints, about 76 GB; 34 →
-     1,416, about 92 GB; the maximum 48 → 1,752, about 114 GB. Compare with the measured peak.
+     estimate** (§68): at most 960 timepoints per stage. At the foresight runs' 65 MB per timepoint that is about
+     62 GB. Scaled from the 2035 guaranteed-rule test (1,464 timepoints, stopped at 120 GB, so at least that) it is
+     at least about 79 GB. Compare with the measured peak.
 
 Optional: build and solve `s4x1_S0prod_2035_new` (now the 2035 stage on the final configuration, `on_single`; the
 same inputs as `s4x1_S0_tx_2035`). Compare it with recipe A's run. The retirement sensitivities on S0_tx 2035:

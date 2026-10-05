@@ -45,7 +45,7 @@ EXTREME_DAY_SCRIPT = "Add extreme day"
 DEFAULTS = {
     "design": "legacy",
     "config": "s0_workflow/specs/prm/prm_redesign_config.yaml",
-    "stress_days": {"rule": "greedy", "top_load_share": 0.01,
+    "stress_days": {"rule": "greedy", "top_load_share": 0.01, "cover_plus_tolerance": 0.06,
                     "max_days": 12, "cover_tolerance": 0.02, "tolerance_step": 0.02, "max_tolerance": 0.20,
                     "summer_months": [6, 7, 8, 9], "winter_months": [12, 1, 2], "first_weather_year": 2007,
                     "diag_dir": "prm"},
@@ -133,6 +133,27 @@ def zone_regions(zones=None, zone_map: dict | None = None) -> dict:
             if len(rr) != 1 or None in rr:
                 raise ValueError(f"aggregate zone {z} spans reserve regions {sorted(map(str, rr))}")
             out[z] = rr.pop()
+    return out
+
+
+def zone_interconnects(zones, zone_map: dict | None = None) -> dict:
+    """Load zone -> interconnection (hierarchy.csv interconnect: eastern, western, ercot), US zones; aggregate zones
+    take their members' interconnection (it must be unique)."""
+    h = pd.read_csv(REPO / "hierarchy.csv")
+    h = h[h.ba.str.match(r"^p\d+$") & (h.country == "USA")]
+    ic = dict(zip(h.ba, h.interconnect))
+    members = {}
+    for ba, z in (zone_map or {}).items():
+        members.setdefault(z, set()).add(ba)
+    out = {}
+    for z in zones:
+        if z in ic:
+            out[z] = ic[z]
+        elif z in members:
+            v = {ic.get(b) for b in members[z]}
+            if len(v) != 1 or None in v:
+                raise ValueError(f"aggregate zone {z} spans interconnections {sorted(map(str, v))}")
+            out[z] = v.pop()
     return out
 
 
@@ -358,16 +379,71 @@ def region_series(L: pd.DataFrame, R: pd.DataFrame, gens: pd.DataFrame, regions:
     return load, net
 
 
-def select_stress_days(load: dict, net: dict, sd: dict, wind: dict | None = None
+def select_stress_days(load: dict, net: dict, sd: dict, wind: dict | None = None, ic: tuple | None = None
                        ) -> tuple[pd.DataFrame, pd.DataFrame, float]:
-    """Stress days, by stress_days.rule: guaranteed (guaranteed_stress_days) or greedy (below)."""
-    if sd.get("rule", "greedy") == "guaranteed":
+    """Stress days, by stress_days.rule: guaranteed (guaranteed_stress_days), greedy (greedy_stress_days) or
+    cover_plus_interconnect_wind (cover_plus_interconnect_wind; needs `ic`, the interconnections' (load, wind))."""
+    rule = sd.get("rule", "greedy")
+    if rule == "guaranteed":
         if wind is None:
             raise ValueError("stress_days.rule guaranteed needs the regions' wind CFs")
         return guaranteed_stress_days(load, wind, sd)
-    if sd.get("rule", "greedy") != "greedy":
-        raise ValueError(f"stress_days.rule must be guaranteed or greedy, not {sd.get('rule')!r}")
+    if rule == "cover_plus_interconnect_wind":
+        if ic is None:
+            raise ValueError("stress_days.rule cover_plus_interconnect_wind needs the interconnections' load and wind")
+        return cover_plus_interconnect_wind(load, net, ic[0], ic[1], sd)
+    if rule != "greedy":
+        raise ValueError(f"stress_days.rule must be one of {STRESS_RULES}, not {rule!r}")
     return greedy_stress_days(load, net, sd)
+
+
+STRESS_RULES = ("cover_plus_interconnect_wind", "guaranteed", "greedy")
+IC_LABEL = {"eastern": "Eastern", "western": "Western", "ercot": "ERCOT"}
+
+
+def cover_plus_interconnect_wind(load: dict, net: dict, ic_load: dict, ic_wind: dict, sd: dict
+                                 ) -> tuple[pd.DataFrame, pd.DataFrame, float]:
+    """S0 default (CHANGES §68): the greedy cover rule of recipe E at cover_plus_tolerance (0.06: a day covers a
+    region's need if within 6% of that region's worst value; the tolerance widens only if more than max_days are
+    needed), PLUS for each interconnection (Eastern, Western, ERCOT) its lowest-wind high-load day: of its top_load_share
+    of the 2007-2013 days by daily peak load (interconnection-wide load), the one with the lowest daily mean
+    onshore-wind CF (the mean over its onshore-wind profiles), on weather alone. A day already in the set is not added
+    again (its row says so). Returns (days, coverage, tolerance)."""
+    days, cov, tol = greedy_stress_days(load, net, dict(sd, cover_tolerance=float(sd.get("cover_plus_tolerance", 0.06))))
+    D = len(next(iter(ic_load.values()))) // 24
+    cal = day_dates(D, int(sd["first_weather_year"]))
+    n_top = max(1, int(np.ceil(float(sd.get("top_load_share", 0.01)) * D)))
+    have = {int(d): i for i, d in enumerate(days.day)}
+    add, rows = [], []
+    for name in sorted(ic_load, key=lambda k: list(IC_LABEL).index(k) if k in IC_LABEL else 99):
+        dmax = np.asarray(ic_load[name], dtype=float).reshape(D, 24).max(axis=1)
+        wcf = np.asarray(ic_wind[name], dtype=float).reshape(D, 24).mean(axis=1)
+        top = np.argsort(-dmax, kind="stable")[:n_top]
+        d = int(top[np.argmin(wcf[top])])
+        label = f"{IC_LABEL.get(name, name)} low_wind_top_load (interconnection)"
+        already = d in have or d in {a for a, _ in add}
+        if d in have:
+            i = have[d]
+            days.loc[i, "covers"] = days.loc[i, "covers"] + "; " + label
+            days.loc[i, "n_needs_covered"] = int(days.loc[i, "n_needs_covered"]) + 1
+        elif already:
+            add = [(a, lab + "; " + label if a == d else lab) for a, lab in add]
+        else:
+            add.append((d, label))
+        rows.append({"PRM_REGION": f"interconnection:{name}", "need": "low_wind_top_load",
+                     "worst_date": days_label(cal, d), "worst_mw": round(float(dmax[d]), 1),
+                     "covered_by": days_label(cal, d), "covering_value_ratio": 1.0,
+                     "wind_cf": round(float(wcf[d]), 4), "top_load_days": n_top,
+                     "added": "no (already in the set)" if already else "yes"})
+    if add:
+        extra = cal.loc[[a for a, _ in add]].copy()
+        extra["slot"] = [f"p{a + 1}" for a, _ in add]
+        extra["date"] = [f"{y:04d}-{m:02d}-{dd:02d}" for y, m, dd in zip(extra.year, extra.month, extra.dom)]
+        extra["covers"] = [lab for _, lab in add]
+        extra["n_needs_covered"] = [lab.count(";") + 1 for _, lab in add]
+        days = pd.concat([days, extra], ignore_index=True).sort_values("day").reset_index(drop=True)
+    cov = pd.concat([cov, pd.DataFrame(rows)], ignore_index=True)
+    return days, cov, tol
 
 
 def guaranteed_stress_days(load: dict, wind: dict, sd: dict) -> tuple[pd.DataFrame, pd.DataFrame, float]:
@@ -482,10 +558,18 @@ def add_stress_days(results: dict, representative_point: pd.DataFrame, weights, 
     wl = s0.get("wind_loss") or {}
     wf = float(wl.get("factor", (1 - 0.134) / (1 - 0.017))) if wl.get("enabled") else 1.0
     regions = zone_regions(list(period_lc.columns), year_settings.get("_zone_map"))
-    wind = {} if p["stress_days"].get("rule", "greedy") == "guaranteed" else None
-    load, net = region_series(period_lc.reset_index(drop=True), period_variability.reset_index(drop=True),
-                              period_gens, regions, wf, ts.get("stylised_fleet"), wind)
-    days, cov, tol = select_stress_days(load, net, p["stress_days"], wind)
+    rule = p["stress_days"].get("rule", "greedy")
+    wind = {} if rule == "guaranteed" else None
+    L0, R0 = period_lc.reset_index(drop=True), period_variability.reset_index(drop=True)
+    load, net = region_series(L0, R0, period_gens, regions, wf, ts.get("stylised_fleet"), wind)
+    ic = None
+    if rule == "cover_plus_interconnect_wind":
+        ic_wind = {}
+        ic_load, _ = region_series(L0, R0, period_gens, zone_interconnects(list(period_lc.columns),
+                                                                           year_settings.get("_zone_map")),
+                                   wf, ts.get("stylised_fleet"), ic_wind)
+        ic = (ic_load, {k: v for k, v in ic_wind.items() if not isinstance(k, tuple)})
+    days, cov, tol = select_stress_days(load, net, p["stress_days"], wind, ic)
     year = int(year_settings["model_year"])
     days["TIMESERIES"] = [f"{year}_{s}_prm" for s in days.slot]
     td = p["thermal_derate"]
@@ -494,12 +578,14 @@ def add_stress_days(results: dict, representative_point: pd.DataFrame, weights, 
     diag_dir.mkdir(parents=True, exist_ok=True)
     days.to_csv(diag_dir / "stress_days.csv", index=False)
     cov.to_csv(diag_dir / "stress_coverage.csv", index=False)
-    rule = p["stress_days"].get("rule", "greedy")
     (diag_dir / "stress_info.txt").write_text(
         f"{len(days)} stress days for {year} (rule {rule}"
-        + (f"; cover tolerance {tol:.3f}" if rule == "greedy" else
+        + (f"; cover tolerance {tol:.3f}" if rule != "guaranteed" else
            f"; top-load days for the low-wind need: {p['stress_days'].get('top_load_share', 0.01):g} of the record")
-        + f"); {len(load)} regions x 3 needs; not covered: {int((cov.covered_by == 'NOT COVERED').sum())}\n")
+        + f"); {len(load)} regions x 3 needs; not covered: {int((cov.covered_by == 'NOT COVERED').sum())}"
+        + (f"; interconnection low-wind days: {int((cov.get('added', pd.Series(dtype=str)) == 'yes').sum())} added, "
+           f"{int(cov.get('added', pd.Series(dtype=str)).astype(str).str.startswith('no').sum())} already in the set"
+           if rule == "cover_plus_interconnect_wind" else "") + "\n")
     hrs = np.concatenate([np.arange(d * 24, d * 24 + 24) for d in days.day])
     L = period_lc.reset_index(drop=True).iloc[hrs].reset_index(drop=True)
     R = period_variability.reset_index(drop=True).iloc[hrs].reset_index(drop=True)

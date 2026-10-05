@@ -36,7 +36,7 @@ def resolved(*axes):
 # ------------------------------------------------------------------------------------------------ defaults and pins
 def test_defaults_and_regression_pins():
     s = resolved(("s0_production", "on"), ("tx_bill", "s0_tx"), ("retirement_sens", "none"))
-    assert s["prm"]["design"] == "regional" and s["prm"]["stress_days"]["rule"] == "guaranteed"
+    assert s["prm"]["design"] == "regional" and s["prm"]["stress_days"]["rule"] == "cover_plus_interconnect_wind"
     assert s["demand_response"]["enabled"] is False
     assert s["time_sampling"]["method"] == "fleet_independent" and s["time_sampling"]["n_days"] == 24
     assert s["tx_policy"]["mode"] == "national_cap" and s["tx_policy"]["moratorium_first_period"] == 2040
@@ -341,3 +341,62 @@ def test_existing_fom_by_period(tmp_path):
                         "gen_fixed_om": [61000.0, 14000.0]})
     out, n = pns.existing_fom_from_next_stage(carried, nxt, {"coal_a", "coal_b"})
     assert list(out.gen_fixed_om) == [61000.0, 61000.0, 40000.0, 15000.0] and n == 1   # coal_b: no own row, kept
+
+
+# ------------------------------------------------------------------------------------------------ §68 stress-day rule
+def test_cover_plus_interconnect_wind_rule():
+    """Greedy cover at 6% plus each interconnection's lowest-wind top-load day, skipped when already in the set."""
+    rng = np.random.default_rng(5)
+    cal, load, wind, planted = _region_data(4, rng)
+    sd = dict(prm.DEFAULTS["stress_days"], rule="cover_plus_interconnect_wind")
+    assert sd["cover_plus_tolerance"] == 0.06 and sd["max_days"] == 12
+    D = 7 * 365
+    ic_load = {"eastern": load["R0"] + load["R1"], "western": load["R2"], "ercot": load["R3"].copy()}
+    ic_wind = {"eastern": (wind["R0"] + wind["R1"]) / 2, "western": wind["R2"], "ercot": wind["R3"].copy()}
+    # ERCOT: its low-wind top-load day is R3's summer peak (already in the cover set): not added again
+    s3 = planted["R3"][0]
+    ic_wind["ercot"][s3 * 24:(s3 + 1) * 24] = 0.01
+    days, cov, tol = prm.select_stress_days(load, load, sd, None, (ic_load, ic_wind))
+    greedy, _, tol_g = prm.greedy_stress_days(load, load, dict(sd, cover_tolerance=0.06))
+    assert tol == tol_g == 0.06
+    ic = cov[cov.PRM_REGION.str.startswith("interconnection:")].set_index("PRM_REGION")
+    assert list(ic.index) == ["interconnection:eastern", "interconnection:western", "interconnection:ercot"]
+    assert ic.at["interconnection:ercot", "added"] == "no (already in the set)"
+    assert ic.at["interconnection:ercot", "worst_date"] == prm.days_label(cal, s3)
+    # the Eastern and Western days: lowest wind among each interconnection's top 1% load days
+    for name in ("eastern", "western"):
+        dmax = ic_load[name].reshape(D, 24).max(axis=1)
+        top = np.argsort(-dmax, kind="stable")[:26]
+        d = int(top[np.argmin(ic_wind[name].reshape(D, 24).mean(axis=1)[top])])
+        assert ic.at[f"interconnection:{name}", "worst_date"] == prm.days_label(cal, d)
+    added = int((ic.added == "yes").sum())
+    assert len(days) == len(greedy) + added and days.day.is_unique and days.day.is_monotonic_increasing
+    assert len(days) <= sd["max_days"] + 3
+    assert "ERCOT low_wind_top_load (interconnection)" in days.set_index("day").at[s3, "covers"]
+    with pytest.raises(ValueError, match="interconnections"):
+        prm.select_stress_days(load, load, sd)
+    with pytest.raises(ValueError, match="must be one of"):
+        prm.select_stress_days(load, load, dict(sd, rule="other"))
+
+
+def test_cover_plus_interconnect_wind_end_to_end(tmp_path):
+    """add_stress_days with the S0 default: regions and interconnections from hierarchy.csv (p120 PJM / eastern,
+    p65 ERCOT / ercot); ids, weights and the info line."""
+    rng = np.random.default_rng(2)
+    H = 7 * 365 * 24
+    lc = pd.DataFrame({"p120": 100 + rng.normal(0, 1, H), "p65": 90 + rng.normal(0, 1, H)})
+    var = pd.DataFrame({"r_wind": rng.uniform(0, 1, H), "r_pv": rng.uniform(0, 1, H)})
+    gens = pd.DataFrame({"Resource": ["r_wind", "r_pv"], "technology": ["LandbasedWind_Class3", "UtilityPV_Class1"],
+                         "region": ["p120", "p120"]})
+    assert prm.zone_interconnects(["p120", "p65", "p11"]) == {"p120": "eastern", "p65": "ercot", "p11": "western"}
+    s = {"model_year": 2035, "s0_production": {"enabled": True, "prm": {"design": "regional", "stress_days": {
+        "rule": "cover_plus_interconnect_wind"}}}}
+    res = {"load_profiles": lc.iloc[:24], "resource_profiles": var.iloc[:24], "ClusterWeights": [365.0]}
+    out, rep, w, n = prm.add_stress_days(res, pd.DataFrame({"slot": ["p1"]}), [365.0], lc, var, gens, s, tmp_path)
+    cov = pd.read_csv(tmp_path / "stress_coverage.csv")
+    ic = cov[cov.PRM_REGION.str.startswith("interconnection:")]
+    assert set(ic.PRM_REGION) == {"interconnection:eastern", "interconnection:ercot"}
+    assert n == len(pd.read_csv(tmp_path / "stress_days.csv")) <= 2 * 3 + 2 and w[-n:] == [0.0] * n
+    info = (tmp_path / "stress_info.txt").read_text()
+    assert "rule cover_plus_interconnect_wind" in info and "cover tolerance 0.060" in info
+    assert "interconnection low-wind days:" in info

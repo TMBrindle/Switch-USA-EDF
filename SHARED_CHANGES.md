@@ -224,6 +224,12 @@ every other case build as before — tests check the legacy settings and that th
 | 78 | `pg/extra_inputs/scenario_inputs.csv` | New column `fuel_prices` (`steo_aeo` everywhere); rows `s4x1_S0_tx_2035_fuel_low/_fuel_high/_fuel_hist5`. | §67. | none for non-S0 rows |
 | 79 | `pg/settings/s0_production.yml`, `s0_workflow/production.py` | S0 default `fuel_prices.mode: steo_aeo`: a post-step replaces the natural gas and coal rows of `fuel_cost.csv` for US zones. | §67. | S0 cases only; regression pinned hist5 |
 
+### Added in §68 (Oct 2026: stress-day rule)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 80 | `s0_workflow/prm.py`, `pg/settings/s0_production.yml` | New `stress_days.rule` `cover_plus_interconnect_wind` (greedy cover at 6% + each interconnection's lowest-wind top-1% load day), the S0 default; `zone_interconnects`; `select_stress_days` takes the interconnections' load and wind. `guaranteed` and `greedy` unchanged as options; the code default stays `greedy`. | §68: the guaranteed rule's 36 days hit the VM's 120 GB stop. | S0 regional cases only (fewer stress days); the regression case has no stress days |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

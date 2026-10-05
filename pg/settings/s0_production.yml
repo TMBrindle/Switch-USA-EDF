@@ -225,7 +225,7 @@ s0_production:
     design: regional
     config: s0_workflow/specs/prm/prm_redesign_config.yaml   # Tom's research config block (2026-10-04)
     stress_days:
-      # guaranteed (S0 default, CHANGES §66): for each reserve region, its worst summer peak-load day, its worst winter
+      # guaranteed (S0 default in §66; an option since §68): for each reserve region, its worst summer peak-load day, its worst winter
       #   peak-load day and its lowest-wind day among its top-load days (the top_load_share of the 2007-2013 days by
       #   daily peak load; lowest daily mean onshore-wind CF, the national CF for a region without wind profiles),
       #   chosen on weather alone; every one of them is in the set, whatever the count (no day cap; a day that is
@@ -233,10 +233,17 @@ s0_production:
       #   <case>/prm/<year>/stress_info.txt.
       # greedy (S0 before §66): greedy coverage of the three needs (low-wind/solar = daily max stylised net load)
       #   within cover_tolerance of each worst value, at most max_days days (the tolerance widens until it fits)
-      rule: guaranteed
-      top_load_share: 0.01         # guaranteed: top 1% of days (26 of 2,555) by daily peak load, per region
-      max_days: 12                 # greedy only
-      cover_tolerance: 0.02        # greedy only: a day covers a need within 2% of the region's worst value
+      # cover_plus_interconnect_wind (S0 default, CHANGES §68): the greedy cover rule at cover_plus_tolerance (0.06, as
+      #   recipe E settled: a day covers a region's need if within 6% of that region's worst value; widens only past
+      #   max_days), PLUS for each interconnection (Eastern, Western, ERCOT; hierarchy.csv interconnect) its lowest-wind
+      #   day among its top_load_share load days (interconnection-wide load and onshore-wind CF), on weather alone; a
+      #   day already in the set is not added again. At most 12 + 3 = 15 days. The guaranteed rule gave 36 days
+      #   (864 of 1,464 timepoints) and the 2035 test hit the VM's 120 GB stop.
+      rule: cover_plus_interconnect_wind
+      cover_plus_tolerance: 0.06   # cover_plus_interconnect_wind
+      top_load_share: 0.01         # guaranteed and the interconnection days: top 1% of days (26 of 2,555) by peak load
+      max_days: 12                 # greedy and cover_plus_interconnect_wind (the cover part)
+      cover_tolerance: 0.02        # greedy only: starting tolerance (widens in tolerance_step until max_days fit)
       tolerance_step: 0.02
       max_tolerance: 0.20
       summer_months: [6, 7, 8, 9]  # summer peak-load needs
