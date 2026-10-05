@@ -390,6 +390,11 @@ in the stage folder. Don't patch around it: send Tom those files and
        interregional lines have `trans_path_expansion_limit` 0 rows in every stage before 2040; the scenario line
        includes `tx_build_cap`. Recipe G has the rest.
      - **Virginia and imports generators:** recipe H.
+     - **Fuel prices (§67, steo_aeo):** `fuel_prices_by_stage.csv`; log line `fuel prices steo_aeo (...)`. The national
+       2024 $/MMBtu by stage should read gas 3.46 / 3.73 / 4.44 / 5.06 / 5.01 and coal 2.32 / 2.34 / 2.39 / 2.46 / 2.43
+       (2028 / 2030 / 2035 / 2040 / 2045). In `fuel_cost.csv`, every US zone's naturalgas and coal rows differ from the
+       hist5_high_gas build; distillate and uranium don't. **Report** any `zones without an EMM region` in the log
+       line (non-US zones only expected).
 3. Solve the lines of `scenarios_S0prod_A.txt` in order, each with the solver options of recipe A,
    into fresh output folders. Stages 2-5 read the `*.chained.S0prod_A.csv` files that the previous
    stage's `prepare_next_stage` wrote. Check they exist before starting each stage.

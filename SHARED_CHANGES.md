@@ -216,6 +216,14 @@ every other case build as before — tests check the legacy settings and that th
 | 75 | `pg/settings/s0_production.yml` | New defaults: `tx_policy.mode national_cap`, `forced_tx reeds_certain_plus_A`, `prm.stress_days.rule guaranteed`, `rggi.virginia`, `ca_wa_carbon.import_gens`, `lifetime_backstop`, `retirement_friction`, `existing_fixed_om`. | §66. | S0 cases only |
 | 76 | `s0_workflow/prm.py` | `select_stress_days` dispatches on `stress_days.rule` (`guaranteed` new; `greedy` as before, the code default); `region_series` can return regional wind CFs. | §66 item 2. | none outside S0 regional cases |
 
+### Added in §67 (Oct 2026: fuel prices from STEO to AEO2026) — please review, Ollie
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 77 | `pg/settings/scenario_management.yml` | New axis `fuel_prices` (`steo_aeo` sets nothing; low/high supply and `hist5` set `s0_production.fuel_prices.mode`); `on_pgdays` pins `fuel_prices: {mode: hist5}`. The `fuel_price_forecast` axis (hist5, hist5_high_gas, aeo2025, ...) is unchanged. | §67. | none outside S0 (inert unless s0_production.enabled) |
+| 78 | `pg/extra_inputs/scenario_inputs.csv` | New column `fuel_prices` (`steo_aeo` everywhere); rows `s4x1_S0_tx_2035_fuel_low/_fuel_high/_fuel_hist5`. | §67. | none for non-S0 rows |
+| 79 | `pg/settings/s0_production.yml`, `s0_workflow/production.py` | S0 default `fuel_prices.mode: steo_aeo`: a post-step replaces the natural gas and coal rows of `fuel_cost.csv` for US zones. | §67. | S0 cases only; regression pinned hist5 |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -284,3 +292,8 @@ every other case build as before — tests check the legacy settings and that th
     the `RGGI10+VA` preset (`rggi_va_fraction` 0.25 × the 10-state cap). The build stops if both are on. The
     `RGGI10` preset's alias file `carbon_policies_regional_va.csv` is still written (its own, older Virginia
     treatment); don't combine it with an S0 case.
+19. (§67) **Fuel prices in S0 come from the S0 layer, not `fuel_price_forecast`.** S0 rows still say
+    `hist5_high_gas` in that column (distillate and uranium come from it); gas and coal are replaced by the STEO →
+    AEO2026 path. For fedpol to match, use `s0_workflow/fuel_prices.py` (`stage_prices`) on its `fuel_cost.csv`. Note
+    that AEO2026's base case is the "Counterfactual Baseline" (formerly Reference). `scenario_inputs.csv` has one more
+    column (`fuel_prices`).

@@ -1,0 +1,135 @@
+zone,emm,basis
+p1,23,"Northwest Power Pool (WA, OR)"
+p2,23,"Northwest Power Pool (WA, OR)"
+p3,23,"Northwest Power Pool (WA, OR)"
+p4,23,"Northwest Power Pool (WA, OR)"
+p5,23,"Northwest Power Pool (WA, OR)"
+p6,23,"Northwest Power Pool (WA, OR)"
+p7,23,"Northwest Power Pool (WA, OR)"
+p8,21,"northeastern CA (Modoc, Lassen)"
+p9,21,"northern CA (SF, Sacramento, Fresno)"
+p10,22,"southern CA (Los Angeles, Kern)"
+p11,22,San Diego
+p12,25,northern NV (Washoe)
+p13,20,"southern NV (Clark): NV Energy South, in SRSG"
+p14,23,northern ID (Kootenai)
+p15,25,Idaho Power (Ada)
+p16,25,eastern ID
+p17,23,NorthWestern MT (NWPP)
+p18,23,NorthWestern MT (NWPP)
+p19,23,NorthWestern MT (NWPP)
+p20,23,NorthWestern MT (NWPP)
+p21,25,PacifiCorp East WY (Sweetwater)
+p22,25,"northern WY (Johnson, Sheridan)"
+p23,24,WACM WY
+p24,24,"WACM WY (Laramie, Natrona)"
+p25,25,PacifiCorp East UT
+p26,25,PacifiCorp East UT
+p27,20,"WestConnect South (AZ, NM, El Paso)"
+p28,20,"WestConnect South (AZ, NM, El Paso)"
+p29,20,"WestConnect South (AZ, NM, El Paso)"
+p30,20,"WestConnect South (AZ, NM, El Paso)"
+p31,20,"WestConnect South (AZ, NM, El Paso)"
+p32,24,Black Hills SD
+p33,24,Rockies (CO)
+p34,24,Rockies (CO)
+p35,19,SPP North
+p36,19,SPP North
+p37,03,MISO North
+p38,19,SPP North
+p39,19,SPP North
+p40,19,SPP North
+p41,19,SPP North
+p42,03,MISO North
+p43,03,MISO North
+p44,03,MISO North
+p45,03,MISO North
+p46,03,MISO North
+p47,17,SPP South
+p48,17,SPP South
+p49,17,SPP South
+p50,17,SPP South
+p51,17,SPP South
+p52,18,SPP Central
+p53,18,SPP Central
+p54,18,SPP Central
+p55,18,SPP Central
+p56,17,SPP South
+p57,17,SPP South
+p58,06,MISO South
+p59,20,"WestConnect South (AZ, NM, El Paso)"
+p60,01,ERCOT
+p61,01,ERCOT
+p62,01,ERCOT
+p63,01,ERCOT
+p64,01,ERCOT
+p65,01,ERCOT
+p66,06,MISO South
+p67,01,ERCOT
+p68,03,MISO North
+p69,03,MISO North
+p70,03,MISO North
+p71,04,MISO Central
+p72,04,MISO Central
+p73,04,MISO Central
+p74,03,Upper Peninsula (MISO North)
+p75,03,MISO North
+p76,03,MISO North
+p77,03,MISO North
+p78,03,MISO North
+p79,03,MISO North
+p80,12,ComEd (Cook Co.)
+p81,04,MISO Central
+p82,04,MISO Central
+p83,04,MISO Central
+p84,04,MISO Central
+p85,06,MISO South
+p86,06,MISO South
+p87,06,MISO South
+p88,16,SERC Central
+p89,15,SERC Southeastern
+p90,15,SERC Southeastern
+p91,15,SERC Southeastern
+p92,16,SERC Central
+p93,16,SERC Central
+p94,15,SERC Southeastern
+p95,14,SERC East (Carolinas)
+p96,14,SERC East (Carolinas)
+p97,14,SERC East (Carolinas)
+p98,14,SERC East (Carolinas)
+p99,13,Dominion (VA)
+p100,13,Dominion (VA)
+p101,02,FRCC
+p102,02,FRCC
+p103,05,"Lower Michigan, Detroit (Wayne Co.)"
+p104,11,"Indiana Michigan Power, SW Michigan (PJM West)"
+p105,04,MISO Central
+p106,04,MISO Central
+p107,04,MISO Central
+p108,04,MISO Central
+p109,11,PJM West (hierarchy puts these KY zones in PJM; LG&E-KU may be SERC Central in EMM)
+p110,11,PJM West (hierarchy puts these KY zones in PJM; LG&E-KU may be SERC Central in EMM)
+p111,11,PJM West
+p112,11,PJM West
+p113,11,PJM West
+p114,11,PJM West
+p115,11,"western PA, Pittsburgh"
+p116,11,PJM West
+p117,11,PJM West
+p118,13,Dominion (VA)
+p119,11,"central PA (Centre Co.), Penelec"
+p120,11,"south-central PA (Franklin, Fulton), APS"
+p121,10,PJM East
+p122,10,eastern and most of central PA
+p123,10,PJM East
+p124,13,Dominion (VA)
+p125,10,PJM East
+p126,10,PJM East
+p127,09,NY except Long Island (incl. NYC): AEO's NYCW and NYUP gas prices are equal; assigned upstate
+p128,08,Long Island (Nassau Co.)
+p129,07,ISO-NE
+p130,07,ISO-NE
+p131,07,ISO-NE
+p132,07,ISO-NE
+p133,07,ISO-NE
+p134,07,ISO-NE

@@ -303,6 +303,25 @@ s0_production:
     # about $1.2/MWh at the 2030 price: a candidate value once confirmed against CARB's table).
     import_gens: {p11: 0.428, p1: 0.0, p3: 0.0}
 
+  # fuel prices (CHANGES §67; s0_workflow/fuel_prices.py; Guides and documentation/s0_production.md "Fuel prices"; axis and
+  # column fuel_prices): natural gas and coal delivered to the electric power sector, 2024 $/MMBtu
+  #   steo_aeo              (S0 default) EIA STEO (September 2026) annual averages for 2026-2027, linear to AEO2026's 2035
+  #                         value over 2028-2034, AEO2026 reference ("Counterfactual Baseline", formerly Reference) from
+  #                         2035; regional by AEO2026 EMM region (zones: s0_workflow/specs/fuel/zone_emm.csv), scaled so
+  #                         the consumption-weighted national price follows the path; each stage the mean of its years
+  #   steo_aeo_low_supply   the same with AEO2026's Low Oil and Gas Supply case from 2035 (same STEO start and glide)
+  #   steo_aeo_high_supply  the same with the High Oil and Gas Supply case
+  #   hist5                 the case's fuel_price_forecast as it is (hist5_high_gas for the S0 rows: 2020-24 SEDS state
+  #                         prices, flat, gas +15%); the regression case
+  # Distillate and uranium keep the case's fuel_price_forecast. Data: s0_workflow/data/fuel/ (SOURCES.yml), pinned by
+  # s0_workflow/scripts/fetch_fuel_prices_eia.py.
+  fuel_prices:
+    mode: steo_aeo
+    steo_years: [2026, 2027]
+    glide_to: 2035
+    fuels: [naturalgas, coal]
+    missing_factor: 2.0            # an EMM region AEO never prices (no consumption): x the national path (hist5 rule)
+
   # transmission policy (axis tx_bill; scenario_inputs.csv column of that name; CHANGES §60; s0_workflow/tx_policy.py,
   # switch/study_modules/tx_build_cap.py, Guides and documentation/transmission_bill_scenarios.md):
   #   legacy        the case's trans_expansion policy as before (zero: no discretionary transmission); the regression

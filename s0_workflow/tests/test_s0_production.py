@@ -214,6 +214,7 @@ def test_new_defaults_premium_buyouts_and_cap(tmp_path):
     s["s0_production"]["coal_spec"]["enabled"] = False
     s["s0_production"]["lifetime_backstop"] = {"enabled": False}  # also needs the unit table (test_final_s0.py)
     s["s0_production"]["tx_policy"] = {"mode": "legacy"}  # national cap: needs the transmission files (test_tx_policy.py)
+    s["s0_production"]["fuel_prices"] = {"mode": "hist5"}  # STEO -> AEO: needs fuel_cost.csv (test_fuel_prices.py)
     s["s0_production"]["prm"] = {"design": "legacy"}      # regional reserve: needs stress days (test_prm.py)
     s0prod.write_case_inputs(tmp_path, {2028: s, 2030: s, 2035: s})
     bc = pd.read_csv(tmp_path / "gen_build_costs.csv").set_index(["GENERATION_PROJECT", "build_year"])["gen_overnight_cost"]

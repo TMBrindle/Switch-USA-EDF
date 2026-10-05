@@ -825,6 +825,86 @@ path.
 - **Scope:** imports generators are `gen_tech` containing "imports". Imports over lines still pay the §65 import
   cost; this covers the generators that sit inside the zones.
 
+## Fuel prices (§67)
+
+`s0_production.fuel_prices` (`s0_workflow/fuel_prices.py`; axis and column `fuel_prices`). It covers natural gas and
+coal delivered to the electric power sector, in 2024 $/MMBtu. It replaces the flat historical price (`hist5_high_gas`
+for the S0 rows: the 2020-24 SEDS state average, gas +15%).
+
+| Mode | 2026-2027 | 2028-2034 | 2035 on |
+|---|---|---|---|
+| `steo_aeo` (S0 default) | STEO | linear from STEO 2027 to AEO 2035 | AEO2026 reference |
+| `steo_aeo_low_supply` | STEO | same glide | AEO2026 Low Oil and Gas Supply |
+| `steo_aeo_high_supply` | STEO | same glide | AEO2026 High Oil and Gas Supply |
+| `hist5` | the case's `fuel_price_forecast` as it is (the regression case) | | |
+
+**Sources** (pinned in `s0_workflow/data/fuel/`, with editions, release dates, URLs and file hashes in `SOURCES.yml`;
+refresh with `python s0_workflow/scripts/fetch_fuel_prices_eia.py`, verify with `--check`):
+- **STEO, September 2026 edition** (released 9 Sep 2026; modelling completed 3 Sep 2026). From the monthly
+  workbook: the cost of natural gas (NGEUDUS) and coal (CLEUDUS) to the electric power sector, in nominal $/MMBtu.
+  - **Annual value:** the month's price weighted by the month's power-sector burn (NGEPCON × days; CLEPCON_TON), as
+    EIA computes annual averages.
+  - **Dollars:** to 2024 $ with STEO's CPI-U (CICPIUS, annual mean). BLS and FRED are not reachable from the build
+    environment; STEO carries the same index.
+- **AEO2026** (released 8 Apr 2026):
+  - **National, Table 3:** the Electric Power rows (natural gas, steam coal), 2025 $ → 2024 $ with STEO's CPI-U.
+  - **Cases:** EIA renamed the reference case the **"Counterfactual Baseline"** (`cb2026`; "formerly known as the
+    Reference case"), and that is the case used. The side cases are `lowogs` and `highogs`.
+  - **Regional, supplemental Tables 54.1-54.25:** fuel prices to the electric power sector and its fuel consumption,
+    by EMM region (reference case only: the side cases publish national tables).
+- `api.eia.gov` is blocked from the build environment, so the script reads EIA's published xlsx files, which hold the
+  same numbers.
+
+**Regional prices:**
+- **Formula:** zone price(y) = path(y) × the zone's EMM region price(y) / the consumption-weighted average of the 25
+  regions' prices(y). The consumption-weighted national average of the regional prices therefore equals the path
+  every year.
+- **Side cases:** they use the reference case's regional pattern.
+- **Missing prices:** a region with no AEO price in a year (no consumption, e.g. coal after its plants retire) takes
+  the nearest year's ratio. A region AEO never prices for a fuel (coal in ISO-NE, NY, California) gets 2 × the
+  national value, the hist5 rule for states without prices.
+- **Zones → EMM regions:** `s0_workflow/specs/fuel/zone_emm.csv`, all 134 US zones, with a basis note per zone. It
+  was built from `hierarchy.csv` (NERC region, transmission group, state) and the county → zone file for the split
+  states (PA, NY, CA, NV, ID, WY, MI). EIA's EMM shapefile was not reachable, so this is a documented crosswalk
+  rather than a spatial overlay. Judgement calls are noted in the file:
+  - p127 (NY except Long Island, NYC included) → Upstate NY; AEO prices NYC and Upstate gas the same;
+  - KY p109/p110 → PJM West, following the hierarchy (LG&E-KU may sit in SERC Central in EMM);
+  - p13 (Las Vegas) → Southwest.
+- **Not regionalised:** non-US zones keep the case's prices, and so do distillate and uranium.
+
+**Stage value:** the mean over the period's years (2028 = 2026-28, 2030 = 2029-30, 2035 = 2031-35, ...). The case
+build replaces the gas and coal rows of `fuel_cost.csv` and writes `fuel_prices_by_stage.csv` (zone, fuel, period,
+price, national).
+
+**National price by model year (2024 $/MMBtu; stage means):**
+
+| Natural gas | 2028 | 2030 | 2035 | 2040 | 2045 |
+|---|---|---|---|---|---|
+| current setting `hist5_high_gas` (flat) | 5.44 | 5.44 | 5.44 | 5.44 | 5.44 |
+| `hist5` (flat) | 4.73 | 4.73 | 4.73 | 4.73 | 4.73 |
+| `steo_aeo` | 3.46 | 3.73 | 4.44 | 5.06 | 5.01 |
+| `steo_aeo_low_supply` | 3.60 | 4.84 | 7.12 | 9.57 | 11.48 |
+| `steo_aeo_high_supply` | 3.41 | 3.40 | 3.65 | 3.76 | 3.34 |
+
+| Coal | 2028 | 2030 | 2035 | 2040 | 2045 |
+|---|---|---|---|---|---|
+| `hist5` / `hist5_high_gas` (flat) | 2.65 | 2.65 | 2.65 | 2.65 | 2.65 |
+| `steo_aeo` | 2.32 | 2.34 | 2.39 | 2.46 | 2.43 |
+| `steo_aeo_low_supply` | 2.33 | 2.40 | 2.53 | 2.64 | 2.63 |
+| `steo_aeo_high_supply` | 2.32 | 2.36 | 2.43 | 2.50 | 2.47 |
+
+- **How the rows are computed:** the steo_aeo rows are the national path. The hist5 rows weight the zone prices by
+  AEO2026's 2026 power-sector burn per EMM region, split equally over its zones.
+- **Same weights for both:** with those weights, steo_aeo's zone prices give gas 3.45 / 3.71 / 4.46 / 5.12 / 5.06
+  and coal 2.32 / 2.32 / 2.29 / 2.33 / 2.27 (`s0_workflow/data/fuel/fuel_price_options_by_stage.csv`;
+  `python s0_workflow/scripts/compare_fuel_prices.py`).
+- **Annual path, steo_aeo** (2024 $):
+  - gas 3.73 (2026), 3.22 (2027), 3.42 (2028), 3.83 (2030), 4.85 (2035), 5.08 (2040), 4.79 (2045);
+  - coal 2.33, 2.30, 2.32, 2.35, 2.42, 2.50, 2.27.
+
+**Sensitivity rows:** `s4x1_S0_tx_2035_fuel_low`, `_fuel_high` and `_fuel_hist5` (the hist5 row keeps the
+`hist5_high_gas` column value, as every S0 row).
+
 ## 2045 load entries
 
 PowerGenome needs a `flexible_demand_resources` entry for every model year. The 2045 stage needed:

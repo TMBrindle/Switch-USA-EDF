@@ -1301,6 +1301,7 @@ settings_management:
           lifetime_backstop: {enabled: false}
           retirement_friction: {fraction: 0.0}
           existing_fixed_om: mean
+          fuel_prices: {mode: hist5}
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}
@@ -1427,6 +1428,17 @@ settings_management:
         s0_production: {lifetime_backstop: {enabled: false}}
       friction_off:
         s0_production: {retirement_friction: {fraction: 0.0}}
+    # Fuel prices for S0 cases (pg/settings/s0_production.yml fuel_prices; CHANGES §67). Inert unless
+    # s0_production.enabled. Column `fuel_prices`: steo_aeo (sets nothing: the S0 default; the regression case's
+    # s0_production value pins hist5) in every row but the sensitivity rows.
+    fuel_prices:
+      steo_aeo: ~
+      steo_aeo_low_supply:
+        s0_production: {fuel_prices: {mode: steo_aeo_low_supply}}
+      steo_aeo_high_supply:
+        s0_production: {fuel_prices: {mode: steo_aeo_high_supply}}
+      hist5:
+        s0_production: {fuel_prices: {mode: hist5}}
     # Fleet-independent sample shape for S0 production cases (pg/settings/s0_production.yml time_sampling.sample;
     # CHANGES §56). Inert unless the fleet-independent selector runs. Column `time_sample` in scenario_inputs.csv:
     # days24 (sets nothing: n_days single days) in every row but s4x1_S0prod_2035_fi4x3.

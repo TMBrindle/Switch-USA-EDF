@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 
 from s0_workflow import coal_fleet
+from s0_workflow import fuel_prices
 from s0_workflow import prm
 from s0_workflow import tx_policy
 
@@ -967,6 +968,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     write_ca_wa_import_cost(out_folder, s0, scen_settings_dict, log)       # CA/WA import carbon cost (§65)
     write_imports_carbon_cost(out_folder, s0, scen_settings_dict, log)     # imports generators in CA/WA (§66)
     write_va_rggi(out_folder, s0, scen_settings_dict, log)                 # Virginia in ETS 1 (§66)
+    fuel_prices.write_case_inputs(out_folder, s0, scen_settings_dict, log)  # STEO -> AEO2026 gas and coal (§67)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))

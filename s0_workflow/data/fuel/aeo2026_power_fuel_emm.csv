@@ -1,0 +1,1301 @@
+emm,emm_name,year,fuel,price_2025usd_per_mmbtu,consumption_quads
+01,Texas Reliability Entity,2025,naturalgas,3.296278,1.565172434
+01,Texas Reliability Entity,2026,naturalgas,3.763585806,1.647939324
+01,Texas Reliability Entity,2027,naturalgas,3.495717764,1.370702267
+01,Texas Reliability Entity,2028,naturalgas,3.561386347,1.384977579
+01,Texas Reliability Entity,2029,naturalgas,3.745419979,1.281549811
+01,Texas Reliability Entity,2030,naturalgas,4.353528023,1.205229759
+01,Texas Reliability Entity,2031,naturalgas,4.779922009,1.293548465
+01,Texas Reliability Entity,2032,naturalgas,5.306952,1.545686483
+01,Texas Reliability Entity,2033,naturalgas,5.259316444,1.329954386
+01,Texas Reliability Entity,2034,naturalgas,5.07852459,1.179432988
+01,Texas Reliability Entity,2035,naturalgas,5.098920822,1.170950413
+01,Texas Reliability Entity,2036,naturalgas,5.249032974,1.195840001
+01,Texas Reliability Entity,2037,naturalgas,5.363467216,1.225366831
+01,Texas Reliability Entity,2038,naturalgas,5.364339352,1.235274792
+01,Texas Reliability Entity,2039,naturalgas,5.388746262,1.284571052
+01,Texas Reliability Entity,2040,naturalgas,5.408967972,1.220379233
+01,Texas Reliability Entity,2041,naturalgas,5.364793301,1.230405211
+01,Texas Reliability Entity,2042,naturalgas,5.26159668,1.28025806
+01,Texas Reliability Entity,2043,naturalgas,5.134280205,1.308778405
+01,Texas Reliability Entity,2044,naturalgas,5.07720232,1.325796127
+01,Texas Reliability Entity,2045,naturalgas,5.020830631,1.34494555
+01,Texas Reliability Entity,2046,naturalgas,5.033698082,1.389094353
+01,Texas Reliability Entity,2047,naturalgas,4.924182892,1.41568625
+01,Texas Reliability Entity,2048,naturalgas,4.84003973,1.452153444
+01,Texas Reliability Entity,2049,naturalgas,4.750925064,1.477891207
+01,Texas Reliability Entity,2050,naturalgas,4.696206093,1.487682819
+01,Texas Reliability Entity,2025,coal,2.048159361,0.6288560033
+01,Texas Reliability Entity,2026,coal,2.045563459,0.5823370218
+01,Texas Reliability Entity,2027,coal,2.148867369,0.5476383567
+01,Texas Reliability Entity,2028,coal,2.181323528,0.4362199605
+01,Texas Reliability Entity,2029,coal,2.154032469,0.3975600898
+01,Texas Reliability Entity,2030,coal,2.188710928,0.5147229433
+01,Texas Reliability Entity,2031,coal,2.129027367,0.3819952607
+01,Texas Reliability Entity,2032,coal,2.414797783,0.06420187652
+01,Texas Reliability Entity,2033,coal,2.415819168,0.06423795968
+01,Texas Reliability Entity,2034,coal,2.414149284,0.05158501118
+01,Texas Reliability Entity,2035,coal,2.410100698,0.05161731318
+01,Texas Reliability Entity,2036,coal,2.420717716,0.05541367829
+01,Texas Reliability Entity,2037,coal,2.434410095,0.05165961757
+01,Texas Reliability Entity,2038,coal,2.454312563,0.05167935044
+01,Texas Reliability Entity,2039,coal,2.484107018,0.03760778904
+01,Texas Reliability Entity,2040,coal,2.491892099,0.0376226753
+01,Texas Reliability Entity,2041,coal,2.501348019,0.03768803552
+01,Texas Reliability Entity,2042,coal,2.507030964,0.01575049199
+01,Texas Reliability Entity,2043,coal,2.517725706,0.01574876346
+01,Texas Reliability Entity,2044,coal,2.52911973,0.01574740745
+01,Texas Reliability Entity,2045,coal,2.539210796,0.01574613154
+01,Texas Reliability Entity,2046,coal,0,0
+01,Texas Reliability Entity,2047,coal,0,0
+01,Texas Reliability Entity,2048,coal,0,0
+01,Texas Reliability Entity,2049,coal,0,0
+01,Texas Reliability Entity,2050,coal,0,0
+02,Florida Reliability Coordinating Council,2025,naturalgas,5.333193779,1.32028079
+02,Florida Reliability Coordinating Council,2026,naturalgas,5.48050499,1.314136267
+02,Florida Reliability Coordinating Council,2027,naturalgas,5.242937088,1.299654722
+02,Florida Reliability Coordinating Council,2028,naturalgas,4.911696434,1.171231508
+02,Florida Reliability Coordinating Council,2029,naturalgas,5.109336376,1.161677361
+02,Florida Reliability Coordinating Council,2030,naturalgas,5.812885284,1.225006342
+02,Florida Reliability Coordinating Council,2031,naturalgas,6.847229481,1.23508656
+02,Florida Reliability Coordinating Council,2032,naturalgas,6.63697052,1.242448688
+02,Florida Reliability Coordinating Council,2033,naturalgas,6.515456676,1.113230109
+02,Florida Reliability Coordinating Council,2034,naturalgas,6.295488834,1.103293061
+02,Florida Reliability Coordinating Council,2035,naturalgas,6.313752651,1.130824685
+02,Florida Reliability Coordinating Council,2036,naturalgas,7.081974506,1.15048039
+02,Florida Reliability Coordinating Council,2037,naturalgas,7.074236393,1.185565352
+02,Florida Reliability Coordinating Council,2038,naturalgas,6.419845104,1.204974532
+02,Florida Reliability Coordinating Council,2039,naturalgas,6.319036961,1.195248842
+02,Florida Reliability Coordinating Council,2040,naturalgas,6.361274242,1.212040186
+02,Florida Reliability Coordinating Council,2041,naturalgas,6.826313496,1.238464117
+02,Florida Reliability Coordinating Council,2042,naturalgas,6.749982357,1.281570792
+02,Florida Reliability Coordinating Council,2043,naturalgas,6.616370201,1.313551188
+02,Florida Reliability Coordinating Council,2044,naturalgas,6.194608688,1.372064352
+02,Florida Reliability Coordinating Council,2045,naturalgas,5.734692097,1.416138649
+02,Florida Reliability Coordinating Council,2046,naturalgas,6.299444199,1.431727767
+02,Florida Reliability Coordinating Council,2047,naturalgas,5.607538223,1.474047899
+02,Florida Reliability Coordinating Council,2048,naturalgas,5.537995815,1.506190062
+02,Florida Reliability Coordinating Council,2049,naturalgas,5.467944622,1.522372007
+02,Florida Reliability Coordinating Council,2050,naturalgas,5.43475771,1.543421865
+02,Florida Reliability Coordinating Council,2025,coal,4.115797997,0.1346703619
+02,Florida Reliability Coordinating Council,2026,coal,4.001511097,0.1453250051
+02,Florida Reliability Coordinating Council,2027,coal,3.647870779,0.1212641448
+02,Florida Reliability Coordinating Council,2028,coal,3.679452419,0.1015948206
+02,Florida Reliability Coordinating Council,2029,coal,3.690809488,0.1154856756
+02,Florida Reliability Coordinating Council,2030,coal,3.666973352,0.03950364143
+02,Florida Reliability Coordinating Council,2031,coal,3.62893939,0.05619782209
+02,Florida Reliability Coordinating Council,2032,coal,3.633855581,0.02486054413
+02,Florida Reliability Coordinating Council,2033,coal,3.623111248,0.02334149368
+02,Florida Reliability Coordinating Council,2034,coal,3.616192579,0.02329738066
+02,Florida Reliability Coordinating Council,2035,coal,3.604446411,0.02331817709
+02,Florida Reliability Coordinating Council,2036,coal,3.617596865,0.02333667316
+02,Florida Reliability Coordinating Council,2037,coal,3.638274193,0.02419945411
+02,Florida Reliability Coordinating Council,2038,coal,3.666809082,0.02328830771
+02,Florida Reliability Coordinating Council,2039,coal,0,0
+02,Florida Reliability Coordinating Council,2040,coal,0,0
+02,Florida Reliability Coordinating Council,2041,coal,0,0
+02,Florida Reliability Coordinating Council,2042,coal,0,0
+02,Florida Reliability Coordinating Council,2043,coal,0,0
+02,Florida Reliability Coordinating Council,2044,coal,0,0
+02,Florida Reliability Coordinating Council,2045,coal,0,0
+02,Florida Reliability Coordinating Council,2046,coal,0,0
+02,Florida Reliability Coordinating Council,2047,coal,0,0
+02,Florida Reliability Coordinating Council,2048,coal,0,0
+02,Florida Reliability Coordinating Council,2049,coal,0,0
+02,Florida Reliability Coordinating Council,2050,coal,0,0
+03,Midcontinent / West,2025,naturalgas,3.506067038,0.3107637763
+03,Midcontinent / West,2026,naturalgas,3.898942709,0.3179753423
+03,Midcontinent / West,2027,naturalgas,3.790467262,0.2954309285
+03,Midcontinent / West,2028,naturalgas,3.906147957,0.3002568185
+03,Midcontinent / West,2029,naturalgas,4.119159222,0.3279421628
+03,Midcontinent / West,2030,naturalgas,4.633872986,0.4333815575
+03,Midcontinent / West,2031,naturalgas,4.922557354,0.4368842244
+03,Midcontinent / West,2032,naturalgas,5.52743578,0.4420398474
+03,Midcontinent / West,2033,naturalgas,5.433862209,0.3818122745
+03,Midcontinent / West,2034,naturalgas,5.280735016,0.3619315624
+03,Midcontinent / West,2035,naturalgas,5.200055599,0.3667008579
+03,Midcontinent / West,2036,naturalgas,5.214238167,0.3530416489
+03,Midcontinent / West,2037,naturalgas,5.339841843,0.3646928072
+03,Midcontinent / West,2038,naturalgas,5.352892399,0.3669736385
+03,Midcontinent / West,2039,naturalgas,5.425215244,0.3883058429
+03,Midcontinent / West,2040,naturalgas,5.464354992,0.3935323358
+03,Midcontinent / West,2041,naturalgas,5.461023331,0.3840095103
+03,Midcontinent / West,2042,naturalgas,5.391755104,0.3977891505
+03,Midcontinent / West,2043,naturalgas,5.309937,0.4097489715
+03,Midcontinent / West,2044,naturalgas,5.21899271,0.4155900478
+03,Midcontinent / West,2045,naturalgas,5.148960114,0.4255857766
+03,Midcontinent / West,2046,naturalgas,5.188229084,0.4287633896
+03,Midcontinent / West,2047,naturalgas,5.121098518,0.4406746924
+03,Midcontinent / West,2048,naturalgas,5.05175972,0.4497241378
+03,Midcontinent / West,2049,naturalgas,4.988954544,0.4535995424
+03,Midcontinent / West,2050,naturalgas,4.941802502,0.4610727131
+03,Midcontinent / West,2025,coal,2.116325617,0.7366281152
+03,Midcontinent / West,2026,coal,2.110223055,0.7385217547
+03,Midcontinent / West,2027,coal,2.100606441,0.6544520855
+03,Midcontinent / West,2028,coal,2.114042044,0.6409353018
+03,Midcontinent / West,2029,coal,2.149062157,0.6151490808
+03,Midcontinent / West,2030,coal,2.0998106,0.4243451059
+03,Midcontinent / West,2031,coal,2.071126461,0.4206434488
+03,Midcontinent / West,2032,coal,2.056591749,0.09903750569
+03,Midcontinent / West,2033,coal,2.059816122,0.07683669776
+03,Midcontinent / West,2034,coal,2.050801516,0.07081094384
+03,Midcontinent / West,2035,coal,2.068888426,0.06294368953
+03,Midcontinent / West,2036,coal,2.11558485,0.05224439129
+03,Midcontinent / West,2037,coal,2.13332963,0.0533990413
+03,Midcontinent / West,2038,coal,2.148432493,0.05472730473
+03,Midcontinent / West,2039,coal,1.926213741,0.0008797982009
+03,Midcontinent / West,2040,coal,1.94039011,0.0008802521625
+03,Midcontinent / West,2041,coal,1.949431419,0.0008803325472
+03,Midcontinent / West,2042,coal,1.95706284,0.0008804238751
+03,Midcontinent / West,2043,coal,1.967411518,0.000880467589
+03,Midcontinent / West,2044,coal,1.977457762,0.0008804934332
+03,Midcontinent / West,2045,coal,1.986001253,0.0008805060643
+03,Midcontinent / West,2046,coal,1.995800018,0.0008805189282
+03,Midcontinent / West,2047,coal,2.004696131,0.0008804956451
+03,Midcontinent / West,2048,coal,2.014649153,0.0008804523968
+03,Midcontinent / West,2049,coal,2.027183533,0.000880441512
+03,Midcontinent / West,2050,coal,2.041245937,0.0008803827805
+04,Midcontinent / Central,2025,naturalgas,3.566108942,0.154244706
+04,Midcontinent / Central,2026,naturalgas,3.939474344,0.1640293002
+04,Midcontinent / Central,2027,naturalgas,3.788130999,0.1845246702
+04,Midcontinent / Central,2028,naturalgas,3.901392221,0.2116386294
+04,Midcontinent / Central,2029,naturalgas,4.138502121,0.2618716359
+04,Midcontinent / Central,2030,naturalgas,4.591984749,0.319314599
+04,Midcontinent / Central,2031,naturalgas,4.806935787,0.31583336
+04,Midcontinent / Central,2032,naturalgas,5.423141479,0.418822825
+04,Midcontinent / Central,2033,naturalgas,5.241773129,0.3672621846
+04,Midcontinent / Central,2034,naturalgas,5.102174759,0.3828415573
+04,Midcontinent / Central,2035,naturalgas,5.01776886,0.4026439786
+04,Midcontinent / Central,2036,naturalgas,5.024357796,0.4352771044
+04,Midcontinent / Central,2037,naturalgas,5.128737926,0.4691360891
+04,Midcontinent / Central,2038,naturalgas,5.149698734,0.4852159023
+04,Midcontinent / Central,2039,naturalgas,5.156044483,0.5289162993
+04,Midcontinent / Central,2040,naturalgas,5.187398911,0.5530126095
+04,Midcontinent / Central,2041,naturalgas,5.131922722,0.5517861843
+04,Midcontinent / Central,2042,naturalgas,5.093619347,0.5629658103
+04,Midcontinent / Central,2043,naturalgas,5.005402565,0.5785318017
+04,Midcontinent / Central,2044,naturalgas,4.937191486,0.6116015315
+04,Midcontinent / Central,2045,naturalgas,4.868935585,0.6167674065
+04,Midcontinent / Central,2046,naturalgas,4.858454227,0.6084532738
+04,Midcontinent / Central,2047,naturalgas,4.787155151,0.5925201178
+04,Midcontinent / Central,2048,naturalgas,4.715199947,0.584694922
+04,Midcontinent / Central,2049,naturalgas,4.656119347,0.5830292702
+04,Midcontinent / Central,2050,naturalgas,4.603219986,0.5590976477
+04,Midcontinent / Central,2025,coal,2.344318628,0.9649019837
+04,Midcontinent / Central,2026,coal,2.351969957,0.9519608617
+04,Midcontinent / Central,2027,coal,2.276068687,0.8820306063
+04,Midcontinent / Central,2028,coal,2.339522362,0.7669747472
+04,Midcontinent / Central,2029,coal,2.391730309,0.7216843367
+04,Midcontinent / Central,2030,coal,2.422759533,0.6963020563
+04,Midcontinent / Central,2031,coal,2.405171871,0.6867564321
+04,Midcontinent / Central,2032,coal,2.197606802,0.3223558068
+04,Midcontinent / Central,2033,coal,2.22289443,0.3022049665
+04,Midcontinent / Central,2034,coal,2.238342762,0.2882297635
+04,Midcontinent / Central,2035,coal,2.24255681,0.2823060155
+04,Midcontinent / Central,2036,coal,2.254752874,0.2801340818
+04,Midcontinent / Central,2037,coal,2.271722078,0.2758641839
+04,Midcontinent / Central,2038,coal,2.276325703,0.2703172565
+04,Midcontinent / Central,2039,coal,2.527438164,0.1535869539
+04,Midcontinent / Central,2040,coal,2.513944864,0.1536804736
+04,Midcontinent / Central,2041,coal,2.521808624,0.1536878645
+04,Midcontinent / Central,2042,coal,2.501763821,0.1359668523
+04,Midcontinent / Central,2043,coal,2.527543545,0.1359137595
+04,Midcontinent / Central,2044,coal,2.440069437,0.02894164436
+04,Midcontinent / Central,2045,coal,2.427022934,0.02885203063
+04,Midcontinent / Central,2046,coal,2.414999008,0.009352823719
+04,Midcontinent / Central,2047,coal,0,0
+04,Midcontinent / Central,2048,coal,0,0
+04,Midcontinent / Central,2049,coal,0,0
+04,Midcontinent / Central,2050,coal,0,0
+05,Midcontinent / East,2025,naturalgas,3.558463097,0.3352110088
+05,Midcontinent / East,2026,naturalgas,3.932240248,0.3454586267
+05,Midcontinent / East,2027,naturalgas,3.774854422,0.2970962226
+05,Midcontinent / East,2028,naturalgas,3.881830692,0.2759961486
+05,Midcontinent / East,2029,naturalgas,4.073426247,0.3703933656
+05,Midcontinent / East,2030,naturalgas,4.453927994,0.249749884
+05,Midcontinent / East,2031,naturalgas,4.665578365,0.2214969993
+05,Midcontinent / East,2032,naturalgas,5.298034668,0.2316688001
+05,Midcontinent / East,2033,naturalgas,5.096997261,0.2252801508
+05,Midcontinent / East,2034,naturalgas,4.976574421,0.2134153843
+05,Midcontinent / East,2035,naturalgas,4.90141964,0.2120697945
+05,Midcontinent / East,2036,naturalgas,4.906246185,0.2164154947
+05,Midcontinent / East,2037,naturalgas,5.024294853,0.2211864889
+05,Midcontinent / East,2038,naturalgas,5.063753605,0.2326371968
+05,Midcontinent / East,2039,naturalgas,5.153291225,0.2206476033
+05,Midcontinent / East,2040,naturalgas,5.187319756,0.1835096329
+05,Midcontinent / East,2041,naturalgas,5.131491661,0.162804395
+05,Midcontinent / East,2042,naturalgas,5.094222546,0.1688379347
+05,Midcontinent / East,2043,naturalgas,5.006429672,0.1677670628
+05,Midcontinent / East,2044,naturalgas,4.937186241,0.169317171
+05,Midcontinent / East,2045,naturalgas,4.869113922,0.1700689048
+05,Midcontinent / East,2046,naturalgas,4.857642174,0.173426643
+05,Midcontinent / East,2047,naturalgas,4.786382198,0.1728991121
+05,Midcontinent / East,2048,naturalgas,4.714312077,0.1740742028
+05,Midcontinent / East,2049,naturalgas,4.655421734,0.1845137477
+05,Midcontinent / East,2050,naturalgas,4.602147102,0.2062293142
+05,Midcontinent / East,2025,coal,2.619102716,0.3047105968
+05,Midcontinent / East,2026,coal,2.607967615,0.2338370234
+05,Midcontinent / East,2027,coal,2.544023275,0.2376289368
+05,Midcontinent / East,2028,coal,2.586645842,0.2231340557
+05,Midcontinent / East,2029,coal,2.570399761,0.08172643185
+05,Midcontinent / East,2030,coal,2.557584047,0.08272754401
+05,Midcontinent / East,2031,coal,2.535620928,0.08244325966
+05,Midcontinent / East,2032,coal,0,0
+05,Midcontinent / East,2033,coal,0,0
+05,Midcontinent / East,2034,coal,0,0
+05,Midcontinent / East,2035,coal,0,0
+05,Midcontinent / East,2036,coal,0,0
+05,Midcontinent / East,2037,coal,0,0
+05,Midcontinent / East,2038,coal,0,0
+05,Midcontinent / East,2039,coal,0,0
+05,Midcontinent / East,2040,coal,0,0
+05,Midcontinent / East,2041,coal,0,0
+05,Midcontinent / East,2042,coal,0,0
+05,Midcontinent / East,2043,coal,0,0
+05,Midcontinent / East,2044,coal,0,0
+05,Midcontinent / East,2045,coal,0,0
+05,Midcontinent / East,2046,coal,0,0
+05,Midcontinent / East,2047,coal,0,0
+05,Midcontinent / East,2048,coal,0,0
+05,Midcontinent / East,2049,coal,0,0
+05,Midcontinent / East,2050,coal,0,0
+06,Midcontinent / South,2025,naturalgas,3.342509508,0.9133161902
+06,Midcontinent / South,2026,naturalgas,3.79950285,1.089542508
+06,Midcontinent / South,2027,naturalgas,3.53811121,0.9056252837
+06,Midcontinent / South,2028,naturalgas,3.600118637,0.9142050743
+06,Midcontinent / South,2029,naturalgas,3.788393736,0.8929710388
+06,Midcontinent / South,2030,naturalgas,4.396348,0.8939581513
+06,Midcontinent / South,2031,naturalgas,4.814974785,0.8115033507
+06,Midcontinent / South,2032,naturalgas,5.331697941,0.8662091494
+06,Midcontinent / South,2033,naturalgas,5.279622078,0.8466278315
+06,Midcontinent / South,2034,naturalgas,5.09600687,0.8947085142
+06,Midcontinent / South,2035,naturalgas,5.112964153,0.9248825312
+06,Midcontinent / South,2036,naturalgas,5.2589674,0.9366695881
+06,Midcontinent / South,2037,naturalgas,5.370667934,0.9579939246
+06,Midcontinent / South,2038,naturalgas,5.370519638,0.9405391216
+06,Midcontinent / South,2039,naturalgas,5.392991543,0.9462226033
+06,Midcontinent / South,2040,naturalgas,5.412973881,0.9405813813
+06,Midcontinent / South,2041,naturalgas,5.367127419,0.9550958872
+06,Midcontinent / South,2042,naturalgas,5.263561249,0.9832327366
+06,Midcontinent / South,2043,naturalgas,5.136396885,1.009759426
+06,Midcontinent / South,2044,naturalgas,5.076281071,1.061478853
+06,Midcontinent / South,2045,naturalgas,5.013856411,1.08460927
+06,Midcontinent / South,2046,naturalgas,5.02278614,1.109406948
+06,Midcontinent / South,2047,naturalgas,4.915899277,1.128833294
+06,Midcontinent / South,2048,naturalgas,4.83093071,1.135884404
+06,Midcontinent / South,2049,naturalgas,4.743850708,1.133772016
+06,Midcontinent / South,2050,naturalgas,4.688414574,1.126148582
+06,Midcontinent / South,2025,coal,2.142412186,0.1976056844
+06,Midcontinent / South,2026,coal,2.095933914,0.07863687724
+06,Midcontinent / South,2027,coal,2.299903154,0.2104966789
+06,Midcontinent / South,2028,coal,2.380642653,0.2019529939
+06,Midcontinent / South,2029,coal,2.3768363,0.1862757653
+06,Midcontinent / South,2030,coal,2.398739815,0.1564329267
+06,Midcontinent / South,2031,coal,2.374991417,0.1533338875
+06,Midcontinent / South,2032,coal,2.415079117,0.03303807229
+06,Midcontinent / South,2033,coal,2.41574502,0.03098004684
+06,Midcontinent / South,2034,coal,2.414880037,0.02314183861
+06,Midcontinent / South,2035,coal,2.41093564,0.02379964665
+06,Midcontinent / South,2036,coal,2.421347618,0.02396809496
+06,Midcontinent / South,2037,coal,2.435549021,0.02399593964
+06,Midcontinent / South,2038,coal,2.455122471,0.0239770133
+06,Midcontinent / South,2039,coal,0,0
+06,Midcontinent / South,2040,coal,0,0
+06,Midcontinent / South,2041,coal,0,0
+06,Midcontinent / South,2042,coal,0,0
+06,Midcontinent / South,2043,coal,0,0
+06,Midcontinent / South,2044,coal,0,0
+06,Midcontinent / South,2045,coal,0,0
+06,Midcontinent / South,2046,coal,0,0
+06,Midcontinent / South,2047,coal,0,0
+06,Midcontinent / South,2048,coal,0,0
+06,Midcontinent / South,2049,coal,0,0
+06,Midcontinent / South,2050,coal,0,0
+07,Northeast Power Coordinating Council / New England,2025,naturalgas,5.352119446,0.4163228869
+07,Northeast Power Coordinating Council / New England,2026,naturalgas,5.338833332,0.4676038027
+07,Northeast Power Coordinating Council / New England,2027,naturalgas,4.237346172,0.3081649542
+07,Northeast Power Coordinating Council / New England,2028,naturalgas,4.183523655,0.2714931369
+07,Northeast Power Coordinating Council / New England,2029,naturalgas,4.147402763,0.2327685654
+07,Northeast Power Coordinating Council / New England,2030,naturalgas,3.988382578,0.1471364945
+07,Northeast Power Coordinating Council / New England,2031,naturalgas,4.103945255,0.1544904262
+07,Northeast Power Coordinating Council / New England,2032,naturalgas,4.344322681,0.1711251736
+07,Northeast Power Coordinating Council / New England,2033,naturalgas,4.345693111,0.1681539714
+07,Northeast Power Coordinating Council / New England,2034,naturalgas,4.2861166,0.1663853675
+07,Northeast Power Coordinating Council / New England,2035,naturalgas,4.234031677,0.1688458025
+07,Northeast Power Coordinating Council / New England,2036,naturalgas,4.302144527,0.1738208234
+07,Northeast Power Coordinating Council / New England,2037,naturalgas,4.379759312,0.1660628021
+07,Northeast Power Coordinating Council / New England,2038,naturalgas,4.495309353,0.1748557538
+07,Northeast Power Coordinating Council / New England,2039,naturalgas,4.577305794,0.1696694791
+07,Northeast Power Coordinating Council / New England,2040,naturalgas,4.534696102,0.1582874507
+07,Northeast Power Coordinating Council / New England,2041,naturalgas,4.586879253,0.1560342461
+07,Northeast Power Coordinating Council / New England,2042,naturalgas,4.610747337,0.1532173455
+07,Northeast Power Coordinating Council / New England,2043,naturalgas,4.565030575,0.1586172134
+07,Northeast Power Coordinating Council / New England,2044,naturalgas,4.351865768,0.1391592622
+07,Northeast Power Coordinating Council / New England,2045,naturalgas,4.249849796,0.1339494884
+07,Northeast Power Coordinating Council / New England,2046,naturalgas,4.245307922,0.1376330703
+07,Northeast Power Coordinating Council / New England,2047,naturalgas,4.134167194,0.1427821219
+07,Northeast Power Coordinating Council / New England,2048,naturalgas,4.040393353,0.1449210495
+07,Northeast Power Coordinating Council / New England,2049,naturalgas,3.98235774,0.1391935199
+07,Northeast Power Coordinating Council / New England,2050,naturalgas,4.269935131,0.2254250646
+07,Northeast Power Coordinating Council / New England,2025,coal,0,0.009707029909
+07,Northeast Power Coordinating Council / New England,2026,coal,0,0.009806977585
+07,Northeast Power Coordinating Council / New England,2027,coal,0,0
+07,Northeast Power Coordinating Council / New England,2028,coal,0,0
+07,Northeast Power Coordinating Council / New England,2029,coal,0,0
+07,Northeast Power Coordinating Council / New England,2030,coal,0,0
+07,Northeast Power Coordinating Council / New England,2031,coal,0,0
+07,Northeast Power Coordinating Council / New England,2032,coal,0,0
+07,Northeast Power Coordinating Council / New England,2033,coal,0,0
+07,Northeast Power Coordinating Council / New England,2034,coal,0,0
+07,Northeast Power Coordinating Council / New England,2035,coal,0,0
+07,Northeast Power Coordinating Council / New England,2036,coal,0,0
+07,Northeast Power Coordinating Council / New England,2037,coal,0,0
+07,Northeast Power Coordinating Council / New England,2038,coal,0,0
+07,Northeast Power Coordinating Council / New England,2039,coal,0,0
+07,Northeast Power Coordinating Council / New England,2040,coal,0,0
+07,Northeast Power Coordinating Council / New England,2041,coal,0,0
+07,Northeast Power Coordinating Council / New England,2042,coal,0,0
+07,Northeast Power Coordinating Council / New England,2043,coal,0,0
+07,Northeast Power Coordinating Council / New England,2044,coal,0,0
+07,Northeast Power Coordinating Council / New England,2045,coal,0,0
+07,Northeast Power Coordinating Council / New England,2046,coal,0,0
+07,Northeast Power Coordinating Council / New England,2047,coal,0,0
+07,Northeast Power Coordinating Council / New England,2048,coal,0,0
+07,Northeast Power Coordinating Council / New England,2049,coal,0,0
+07,Northeast Power Coordinating Council / New England,2050,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2025,naturalgas,3.388571501,0.3216028512
+08,Northeast Power Coordinating Council / New York City and Long Island,2026,naturalgas,3.578295469,0.2359396368
+08,Northeast Power Coordinating Council / New York City and Long Island,2027,naturalgas,3.352484465,0.1647271663
+08,Northeast Power Coordinating Council / New York City and Long Island,2028,naturalgas,3.347065687,0.1574580222
+08,Northeast Power Coordinating Council / New York City and Long Island,2029,naturalgas,3.461382151,0.136266917
+08,Northeast Power Coordinating Council / New York City and Long Island,2030,naturalgas,3.657886028,0.2709240913
+08,Northeast Power Coordinating Council / New York City and Long Island,2031,naturalgas,3.742856741,0.2097108364
+08,Northeast Power Coordinating Council / New York City and Long Island,2032,naturalgas,3.903236628,0.2241252512
+08,Northeast Power Coordinating Council / New York City and Long Island,2033,naturalgas,3.889206171,0.1995880455
+08,Northeast Power Coordinating Council / New York City and Long Island,2034,naturalgas,3.789559841,0.18857719
+08,Northeast Power Coordinating Council / New York City and Long Island,2035,naturalgas,3.732340336,0.1825280786
+08,Northeast Power Coordinating Council / New York City and Long Island,2036,naturalgas,3.713958979,0.1870106161
+08,Northeast Power Coordinating Council / New York City and Long Island,2037,naturalgas,3.866836071,0.1866593361
+08,Northeast Power Coordinating Council / New York City and Long Island,2038,naturalgas,3.954603195,0.1620364487
+08,Northeast Power Coordinating Council / New York City and Long Island,2039,naturalgas,4.033452034,0.1498913765
+08,Northeast Power Coordinating Council / New York City and Long Island,2040,naturalgas,4.024637699,0.1332559735
+08,Northeast Power Coordinating Council / New York City and Long Island,2041,naturalgas,4.110119343,0.1332998127
+08,Northeast Power Coordinating Council / New York City and Long Island,2042,naturalgas,4.133512497,0.1349534243
+08,Northeast Power Coordinating Council / New York City and Long Island,2043,naturalgas,4.098470211,0.1366557032
+08,Northeast Power Coordinating Council / New York City and Long Island,2044,naturalgas,4.015909672,0.1381503642
+08,Northeast Power Coordinating Council / New York City and Long Island,2045,naturalgas,3.924564362,0.1409979314
+08,Northeast Power Coordinating Council / New York City and Long Island,2046,naturalgas,3.817111969,0.155842483
+08,Northeast Power Coordinating Council / New York City and Long Island,2047,naturalgas,3.714264154,0.1587280184
+08,Northeast Power Coordinating Council / New York City and Long Island,2048,naturalgas,3.633422613,0.153867498
+08,Northeast Power Coordinating Council / New York City and Long Island,2049,naturalgas,3.58303833,0.1481426656
+08,Northeast Power Coordinating Council / New York City and Long Island,2050,naturalgas,3.57281518,0.1898403615
+08,Northeast Power Coordinating Council / New York City and Long Island,2025,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2026,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2027,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2028,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2029,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2030,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2031,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2032,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2033,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2034,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2035,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2036,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2037,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2038,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2039,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2040,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2041,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2042,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2043,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2044,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2045,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2046,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2047,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2048,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2049,coal,0,0
+08,Northeast Power Coordinating Council / New York City and Long Island,2050,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2025,naturalgas,3.388571501,0.1594522744
+09,Northeast Power Coordinating Council / Upstate New York,2026,naturalgas,3.578295469,0.08514581621
+09,Northeast Power Coordinating Council / Upstate New York,2027,naturalgas,3.352484465,0.08540643752
+09,Northeast Power Coordinating Council / Upstate New York,2028,naturalgas,3.347065687,0.0837174654
+09,Northeast Power Coordinating Council / Upstate New York,2029,naturalgas,3.461382151,0.07643961906
+09,Northeast Power Coordinating Council / Upstate New York,2030,naturalgas,3.657886028,0.1226777136
+09,Northeast Power Coordinating Council / Upstate New York,2031,naturalgas,3.742856741,0.09346003085
+09,Northeast Power Coordinating Council / Upstate New York,2032,naturalgas,3.903236628,0.1031434014
+09,Northeast Power Coordinating Council / Upstate New York,2033,naturalgas,3.889206171,0.0937352553
+09,Northeast Power Coordinating Council / Upstate New York,2034,naturalgas,3.789559841,0.09330042452
+09,Northeast Power Coordinating Council / Upstate New York,2035,naturalgas,3.732340336,0.08899575472
+09,Northeast Power Coordinating Council / Upstate New York,2036,naturalgas,3.713958979,0.08964056522
+09,Northeast Power Coordinating Council / Upstate New York,2037,naturalgas,3.866836071,0.0899702087
+09,Northeast Power Coordinating Council / Upstate New York,2038,naturalgas,3.954603195,0.09423775971
+09,Northeast Power Coordinating Council / Upstate New York,2039,naturalgas,4.033452034,0.09875033051
+09,Northeast Power Coordinating Council / Upstate New York,2040,naturalgas,4.024637699,0.09848707914
+09,Northeast Power Coordinating Council / Upstate New York,2041,naturalgas,4.110119343,0.09879589081
+09,Northeast Power Coordinating Council / Upstate New York,2042,naturalgas,4.133512497,0.09653988481
+09,Northeast Power Coordinating Council / Upstate New York,2043,naturalgas,4.098470211,0.09653089195
+09,Northeast Power Coordinating Council / Upstate New York,2044,naturalgas,4.015909672,0.09659791738
+09,Northeast Power Coordinating Council / Upstate New York,2045,naturalgas,3.924564362,0.09890945256
+09,Northeast Power Coordinating Council / Upstate New York,2046,naturalgas,3.817111969,0.09898106754
+09,Northeast Power Coordinating Council / Upstate New York,2047,naturalgas,3.714264154,0.09926337749
+09,Northeast Power Coordinating Council / Upstate New York,2048,naturalgas,3.633422613,0.0970467478
+09,Northeast Power Coordinating Council / Upstate New York,2049,naturalgas,3.58303833,0.09643238038
+09,Northeast Power Coordinating Council / Upstate New York,2050,naturalgas,3.57281518,0.09653377533
+09,Northeast Power Coordinating Council / Upstate New York,2025,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2026,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2027,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2028,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2029,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2030,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2031,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2032,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2033,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2034,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2035,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2036,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2037,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2038,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2039,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2040,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2041,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2042,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2043,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2044,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2045,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2046,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2047,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2048,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2049,coal,0,0
+09,Northeast Power Coordinating Council / Upstate New York,2050,coal,0,0
+10,PJM / East,2025,naturalgas,3.422798157,1.246259451
+10,PJM / East,2026,naturalgas,3.618439913,1.404224038
+10,PJM / East,2027,naturalgas,3.402865171,1.25482583
+10,PJM / East,2028,naturalgas,3.393538713,1.232734084
+10,PJM / East,2029,naturalgas,3.50576973,1.17851615
+10,PJM / East,2030,naturalgas,3.694880009,1.066613555
+10,PJM / East,2031,naturalgas,3.787822962,1.08351016
+10,PJM / East,2032,naturalgas,3.980932713,1.213278294
+10,PJM / East,2033,naturalgas,3.959897757,1.196643829
+10,PJM / East,2034,naturalgas,3.857537985,1.201871276
+10,PJM / East,2035,naturalgas,3.800784111,1.24364984
+10,PJM / East,2036,naturalgas,3.779706717,1.29930234
+10,PJM / East,2037,naturalgas,3.928443193,1.341447234
+10,PJM / East,2038,naturalgas,4.009540081,1.357255459
+10,PJM / East,2039,naturalgas,4.082871914,1.380801797
+10,PJM / East,2040,naturalgas,4.071341038,1.433581829
+10,PJM / East,2041,naturalgas,4.145638466,1.458621025
+10,PJM / East,2042,naturalgas,4.165160179,1.432059288
+10,PJM / East,2043,naturalgas,4.128975868,1.465198874
+10,PJM / East,2044,naturalgas,4.048154831,1.524441123
+10,PJM / East,2045,naturalgas,3.954969406,1.569952011
+10,PJM / East,2046,naturalgas,3.849588871,1.613341451
+10,PJM / East,2047,naturalgas,3.747786522,1.632153153
+10,PJM / East,2048,naturalgas,3.670466185,1.663663626
+10,PJM / East,2049,naturalgas,3.624642372,1.705621243
+10,PJM / East,2050,naturalgas,3.603987455,1.72481668
+10,PJM / East,2025,coal,2.607509613,0.2217511684
+10,PJM / East,2026,coal,2.607786894,0.2136173993
+10,PJM / East,2027,coal,2.574671745,0.2168538123
+10,PJM / East,2028,coal,2.564620972,0.2031583488
+10,PJM / East,2029,coal,2.529226065,0.2111909688
+10,PJM / East,2030,coal,2.521708727,0.2173529565
+10,PJM / East,2031,coal,2.427832603,0.1771211177
+10,PJM / East,2032,coal,2.057914495,0.03420488164
+10,PJM / East,2033,coal,2.049960375,0.03420572728
+10,PJM / East,2034,coal,2.040082693,0.03417090327
+10,PJM / East,2035,coal,2.02846384,0.03420731798
+10,PJM / East,2036,coal,2.022552729,0.03421395272
+10,PJM / East,2037,coal,2.789089441,0.03108686954
+10,PJM / East,2038,coal,2.801781178,0.03091738001
+10,PJM / East,2039,coal,2.799823761,0.02822295018
+10,PJM / East,2040,coal,2.792903662,0.02824148536
+10,PJM / East,2041,coal,2.770784855,0.02825859934
+10,PJM / East,2042,coal,2.763231754,0.02827091515
+10,PJM / East,2043,coal,2.75048542,0.02828163467
+10,PJM / East,2044,coal,1.369734406,0.0001500000071
+10,PJM / East,2045,coal,1.368251085,2.73643509e-05
+10,PJM / East,2046,coal,1.369855762,3.396131797e-05
+10,PJM / East,2047,coal,0,0
+10,PJM / East,2048,coal,0,0
+10,PJM / East,2049,coal,0,0
+10,PJM / East,2050,coal,0,0
+11,PJM / West,2025,naturalgas,3.121841908,1.108074188
+11,PJM / West,2026,naturalgas,3.44316411,1.216363311
+11,PJM / West,2027,naturalgas,3.269278288,1.058514357
+11,PJM / West,2028,naturalgas,3.321371794,1.155911684
+11,PJM / West,2029,naturalgas,3.465191841,1.161658525
+11,PJM / West,2030,naturalgas,3.768314362,1.207871914
+11,PJM / West,2031,naturalgas,3.971326828,1.271594882
+11,PJM / West,2032,naturalgas,4.365475655,1.645030618
+11,PJM / West,2033,naturalgas,4.205278397,1.693565726
+11,PJM / West,2034,naturalgas,3.989596605,1.733593106
+11,PJM / West,2035,naturalgas,3.85160923,1.771300673
+11,PJM / West,2036,naturalgas,3.855570555,1.816299796
+11,PJM / West,2037,naturalgas,3.958805323,1.863821983
+11,PJM / West,2038,naturalgas,4.006886482,1.874069571
+11,PJM / West,2039,naturalgas,4.079330444,1.9692384
+11,PJM / West,2040,naturalgas,4.125606537,2.026895761
+11,PJM / West,2041,naturalgas,4.133490086,2.057867765
+11,PJM / West,2042,naturalgas,4.117566586,2.122024775
+11,PJM / West,2043,naturalgas,4.068365097,2.199037075
+11,PJM / West,2044,naturalgas,4.005133629,2.26655364
+11,PJM / West,2045,naturalgas,3.916351557,2.272147655
+11,PJM / West,2046,naturalgas,3.850180387,2.297813177
+11,PJM / West,2047,naturalgas,3.790508509,2.340964317
+11,PJM / West,2048,naturalgas,3.727260351,2.36134696
+11,PJM / West,2049,naturalgas,3.668616533,2.390813112
+11,PJM / West,2050,naturalgas,3.627024651,2.372415781
+11,PJM / West,2025,coal,3.261060238,1.018359542
+11,PJM / West,2026,coal,3.133494377,0.9356162548
+11,PJM / West,2027,coal,3.057542562,0.8979026675
+11,PJM / West,2028,coal,3.051396132,0.7615013719
+11,PJM / West,2029,coal,3.017383337,0.7730296254
+11,PJM / West,2030,coal,2.995890379,0.8042623401
+11,PJM / West,2031,coal,2.990615845,0.8095029593
+11,PJM / West,2032,coal,2.882239342,0.317166239
+11,PJM / West,2033,coal,2.84237957,0.3095782697
+11,PJM / West,2034,coal,2.824250698,0.3089883327
+11,PJM / West,2035,coal,2.804583549,0.308137536
+11,PJM / West,2036,coal,2.78797555,0.3091593683
+11,PJM / West,2037,coal,2.794225454,0.3093819916
+11,PJM / West,2038,coal,2.800459623,0.3107362688
+11,PJM / West,2039,coal,2.77743125,0.3057633936
+11,PJM / West,2040,coal,2.766831398,0.3053720891
+11,PJM / West,2041,coal,2.747421503,0.3056007922
+11,PJM / West,2042,coal,2.741320133,0.3050768673
+11,PJM / West,2043,coal,2.759124517,0.2675800622
+11,PJM / West,2044,coal,2.44691062,0.08673211187
+11,PJM / West,2045,coal,2.356719255,0.07517907023
+11,PJM / West,2046,coal,2.029156446,0.02386808582
+11,PJM / West,2047,coal,0,0
+11,PJM / West,2048,coal,0,0
+11,PJM / West,2049,coal,0,0
+11,PJM / West,2050,coal,0,0
+12,PJM / Commonwealth Edison,2025,naturalgas,3.558463097,0.169070065
+12,PJM / Commonwealth Edison,2026,naturalgas,3.932240248,0.1681233197
+12,PJM / Commonwealth Edison,2027,naturalgas,3.774854422,0.1710242629
+12,PJM / Commonwealth Edison,2028,naturalgas,3.881830692,0.1630830914
+12,PJM / Commonwealth Edison,2029,naturalgas,4.073426247,0.1383044124
+12,PJM / Commonwealth Edison,2030,naturalgas,4.453927994,0.1611805558
+12,PJM / Commonwealth Edison,2031,naturalgas,4.665578365,0.1338734925
+12,PJM / Commonwealth Edison,2032,naturalgas,5.298034668,0.1658629775
+12,PJM / Commonwealth Edison,2033,naturalgas,5.096997261,0.1342915446
+12,PJM / Commonwealth Edison,2034,naturalgas,4.976574421,0.1271826327
+12,PJM / Commonwealth Edison,2035,naturalgas,4.90141964,0.1255753934
+12,PJM / Commonwealth Edison,2036,naturalgas,4.906246185,0.1297950298
+12,PJM / Commonwealth Edison,2037,naturalgas,5.024294853,0.1292843968
+12,PJM / Commonwealth Edison,2038,naturalgas,5.063753605,0.1261538118
+12,PJM / Commonwealth Edison,2039,naturalgas,5.153291225,0.1422840208
+12,PJM / Commonwealth Edison,2040,naturalgas,5.187319756,0.1414261609
+12,PJM / Commonwealth Edison,2041,naturalgas,5.131491661,0.1432130933
+12,PJM / Commonwealth Edison,2042,naturalgas,5.094222546,0.1534121931
+12,PJM / Commonwealth Edison,2043,naturalgas,5.006429672,0.1577389091
+12,PJM / Commonwealth Edison,2044,naturalgas,4.937186241,0.1598966718
+12,PJM / Commonwealth Edison,2045,naturalgas,4.869113922,0.1668722779
+12,PJM / Commonwealth Edison,2046,naturalgas,4.857642174,0.1764551997
+12,PJM / Commonwealth Edison,2047,naturalgas,4.786382198,0.1802865118
+12,PJM / Commonwealth Edison,2048,naturalgas,4.714312077,0.190386802
+12,PJM / Commonwealth Edison,2049,naturalgas,4.655421734,0.1948272288
+12,PJM / Commonwealth Edison,2050,naturalgas,4.602147102,0.1969259381
+12,PJM / Commonwealth Edison,2025,coal,2.47095418,0.08007182926
+12,PJM / Commonwealth Edison,2026,coal,2.465352058,0.0819812119
+12,PJM / Commonwealth Edison,2027,coal,2.590330601,0.05524494126
+12,PJM / Commonwealth Edison,2028,coal,2.64048481,0.03526799381
+12,PJM / Commonwealth Edison,2029,coal,2.569418669,0.04191725701
+12,PJM / Commonwealth Edison,2030,coal,2.556477785,0.07876566797
+12,PJM / Commonwealth Edison,2031,coal,2.535111427,0.06425408274
+12,PJM / Commonwealth Edison,2032,coal,0,0
+12,PJM / Commonwealth Edison,2033,coal,0,0
+12,PJM / Commonwealth Edison,2034,coal,0,0
+12,PJM / Commonwealth Edison,2035,coal,0,0
+12,PJM / Commonwealth Edison,2036,coal,0,0
+12,PJM / Commonwealth Edison,2037,coal,0,0
+12,PJM / Commonwealth Edison,2038,coal,0,0
+12,PJM / Commonwealth Edison,2039,coal,0,0
+12,PJM / Commonwealth Edison,2040,coal,0,0
+12,PJM / Commonwealth Edison,2041,coal,0,0
+12,PJM / Commonwealth Edison,2042,coal,0,0
+12,PJM / Commonwealth Edison,2043,coal,0,0
+12,PJM / Commonwealth Edison,2044,coal,0,0
+12,PJM / Commonwealth Edison,2045,coal,0,0
+12,PJM / Commonwealth Edison,2046,coal,0,0
+12,PJM / Commonwealth Edison,2047,coal,0,0
+12,PJM / Commonwealth Edison,2048,coal,0,0
+12,PJM / Commonwealth Edison,2049,coal,0,0
+12,PJM / Commonwealth Edison,2050,coal,0,0
+13,PJM / Dominion,2025,naturalgas,3.796012402,0.4910143614
+13,PJM / Dominion,2026,naturalgas,4.060180664,0.4822344184
+13,PJM / Dominion,2027,naturalgas,3.894763231,0.4502709806
+13,PJM / Dominion,2028,naturalgas,3.906923056,0.4543219805
+13,PJM / Dominion,2029,naturalgas,4.094288826,0.5027250648
+13,PJM / Dominion,2030,naturalgas,4.290145397,0.4881516993
+13,PJM / Dominion,2031,naturalgas,4.47019577,0.5098171234
+13,PJM / Dominion,2032,naturalgas,4.969529629,0.5411688685
+13,PJM / Dominion,2033,naturalgas,4.891658306,0.5221120119
+13,PJM / Dominion,2034,naturalgas,4.728864193,0.5229095221
+13,PJM / Dominion,2035,naturalgas,4.692209721,0.5299565196
+13,PJM / Dominion,2036,naturalgas,4.696691036,0.5517104268
+13,PJM / Dominion,2037,naturalgas,4.862300396,0.5719062686
+13,PJM / Dominion,2038,naturalgas,5.001580715,0.607334137
+13,PJM / Dominion,2039,naturalgas,5.082848549,0.583332479
+13,PJM / Dominion,2040,naturalgas,5.096022606,0.5721533895
+13,PJM / Dominion,2041,naturalgas,4.93448782,0.5857506394
+13,PJM / Dominion,2042,naturalgas,4.905042171,0.6133006811
+13,PJM / Dominion,2043,naturalgas,4.836848736,0.6173527837
+13,PJM / Dominion,2044,naturalgas,4.792950153,0.6403531432
+13,PJM / Dominion,2045,naturalgas,4.685134888,0.6276886463
+13,PJM / Dominion,2046,naturalgas,4.638339996,0.6468920708
+13,PJM / Dominion,2047,naturalgas,4.54697752,0.6687347293
+13,PJM / Dominion,2048,naturalgas,4.497035503,0.6805134416
+13,PJM / Dominion,2049,naturalgas,4.436954498,0.7105008364
+13,PJM / Dominion,2050,naturalgas,4.348515511,0.740657866
+13,PJM / Dominion,2025,coal,3.683008909,0.1131709293
+13,PJM / Dominion,2026,coal,3.582776785,0.09564318508
+13,PJM / Dominion,2027,coal,3.268264055,0.07977712899
+13,PJM / Dominion,2028,coal,2.994674206,0.05821889639
+13,PJM / Dominion,2029,coal,3.292092323,0.08370565623
+13,PJM / Dominion,2030,coal,3.277270555,0.0789495334
+13,PJM / Dominion,2031,coal,3.262506723,0.08058340847
+13,PJM / Dominion,2032,coal,2.642085791,0.01152349543
+13,PJM / Dominion,2033,coal,2.629639864,0.01143650524
+13,PJM / Dominion,2034,coal,2.613178015,0.003530560527
+13,PJM / Dominion,2035,coal,2.595044851,0.003532283707
+13,PJM / Dominion,2036,coal,2.57881856,0.003533759853
+13,PJM / Dominion,2037,coal,2.56547761,0.003538907738
+13,PJM / Dominion,2038,coal,2.55918169,0.003542799968
+13,PJM / Dominion,2039,coal,0,0
+13,PJM / Dominion,2040,coal,0,0
+13,PJM / Dominion,2041,coal,0,0
+13,PJM / Dominion,2042,coal,0,0
+13,PJM / Dominion,2043,coal,0,0
+13,PJM / Dominion,2044,coal,0,0
+13,PJM / Dominion,2045,coal,0,0
+13,PJM / Dominion,2046,coal,0,0
+13,PJM / Dominion,2047,coal,0,0
+13,PJM / Dominion,2048,coal,0,0
+13,PJM / Dominion,2049,coal,0,0
+13,PJM / Dominion,2050,coal,0,0
+14,SERC Reliability Corporation / East,2025,naturalgas,4.580364227,0.506106317
+14,SERC Reliability Corporation / East,2026,naturalgas,4.89302206,0.4788123965
+14,SERC Reliability Corporation / East,2027,naturalgas,4.607137203,0.461420238
+14,SERC Reliability Corporation / East,2028,naturalgas,4.627571106,0.4469786286
+14,SERC Reliability Corporation / East,2029,naturalgas,4.87722683,0.4620524049
+14,SERC Reliability Corporation / East,2030,naturalgas,5.290069103,0.5034416318
+14,SERC Reliability Corporation / East,2031,naturalgas,5.746317863,0.5056518912
+14,SERC Reliability Corporation / East,2032,naturalgas,6.162530422,0.5355517864
+14,SERC Reliability Corporation / East,2033,naturalgas,6.010928631,0.4783694446
+14,SERC Reliability Corporation / East,2034,naturalgas,5.815434933,0.4988850653
+14,SERC Reliability Corporation / East,2035,naturalgas,5.828054905,0.5137025714
+14,SERC Reliability Corporation / East,2036,naturalgas,5.950954437,0.5340443254
+14,SERC Reliability Corporation / East,2037,naturalgas,6.078570843,0.5780605674
+14,SERC Reliability Corporation / East,2038,naturalgas,6.001284122,0.5504758358
+14,SERC Reliability Corporation / East,2039,naturalgas,6.068823814,0.6034744382
+14,SERC Reliability Corporation / East,2040,naturalgas,6.102556705,0.6357700229
+14,SERC Reliability Corporation / East,2041,naturalgas,6.045695782,0.6610694528
+14,SERC Reliability Corporation / East,2042,naturalgas,5.949987888,0.7055567503
+14,SERC Reliability Corporation / East,2043,naturalgas,5.857704639,0.7364557981
+14,SERC Reliability Corporation / East,2044,naturalgas,5.792800426,0.7671827078
+14,SERC Reliability Corporation / East,2045,naturalgas,5.644701958,0.8152453899
+14,SERC Reliability Corporation / East,2046,naturalgas,5.585820675,0.8418847919
+14,SERC Reliability Corporation / East,2047,naturalgas,5.495141983,0.8622351289
+14,SERC Reliability Corporation / East,2048,naturalgas,5.420844555,0.8712263107
+14,SERC Reliability Corporation / East,2049,naturalgas,5.3560853,0.8851123452
+14,SERC Reliability Corporation / East,2050,naturalgas,5.312114239,0.9082664847
+14,SERC Reliability Corporation / East,2025,coal,3.369274139,0.4364455342
+14,SERC Reliability Corporation / East,2026,coal,3.38000989,0.4519383311
+14,SERC Reliability Corporation / East,2027,coal,2.961835146,0.4506197274
+14,SERC Reliability Corporation / East,2028,coal,2.73378706,0.4063702524
+14,SERC Reliability Corporation / East,2029,coal,2.721897602,0.4271097481
+14,SERC Reliability Corporation / East,2030,coal,2.696293354,0.3505044281
+14,SERC Reliability Corporation / East,2031,coal,2.68296051,0.2911289036
+14,SERC Reliability Corporation / East,2032,coal,2.642085791,0.2455335855
+14,SERC Reliability Corporation / East,2033,coal,2.629639864,0.225701198
+14,SERC Reliability Corporation / East,2034,coal,2.613178015,0.2202019095
+14,SERC Reliability Corporation / East,2035,coal,2.595044851,0.2158750147
+14,SERC Reliability Corporation / East,2036,coal,2.57881856,0.2230352312
+14,SERC Reliability Corporation / East,2037,coal,2.56547761,0.223500371
+14,SERC Reliability Corporation / East,2038,coal,2.55918169,0.2236955613
+14,SERC Reliability Corporation / East,2039,coal,2.560626745,0.1469840109
+14,SERC Reliability Corporation / East,2040,coal,2.54305625,0.147096917
+14,SERC Reliability Corporation / East,2041,coal,2.528805017,0.1472138166
+14,SERC Reliability Corporation / East,2042,coal,2.525638103,0.1473091245
+14,SERC Reliability Corporation / East,2043,coal,2.517282963,0.1473902017
+14,SERC Reliability Corporation / East,2044,coal,2.506725788,0.1449719518
+14,SERC Reliability Corporation / East,2045,coal,0,0
+14,SERC Reliability Corporation / East,2046,coal,0,0
+14,SERC Reliability Corporation / East,2047,coal,0,0
+14,SERC Reliability Corporation / East,2048,coal,0,0
+14,SERC Reliability Corporation / East,2049,coal,0,0
+14,SERC Reliability Corporation / East,2050,coal,0,0
+15,SERC Reliability Corporation / Southeastern,2025,naturalgas,3.800876141,0.9878938794
+15,SERC Reliability Corporation / Southeastern,2026,naturalgas,4.202704906,0.9615761638
+15,SERC Reliability Corporation / Southeastern,2027,naturalgas,3.971621275,0.9564095736
+15,SERC Reliability Corporation / Southeastern,2028,naturalgas,3.990310431,0.8830457926
+15,SERC Reliability Corporation / Southeastern,2029,naturalgas,4.19776392,0.9061185718
+15,SERC Reliability Corporation / Southeastern,2030,naturalgas,4.814734936,0.9459152222
+15,SERC Reliability Corporation / Southeastern,2031,naturalgas,5.208037853,0.9396883845
+15,SERC Reliability Corporation / Southeastern,2032,naturalgas,5.653236389,0.9917649031
+15,SERC Reliability Corporation / Southeastern,2033,naturalgas,5.579093456,0.9978988171
+15,SERC Reliability Corporation / Southeastern,2034,naturalgas,5.370696545,1.017383337
+15,SERC Reliability Corporation / Southeastern,2035,naturalgas,5.363148689,1.003630161
+15,SERC Reliability Corporation / Southeastern,2036,naturalgas,5.461064339,1.043814301
+15,SERC Reliability Corporation / Southeastern,2037,naturalgas,5.526192665,1.086749196
+15,SERC Reliability Corporation / Southeastern,2038,naturalgas,5.493574142,1.118780017
+15,SERC Reliability Corporation / Southeastern,2039,naturalgas,5.489978313,1.176630259
+15,SERC Reliability Corporation / Southeastern,2040,naturalgas,5.504491806,1.204068899
+15,SERC Reliability Corporation / Southeastern,2041,naturalgas,5.433450222,1.241568685
+15,SERC Reliability Corporation / Southeastern,2042,naturalgas,5.319755077,1.298930526
+15,SERC Reliability Corporation / Southeastern,2043,naturalgas,5.194228172,1.327221513
+15,SERC Reliability Corporation / Southeastern,2044,naturalgas,5.081161976,1.344782114
+15,SERC Reliability Corporation / Southeastern,2045,naturalgas,4.926346302,1.391224504
+15,SERC Reliability Corporation / Southeastern,2046,naturalgas,4.882964611,1.43093729
+15,SERC Reliability Corporation / Southeastern,2047,naturalgas,4.798017025,1.429691434
+15,SERC Reliability Corporation / Southeastern,2048,naturalgas,4.729722023,1.457094312
+15,SERC Reliability Corporation / Southeastern,2049,naturalgas,4.669077873,1.471725345
+15,SERC Reliability Corporation / Southeastern,2050,naturalgas,4.606050968,1.458394766
+15,SERC Reliability Corporation / Southeastern,2025,coal,2.998197556,0.4583423436
+15,SERC Reliability Corporation / Southeastern,2026,coal,2.968012094,0.4793036282
+15,SERC Reliability Corporation / Southeastern,2027,coal,2.865751266,0.4113300145
+15,SERC Reliability Corporation / Southeastern,2028,coal,2.961288929,0.3519513607
+15,SERC Reliability Corporation / Southeastern,2029,coal,2.973288059,0.3608503044
+15,SERC Reliability Corporation / Southeastern,2030,coal,2.727149248,0.2595103085
+15,SERC Reliability Corporation / Southeastern,2031,coal,2.701874733,0.2717315257
+15,SERC Reliability Corporation / Southeastern,2032,coal,2.852244139,0.2527430356
+15,SERC Reliability Corporation / Southeastern,2033,coal,2.843972445,0.2488125116
+15,SERC Reliability Corporation / Southeastern,2034,coal,2.795284748,0.2352034301
+15,SERC Reliability Corporation / Southeastern,2035,coal,2.768619299,0.2232488692
+15,SERC Reliability Corporation / Southeastern,2036,coal,2.781300068,0.2311801463
+15,SERC Reliability Corporation / Southeastern,2037,coal,2.779252052,0.226522103
+15,SERC Reliability Corporation / Southeastern,2038,coal,2.827194452,0.2332037836
+15,SERC Reliability Corporation / Southeastern,2039,coal,2.552956581,0.1322844476
+15,SERC Reliability Corporation / Southeastern,2040,coal,2.55332756,0.1323966831
+15,SERC Reliability Corporation / Southeastern,2041,coal,2.554572582,0.1325105429
+15,SERC Reliability Corporation / Southeastern,2042,coal,2.498032808,0.0472778976
+15,SERC Reliability Corporation / Southeastern,2043,coal,2.497350693,0.04709163681
+15,SERC Reliability Corporation / Southeastern,2044,coal,2.493353128,0.03136788309
+15,SERC Reliability Corporation / Southeastern,2045,coal,2.49151659,0.03054648824
+15,SERC Reliability Corporation / Southeastern,2046,coal,0,0
+15,SERC Reliability Corporation / Southeastern,2047,coal,0,0
+15,SERC Reliability Corporation / Southeastern,2048,coal,0,0
+15,SERC Reliability Corporation / Southeastern,2049,coal,0,0
+15,SERC Reliability Corporation / Southeastern,2050,coal,0,0
+16,SERC Reliability Corporation / Central,2025,naturalgas,3.735890865,0.378254801
+16,SERC Reliability Corporation / Central,2026,naturalgas,4.16021204,0.371107161
+16,SERC Reliability Corporation / Central,2027,naturalgas,3.920154095,0.4250988066
+16,SERC Reliability Corporation / Central,2028,naturalgas,3.981776237,0.4389441013
+16,SERC Reliability Corporation / Central,2029,naturalgas,4.202185154,0.5151695013
+16,SERC Reliability Corporation / Central,2030,naturalgas,4.73643589,0.5585409999
+16,SERC Reliability Corporation / Central,2031,naturalgas,5.069031239,0.5334767699
+16,SERC Reliability Corporation / Central,2032,naturalgas,5.423885822,0.5382131338
+16,SERC Reliability Corporation / Central,2033,naturalgas,5.303687572,0.5368958712
+16,SERC Reliability Corporation / Central,2034,naturalgas,5.165956974,0.5332778096
+16,SERC Reliability Corporation / Central,2035,naturalgas,5.151706696,0.5465095043
+16,SERC Reliability Corporation / Central,2036,naturalgas,5.214249134,0.5630844235
+16,SERC Reliability Corporation / Central,2037,naturalgas,5.333930969,0.5806745887
+16,SERC Reliability Corporation / Central,2038,naturalgas,5.329385757,0.599306941
+16,SERC Reliability Corporation / Central,2039,naturalgas,5.320545673,0.566878438
+16,SERC Reliability Corporation / Central,2040,naturalgas,5.352751255,0.5558447242
+16,SERC Reliability Corporation / Central,2041,naturalgas,5.279020309,0.5925754309
+16,SERC Reliability Corporation / Central,2042,naturalgas,5.192378044,0.5899034739
+16,SERC Reliability Corporation / Central,2043,naturalgas,5.105957031,0.6071861982
+16,SERC Reliability Corporation / Central,2044,naturalgas,5.013025284,0.6190000772
+16,SERC Reliability Corporation / Central,2045,naturalgas,4.881645203,0.6365472078
+16,SERC Reliability Corporation / Central,2046,naturalgas,4.826450825,0.6725754142
+16,SERC Reliability Corporation / Central,2047,naturalgas,4.763358116,0.703081727
+16,SERC Reliability Corporation / Central,2048,naturalgas,4.702935219,0.7372459769
+16,SERC Reliability Corporation / Central,2049,naturalgas,4.636305332,0.7432860136
+16,SERC Reliability Corporation / Central,2050,naturalgas,4.572015285,0.7225857377
+16,SERC Reliability Corporation / Central,2025,coal,2.484442472,0.6048972011
+16,SERC Reliability Corporation / Central,2026,coal,2.405081987,0.6175180078
+16,SERC Reliability Corporation / Central,2027,coal,2.299656153,0.4923248589
+16,SERC Reliability Corporation / Central,2028,coal,2.258948326,0.3599699736
+16,SERC Reliability Corporation / Central,2029,coal,2.253274202,0.2771045268
+16,SERC Reliability Corporation / Central,2030,coal,2.23512888,0.2394660115
+16,SERC Reliability Corporation / Central,2031,coal,2.223476648,0.239740178
+16,SERC Reliability Corporation / Central,2032,coal,2.172165871,0.1315932274
+16,SERC Reliability Corporation / Central,2033,coal,2.163032055,0.1311289966
+16,SERC Reliability Corporation / Central,2034,coal,2.148792028,0.1245160177
+16,SERC Reliability Corporation / Central,2035,coal,2.133606911,0.1154200211
+16,SERC Reliability Corporation / Central,2036,coal,2.11638546,0.1156258658
+16,SERC Reliability Corporation / Central,2037,coal,2.100285769,0.1186103523
+16,SERC Reliability Corporation / Central,2038,coal,2.090839386,0.1270262301
+16,SERC Reliability Corporation / Central,2039,coal,0,0
+16,SERC Reliability Corporation / Central,2040,coal,0,0
+16,SERC Reliability Corporation / Central,2041,coal,0,0
+16,SERC Reliability Corporation / Central,2042,coal,0,0
+16,SERC Reliability Corporation / Central,2043,coal,0,0
+16,SERC Reliability Corporation / Central,2044,coal,0,0
+16,SERC Reliability Corporation / Central,2045,coal,0,0
+16,SERC Reliability Corporation / Central,2046,coal,0,0
+16,SERC Reliability Corporation / Central,2047,coal,0,0
+16,SERC Reliability Corporation / Central,2048,coal,0,0
+16,SERC Reliability Corporation / Central,2049,coal,0,0
+16,SERC Reliability Corporation / Central,2050,coal,0,0
+17,Southwest Power Pool / South,2025,naturalgas,3.318475246,0.6742792726
+17,Southwest Power Pool / South,2026,naturalgas,3.782113314,0.7388446331
+17,Southwest Power Pool / South,2027,naturalgas,3.528815031,0.6021080017
+17,Southwest Power Pool / South,2028,naturalgas,3.59516263,0.523350656
+17,Southwest Power Pool / South,2029,naturalgas,3.778356791,0.487234354
+17,Southwest Power Pool / South,2030,naturalgas,4.383780003,0.4531016052
+17,Southwest Power Pool / South,2031,naturalgas,4.803024292,0.4301753044
+17,Southwest Power Pool / South,2032,naturalgas,5.339836597,0.4341326356
+17,Southwest Power Pool / South,2033,naturalgas,5.276740074,0.3688293099
+17,Southwest Power Pool / South,2034,naturalgas,5.105853081,0.3741243184
+17,Southwest Power Pool / South,2035,naturalgas,5.126441479,0.3796890974
+17,Southwest Power Pool / South,2036,naturalgas,5.265372753,0.3765571117
+17,Southwest Power Pool / South,2037,naturalgas,5.380978107,0.3697026074
+17,Southwest Power Pool / South,2038,naturalgas,5.381160736,0.3641403019
+17,Southwest Power Pool / South,2039,naturalgas,5.417505264,0.3577088416
+17,Southwest Power Pool / South,2040,naturalgas,5.43965435,0.3241906762
+17,Southwest Power Pool / South,2041,naturalgas,5.391568661,0.3275496364
+17,Southwest Power Pool / South,2042,naturalgas,5.289885521,0.3343751431
+17,Southwest Power Pool / South,2043,naturalgas,5.166042328,0.3418329358
+17,Southwest Power Pool / South,2044,naturalgas,5.105327606,0.3574827909
+17,Southwest Power Pool / South,2045,naturalgas,5.047152996,0.3552274108
+17,Southwest Power Pool / South,2046,naturalgas,5.053170204,0.3748866022
+17,Southwest Power Pool / South,2047,naturalgas,4.940363884,0.3999987245
+17,Southwest Power Pool / South,2048,naturalgas,4.855800152,0.4148447514
+17,Southwest Power Pool / South,2049,naturalgas,4.766024113,0.4567528665
+17,Southwest Power Pool / South,2050,naturalgas,4.705372334,0.4644714892
+17,Southwest Power Pool / South,2025,coal,2.087106228,0.1593218148
+17,Southwest Power Pool / South,2026,coal,2.140012264,0.2200037092
+17,Southwest Power Pool / South,2027,coal,2.203117371,0.18676579
+17,Southwest Power Pool / South,2028,coal,2.267215729,0.186525166
+17,Southwest Power Pool / South,2029,coal,2.264131784,0.1401990056
+17,Southwest Power Pool / South,2030,coal,2.256825924,0.1279117465
+17,Southwest Power Pool / South,2031,coal,2.201983929,0.1342592984
+17,Southwest Power Pool / South,2032,coal,2.414738894,0.0154550653
+17,Southwest Power Pool / South,2033,coal,2.415911198,0.008437845856
+17,Southwest Power Pool / South,2034,coal,2.414744854,0.008433336392
+17,Southwest Power Pool / South,2035,coal,2.410762548,0.008433195762
+17,Southwest Power Pool / South,2036,coal,2.42117691,0.008433293551
+17,Southwest Power Pool / South,2037,coal,2.435306311,0.008432865143
+17,Southwest Power Pool / South,2038,coal,2.454949141,0.008432600647
+17,Southwest Power Pool / South,2039,coal,0,0
+17,Southwest Power Pool / South,2040,coal,0,0
+17,Southwest Power Pool / South,2041,coal,0,0
+17,Southwest Power Pool / South,2042,coal,0,0
+17,Southwest Power Pool / South,2043,coal,0,0
+17,Southwest Power Pool / South,2044,coal,0,0
+17,Southwest Power Pool / South,2045,coal,0,0
+17,Southwest Power Pool / South,2046,coal,0,0
+17,Southwest Power Pool / South,2047,coal,0,0
+17,Southwest Power Pool / South,2048,coal,0,0
+17,Southwest Power Pool / South,2049,coal,0,0
+17,Southwest Power Pool / South,2050,coal,0,0
+18,Southwest Power Pool / Central,2025,naturalgas,3.608684778,0.09372621775
+18,Southwest Power Pool / Central,2026,naturalgas,3.980394363,0.08607045561
+18,Southwest Power Pool / Central,2027,naturalgas,3.866890669,0.07906167209
+18,Southwest Power Pool / Central,2028,naturalgas,4.007355213,0.07683140785
+18,Southwest Power Pool / Central,2029,naturalgas,4.32990694,0.08208661526
+18,Southwest Power Pool / Central,2030,naturalgas,4.909171581,0.09436704218
+18,Southwest Power Pool / Central,2031,naturalgas,5.138915539,0.08838639408
+18,Southwest Power Pool / Central,2032,naturalgas,5.773144722,0.1178487986
+18,Southwest Power Pool / Central,2033,naturalgas,5.636235714,0.1018338874
+18,Southwest Power Pool / Central,2034,naturalgas,5.508265495,0.09997358173
+18,Southwest Power Pool / Central,2035,naturalgas,5.442317009,0.09437572211
+18,Southwest Power Pool / Central,2036,naturalgas,5.508841515,0.0998473987
+18,Southwest Power Pool / Central,2037,naturalgas,5.611299038,0.1020477414
+18,Southwest Power Pool / Central,2038,naturalgas,5.618756294,0.1029067859
+18,Southwest Power Pool / Central,2039,naturalgas,5.313835621,0.1168794706
+18,Southwest Power Pool / Central,2040,naturalgas,5.192525864,0.1020567641
+18,Southwest Power Pool / Central,2041,naturalgas,5.163106918,0.1061634868
+18,Southwest Power Pool / Central,2042,naturalgas,5.063611031,0.1099130139
+18,Southwest Power Pool / Central,2043,naturalgas,4.955713272,0.1201893911
+18,Southwest Power Pool / Central,2044,naturalgas,4.937310696,0.1313128173
+18,Southwest Power Pool / Central,2045,naturalgas,4.861421585,0.1348693967
+18,Southwest Power Pool / Central,2046,naturalgas,4.891921043,0.1362360269
+18,Southwest Power Pool / Central,2047,naturalgas,4.818872929,0.1370847225
+18,Southwest Power Pool / Central,2048,naturalgas,4.751164913,0.1383035034
+18,Southwest Power Pool / Central,2049,naturalgas,4.684384823,0.1393712461
+18,Southwest Power Pool / Central,2050,naturalgas,4.644770622,0.1399943978
+18,Southwest Power Pool / Central,2025,coal,1.688741326,0.3097492456
+18,Southwest Power Pool / Central,2026,coal,1.700644374,0.3185374737
+18,Southwest Power Pool / Central,2027,coal,1.799289942,0.2716555595
+18,Southwest Power Pool / Central,2028,coal,1.860898972,0.2542875111
+18,Southwest Power Pool / Central,2029,coal,1.865234733,0.2411617041
+18,Southwest Power Pool / Central,2030,coal,1.859321713,0.2187628597
+18,Southwest Power Pool / Central,2031,coal,1.847518682,0.1849592477
+18,Southwest Power Pool / Central,2032,coal,1.864507794,0.07107309997
+18,Southwest Power Pool / Central,2033,coal,1.866234064,0.04115829989
+18,Southwest Power Pool / Central,2034,coal,1.867680788,0.04130317643
+18,Southwest Power Pool / Central,2035,coal,1.867034674,0.04108237848
+18,Southwest Power Pool / Central,2036,coal,1.876438022,0.04149311781
+18,Southwest Power Pool / Central,2037,coal,1.886727333,0.04175689071
+18,Southwest Power Pool / Central,2038,coal,1.903400898,0.0418485254
+18,Southwest Power Pool / Central,2039,coal,0,0
+18,Southwest Power Pool / Central,2040,coal,0,0
+18,Southwest Power Pool / Central,2041,coal,0,0
+18,Southwest Power Pool / Central,2042,coal,0,0
+18,Southwest Power Pool / Central,2043,coal,0,0
+18,Southwest Power Pool / Central,2044,coal,0,0
+18,Southwest Power Pool / Central,2045,coal,0,0
+18,Southwest Power Pool / Central,2046,coal,0,0
+18,Southwest Power Pool / Central,2047,coal,0,0
+18,Southwest Power Pool / Central,2048,coal,0,0
+18,Southwest Power Pool / Central,2049,coal,0,0
+18,Southwest Power Pool / Central,2050,coal,0,0
+19,Southwest Power Pool / North,2025,naturalgas,3.50215745,0.03610517085
+19,Southwest Power Pool / North,2026,naturalgas,3.897630453,0.04152800515
+19,Southwest Power Pool / North,2027,naturalgas,3.791284323,0.03186729178
+19,Southwest Power Pool / North,2028,naturalgas,3.912717342,0.02012516372
+19,Southwest Power Pool / North,2029,naturalgas,4.120732307,0.03059164248
+19,Southwest Power Pool / North,2030,naturalgas,4.63672781,0.05872179568
+19,Southwest Power Pool / North,2031,naturalgas,4.929297924,0.05929473788
+19,Southwest Power Pool / North,2032,naturalgas,5.532601357,0.07593910396
+19,Southwest Power Pool / North,2033,naturalgas,5.445795536,0.04839213565
+19,Southwest Power Pool / North,2034,naturalgas,5.294471264,0.05110578239
+19,Southwest Power Pool / North,2035,naturalgas,5.215350628,0.05310241878
+19,Southwest Power Pool / North,2036,naturalgas,5.232968807,0.056457147
+19,Southwest Power Pool / North,2037,naturalgas,5.356651783,0.06046659499
+19,Southwest Power Pool / North,2038,naturalgas,5.366688728,0.062727727
+19,Southwest Power Pool / North,2039,naturalgas,5.436403751,0.05818516016
+19,Southwest Power Pool / North,2040,naturalgas,5.473403931,0.05838166922
+19,Southwest Power Pool / North,2041,naturalgas,5.470833778,0.06039233506
+19,Southwest Power Pool / North,2042,naturalgas,5.400997162,0.06317382306
+19,Southwest Power Pool / North,2043,naturalgas,5.317174911,0.06497126818
+19,Southwest Power Pool / North,2044,naturalgas,5.226084709,0.06633277237
+19,Southwest Power Pool / North,2045,naturalgas,5.156888485,0.06253453344
+19,Southwest Power Pool / North,2046,naturalgas,5.196050167,0.0686096549
+19,Southwest Power Pool / North,2047,naturalgas,5.128988266,0.07020127028
+19,Southwest Power Pool / North,2048,naturalgas,5.059777737,0.07144391537
+19,Southwest Power Pool / North,2049,naturalgas,4.997368813,0.07266934216
+19,Southwest Power Pool / North,2050,naturalgas,4.949947834,0.07376211137
+19,Southwest Power Pool / North,2025,coal,1.814004064,0.280017972
+19,Southwest Power Pool / North,2026,coal,1.82110548,0.2880509198
+19,Southwest Power Pool / North,2027,coal,1.879358411,0.2583544552
+19,Southwest Power Pool / North,2028,coal,1.906238437,0.2517062724
+19,Southwest Power Pool / North,2029,coal,1.916149378,0.2136601061
+19,Southwest Power Pool / North,2030,coal,1.894580603,0.1777308583
+19,Southwest Power Pool / North,2031,coal,1.868445158,0.1681740582
+19,Southwest Power Pool / North,2032,coal,1.861887693,0.05639314651
+19,Southwest Power Pool / North,2033,coal,1.866402507,0.04740982875
+19,Southwest Power Pool / North,2034,coal,1.868102551,0.04508774728
+19,Southwest Power Pool / North,2035,coal,1.867519021,0.04613148794
+19,Southwest Power Pool / North,2036,coal,1.876712203,0.0449372232
+19,Southwest Power Pool / North,2037,coal,1.887390018,0.04605683684
+19,Southwest Power Pool / North,2038,coal,1.903783321,0.04757928103
+19,Southwest Power Pool / North,2039,coal,1.9279567,0.03854410723
+19,Southwest Power Pool / North,2040,coal,1.936288834,0.03857487068
+19,Southwest Power Pool / North,2041,coal,1.945275426,0.03838403523
+19,Southwest Power Pool / North,2042,coal,1.954572678,0.01055586804
+19,Southwest Power Pool / North,2043,coal,1.964460015,0.01073402818
+19,Southwest Power Pool / North,2044,coal,1.973470092,0.01073485613
+19,Southwest Power Pool / North,2045,coal,1.983620882,0.01073535345
+19,Southwest Power Pool / North,2046,coal,1.98935914,0.00227103848
+19,Southwest Power Pool / North,2047,coal,1.997668266,0.002271590754
+19,Southwest Power Pool / North,2048,coal,2.007106066,0.002272038953
+19,Southwest Power Pool / North,2049,coal,2.021102428,0.002280562883
+19,Southwest Power Pool / North,2050,coal,2.033633471,0.002295751125
+20,Western Electricity Coordinating Council / Southwest,2025,naturalgas,3.966290951,0.4793911576
+20,Western Electricity Coordinating Council / Southwest,2026,naturalgas,4.326202869,0.4741268754
+20,Western Electricity Coordinating Council / Southwest,2027,naturalgas,4.164412022,0.3607746065
+20,Western Electricity Coordinating Council / Southwest,2028,naturalgas,4.308852196,0.3655443788
+20,Western Electricity Coordinating Council / Southwest,2029,naturalgas,4.563382149,0.3681364357
+20,Western Electricity Coordinating Council / Southwest,2030,naturalgas,5.104944229,0.3843570352
+20,Western Electricity Coordinating Council / Southwest,2031,naturalgas,5.593599796,0.4162589908
+20,Western Electricity Coordinating Council / Southwest,2032,naturalgas,6.095606327,0.4450123608
+20,Western Electricity Coordinating Council / Southwest,2033,naturalgas,6.047005177,0.4003823102
+20,Western Electricity Coordinating Council / Southwest,2034,naturalgas,5.901022434,0.4020071328
+20,Western Electricity Coordinating Council / Southwest,2035,naturalgas,5.933688641,0.3909624517
+20,Western Electricity Coordinating Council / Southwest,2036,naturalgas,6.12548399,0.4041846693
+20,Western Electricity Coordinating Council / Southwest,2037,naturalgas,6.287174702,0.4185270369
+20,Western Electricity Coordinating Council / Southwest,2038,naturalgas,6.299821854,0.4167861938
+20,Western Electricity Coordinating Council / Southwest,2039,naturalgas,6.266807556,0.4018989205
+20,Western Electricity Coordinating Council / Southwest,2040,naturalgas,6.271729469,0.4219585359
+20,Western Electricity Coordinating Council / Southwest,2041,naturalgas,6.336392403,0.4365032017
+20,Western Electricity Coordinating Council / Southwest,2042,naturalgas,6.267977238,0.4476417303
+20,Western Electricity Coordinating Council / Southwest,2043,naturalgas,6.162419796,0.4566490948
+20,Western Electricity Coordinating Council / Southwest,2044,naturalgas,6.126974106,0.4798030853
+20,Western Electricity Coordinating Council / Southwest,2045,naturalgas,6.049713612,0.486041218
+20,Western Electricity Coordinating Council / Southwest,2046,naturalgas,6.09828186,0.4831321239
+20,Western Electricity Coordinating Council / Southwest,2047,naturalgas,6.044595242,0.4854899049
+20,Western Electricity Coordinating Council / Southwest,2048,naturalgas,5.972619057,0.5138858557
+20,Western Electricity Coordinating Council / Southwest,2049,naturalgas,5.96245718,0.543595612
+20,Western Electricity Coordinating Council / Southwest,2050,naturalgas,5.926600456,0.497849226
+20,Western Electricity Coordinating Council / Southwest,2025,coal,3.090861797,0.1697670072
+20,Western Electricity Coordinating Council / Southwest,2026,coal,2.970745802,0.1924533993
+20,Western Electricity Coordinating Council / Southwest,2027,coal,3.071685076,0.1378252655
+20,Western Electricity Coordinating Council / Southwest,2028,coal,3.088700533,0.1258559525
+20,Western Electricity Coordinating Council / Southwest,2029,coal,3.054773331,0.1412250549
+20,Western Electricity Coordinating Council / Southwest,2030,coal,3.037192822,0.1769381613
+20,Western Electricity Coordinating Council / Southwest,2031,coal,2.937179565,0.00251068105
+20,Western Electricity Coordinating Council / Southwest,2032,coal,2.92814064,0.001779749873
+20,Western Electricity Coordinating Council / Southwest,2033,coal,2.922369957,0.001247221138
+20,Western Electricity Coordinating Council / Southwest,2034,coal,2.918787718,0.001091387123
+20,Western Electricity Coordinating Council / Southwest,2035,coal,2.911468983,0.0009322418482
+20,Western Electricity Coordinating Council / Southwest,2036,coal,2.923125029,0.0008998116245
+20,Western Electricity Coordinating Council / Southwest,2037,coal,2.937157869,0.0009428581689
+20,Western Electricity Coordinating Council / Southwest,2038,coal,2.923192739,0.0007423584466
+20,Western Electricity Coordinating Council / Southwest,2039,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2040,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2041,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2042,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2043,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2044,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2045,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2046,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2047,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2048,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2049,coal,0,0
+20,Western Electricity Coordinating Council / Southwest,2050,coal,0,0
+21,Western Electricity Coordinating Council / California North,2025,naturalgas,4.101580143,0.3992048502
+21,Western Electricity Coordinating Council / California North,2026,naturalgas,4.454340935,0.393717885
+21,Western Electricity Coordinating Council / California North,2027,naturalgas,4.268746376,0.3270379901
+21,Western Electricity Coordinating Council / California North,2028,naturalgas,4.437821388,0.3233765662
+21,Western Electricity Coordinating Council / California North,2029,naturalgas,4.673801899,0.3318676949
+21,Western Electricity Coordinating Council / California North,2030,naturalgas,5.301079273,0.3421847522
+21,Western Electricity Coordinating Council / California North,2031,naturalgas,5.759642601,0.3389967382
+21,Western Electricity Coordinating Council / California North,2032,naturalgas,6.260362625,0.3345179558
+21,Western Electricity Coordinating Council / California North,2033,naturalgas,6.250230789,0.3431415558
+21,Western Electricity Coordinating Council / California North,2034,naturalgas,5.683610916,0.2367024869
+21,Western Electricity Coordinating Council / California North,2035,naturalgas,5.65508604,0.2271736264
+21,Western Electricity Coordinating Council / California North,2036,naturalgas,5.792361736,0.2438805997
+21,Western Electricity Coordinating Council / California North,2037,naturalgas,5.972027302,0.2625276446
+21,Western Electricity Coordinating Council / California North,2038,naturalgas,6.061869621,0.2990589142
+21,Western Electricity Coordinating Council / California North,2039,naturalgas,6.028582573,0.2712143958
+21,Western Electricity Coordinating Council / California North,2040,naturalgas,6.072609425,0.2807549238
+21,Western Electricity Coordinating Council / California North,2041,naturalgas,6.106230259,0.2883262038
+21,Western Electricity Coordinating Council / California North,2042,naturalgas,6.020523548,0.3000996411
+21,Western Electricity Coordinating Council / California North,2043,naturalgas,5.90656662,0.3160700798
+21,Western Electricity Coordinating Council / California North,2044,naturalgas,5.78572464,0.3320554793
+21,Western Electricity Coordinating Council / California North,2045,naturalgas,5.778787136,0.3398982286
+21,Western Electricity Coordinating Council / California North,2046,naturalgas,5.825118542,0.327794075
+21,Western Electricity Coordinating Council / California North,2047,naturalgas,5.717020035,0.3401952982
+21,Western Electricity Coordinating Council / California North,2048,naturalgas,5.639569759,0.329462111
+21,Western Electricity Coordinating Council / California North,2049,naturalgas,5.597523212,0.3192774951
+21,Western Electricity Coordinating Council / California North,2050,naturalgas,5.669955254,0.3330094218
+21,Western Electricity Coordinating Council / California North,2025,coal,0,0
+21,Western Electricity Coordinating Council / California North,2026,coal,0,0
+21,Western Electricity Coordinating Council / California North,2027,coal,0,0
+21,Western Electricity Coordinating Council / California North,2028,coal,0,0
+21,Western Electricity Coordinating Council / California North,2029,coal,0,0
+21,Western Electricity Coordinating Council / California North,2030,coal,0,0
+21,Western Electricity Coordinating Council / California North,2031,coal,0,0
+21,Western Electricity Coordinating Council / California North,2032,coal,0,0
+21,Western Electricity Coordinating Council / California North,2033,coal,0,0
+21,Western Electricity Coordinating Council / California North,2034,coal,0,0
+21,Western Electricity Coordinating Council / California North,2035,coal,0,0
+21,Western Electricity Coordinating Council / California North,2036,coal,0,0
+21,Western Electricity Coordinating Council / California North,2037,coal,0,0
+21,Western Electricity Coordinating Council / California North,2038,coal,0,0
+21,Western Electricity Coordinating Council / California North,2039,coal,0,0
+21,Western Electricity Coordinating Council / California North,2040,coal,0,0
+21,Western Electricity Coordinating Council / California North,2041,coal,0,0
+21,Western Electricity Coordinating Council / California North,2042,coal,0,0
+21,Western Electricity Coordinating Council / California North,2043,coal,0,0
+21,Western Electricity Coordinating Council / California North,2044,coal,0,0
+21,Western Electricity Coordinating Council / California North,2045,coal,0,0
+21,Western Electricity Coordinating Council / California North,2046,coal,0,0
+21,Western Electricity Coordinating Council / California North,2047,coal,0,0
+21,Western Electricity Coordinating Council / California North,2048,coal,0,0
+21,Western Electricity Coordinating Council / California North,2049,coal,0,0
+21,Western Electricity Coordinating Council / California North,2050,coal,0,0
+22,Western Electricity Coordinating Council / California South,2025,naturalgas,4.032074928,0.3050686717
+22,Western Electricity Coordinating Council / California South,2026,naturalgas,4.362241268,0.3005614281
+22,Western Electricity Coordinating Council / California South,2027,naturalgas,4.185359001,0.2641381621
+22,Western Electricity Coordinating Council / California South,2028,naturalgas,4.36360836,0.2451892793
+22,Western Electricity Coordinating Council / California South,2029,naturalgas,4.632791042,0.22591874
+22,Western Electricity Coordinating Council / California South,2030,naturalgas,5.25642395,0.2360644042
+22,Western Electricity Coordinating Council / California South,2031,naturalgas,5.712539673,0.239791289
+22,Western Electricity Coordinating Council / California South,2032,naturalgas,6.220129967,0.238814801
+22,Western Electricity Coordinating Council / California South,2033,naturalgas,6.211581707,0.2277501374
+22,Western Electricity Coordinating Council / California South,2034,naturalgas,5.681183338,0.1605637223
+22,Western Electricity Coordinating Council / California South,2035,naturalgas,5.652594566,0.1295989454
+22,Western Electricity Coordinating Council / California South,2036,naturalgas,5.792439461,0.1406061202
+22,Western Electricity Coordinating Council / California South,2037,naturalgas,5.963215828,0.1527962983
+22,Western Electricity Coordinating Council / California South,2038,naturalgas,6.042733192,0.1517670006
+22,Western Electricity Coordinating Council / California South,2039,naturalgas,6.009998322,0.1705393791
+22,Western Electricity Coordinating Council / California South,2040,naturalgas,6.04847765,0.1674070805
+22,Western Electricity Coordinating Council / California South,2041,naturalgas,6.082632065,0.1720867753
+22,Western Electricity Coordinating Council / California South,2042,naturalgas,5.997507095,0.1697357446
+22,Western Electricity Coordinating Council / California South,2043,naturalgas,5.880793571,0.1676788479
+22,Western Electricity Coordinating Council / California South,2044,naturalgas,5.760129452,0.1535734683
+22,Western Electricity Coordinating Council / California South,2045,naturalgas,5.748121738,0.1484838128
+22,Western Electricity Coordinating Council / California South,2046,naturalgas,5.792810917,0.1351062357
+22,Western Electricity Coordinating Council / California South,2047,naturalgas,5.690151215,0.1381490231
+22,Western Electricity Coordinating Council / California South,2048,naturalgas,5.6117239,0.1242667064
+22,Western Electricity Coordinating Council / California South,2049,naturalgas,5.565708637,0.1083082482
+22,Western Electricity Coordinating Council / California South,2050,naturalgas,5.629417419,0.1647136062
+22,Western Electricity Coordinating Council / California South,2025,coal,0,0
+22,Western Electricity Coordinating Council / California South,2026,coal,0,0
+22,Western Electricity Coordinating Council / California South,2027,coal,0,0
+22,Western Electricity Coordinating Council / California South,2028,coal,0,0
+22,Western Electricity Coordinating Council / California South,2029,coal,0,0
+22,Western Electricity Coordinating Council / California South,2030,coal,0,0
+22,Western Electricity Coordinating Council / California South,2031,coal,0,0
+22,Western Electricity Coordinating Council / California South,2032,coal,0,0
+22,Western Electricity Coordinating Council / California South,2033,coal,0,0
+22,Western Electricity Coordinating Council / California South,2034,coal,0,0
+22,Western Electricity Coordinating Council / California South,2035,coal,0,0
+22,Western Electricity Coordinating Council / California South,2036,coal,0,0
+22,Western Electricity Coordinating Council / California South,2037,coal,0,0
+22,Western Electricity Coordinating Council / California South,2038,coal,0,0
+22,Western Electricity Coordinating Council / California South,2039,coal,0,0
+22,Western Electricity Coordinating Council / California South,2040,coal,0,0
+22,Western Electricity Coordinating Council / California South,2041,coal,0,0
+22,Western Electricity Coordinating Council / California South,2042,coal,0,0
+22,Western Electricity Coordinating Council / California South,2043,coal,0,0
+22,Western Electricity Coordinating Council / California South,2044,coal,0,0
+22,Western Electricity Coordinating Council / California South,2045,coal,0,0
+22,Western Electricity Coordinating Council / California South,2046,coal,0,0
+22,Western Electricity Coordinating Council / California South,2047,coal,0,0
+22,Western Electricity Coordinating Council / California South,2048,coal,0,0
+22,Western Electricity Coordinating Council / California South,2049,coal,0,0
+22,Western Electricity Coordinating Council / California South,2050,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2025,naturalgas,3.064624786,0.1622176468
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2026,naturalgas,3.369496584,0.1607462168
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2027,naturalgas,3.377900124,0.1570810229
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2028,naturalgas,3.669144392,0.1658616215
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2029,naturalgas,3.870897055,0.1618704349
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2030,naturalgas,4.318125248,0.1645781994
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2031,naturalgas,4.688030243,0.1702286154
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2032,naturalgas,5.206885338,0.1772493869
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2033,naturalgas,5.412103176,0.2080003917
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2034,naturalgas,5.444359779,0.265236944
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2035,naturalgas,5.467188835,0.3026301265
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2036,naturalgas,5.544662476,0.3345336318
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2037,naturalgas,5.677487373,0.3713243008
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2038,naturalgas,5.589629173,0.3553560376
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2039,naturalgas,5.433068752,0.3125838041
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2040,naturalgas,5.535887241,0.345954895
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2041,naturalgas,5.631488323,0.3818107545
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2042,naturalgas,5.588904858,0.4032376707
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2043,naturalgas,5.474367619,0.4191778898
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2044,naturalgas,5.371614456,0.4190739393
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2045,naturalgas,5.351734161,0.4401300251
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2046,naturalgas,5.444952488,0.4546800256
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2047,naturalgas,5.384246826,0.4604188204
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2048,naturalgas,5.313459873,0.4804396033
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2049,naturalgas,5.235812187,0.5055730343
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2050,naturalgas,5.174148083,0.4961880147
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2025,coal,2.444427729,0.03040260077
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2026,coal,1.808289289,0.004559305497
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2027,coal,1.906960487,0.003046587575
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2028,coal,1.970097303,0.003060452407
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2029,coal,1.974758863,0.002993826754
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2030,coal,1.967443705,0.003029541112
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2031,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2032,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2033,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2034,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2035,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2036,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2037,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2038,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2039,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2040,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2041,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2042,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2043,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2044,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2045,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2046,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2047,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2048,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2049,coal,0,0
+23,Western Electricity Coordinating Council / Northwest Power Pool Area,2050,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2025,naturalgas,3.465665817,0.1894079149
+24,Western Electricity Coordinating Council / Rockies,2026,naturalgas,3.881751299,0.2133758664
+24,Western Electricity Coordinating Council / Rockies,2027,naturalgas,3.802278042,0.1824398637
+24,Western Electricity Coordinating Council / Rockies,2028,naturalgas,3.954306126,0.199420765
+24,Western Electricity Coordinating Council / Rockies,2029,naturalgas,4.136191368,0.1812131703
+24,Western Electricity Coordinating Council / Rockies,2030,naturalgas,4.688611507,0.2187289596
+24,Western Electricity Coordinating Council / Rockies,2031,naturalgas,5.103854656,0.1830202043
+24,Western Electricity Coordinating Council / Rockies,2032,naturalgas,5.702425957,0.2085913271
+24,Western Electricity Coordinating Council / Rockies,2033,naturalgas,5.736351967,0.1805467308
+24,Western Electricity Coordinating Council / Rockies,2034,naturalgas,5.661540031,0.1750162095
+24,Western Electricity Coordinating Council / Rockies,2035,naturalgas,5.637038231,0.1750154346
+24,Western Electricity Coordinating Council / Rockies,2036,naturalgas,5.792965889,0.1816859394
+24,Western Electricity Coordinating Council / Rockies,2037,naturalgas,5.894046307,0.1887239218
+24,Western Electricity Coordinating Council / Rockies,2038,naturalgas,5.837606907,0.1860788912
+24,Western Electricity Coordinating Council / Rockies,2039,naturalgas,5.784211159,0.1954782456
+24,Western Electricity Coordinating Council / Rockies,2040,naturalgas,5.759793282,0.1946341991
+24,Western Electricity Coordinating Council / Rockies,2041,naturalgas,5.791500568,0.2038006037
+24,Western Electricity Coordinating Council / Rockies,2042,naturalgas,5.717684746,0.2144662291
+24,Western Electricity Coordinating Council / Rockies,2043,naturalgas,5.571738243,0.2292453796
+24,Western Electricity Coordinating Council / Rockies,2044,naturalgas,5.48124218,0.2381543964
+24,Western Electricity Coordinating Council / Rockies,2045,naturalgas,5.425692558,0.2443271279
+24,Western Electricity Coordinating Council / Rockies,2046,naturalgas,5.486700535,0.247312203
+24,Western Electricity Coordinating Council / Rockies,2047,naturalgas,5.429236412,0.2529431581
+24,Western Electricity Coordinating Council / Rockies,2048,naturalgas,5.37051487,0.2609391809
+24,Western Electricity Coordinating Council / Rockies,2049,naturalgas,5.329470634,0.2651665211
+24,Western Electricity Coordinating Council / Rockies,2050,naturalgas,5.276211262,0.2754007578
+24,Western Electricity Coordinating Council / Rockies,2025,coal,2.283690929,0.3045374453
+24,Western Electricity Coordinating Council / Rockies,2026,coal,2.082321644,0.2482208908
+24,Western Electricity Coordinating Council / Rockies,2027,coal,2.212692022,0.244517535
+24,Western Electricity Coordinating Council / Rockies,2028,coal,2.065051794,0.207889393
+24,Western Electricity Coordinating Council / Rockies,2029,coal,2.0797472,0.2282931507
+24,Western Electricity Coordinating Council / Rockies,2030,coal,2.007034779,0.0886272043
+24,Western Electricity Coordinating Council / Rockies,2031,coal,1.978677988,0.08956649899
+24,Western Electricity Coordinating Council / Rockies,2032,coal,1.755823612,2.425706771e-05
+24,Western Electricity Coordinating Council / Rockies,2033,coal,1.745174527,2.425706771e-05
+24,Western Electricity Coordinating Council / Rockies,2034,coal,1.734546781,2.425706771e-05
+24,Western Electricity Coordinating Council / Rockies,2035,coal,1.721228957,2.436945397e-05
+24,Western Electricity Coordinating Council / Rockies,2036,coal,1.712337852,2.425706771e-05
+24,Western Electricity Coordinating Council / Rockies,2037,coal,1.706010699,2.425706771e-05
+24,Western Electricity Coordinating Council / Rockies,2038,coal,1.699837208,2.425706771e-05
+24,Western Electricity Coordinating Council / Rockies,2039,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2040,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2041,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2042,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2043,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2044,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2045,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2046,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2047,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2048,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2049,coal,0,0
+24,Western Electricity Coordinating Council / Rockies,2050,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2025,naturalgas,3.459178209,0.504879415
+25,Western Electricity Coordinating Council / Basin,2026,naturalgas,3.876266956,0.5737606287
+25,Western Electricity Coordinating Council / Basin,2027,naturalgas,3.798524857,0.3897672296
+25,Western Electricity Coordinating Council / Basin,2028,naturalgas,3.951124191,0.379958123
+25,Western Electricity Coordinating Council / Basin,2029,naturalgas,4.133356571,0.3839819133
+25,Western Electricity Coordinating Council / Basin,2030,naturalgas,4.686563969,0.407147795
+25,Western Electricity Coordinating Council / Basin,2031,naturalgas,5.101693153,0.4589242041
+25,Western Electricity Coordinating Council / Basin,2032,naturalgas,5.701068878,0.5442426801
+25,Western Electricity Coordinating Council / Basin,2033,naturalgas,5.735644817,0.5439311862
+25,Western Electricity Coordinating Council / Basin,2034,naturalgas,5.660953522,0.569586575
+25,Western Electricity Coordinating Council / Basin,2035,naturalgas,5.636313915,0.5096420646
+25,Western Electricity Coordinating Council / Basin,2036,naturalgas,5.793001652,0.5315129161
+25,Western Electricity Coordinating Council / Basin,2037,naturalgas,5.893678188,0.5805065036
+25,Western Electricity Coordinating Council / Basin,2038,naturalgas,5.837531567,0.5725076795
+25,Western Electricity Coordinating Council / Basin,2039,naturalgas,5.783524036,0.5537903309
+25,Western Electricity Coordinating Council / Basin,2040,naturalgas,5.758872509,0.5562119484
+25,Western Electricity Coordinating Council / Basin,2041,naturalgas,5.790771008,0.5865688324
+25,Western Electricity Coordinating Council / Basin,2042,naturalgas,5.716964722,0.6387739778
+25,Western Electricity Coordinating Council / Basin,2043,naturalgas,5.570799828,0.6724067926
+25,Western Electricity Coordinating Council / Basin,2044,naturalgas,5.480206013,0.7222856879
+25,Western Electricity Coordinating Council / Basin,2045,naturalgas,5.424775124,0.7589808106
+25,Western Electricity Coordinating Council / Basin,2046,naturalgas,5.485845566,0.8376779556
+25,Western Electricity Coordinating Council / Basin,2047,naturalgas,5.428413868,0.8517351747
+25,Western Electricity Coordinating Council / Basin,2048,naturalgas,5.369637489,0.8841530681
+25,Western Electricity Coordinating Council / Basin,2049,naturalgas,5.328609943,0.9124862552
+25,Western Electricity Coordinating Council / Basin,2050,naturalgas,5.275341034,0.9007100463
+25,Western Electricity Coordinating Council / Basin,2025,coal,2.302985907,0.3377263248
+25,Western Electricity Coordinating Council / Basin,2026,coal,2.133585691,0.295016557
+25,Western Electricity Coordinating Council / Basin,2027,coal,2.203532696,0.2566782832
+25,Western Electricity Coordinating Council / Basin,2028,coal,2.062938213,0.1984180212
+25,Western Electricity Coordinating Council / Basin,2029,coal,2.055253983,0.2322387695
+25,Western Electricity Coordinating Council / Basin,2030,coal,1.99212265,0.140421316
+25,Western Electricity Coordinating Council / Basin,2031,coal,1.941285133,0.1544150859
+25,Western Electricity Coordinating Council / Basin,2032,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2033,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2034,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2035,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2036,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2037,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2038,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2039,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2040,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2041,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2042,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2043,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2044,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2045,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2046,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2047,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2048,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2049,coal,0,0
+25,Western Electricity Coordinating Council / Basin,2050,coal,0,0

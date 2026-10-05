@@ -59,3 +59,18 @@ writes nothing. Used by `s0_production.coal_spec` and `coal_holds` (`s0_workflow
 | `coal_plant_st_fuel.csv` | 404 | monthly ST fuel (MMBtu) and net generation (MWh), NG and coal, 2023-26, plants with a converted unit |
 | `coal_model_basis_860er2024.csv` | 467 | public reconstruction of PowerGenome's coal-group fleet (EIA-860 2024 early release, not OS; retirement from the planned year or the July 2025 860M Retired sheet; zone from plant map, then county), for the per-option validation tables (`scripts/build_coal_option_tables.py` → `s0_workflow/specs/coal/by_option/`) |
 | `coal_holds.csv` | 10 | held units: hold cap (max(CF since the order, 0.001); 0.01 with < 3 months), window, S0 / holds_persist flags, encoded years, order basis |
+
+## fuel/ (CHANGES §67)
+
+EIA tables behind `s0_production.fuel_prices` (`s0_workflow/fuel_prices.py`), written by
+`python s0_workflow/scripts/fetch_fuel_prices_eia.py` from EIA's published files (downloads cached in `raw/fuel/`,
+gitignored); `--check` re-downloads and compares. `SOURCES.yml` gives the editions (STEO September 2026; AEO2026,
+April 2026), URLs and sha256 of each download.
+- `steo_power_fuel_monthly.csv`: STEO monthly 2022-2027: CLEUDUS / NGEUDUS (nominal $/MMBtu to the electric power
+  sector), NGEPCON (bcf/d), CLEPCON_TON (million short tons), CICPIUS (CPI-U).
+- `aeo2026_power_fuel_national.csv`: AEO2026 Table 3 Electric Power natural gas and steam coal (2025 $/MMBtu), cases
+  reference (Counterfactual Baseline), low_ogs, high_ogs.
+- `aeo2026_power_fuel_emm.csv`: AEO2026 supplemental Tables 54.1-54.25 by EMM region: price (2025 $/MMBtu) and power
+  sector consumption (quadrillion Btu), reference case.
+- `fuel_price_options_by_stage.csv`: national price by S0 model year for each option against hist5 / hist5_high_gas
+  (`s0_workflow/scripts/compare_fuel_prices.py`).

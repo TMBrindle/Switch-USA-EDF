@@ -1,0 +1,52 @@
+retrieved: '2026-10-05'
+steo:
+  edition: September 2026
+  modeling_completed: '2026-09-03'
+  months: 2022-01..2027-12
+  url: https://www.eia.gov/outlooks/steo/xls/STEO_m.xlsx
+  sha256: c06a15243b0d972045ecc59cf9376885f68c7c306c581de5d01e6b8ac1a236c5
+  series:
+    CLEUDUS: cleudus
+    NGEUDUS: ngeudus
+    NGEPCON: ngepcon_bcfd
+    CLEPCON_TON: clepcon_mst
+    CICPIUS: cicpius
+  units: prices nominal $/MMBtu; NGEPCON bcf/d; CLEPCON_TON million short tons; CICPIUS
+    index 1982-84 = 1.00
+aeo2026:
+  aeo_ref_tab3:
+    report: Annual Energy Outlook 2026
+    scenario: cb2026
+    scenario_label: Counterfactual Baseline
+    release: April 2026
+    url: https://www.eia.gov/outlooks/aeo/excel/aeotab3.xlsx
+    sha256: 35581bcd7ad579cf37650393606cf304b536835ca06a2ff4fcdcbaecb83f55f8
+    rows: 'Electric Power: Natural Gas (PRC000:ga_NaturalGas), Steam Coal (PRC000:ga_SteamCoal);
+      2025 $/MMBtu'
+  aeo_lowogs_tab3:
+    report: Annual Energy Outlook 2026
+    scenario: lowogs
+    scenario_label: Low Oil and Gas Supply
+    release: April 2026
+    url: https://www.eia.gov/outlooks/aeo/excel/sidecases/lowogs/aeotab3.xlsx
+    sha256: 7f4b48920db906a8601ffefcf3077f7fbc971c7444e86e4dd7cdecaff0afaa6c
+    rows: 'Electric Power: Natural Gas (PRC000:ga_NaturalGas), Steam Coal (PRC000:ga_SteamCoal);
+      2025 $/MMBtu'
+  aeo_highogs_tab3:
+    report: Annual Energy Outlook 2026
+    scenario: highogs
+    scenario_label: High Oil and Gas Supply
+    release: April 2026
+    url: https://www.eia.gov/outlooks/aeo/excel/sidecases/highogs/aeotab3.xlsx
+    sha256: 1c38582da5e7fb1e3b858ffe1fbc958fdfa03060e3f86a3d0fb71e5626ba2ee3
+    rows: 'Electric Power: Natural Gas (PRC000:ga_NaturalGas), Steam Coal (PRC000:ga_SteamCoal);
+      2025 $/MMBtu'
+aeo2026_emm:
+  report: Annual Energy Outlook 2026
+  scenario: cb2026
+  scenario_label: Counterfactual Baseline
+  release: April 2026
+  url: https://www.eia.gov/outlooks/aeo/supplement/excel/sup_elec.xlsx
+  sha256: 68462f64aa64bb426935405eec76754ce17cd51a72bd4130f8758bdbbf6e7264
+  tables: '54.1-54.25 Electric Power Projections by EMM Region: Fuel Prices to the
+    Electric Power Sector (2025 $/MMBtu), Fuel Consumption (quadrillion Btu)'

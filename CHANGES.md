@@ -2789,3 +2789,59 @@ S-scenario cases. Each is a setting in `pg/settings/s0_production.yml`, pinned o
 Existing tests were updated for the new defaults, rows and column.
 
 **Results:** pandas 3.0.6: 167 passed with build_rate; 1.4.4: 166 passed and 1 skipped.
+
+## 67. S0 Production: Fuel Prices from STEO to AEO2026
+
+**Date:** 2026-10-05 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("Fuel prices (§67)"), recipe C, `SHARED_CHANGES.md`
+#77-#79, review point 19
+
+**Before:** S0 cases used `fuel_price_forecast: hist5_high_gas`: each state's 2020-24 SEDS power-sector price, flat
+in every year, with gas +15%.
+
+**Tom's decision, as `s0_production.fuel_prices`:** natural gas and coal delivered to the electric power sector
+(not Henry Hub), in 2024 $/MMBtu.
+1. **Path:**
+   - 2026-2027: STEO (September 2026 edition, released 9 Sep 2026), annual averages of NGEUDUS / CLEUDUS weighted by
+     the month's power-sector burn;
+   - 2028-2034: linear from STEO 2027 to AEO2026's 2035 value;
+   - 2035-2045: AEO2026.
+   - Dollars: 2025 $ and nominal to 2024 $ with STEO's CPI-U.
+   - Stage value: the mean over the stage's years.
+2. **Regional:** AEO2026 EMM-region prices, scaled each year so their consumption-weighted average follows the path.
+   Zones map to EMM regions through a new documented crosswalk (`s0_workflow/specs/fuel/zone_emm.csv`; no EMM
+   shapefile was reachable).
+3. **Options:** `steo_aeo` (S0 default; AEO2026's base case, which EIA now calls the "Counterfactual Baseline",
+   formerly Reference), `steo_aeo_low_supply`, `steo_aeo_high_supply` (same STEO start and glide), and `hist5` (the
+   case's `fuel_price_forecast` as it is).
+   - New axis and column `fuel_prices` (`steo_aeo` everywhere: it sets nothing).
+   - Three 2035 sensitivity rows on S0_tx.
+   - The regression case is pinned to `hist5` and stays byte-identical.
+4. **Data:** `s0_workflow/scripts/fetch_fuel_prices_eia.py` reads EIA's published files (`api.eia.gov` is blocked here)
+   and pins tidy tables and `SOURCES.yml` (editions, release dates, URLs, sha256) in `s0_workflow/data/fuel/`.
+   `--check` passes.
+
+**National price by model year, 2024 $/MMBtu** (2028 / 2030 / 2035 / 2040 / 2045):
+
+| Option | Natural gas | Coal |
+|---|---|---|
+| current (`hist5_high_gas`) | 5.44 flat | 2.65 flat |
+| `hist5` | 4.73 flat | 2.65 flat |
+| `steo_aeo` | 3.46 / 3.73 / 4.44 / 5.06 / 5.01 | 2.32 / 2.34 / 2.39 / 2.46 / 2.43 |
+| `steo_aeo_low_supply` | 3.60 / 4.84 / 7.12 / 9.57 / 11.48 | 2.33 / 2.40 / 2.53 / 2.64 / 2.63 |
+| `steo_aeo_high_supply` | 3.41 / 3.40 / 3.65 / 3.76 / 3.34 | 2.32 / 2.36 / 2.43 / 2.50 / 2.47 |
+
+The hist5 values are zone prices weighted by AEO2026's 2026 power-sector burn by EMM region, the same weights for
+every option (`fuel_price_options_by_stage.csv`).
+
+**Tests:** `test_fuel_prices.py` (6):
+- pinned sources and editions;
+- the fetch `--check` (offline, when the downloads are cached);
+- the path rules (STEO weighting, CPI conversion, the glide line, AEO end, the same start in every case);
+- regional scaling and stage means;
+- the case writer (gas and coal only, US zones only, a missing fuel stops the build, hist5 and non-S0 untouched);
+- the setting, axis, column and regression pin.
+
+Existing tests were updated for the new column.
+
+**Results:** pandas 3.0.6: 173 passed with build_rate; 1.4.4: 172 passed and 1 skipped.
