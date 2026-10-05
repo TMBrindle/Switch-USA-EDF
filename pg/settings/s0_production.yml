@@ -264,6 +264,18 @@ s0_production:
     program: "ETS 1"
     escalation_after_last_year: 0.07
 
+  # California-Washington carbon (CHANGES §65; Guides and documentation/s0_production.md "California-Washington carbon"):
+  #   linked  (S0 default) from 2028 one linked-market price for CA (ETS 2) and WA (ETS 3) on all their power-sector
+  #           emissions (zero cap, this per-tonne cost: dispatch and investment pay it in full), replacing the presets'
+  #           flat $33.43; unspecified imports into CA / WA zones from outside both pay price x 0.428 (CA, CARB default)
+  #           / 0.437 (WA, unverified) tCO2 per delivered MWh (trans_import_cost.csv, import direction only).
+  #           Prices: 2024$/metric t by model year, linear between keys, held after 2045. CARB calls them scenario
+  #           assumptions, not market projections.
+  #   legacy  the presets' $33.43 and no import cost (the regression case)
+  ca_wa_carbon:
+    mode: linked
+    path: central                  # central (CARB ISOR Jan 2026 Table 21) | low (floor) | high (Bushnell, Feb 2026)
+
   # transmission policy (axis tx_bill; scenario_inputs.csv column of that name; CHANGES §60; s0_workflow/tx_policy.py,
   # switch/study_modules/tx_build_cap.py, Guides and documentation/transmission_bill_scenarios.md):
   #   legacy        the case's trans_expansion policy as before (zero: no discretionary transmission); every

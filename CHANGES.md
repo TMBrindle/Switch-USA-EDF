@@ -2653,3 +2653,49 @@ NorthernGrid_East $811, against $271.8). The model was right and the reporting w
 - the setting.
 
 **Results:** s0_workflow 129. pandas 3.0.6: 151 passed with build_rate; 1.4.4: 150 passed and 1 skipped.
+
+## 65. S0 Production: California-Washington Linked Carbon Price and Import Cost
+
+**Date:** 2026-10-05 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("California-Washington carbon"), recipe H,
+`SHARED_CHANGES.md` #67-#68, review point 15
+
+**Before:** ETS 2 (California) and ETS 3 (Washington) used a flat $33.43/t in their presets, standing in for the
+economy-wide caps. Their zero cap made every power-sector tonne pay it.
+
+**Tom's decisions, as `s0_production.ca_wa_carbon`** (`linked`, the S0 default; `legacy` in the regression case):
+1. **One linked-market price for CA and WA from 2028**, on all their power-sector emissions, for dispatch and
+   investment. Free or consigned allowances don't lower it. Prices are 2024$ per metric tCO2, the model's dollar year
+   (no conversion; the build stops if `target_usd_year` differs). Linear between model years, held after 2045.
+
+   | Path | 2028 | 2030 | 2035 | 2040 | 2045 | Source |
+   |---|---|---|---|---|---|---|
+   | central (default) | 48.6 | 53.4 | 67.8 | 86.0 | 109.2 | CARB ISOR (Jan 2026), Table 21: midpoint of the auction floor and APCR Tier 1 |
+   | low | 29.1 | 32.0 | 40.6 | 51.6 | 65.4 | floor (Greenline/EDF; WA Ecology 26-14-020) |
+   | high | 52.8 | 74.8 | 149.1 | 189.2 | 240.0 | Bushnell (Feb 2026) |
+
+   CARB calls these scenario assumptions, not market projections. The path is chosen by the new `ca_wa_price` axis
+   and column (central everywhere).
+2. **Import cost:** unspecified imports into a CA zone pay price × 0.428 tCO2/MWh (CARB default, reaffirmed Jan 2026);
+   into a WA zone, price × 0.437 (**unverified**).
+   - It is charged per delivered MWh, in the import direction only, on lines into CA/WA zones from zones outside both.
+     CA↔WA flows and exports pay nothing.
+   - It is implemented as an optional directional input to `study_modules.trans_hurdle_cost` (`trans_import_cost.csv`),
+     added inside the existing hurdle cost component.
+   - **CA and WA zones** are the ETS 2 / ETS 3 zones of the case's `carbon_policies_regional.csv`: CA p8–p11, WA
+     p1–p4. They are checked against `hierarchy.csv` states.
+   - **No double counting:** there was no carbon import charge before. The existing hurdle is a symmetric
+     market-friction charge (about $4–5/MWh across hurdle regions), and the import cost adds to it.
+   - **Not covered:** the "imports" generators inside CA and WA zones (Canada into p1/p3, Mexico into p11).
+3. **Unchanged:** the regression case (`on_pgdays` pins `legacy`; byte-identical) and the non-S0 cases (an S0
+   setting, not a preset edit).
+
+**Tests:** `test_ca_wa_carbon.py` (5):
+- prices by path and year, interpolation and hold;
+- S0 cases get the price, the regression and non-S0 cases keep $33.43, and the low/high paths;
+- the CA/WA zones are the priced programs, with states checked;
+- the import-cost file on real transmission tables covers every boundary line once, in the import direction, at
+  price × factor;
+- a Switch toy charges delivered imports one way inside the hurdle component, and without the file nothing changes.
+
+**Results:** s0_workflow 134. pandas 3.0.6: 156 passed with build_rate; 1.4.4: 155 passed and 1 skipped.

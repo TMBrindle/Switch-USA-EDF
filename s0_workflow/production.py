@@ -90,6 +90,7 @@ def apply_settings(case_settings: dict) -> None:
                                  f"not {mode!r}")
             apply_levels_by_period(s, s0, case, year)
             apply_rggi(s, s0, case, year)
+            apply_ca_wa_carbon(s, s0, case, year)
             apply_retirement_option(s, s0)
             apply_forced_tx(s, s0, case, year)
             if prm.apply_settings(s, s0):
@@ -307,6 +308,105 @@ def apply_rggi(s: dict, s0: dict, case=None, year=None) -> None:
     s["carbon_ccr"] = ccr
     logger.info("s0_production %s/%s: RGGI 3PR floor %.2f, CCR triggers %s, volumes %s ($ and t per metric tonne)",
                 case, year, v["floor"], v["ccr_prices"], v["ccr_volumes"])
+
+
+CA_WA_DEFAULTS = {
+    "mode": "linked", "path": "central", "dollar_year": 2024, "first_year": 2028,
+    "programs": {"CA": "ETS 2", "WA": "ETS 3"},
+    # unspecified-import emission factors, tCO2/MWh: CA = CARB default (reaffirmed Jan 2026); WA = 0.437 (unverified)
+    "import_tco2_per_mwh": {"CA": 0.428, "WA": 0.437},
+    # 2024$ per metric tCO2 by model year (between keys: linear; after the last: held)
+    "prices": {
+        "central": {2028: 48.6, 2030: 53.4, 2035: 67.8, 2040: 86.0, 2045: 109.2},   # CARB ISOR Jan 2026, Table 21
+        "low": {2028: 29.1, 2030: 32.0, 2035: 40.6, 2040: 51.6, 2045: 65.4},        # floor (Greenline/EDF; WA Ecology)
+        "high": {2028: 52.8, 2030: 74.8, 2035: 149.1, 2040: 189.2, 2045: 240.0},    # Bushnell, Feb 2026
+    },
+}
+
+
+def ca_wa_settings(s0: dict) -> dict:
+    over = (s0 or {}).get("ca_wa_carbon") or {}
+    r = {**CA_WA_DEFAULTS, **{k: v for k, v in over.items() if k not in ("programs", "import_tco2_per_mwh", "prices")}}
+    for k in ("programs", "import_tco2_per_mwh", "prices"):
+        r[k] = {**CA_WA_DEFAULTS[k], **(over.get(k) or {})}
+    if r["mode"] not in ("linked", "legacy"):
+        raise ValueError(f"s0_production.ca_wa_carbon.mode must be linked or legacy, not {r['mode']!r}")
+    if r["path"] not in r["prices"]:
+        raise ValueError(f"s0_production.ca_wa_carbon.path must be one of {sorted(r['prices'])}, not {r['path']!r}")
+    return r
+
+
+def ca_wa_price(year: int, r: dict | None = None) -> float | None:
+    """The linked CA-WA price for a model year (model dollars, $/metric tCO2), or None before first_year."""
+    r = r or CA_WA_DEFAULTS
+    if int(year) < int(r["first_year"]):
+        return None
+    t = {int(k): float(v) for k, v in r["prices"][r["path"]].items()}
+    ks = sorted(t)
+    y = int(year)
+    if y <= ks[0]:
+        return t[ks[0]]
+    if y >= ks[-1]:
+        return t[ks[-1]]
+    lo = max(k for k in ks if k <= y)
+    hi = min(k for k in ks if k >= y)
+    return t[lo] if lo == hi else round(t[lo] + (t[hi] - t[lo]) * (y - lo) / (hi - lo), 4)
+
+
+def apply_ca_wa_carbon(s: dict, s0: dict, case=None, year=None) -> None:
+    """s0_production.ca_wa_carbon (CHANGES §65): one linked-market price for California (ETS 2) and Washington (ETS 3)
+    from 2028, on all their power-sector emissions (their programs have a zero cap and this price as the per-tonne
+    cost: every tonne pays it, for dispatch and investment). Replaces the presets' flat $33.43. legacy: the preset's
+    value (the regression case). The model's dollar year must equal the prices' (2024)."""
+    r = ca_wa_settings(s0)
+    if r["mode"] != "linked":
+        return
+    usd = s.get("target_usd_year")
+    if usd is not None and int(usd) != int(r["dollar_year"]):
+        raise ValueError(f"s0_production.ca_wa_carbon prices are {r['dollar_year']}$ but target_usd_year is {usd}")
+    price = ca_wa_price(int(year), r)
+    if price is None:
+        return
+    s["carbon_cost_by_program"] = {**(s.get("carbon_cost_by_program") or {}),
+                                   **{prog: price for prog in r["programs"].values()}}
+    logger.info("s0_production %s/%s: CA-WA linked carbon price %.2f $/tCO2 (%s path, %s$)", case, year, price,
+                r["path"], r["dollar_year"])
+
+
+def write_ca_wa_import_cost(folder: Path, s0: dict, scen_settings_dict: dict, log) -> None:
+    """trans_import_cost.csv (study_modules.trans_hurdle_cost): unspecified imports into CA / WA zones from zones
+    outside both pay price x the state's import emission factor per delivered MWh, in the import direction only;
+    CA<->WA flows and exports pay nothing. CA and WA zones = the zones of the ETS 2 / ETS 3 programs in
+    carbon_policies_regional.csv (the zones whose emissions are priced), checked against hierarchy.csv states."""
+    r = ca_wa_settings(s0)
+    folder = Path(folder)
+    if r["mode"] != "linked" or not (folder / "carbon_policies_regional.csv").exists():
+        return
+    c = pd.read_csv(folder / "carbon_policies_regional.csv")
+    tl = pd.read_csv(folder / "transmission_lines.csv")
+    st = dict(pd.read_csv(REPO / "hierarchy.csv")[["ba", "st"]].values)
+    rows = []
+    for year in sorted(int(y) for y in scen_settings_dict):
+        price = ca_wa_price(year, r)
+        if price is None:
+            continue
+        state_of = {}
+        for state, prog in r["programs"].items():
+            for z in c[(c.CO2_PROGRAM == prog) & (c.PERIOD == year)].LOAD_ZONE:
+                if z in st and st[z] != state:
+                    raise ValueError(f"ca_wa_carbon: zone {z} is in {prog} ({state}) but hierarchy.csv puts it in {st[z]}")
+                state_of[z] = state
+        for a, b in zip(tl.trans_lz1, tl.trans_lz2):
+            for src, dst in ((a, b), (b, a)):
+                if dst in state_of and src not in state_of:
+                    rows.append({"trans_lz_from": src, "trans_lz_to": dst, "PERIOD": year,
+                                 "trans_import_cost_per_mwh": round(price * float(r["import_tco2_per_mwh"][state_of[dst]]), 4)})
+    if rows:
+        pd.DataFrame(rows).to_csv(folder / "trans_import_cost.csv", index=False)
+        log(f"ca_wa_carbon: {len(rows)} import directions into CA/WA zones "
+            f"({', '.join(sorted({x['trans_lz_to'] for x in rows}))}); $/MWh by period "
+            + ", ".join(f"{y}: {sorted({x['trans_import_cost_per_mwh'] for x in rows if x['PERIOD'] == y})}"
+                        for y in sorted({x["PERIOD"] for x in rows})))
 
 
 LEVEL_KEYS = {"interconnection_headroom": "scenario", "build_rate": "level"}
@@ -675,6 +775,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     prm.write_case_inputs(out_folder, s0, scen_settings_dict, log)          # regional planning reserve (§55)
     tx_policy.write_case_inputs(out_folder, s0, scen_settings_dict, log)    # moratorium, national cap (§60)
     write_level_switch(out_folder, s0, scen_settings_dict, log)             # headroom scenario by period (§60)
+    write_ca_wa_import_cost(out_folder, s0, scen_settings_dict, log)       # CA/WA import carbon cost (§65)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))

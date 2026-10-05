@@ -352,8 +352,8 @@ def test_settings_axis_column_and_legacy_off():
     leg = ax["s0_production"]["on_pgdays"]["s0_production"]
     assert leg["coal_spec"] == {"enabled": False} and leg["coal_holds"] == {"enabled": False}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
-    assert list(si.columns[-7:]) == ["coal_holds", "retirements_pre2030", "forced_tx", "prm_design", "time_sample",
-                                     "tx_bill", "tx_sens"] and (si.coal_holds == "s0").all()
+    assert list(si.columns[-8:]) == ["coal_holds", "retirements_pre2030", "forced_tx", "prm_design", "time_sample",
+                                     "tx_bill", "tx_sens", "ca_wa_price"] and (si.coal_holds == "s0").all()
     assert set(si.loc[si.case_id == "s4x1_S0prod_2035", "retirements_pre2030"]) == {"legacy"}
     assert (si.loc[si.case_id != "s4x1_S0prod_2035", "retirements_pre2030"] == "block_all").all()
     assert ax["retirements_pre2030"] == {o: {"s0_production": {"retirements_pre2030": o}} for o in cs.RETIREMENT_OPTIONS} \

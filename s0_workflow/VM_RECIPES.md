@@ -661,6 +661,11 @@ Expected (S0, RGGI10):
 - **Cap:** the sum of the zone caps equals the cap shown.
 - **Regression case (`s4x1_S0prod_2035`):** floor 0 and an empty `carbon_policies_ccr.csv`, as before.
 - **Cases built before §62:** a floor of 0 or no CCR rows on an S0 case means it was built before §62. Rebuild it.
+- **California-Washington (§65):**
+  - **Price:** ETS 2 and ETS 3 rows have `carbon_cost_dollar_per_tco2` = the linked price: 48.6, 53.4, 67.8, 86.0 and
+    109.2 for 2028–2045 (central); 33.43 in the regression case.
+  - **`trans_import_cost.csv`:** rows only into p1–p4 / p8–p11 from outside them, at price × 0.437 (WA) or × 0.428 (CA).
+  - **After solving:** `trans_import_cost_results.csv` gives the delivered MWh and the cost.
 
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 

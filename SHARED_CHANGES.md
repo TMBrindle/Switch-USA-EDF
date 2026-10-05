@@ -196,6 +196,13 @@ every other case build as before — tests check the legacy settings and that th
 | 65 | `switch/study_modules/prm_regional.py` | New `prm_zone_prices.csv` (zone price = Σ stress-hour duals, $/kW-yr, ≤ penalty); `prm_summary.csv` region price = peak-weighted mean of zone prices (+ max zone price and zone), replacing the sum of hourly duals over all zones; served load includes ShiftDemand without local_td; `dr` credit row from ShiftDemand. The model is unchanged (one shortfall slack per zone and period, as before). | VM recipe E: PJM $2,555/kW-yr vs a $271.8 penalty (reporting only). | S0 regional cases only (reporting) |
 | 66 | `s0_workflow/prm.py` (`gen_class`), `s0_workflow/production.py`, `pg/settings/s0_production.yml` | Energy source `demand_response` virtual generators (load_growth, us_exports): credit `none`, class `flex_load` (was dispatch / `dr`); `s0_production.demand_response.enabled` (off) puts demand_response_investment on S0 scenario lines. | Their annual availability 0 doesn't bind in zero-weight stress hours; they aren't DR. | S0 regional cases: those generators no longer credited (they had dispatched 0 in recipe E) |
 
+### Added in §65 (Oct 2026: California-Washington linked carbon price and import cost)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 67 | `switch/study_modules/trans_hurdle_cost.py` | Optional `trans_import_cost.csv` (trans_lz_from, trans_lz_to, PERIOD, $/MWh): a directional charge on delivered MWh, added inside `TxHurdleCostPerTP` (no new cost component); `trans_import_cost_results.csv` when used. | §65 item 2. | none (no file: same model and outputs) |
+| 68 | `s0_workflow/production.py` (`apply_ca_wa_carbon`, `write_ca_wa_import_cost`), `pg/settings/s0_production.yml` (`ca_wa_carbon`), `pg/settings/scenario_management.yml` (`on_pgdays` pins `ca_wa_carbon: {mode: legacy}`; axis `ca_wa_price`), `pg/extra_inputs/scenario_inputs.csv` (column `ca_wa_price`, central everywhere) | S0 cases: ETS 2 / ETS 3 `carbon_cost_by_program` = the linked price by model year (2024$; central/low/high), replacing the presets' $33.43; import cost into CA/WA zones. | §65 item 1. | none outside S0 (S0 layer, not a preset edit); regression pinned legacy |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -247,3 +254,9 @@ every other case build as before — tests check the legacy settings and that th
     `carbon_floor_price_by_program` / `carbon_ccr_prices` entries under its presets for 2028-2045 (values in
     s0_production.md "RGGI"), or call `rggi_3pr_values`. The `current` preset's 2028 tier-1 trigger is 23.00; the file
     gives 23.01.
+15. (§65) **Not a preset edit:** the presets keep ETS 2 / ETS 3 at $33.43 (the stand-in for the economy-wide caps), so
+    fedpol's cases are unchanged. S0 cases now use the linked CA-WA price (2024$: 48.6 in 2028 to 109.2 in 2045, central)
+    and pay a carbon import cost into CA/WA zones. For fedpol to match, set `carbon_cost_by_program` ETS 2 / ETS 3 by
+    year in its presets and write `trans_import_cost.csv` (or reuse `apply_ca_wa_carbon` / `write_ca_wa_import_cost`).
+    `trans_hurdle_cost.py` gained an optional input; without it nothing changes. `scenario_inputs.csv` has one more
+    column (`ca_wa_price`).

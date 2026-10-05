@@ -1296,6 +1296,7 @@ settings_management:
           forced_tx_expansion_limit: legacy
           prm: {design: legacy}
           rggi: {mode: legacy}
+          ca_wa_carbon: {mode: legacy}
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}
@@ -1387,6 +1388,14 @@ settings_management:
           levels_by_period:
             interconnection_headroom: {2028: atts_planned, 2035: atts_reform}
             build_rate: {2028: central, 2035: reform}
+    # California-Washington linked carbon price path for S0 cases (pg/settings/s0_production.yml ca_wa_carbon; CHANGES
+    # §65). Inert unless s0_production.enabled. Column `ca_wa_price`: central (sets nothing: the S0 default) everywhere.
+    ca_wa_price:
+      central: ~
+      low:
+        s0_production: {ca_wa_carbon: {path: low}}
+      high:
+        s0_production: {ca_wa_carbon: {path: high}}
     # Sensitivity hooks on the cases above (CHANGES §60). Column `tx_sens`: none (sets nothing) in every other row.
     # Offshore wind approvals restored: the offshore_wind_policy column (capped_2025_released), not this axis.
     tx_sens:
