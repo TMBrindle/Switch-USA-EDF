@@ -62,7 +62,7 @@ if [ ${#failed[@]} -gt 0 ]; then
 fi
 n=$(find data/raw/lbnl -maxdepth 1 -name '*.xls*' ! -name 'SYNTHETIC*' | wc -l)
 echo "LBNL: ${n} real workbook(s) in data/raw/lbnl"
-# ReEDS site-level reinforcement costs (new_line uprate cost) and site capacities, at the pinned
+# ReEDS site-level reinforcement costs (conventional reinforcement and reconductoring cost) and site capacities, at the pinned
 # ReEDS commit (data/reference/REEDS_COMMIT.txt). interconnection_land.h5 is a git-LFS object in
 # NREL/ReEDS-2.0 (now NatLabRockies/ReEDS-2.0); media.githubusercontent.com serves LFS content.
 REEDS_SHA="$(cut -d' ' -f1 data/reference/REEDS_COMMIT.txt)"

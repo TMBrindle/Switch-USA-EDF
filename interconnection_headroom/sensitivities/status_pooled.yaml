@@ -1,5 +1,5 @@
 # Sensitivity: price every zone's completed status at the pooled completed effect instead of the
-# capped regime effect (tranches.status_pricing). Trend freeze and new_line as in config.yaml.
+# capped regime effect (tranches.status_pricing). Trend freeze and conventional reinforcement as in config.yaml.
 # Run: python -m icsc.cli --config sensitivities/status_pooled.yaml run --start-year 2026
 extends: ../config.yaml
 paths: {outputs: outputs/sens_status_pooled}

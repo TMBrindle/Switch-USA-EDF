@@ -1,0 +1,11 @@
+# Sensitivity: advanced-conductor reconductoring at half of new-build cost per MW of capacity, the upper
+# bound all three sources state (GridLab/UC Berkeley 2035 Report technical report, p. 31: "less than
+# half"; GridLab/Energy Innovation policy report, p. 8: "50 to 75 percent cheaper"; DOE Liftoff, p. 25:
+# "less than half the price of a new build"). New build = ReEDS reinforcement / 0.5, so a half = 1.0 x
+# the zone's ReEDS reinforcement cost (the central value before Oct 2026). Central (config.yaml): a
+# third, 0.67 x.
+# Run: python -m icsc.cli --config sensitivities/reconductor_high_cost.yaml run --start-year 2026
+extends: ../config.yaml
+paths: {outputs: outputs/sens_reconductor_high_cost}
+uprate_options:
+  reconductor: {cost_per_kw: {reeds_reinforcement_x: 1.0}}

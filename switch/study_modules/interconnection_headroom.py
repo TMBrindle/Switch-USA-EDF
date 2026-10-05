@@ -14,15 +14,17 @@ units of s: step k is w_k wide and costs c_k per MW of generation connected.
 
 Deliberate reinforcement comes in two modes (ic_uprate_mode):
 
-  stretch (GETs, reconductoring; new lines when new_line_mode is stretch) adds MW to H. That
+  stretch (GETs and advanced-conductor reconductoring when the pipeline's atts_mode is stretch;
+  conventional reinforcement when its reinforcement_mode is stretch) adds MW to H. That
   * stretches every step: the MW available in step k is w_k x H, and
   * moves the zone back down the curve: existing use U0 now fills less of H, releasing up
     to s0 x (MW added) of headroom priced at the zone's starting marginal cost.
   Both effects are linear in the MW added, so the model stays an LP. The approximation is exact
   for small uprates and slightly conservative for large ones.
 
-  host (new intra-zonal lines, the default) adds weighted MW of headroom directly, at its own cost
-  per MW of generation hosted (ReEDS's reinforcement cost, the full cost of delivering a MW of new
+  host (the pipeline default for GETs, advanced-conductor reconductoring and conventional
+  reinforcement) adds weighted MW of headroom directly, at the uprate's own cost per MW of generation
+  hosted (for conventional reinforcement, ReEDS's reinforcement cost: delivering a MW of new
   generation to the zone centre). It does not change H, stretch the steps or release headroom, and
   generation it hosts pays no empirical step or release cost on top.
 
@@ -39,14 +41,16 @@ uprates (MW added x $/MW), both annualised over ic_asset_life_years.
 
 Reporting (post_solve):
   ic_spend.csv      overnight and annual $ by zone, period and type
-  ic_network.csv    network capacity: base; added by stretch uprates (GETs, reconductoring;
-                    deliberate_mw_added); estimated added by reactive upgrades (reactive spend /
-                    ic_reactive_cost_per_mw_network); headroom hosted by new lines (hosted_mw) and the
-                    network capacity those lines imply, new_line_network_mw_implied = hosted MW /
-                    the zone's curve-end saturation (s0 + sum of step widths: weighted generation per
-                    MW of network at the end of the empirical curve); %
-  ic_spend.csv rows are by type (reactive_upgrades and each uprate type, so new_line spend is its own
-                    row; for host uprates generation_mw_enabled = hosted MW)
+  ic_network.csv    network capacity: base; added by stretch uprates (deliberate_mw_added);
+                    estimated added by reactive upgrades (reactive spend /
+                    ic_reactive_cost_per_mw_network); headroom hosted by host uprates
+                    (hosted_mw) and the network capacity it implies,
+                    hosted_network_mw_implied = hosted MW / the zone's curve-end saturation (s0 + sum
+                    of step widths: weighted generation per MW of network at the end of the
+                    empirical curve); %
+  ic_spend.csv rows are by type (reactive_upgrades and each uprate type, so conventional
+                    reinforcement (conv_reinforcement) spend is its own row; for host uprates
+                    generation_mw_enabled = hosted MW)
   ic_headroom.csv   headroom used, freed, bought, and the constraint dual, by load zone
   ic_gen_weights.csv  weight applied to each project
 
@@ -190,7 +194,7 @@ def define_components(m):
     m.ICNetworkAdded = Expression(
         m.IC_ZONES, m.PERIODS,
         rule=lambda m, i, p: sum(m.ICUprateCapacity[u, p] for u in m.IC_STRETCH_UPRATES_IN_ZONE[i]))
-    # headroom (weighted MW) hosted directly by host-mode uprates (new lines), plus any carried over
+    # headroom (weighted MW) hosted directly by host-mode uprates, plus any carried over
     m.ICHostedHeadroom = Expression(
         m.IC_ZONES, m.PERIODS,
         rule=lambda m, i, p: m.ic_hosted_headroom_mw[i]
@@ -360,7 +364,7 @@ def post_solve(m, outdir):
                 "headroom_released_mw": rel,
                 "hosted_mw": hosted,
                 "curve_end_saturation": s_end,
-                "new_line_network_mw_implied": implied,
+                "hosted_network_mw_implied": implied,
             })
     pd.DataFrame(spend).to_csv(os.path.join(outdir, "ic_spend.csv"), index=False)
     pd.DataFrame(network).to_csv(os.path.join(outdir, "ic_network.csv"), index=False)
@@ -389,7 +393,7 @@ def post_solve(m, outdir):
         os.path.join(outdir, "ic_uprates_built.csv"), index=False)
     pd.DataFrame([{"ic_zone": i, "period": last, "released_mw": value(m.ICRelease[i, last])}
                   for i in m.IC_ZONES]).to_csv(os.path.join(outdir, "ic_release_built.csv"), index=False)
-    # hosted headroom (new lines) not used by this stage's builds: the headroom constraint's slack in
+    # hosted headroom (host uprates) not used by this stage's builds: the headroom constraint's slack in
     # the load zone, up to the hosted MW, shared across its IC zones in proportion to hosted MW
     hosted_rows = []
     for z in m.IC_ACTIVE_LOAD_ZONES:

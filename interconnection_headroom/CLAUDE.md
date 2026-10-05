@@ -16,7 +16,7 @@ python -m icsc.cli panel              # zone saturation panel (real data, no LBN
 python -m icsc.cli inspect-lbnl       # how LBNL headers resolved; fix config.yaml lbnl.columns
 python -m icsc.cli link-report        # MW share of LBNL projects placed in zones, by ISO and status
 python -m icsc.cli fit-weights        # proxy x tech weights x reuse share, ranked by QAIC
-python -m icsc.cli reinforcement      # rebuild data/reference/reeds_reinforcement_by_zone.csv (new_line cost; needs data/raw/reeds/)
+python -m icsc.cli reinforcement      # rebuild data/reference/reeds_reinforcement_by_zone.csv (conventional reinforcement cost; needs data/raw/reeds/)
 python -m icsc.cli --config sensitivities/wind_050.yaml run --start-year 2026   # sensitivities extend config.yaml
 python -m icsc.cli run --start-year 2026
 SWITCH_SRC=/opt/switch-src pytest -q  # all tests, incl. a Switch toy solve with HiGHS
@@ -37,8 +37,10 @@ numbered section in `../CHANGES.md`.
   `saturation.tech_weights` in `config.yaml`. Don't hard-code weights in code.
 - Tranche costs must stay non-decreasing within each zone (the LP relies on it). Tests check this.
 - Flag anything priced by extrapolation (the `extrapolated` column). Never present it as estimated.
-- Placeholder parameters (GETs and reconductoring costs and caps, proactive-planning multiplier,
-  CPI table) are marked in `config.yaml` and `data/reference/`. Replace them only with sourced
+- Placeholder parameters (proactive-planning multiplier, reactive engineering
+  cost, CPI table) are marked in `config.yaml` and `data/reference/`. GETs and reconductoring costs
+  and caps are sourced (config.yaml `uprate_options` / `uprate_levels`); figures the sources lack are
+  marked MISSING there, not estimated. Replace them only with sourced
   values, and record the source in a comment.
 - Units: costs in `config.yaml` and `tranches_*.csv` are real $/kW in `dollar_year`;
   Switch inputs are $/MW. Capacity is nameplate MW unless a column says `_weighted`.

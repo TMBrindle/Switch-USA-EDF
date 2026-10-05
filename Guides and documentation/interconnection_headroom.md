@@ -18,8 +18,8 @@ The curve has four handles:
 | Lever | What changes | How it's represented |
 |---|---|---|
 | Retirements | Position (s falls) | Retired capacity frees headroom (reuse share) |
-| GETs, reconductoring | H: stretches the curve and moves the zone back down it | Uprate options Switch can build |
-| New intra-zonal lines | Headroom added directly (host mode, default) | Uprate option at ReEDS reinforcement cost per MW of generation |
+| GETs, advanced-conductor reconductoring | Headroom added directly (host mode, default); stretch mode (H grows) is a sensitivity | Uprate options Switch can build, at their cost per MW of generation |
+| Conventional reinforcement (ReEDS) | Headroom added directly (host mode, default) | Uprate option at ReEDS reinforcement cost per MW of generation |
 | Cost allocation, regime, queue process | Height | `regime_override: best`, `cost_multiplier` |
 | Proactive or portfolio planning | Steepness | `slope_multiplier` (later: regime-specific slopes) |
 
@@ -30,15 +30,26 @@ Method, data and first results: `interconnection_headroom/docs/project_doc.html`
 Per IC zone and period:
 
 - Step k of the curve provides up to `width_k x H` MW of generation headroom at `cost_k` $/MW.
-- `H = H0 + MW of stretch uprates built` (GETs, reconductoring). Each uprate option has a cap
-  (share of H0), a $/MW and a first year.
+- `H = H0 + MW of stretch uprates built` (none by default; GETs and advanced-conductor reconductoring
+  with pipeline `atts_mode: stretch`, `sensitivities/atts_stretch.yaml`). Each uprate option has a cap,
+  a $/MW and a first year.
 - When H grows, existing use fills less of it, releasing up to `s0 x MW of stretch uprates` of
   headroom priced at the zone's starting marginal cost.
-- New lines (`ic_uprate_mode: host`, pipeline `new_line_mode: host`, the default) add weighted MW of
-  headroom directly at the zone's ReEDS reinforcement cost per MW of generation (median $319/kW),
-  with no step or release cost on top, and leave H unchanged. ReEDS's cost already covers delivering
-  the MW to the zone centre, so charging the LBNL step costs too would count upgrades twice.
-  `new_line_mode: stretch` restores the old behaviour (a new line adds to H).
+- Conventional reinforcement (`conv_reinforcement`, "conventional reinforcement (ReEDS)";
+  `ic_uprate_mode: host`, pipeline `reinforcement_mode: host`, the default) adds weighted MW of headroom
+  directly at the zone's ReEDS reinforcement cost per MW of generation (ReEDS prices it at 50% of
+  new-build CAPEX: conventional reinforcement / reconductoring as standard practice; median $319/kW
+  across zones), with no step or release cost on top, and leaves H unchanged. ReEDS's cost already
+  covers delivering the MW to the zone centre, so charging the LBNL step costs too would count upgrades
+  twice. It is offered in every scenario. The full new-build price (2 ×, median $639/kW) is the
+  sensitivity `sensitivities/new_line_full_build.yaml`; `reinforcement_mode: stretch` restores the old
+  behaviour (it adds to H). Available from the first model period.
+- GETs and advanced-conductor reconductoring (`reconductor`) also host generation directly by default
+  (pipeline `atts_mode: host`), at their cost per kW of generation, unconverted: GETs $15.2 (PJM) /
+  $33.7 (elsewhere); advanced conductors a third of greenfield (GridLab, p. 31) = 0.67 × the ReEDS
+  reinforcement cost (median $214/kW; 0.5 × and 1.0 × are sensitivities). Their adoption caps are a
+  share of H0 (network capacity), converted to hosted MW with the zone's curve-end saturation. So the
+  LP takes GETs, then advanced conductors, then conventional reinforcement.
 
 Per load zone (summing its IC zones): tech-weighted new capacity <= initial headroom + reuse x
 retired capacity + steps + released headroom + hosted headroom. Everything is linear. The release term is exact for
@@ -48,8 +59,8 @@ small uprates and slightly conservative for large ones.
 
 | File | Contents |
 |---|---|
-| `ic_spend.csv` | Overnight and annual $ by IC zone, period and type (`reactive_upgrades`, `gets`, `reconductor`, `new_line`), network MW added, generation MW enabled, and network MW per generation MW for reactive upgrades |
-| `ic_network.csv` | Base capacity; MW and % added by GETs/reconductoring (`deliberate_mw_added`); estimated MW and % added by reactive upgrades; headroom from the curve and released; `hosted_mw` (new lines) and `new_line_network_mw_implied` = hosted MW / `curve_end_saturation` (s0 + step widths: weighted generation per MW of network at the end of the curve) |
+| `ic_spend.csv` | Overnight and annual $ by IC zone, period and type (`reactive_upgrades`, `gets`, `reconductor`, `conv_reinforcement`), network MW added, generation MW enabled, and network MW per generation MW for reactive upgrades |
+| `ic_network.csv` | Base capacity; MW and % added by stretch uprates (`deliberate_mw_added`; zero by default); estimated MW and % added by reactive upgrades; headroom from the curve and released; `hosted_mw` (host uprates: GETs, advanced conductors, conventional reinforcement) and `hosted_network_mw_implied` = hosted MW / `curve_end_saturation` (s0 + step widths: weighted generation per MW of network at the end of the curve) |
 | `ic_headroom.csv` | Per load zone: new weighted capacity, freed, bought, initial headroom, dual |
 | `ic_gen_weights.csv` | Weight applied to each project |
 
@@ -87,11 +98,17 @@ MW are exact model decisions.
 
 | `scenario` | Curve |
 |---|---|
-| `reference` | Empirical curve with each zone's regime effect; no uprate options |
-| `best_regime` | Lowest regime effect everywhere (height) |
-| `gets` | Switch may add GETs up to 10% of H0 (placeholder cost) |
-| `reconductoring` | GETs plus reconductoring up to 30% of H0 from 2028 (placeholders) |
-| `proactive_planning` | All uprate options incl. new lines from 2032, and slope × 0.7 (placeholders) |
+| `reference` = `atts_s0` (default) | Empirical curve with each zone's regime effect; GETs and advanced conductors at observed deployment (GETs 0.25% of H0, advanced conductors 0); conventional-reinforcement backstop. S0 cases use this |
+| `atts_s0_mandate_only` | GETs and advanced-conductor caps 0 (what Orders 881 and 1920 require for planning) |
+| `atts_planned` | Liftoff mid case: GETs 10.7% of H0 from 2028, advanced conductors 15% from 2029 |
+| `atts_reform` | GETs 18.8% from 2027, advanced conductors 30% (Liftoff high case) from 2028 |
+| `atts_reform_techmax` | As atts_reform, advanced conductors 78% (GridLab line share; sensitivity) |
+| `best_regime` | Lowest regime effect everywhere (height); s0 uprates |
+| `proactive_planning` | Planned-level uprates and slope × 0.7 (placeholder multiplier) |
+
+Every scenario includes GETs and advanced-conductor reconductoring at its adoption level (`uprate_level`,
+default `s0`) and the conventional-reinforcement (ReEDS) backstop. GETs costs come from two regional studies (RMI PJM $15.2, Brattle SPP $33.7 per kW
+of generation), so planned and reform results are sensitive to them (project doc, "Uprate options").
 
 ## Checks on the first real run
 
@@ -103,8 +120,8 @@ MW are exact model decisions.
 - **Weights.** `ic_gen_weights.csv` should show 0 for demand response, imports and distributed
   generation.
 - **Myopic chains.** Stage 2 should read the `.chained.<case>.csv` versions of `ic_zones`,
-  `ic_tranches` and `ic_uprates`: higher base capacity where stage 1 built GETs or reconductoring,
-  narrower steps where it bought headroom, and `ic_hosted_headroom_mw` with new-line headroom stage 1
+  `ic_tranches` and `ic_uprates`: higher base capacity where stage 1 built GETs or advanced-conductor reconductoring,
+  narrower steps where it bought headroom, and `ic_hosted_headroom_mw` with hosted (conventional-reinforcement) headroom stage 1
   built but did not use (from `ic_hosted_built.csv`).
 - **Region scope.** With `st` or `interconnect` aggregation, each aggregate load zone keeps its
   BAs as separate IC zones and pools their headroom.
