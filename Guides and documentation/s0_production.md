@@ -808,7 +808,22 @@ such column joins all its rows into one dense block of the normal matrix.
 
 It is the same LP (the toy test gives the same builds, shortfall, prices and cost). The nonzeros move from the hourly
 rows into a few definition rows. A unit's capacity column now appears in one row per group, not in every stress hour.
-Real-case reserve-row nonzeros and dense columns: measurement in progress (estimator `--builds full,full_compact`).
+
+Measured on the same build (reserve rows = `Prm_*` constraints; 2035 stage, 360 stress hours; compact with three
+derate groups per zone, 402 groups):
+
+| reserve rows | hourly | compact | change |
+|---|---|---|---|
+| nonzeros per stress hour | 23,023 | 12,169 | −47% |
+| nonzeros, stage (hourly rows + once-per-group rows) | 8,288,280 | 4,380,840 + 32,318 = 4,413,158 | −47% |
+| most nonzeros in one hourly row | 503 | 206 | −59% |
+| columns in every stress-hour reserve row of a period | 10,140 | 3,231 | −68% |
+
+Columns still in every stress-hour row under compact are, by construction: the accredited-capacity and group
+shortfall columns, the wind, solar and hydro new-build columns (their credit follows the hourly profile), and new
+transmission capacity in the flow-limit rows. Variables and constraints barely change (+804 each in the built case;
+memory to build is the same). The gain is in the solver's factorisation, which only the VM can measure (recipe I:
+Gurobi's factor nonzeros and factor ops).
 
 The hourly form stays available (and is the S0 default until the VM has solved recipe I's compact case).
 

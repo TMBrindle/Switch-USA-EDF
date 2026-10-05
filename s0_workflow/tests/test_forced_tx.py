@@ -120,7 +120,8 @@ def test_settings_options_and_legacy():
     # §66: _new has the final S0 configuration (one stage, fleet-independent days, regional reserve, S0_tx)
     assert [c for c in si.columns if a[c] != new[c]] == ["case_id", "s0_production", "forced_tx", "prm_design", "tx_bill"]
     assert set(si.loc[si.case_id == "s4x1_S0prod_2035", "forced_tx"]) == {"legacy"}
-    bill = si.case_id.str.contains("S0_tx|BILL") | si.case_id.isin(["S0prod_A", "S0prod_B", "s4x1_S0prod_2035_new"])
+    bill = (si.case_id.str.contains("S0_tx|BILL") | si.case_id.isin(["S0prod_A", "S0prod_B"])
+            | si.case_id.str.startswith("s4x1_S0prod_2035_new"))         # incl. the §69 light/compact variants
     # §60: the S0 transmission baseline; §66: the S0 default
     assert (si[bill].forced_tx == "reeds_certain_plus_A").all()
     rest = si[~si.case_id.isin(["s4x1_S0prod_2035", "s4x1_S0prod_2035_txnamed"]) & ~bill]

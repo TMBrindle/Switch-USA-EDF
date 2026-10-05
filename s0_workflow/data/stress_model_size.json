@@ -31,9 +31,53 @@
    "stage_on_stress": 2869920
   }
  },
+ "full_compact": {
+  "var": {
+   "none": 84929,
+   "per_sample_tp": 23195.0,
+   "per_stress_tp": 23821.0,
+   "stage_total": 22577489,
+   "stage_on_stress": 8575560
+  },
+  "con": {
+   "none": 76951,
+   "per_sample_tp": 29067.0,
+   "per_stress_tp": 30447.0,
+   "stage_total": 28478071,
+   "stage_on_stress": 10960920
+  }
+ },
  "memory_gb": {
   "full": 114.0,
-  "light": 80.8
+  "light": 80.8,
+  "full_compact": 114.0
  },
- "memory_gb_basis": "114.0 GB measured (VM, full, 600+360 timepoints) x (variables + constraints) / full's"
+ "memory_gb_basis": "114.0 GB measured (VM, full, 600+360 timepoints) x (variables + constraints) / full's",
+ "reserve_rows": {
+  "full": {
+   "hourly_nnz_per_stress_tp": 23023.0,
+   "max_hourly_row_nnz": 503,
+   "stage_hourly_nnz": 8288280,
+   "dense_columns_per_period": 10140,
+   "stage_once_nnz": 0,
+   "stage_prm_nnz": 8288280
+  },
+  "light": {
+   "hourly_nnz_per_stress_tp": 35167.0,
+   "max_hourly_row_nnz": 503,
+   "stage_hourly_nnz": 12660120,
+   "dense_columns_per_period": 10140,
+   "stage_once_nnz": 0,
+   "stage_prm_nnz": 12660120
+  },
+  "full_compact": {
+   "hourly_nnz_per_stress_tp": 12169.0,
+   "max_hourly_row_nnz": 206,
+   "stage_hourly_nnz": 4380840,
+   "dense_columns_per_period": 3231,
+   "groups_per_period_target": 402,
+   "stage_once_nnz": 32318,
+   "stage_prm_nnz": 4413158
+  }
+ }
 }

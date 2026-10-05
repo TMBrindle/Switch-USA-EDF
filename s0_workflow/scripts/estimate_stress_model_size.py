@@ -161,9 +161,10 @@ def reserve_rows(res: dict, period: int, stress_tps: int, seasons: int) -> dict:
     """Reserve-row nonzeros and dense columns scaled to the target's stress hours. Hourly rows scale with stress hours;
     the compact form's once-per-group rows with zones x derate groups (seasons). In the hourly form each capacity-credit
     unit's new-build column and the zone's shortfall appear in every stress-hour row of the zone (rows = stress hours of
-    the period); in the compact form only the group's accredited-capacity and shortfall columns do (rows = the group's
-    hours). Columns counted as dense: in at least the period's stress hours of the built case (the case has one stress
-    day, one group, per period)."""
+    the period); in the compact form the group's accredited-capacity and shortfall columns do instead (rows = the
+    group's hours), and the hourly-credit units' (wind, solar, hydro) and transmission columns as before. Columns
+    counted as dense: in at least the period's stress hours of the built case (one stress day, so one group, per
+    period)."""
     out = {}
     for name, r in res.items():
         pr = r["prm"]
@@ -180,12 +181,9 @@ def reserve_rows(res: dict, period: int, stress_tps: int, seasons: int) -> dict:
         if compact:
             o["groups_per_period_target"] = round(groups * seasons)
             o["stage_once_nnz"] = round(once * seasons)   # definitions and links scale with groups
-            o["dense_column_rows_target"] = round(stress_tps / seasons)
         else:
             o["stage_once_nnz"] = round(once)
-            o["dense_column_rows_target"] = stress_tps
         o["stage_prm_nnz"] = o["stage_hourly_nnz"] + o["stage_once_nnz"]
-        o["fill_proxy"] = o["dense_columns_per_period"] * (seasons if compact else 1) * o["dense_column_rows_target"] ** 2
         out[name] = o
     return out
 
@@ -211,6 +209,7 @@ def main(argv=None):
     out["reserve_rows"] = reserve_rows(res, a.period, a.stress_tps, a.seasons)
     df.groupby(["formulation", "kind", "component", "tp_class"]).n.sum().reset_index().to_csv(a.out, index=False)
     print(json.dumps(out, indent=1))
+    json.dump(out, open(a.out.with_suffix(".json"), "w"), indent=1)
     return out
 
 

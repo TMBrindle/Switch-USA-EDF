@@ -2883,3 +2883,83 @@ The regression case uses the legacy reserve (no stress days), so it is unchanged
 Default-setting test updated.
 
 **Results:** pandas 3.0.6: 175 passed with build_rate; 1.4.4: 174 passed and 1 skipped.
+
+## 69. S0 Production: Light Stress Days and Compact Reserve Rows
+
+**Date:** 2026-10-05 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("Light stress days (§69)", "Compact reserve rows (§69)"),
+recipe I, `SHARED_CHANGES.md` #81-#87 and review point 20
+
+**Why:** the final S0 configuration (24 sample days + 15 stress days, 960 timepoints) took 4 h 29 min for one 2035
+stage and peaked at 114 GB of 128 GB. The VM then traced the run time to factorisation fill-in (barrier factor ops
+1.26e13 against 5.75e11 in v2), driven by the regional reserve's hourly rows.
+
+**Two new settings, both off in S0 until the VM has tested them:**
+- **`prm.stress_days.formulation: full | light`** (default `full`). Light writes `stress_light_timeseries.csv` (the
+  stress timeseries; each must have zero weight). On those timepoints only:
+  - no unit commitment (no `CommitGen`, start-up/shut-down, minimum load, minimum up/down time). Dispatch is limited
+    to available capacity, and thermal dispatch to nameplate × `prm_avail_frac` (`Prm_Light_Thermal_Limit`);
+  - no ramp limits, spinning or operating reserves, scheduled-outage variables;
+  - no fuel use or emissions, no per-timepoint policy variables (bundled-REC trade, in-zone shares), and per-timepoint
+    cost terms 0;
+  - kept: dispatch with hourly wind, solar and hydro, storage state of charge (charging counted), transmission with
+    limits and losses, the energy balance with all withdrawals, the regional requirement, the import cap, the
+    shortfall.
+  - Not added: a window of each stress day (storage is cyclic within each timeseries; see the guide).
+- **`prm.reserve_rows: hourly | compact`** (default `hourly`). Compact writes `prm_compact_capacity = 1`. Stress
+  hours of a zone and period are grouped by derate vector (seasonal derate: at most three groups). One
+  `PrmAccCap[z, p, k]` per group, defined once from capacity × `prm_avail_frac`, replaces the thermal units' capacity
+  columns in the group's hourly rows. Wind, solar, hydro, storage (dispatch), DR and transmission keep hourly terms.
+  The shortfall must relax every hourly row, so it can't sit in one row only: one `PrmGroupShortfall[z, p, k]` per
+  group enters its hourly rows and is linked once to the zone shortfall. Same LP.
+
+**Modules** (inert without the light file or `prm_compact_capacity`; see SHARED_CHANGES):
+- `switch/modules.txt` now loads repo copies of `commit.operate`, `operating_reserves.areas` and `spinning_reserves`
+  (`study_modules/commit_operate.py`, `operating_reserves_areas.py`, `spinning_reserves.py`);
+- `generators_core_dispatch.py` defines `LIGHT_TIMESERIES`, `LIGHT_TPS`, `OP_TIMEPOINTS`, `GEN_TPS_LIGHT`,
+  `GEN_TPS_OP`;
+- `gen_ramp_limits`, `scheduled_outages` (also a fix: the outage sum skips light timeseries), `rps_regional`,
+  `gen_zone_ratio`, `carbon_policies_regional`, `fuel_costs_simple`, `gen_om_by_period`, `gen_tax_credits`,
+  `trans_hurdle_cost` use them;
+- `prm_regional.py`: `Prm_Light_Thermal_Limit`, the compact rows.
+
+**Settings and cases:** `pg/settings/s0_production.yml` (`formulation: full`, `reserve_rows: hourly`); axis
+`prm_design` values `regional_light`, `regional_compact`, `regional_light_compact`; rows
+`s4x1_S0prod_2035_new_light`, `_compact`, `_light_compact` (same as `s4x1_S0prod_2035_new` except `prm_design`).
+
+**Expected size, 2035 stage of `s4x1_S0prod_2035_new`** (600 sample + 360 stress timepoints;
+`s0_workflow/scripts/estimate_stress_model_size.py` builds `s4x1_fedpol_current` with synthetic reserve inputs and
+scales per-timepoint rates; `s0_workflow/data/stress_model_size.csv/.json`):
+
+| | full | light |
+|---|---|---|
+| variables (stage) | 22,576,685 | 15,801,380 (−30%) |
+| constraints (stage) | 28,477,267 | 20,386,267 (−28%) |
+| variables on stress days | 8,575,560 | 1,806,840 (−79%) |
+| constraints on stress days | 10,960,920 | 2,869,920 (−74%) |
+| memory (114 GB × size ratio) | 114 GB | about 81 GB |
+
+Compact reserve rows (same build, 360 stress hours, 402 derate groups):
+
+| reserve rows | hourly | compact |
+|---|---|---|
+| nonzeros, stage | 8,288,280 | 4,413,158 (−47%; incl. 32,318 in the once-per-group rows) |
+| nonzeros per stress hour | 23,023 | 12,169 |
+| most nonzeros in one hourly row | 503 | 206 |
+| columns in every stress-hour reserve row of a period | 10,140 | 3,231 (−68%) |
+
+Compact barely changes the variable and constraint counts (+804 each in the built case), so build memory stays the
+same. Its effect is on the factorisation, which recipe I measures.
+
+The regression case uses the legacy reserve and writes neither file, so its inputs are byte-identical.
+
+**Tests** (`test_light_stress.py`, new; `test_prm.py`; `test_forced_tx.py` and `test_tx_policy.py` count the new rows
+with `s4x1_S0prod_2035_new`):
+- light: no commitment, ramp, reserve, fuel or outage components on stress timepoints;
+- light and full give the same builds, shortfall and cost when commitment doesn't bind;
+- without the light file, the copies build the core modules' model (counts by component, objective);
+- compact vs hourly, full and light: same builds, shortfall, prices and cost; fewer hourly-row nonzeros and columns in
+  many rows;
+- the estimator's scaling; settings, axis values, rows and the written files.
+
+**Results:** pandas 3.0.6: 181 passed with build_rate; 1.4.4: 180 passed and 1 skipped.
