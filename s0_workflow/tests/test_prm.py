@@ -223,12 +223,27 @@ def test_settings_axis_column_and_legacy():
     assert s0["prm"]["design"] == "regional" and s0["prm"]["imports"]["mode"] == "flat"
     ax = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))["settings_management"]["all_years"]
     assert ax["prm_design"] == {"regional": {"s0_production": {"prm": {"design": "regional"}}},
+                                "regional_light": {"s0_production": {"prm": {"design": "regional",
+                                                                             "stress_days": {"formulation": "light"}}}},
+                                "regional_compact": {"s0_production": {"prm": {"design": "regional",
+                                                                               "reserve_rows": "compact"}}},
+                                "regional_light_compact": {"s0_production": {"prm": {
+                                    "design": "regional", "reserve_rows": "compact",
+                                    "stress_days": {"formulation": "light"}}}},
                                 "legacy": {"s0_production": {"prm": {"design": "legacy"}}}}
     assert ax["s0_production"]["on_pgdays"]["s0_production"]["prm"] == {"design": "legacy"}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
     regional = set(si.loc[si.prm_design == "regional", "case_id"])
     assert {c for c in regional if not ("S0_tx" in c or "BILL" in c)} == {"S0prod_A", "S0prod_B", "s4x1_S0prod_2035_prm",
                                                                                 "s4x1_S0prod_2035_new"}
+    lt = si[si.case_id == "s4x1_S0prod_2035_new_light"].iloc[0]                  # §69: VM test of light stress days
+    nw = si[si.case_id == "s4x1_S0prod_2035_new"].iloc[0]
+    assert [c for c in si.columns if str(lt[c]) != str(nw[c])] == ["case_id", "prm_design"]
+    assert lt.prm_design == "regional_light" and set(si[si.prm_design == "regional_light"].case_id) == {lt.case_id}
+    for v in ("regional_compact", "regional_light_compact"):                     # §69: compact reserve rows
+        c = si[si.prm_design == v]
+        assert list(c.case_id) == [f"s4x1_S0prod_2035_new_{v[9:]}"]
+        assert [k for k in si.columns if str(c.iloc[0][k]) != str(nw[k])] == ["case_id", "prm_design"]
     a = si[si.case_id == "s4x1_S0prod_2035_prm"].iloc[0]
     b = si[si.case_id == "s4x1_S0prod_2035_txreeds"].iloc[0]
     assert [c for c in si.columns if a[c] != b[c]] == ["case_id", "prm_design"] and a.year == 2035
@@ -304,6 +319,22 @@ def test_write_case_inputs(tmp_path):
     assert "prm regional: 2 regions" in lines[0] and "271.79" in lines[0]
     gc = pd.read_csv(tmp_path / "prm_gen_credit.csv").set_index("GENERATION_PROJECT")
     assert gc.at["bat", "prm_credit"] == "storage" and gc.at["wind", "prm_credit"] == "variable"
+    # stress-day formulation (§69): full (the S0 default for now) writes no light file; light lists the stress days
+    assert s0["prm"]["stress_days"]["formulation"] == "full" and not (tmp_path / "stress_light_timeseries.csv").exists()
+    assert "stress-day formulation full; reserve rows hourly" in lines[0]
+    assert s0["prm"]["reserve_rows"] == "hourly" and "prm_compact_capacity" not in pr.index
+    s0["prm"]["stress_days"]["formulation"] = "light"
+    prm.write_case_inputs(tmp_path, s0, {2035: {"target_usd_year": 2024}}, lines.append)
+    assert list(pd.read_csv(tmp_path / "stress_light_timeseries.csv").TIMESERIES) == ["2035_p200_prm", "2035_p20_prm"]
+    assert "stress-day formulation light" in lines[-1]
+    with pytest.raises(ValueError, match="formulation"):
+        prm.stress_formulation({"stress_days": {"formulation": "lite"}})
+    s0["prm"]["reserve_rows"] = "compact"                                       # compact reserve rows (§69)
+    prm.write_case_inputs(tmp_path, s0, {2035: {"target_usd_year": 2024}}, lines.append)
+    assert pd.read_csv(tmp_path / "prm_params.csv").iloc[0].prm_compact_capacity == 1
+    assert "reserve rows compact" in lines[-1]
+    with pytest.raises(ValueError, match="reserve_rows"):
+        prm.reserve_rows({"reserve_rows": "dense"})
 
 
 # ------------------------------------------------------------------------------------------------ Switch module toys

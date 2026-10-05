@@ -739,6 +739,50 @@ Expected (S0 before §66, RGGI10 only; the 2035 comparison rows still look like 
   rows for p1 and p3 (Canada at 0). The build log line `ca_wa_carbon imports generators: ...` names them; **report**
   the generator names.
 
+## I. Light stress days and compact reserve rows: 2035 s4x1 (CHANGES §69)
+
+**Cases** (same row except `prm_design`):
+- `s4x1_S0prod_2035_new`: full stress days, hourly reserve rows (the S0 default);
+- `s4x1_S0prod_2035_new_light` (`regional_light`): light stress days;
+- `s4x1_S0prod_2035_new_compact` (`regional_compact`): compact reserve rows;
+- `s4x1_S0prod_2035_new_light_compact` (`regional_light_compact`): both.
+
+Build each into a fresh folder:
+```bash
+for c in s4x1_S0prod_2035_new s4x1_S0prod_2035_new_light s4x1_S0prod_2035_new_compact s4x1_S0prod_2035_new_light_compact; do
+  test -e switch/in/s0light/$c && echo "exists: pick another name" || \
+  "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0light --case-id $c --year 2035
+done
+```
+1. **Before solving:**
+   - Only the light folders have `stress_light_timeseries.csv`, listing the same timeseries as `prm_timeseries.csv`
+     (15 `*_prm`). Only the compact folders have `prm_compact_capacity = 1` in `prm_params.csv`.
+   - Every other input file is byte-identical across the four (`diff -rq`, excluding `s0_production_log.txt` and
+     `scenarios*.txt`). **Report** any difference.
+   - Optional: `python s0_workflow/scripts/estimate_stress_model_size.py --case switch/in/s0light/<folder>` gives the
+     counts for the actual case. It builds the model three times (one at a time) and so needs memory; run it only if
+     there is room.
+2. **Solve** with recipe A's solver options and `measure_run.py`, in this order: compact first (the VM traced the 4 h 29
+   min to factorisation fill-in from the hourly reserve rows: factor ops 1.26e13 vs 5.75e11 in v2), then light_compact,
+   then light. **Report** for each:
+   - wall time and peak memory (full measured 4 h 29 min and 114 GB at f0e7ca3);
+   - Gurobi's rows, columns and nonzeros, and the barrier's factor nonzeros and factor ops ("Factor NZ", "Factor Ops").
+3. **Compare** each with the full/hourly run:
+   - objective;
+   - builds by technology (`compare_s0_runs.py`);
+   - `prm_shortfall.csv` and `prm_summary.csv` (margins, prices);
+   - `prm_capacity_credit.csv`.
+
+   Expected:
+   - **compact:** the same optimum as hourly (same LP, reformulated); differences only at solver tolerance. Anything
+     larger is a bug: **report** it.
+   - **light:** close. Light only drops operating constraints on zero-weight days; commitment, minimum loads and
+     ramping on stress days can move a reserve-binding hour. Thermal dispatch on stress days is bounded by nameplate ×
+     `prm_avail_frac`.
+   - **Report** the largest relative difference in builds by technology and in each region's reserve price. If they
+     are close, compact and/or light can become the S0 default (`reserve_rows: compact`, `formulation: light` in
+     `s0_production.yml`).
+
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 
 **Deferred** (Oct 2026): mode A is the production route for now. Keep this recipe for when mode B is

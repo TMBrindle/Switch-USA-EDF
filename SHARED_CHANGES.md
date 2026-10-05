@@ -230,6 +230,23 @@ every other case build as before — tests check the legacy settings and that th
 |---|---|---|---|---|
 | 80 | `s0_workflow/prm.py`, `pg/settings/s0_production.yml` | New `stress_days.rule` `cover_plus_interconnect_wind` (greedy cover at 6% + each interconnection's lowest-wind top-1% load day), the S0 default; `zone_interconnects`; `select_stress_days` takes the interconnections' load and wind. `guaranteed` and `greedy` unchanged as options; the code default stays `greedy`. | §68: the guaranteed rule's 36 days hit the VM's 120 GB stop. | S0 regional cases only (fewer stress days); the regression case has no stress days |
 
+### Added in §69 (Oct 2026: light stress days) — module changes for Ollie to review
+
+Every change below is inert unless a case's inputs contain `stress_light_timeseries.csv` (written only by S0 cases with
+`prm.stress_days.formulation: light`), or, for #86's compact rows, `prm_compact_capacity = 1` in `prm_params.csv`
+(written only with `prm.reserve_rows: compact`). Without them the patched modules build the same model as the core ones
+(toy test: same variable and constraint counts by component, same objective).
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 81 | `switch/modules.txt` | `switch_model.generators.core.commit.operate` → `study_modules.commit_operate`; `switch_model.balancing.operating_reserves.areas` / `.spinning_reserves` → `study_modules.operating_reserves_areas` / `study_modules.spinning_reserves` (repo copies of Switch 2.0.9). | §69: the light formulation has to remove commitment and reserve components on stress timepoints, which the core modules index over every timepoint. | none without the light file (same model); **every case on this branch now loads the copies** |
+| 82 | `switch/study_modules/commit_operate.py` (new copy) | Commitment variables, commit/dispatch lower limits, start-up/shut-down, min up/down time and the slacks on `GEN_TPS_OP`; `DispatchUpperLimit` (still on every generator-timepoint) is the available capacity on light timepoints; start-up cost 0 there. | §69 items 1, 4. | none without the light file |
+| 83 | `switch/study_modules/operating_reserves_areas.py`, `spinning_reserves.py` (new copies) | `BALANCING_AREA_TIMEPOINTS` over `OP_TIMEPOINTS`; spinning-reserve generator sets over `GEN_TPS_OP`. | §69 item 2. | none without the light file |
+| 84 | `switch/study_modules/generators_core_dispatch.py` | New sets `LIGHT_TIMESERIES` (optional `stress_light_timeseries.csv`, checked zero weight), `LIGHT_TPS`, `OP_TIMEPOINTS`, `GEN_TPS_LIGHT`, `GEN_TPS_OP` (virtual differences); `FUEL_BASED_GEN_TPS` (so `GEN_TP_FUELS`, `GenFuelUseRate`, `DispatchEmissions`, the fuel-use constraints) skip light timepoints; variable O&M 0 there. | §69 item 4. | none without the light file |
+| 85 | `gen_ramp_limits.py`, `scheduled_outages.py`, `rps_regional.py` (bundled-REC trade), `gen_zone_ratio.py` (hourly shares), `carbon_policies_regional.py` (emission sums), `fuel_costs_simple.py`, `gen_om_by_period.py`, `gen_tax_credits.py`, `trans_hurdle_cost.py` | Ramp limits on `GEN_TPS_OP`; no scheduled-outage variables on light timeseries; per-timepoint policy variables and constraints on `OP_TIMEPOINTS`; per-timepoint cost expressions 0 on light timepoints; emission sums skip them. All via `getattr(m, "OP_TIMEPOINTS" / "LIGHT_TPS", ...)`, so the modules still work without the dispatch module's new sets. | §69 item 4: check every module that indexes over all timepoints. | none without the light file |
+| 86 | `switch/study_modules/prm_regional.py` | `Prm_Light_Thermal_Limit`: on light timepoints, thermal dispatch ≤ nameplate × `prm_avail_frac` (the reserve credit's derate). **Compact reserve rows** (param `prm_compact_capacity`, default 0): stress hours of a zone and period grouped by derate vector; one `PrmAccCap[z, p, k]` per group defined once (`Prm_Acc_Cap_Def`: Σ capacity × `prm_avail_frac` over capacity-credit units) and used in the group's hourly rows in place of the units' capacity; one `PrmGroupShortfall[z, p, k]` per group in its hourly rows, linked once (`Prm_Group_Shortfall_Link`: `PrmZoneShortfall ≥ PrmGroupShortfall`). Wind, solar, hydro, storage, DR and transmission keep hourly terms. | §69 item 1; compact: the VM traced the 2035 slowdown to factorisation fill-in from capacity and shortfall columns in all 360 stress-hour rows. Same LP (toy: same builds, shortfall, prices, cost). | none without the light file or `prm_compact_capacity = 1` |
+| 87 | `s0_workflow/prm.py`, `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml` (`prm_design: regional_light`, `regional_compact`, `regional_light_compact`), `pg/extra_inputs/scenario_inputs.csv` (rows `s4x1_S0prod_2035_new_light`, `_compact`, `_light_compact`) | `prm.stress_days.formulation: full | light` (S0 default **full** until the VM test); light writes `stress_light_timeseries.csv`. `prm.reserve_rows: hourly | compact` (S0 default **hourly** until the VM test); compact writes `prm_compact_capacity = 1`. Axis values `regional_compact`, `regional_light_compact`; rows `s4x1_S0prod_2035_new_compact`, `s4x1_S0prod_2035_new_light_compact`. | §69. | S0 only |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
@@ -308,3 +325,10 @@ every other case build as before — tests check the legacy settings and that th
       "SERC Reliability Corporation / Central" to SRCA and "/ East" to SRCE. In EIA's numbering and in
       crosswalk_v7, 14 SRCA is SERC East (Carolinas) and 16 SRCE is SERC Central. If AEO's region names are mapped
       that way, the non-DC growth rates of the Carolinas and SERC Central zones are swapped. Worth checking.
+20. (§69) **Module copies in `switch/modules.txt`:** `commit.operate`, `operating_reserves.areas` and `spinning_reserves`
+    are now repo copies (#81-#83), loaded by every case on this branch. They build the core model unless a case lists
+    light stress timeseries. When fedpol merges this branch, its cases get the copies too. Diff them against Switch 2.0.9
+    (`commit/operate.py`, `operating_reserves/areas.py`, `operating_reserves/spinning_reserves.py`); the changes are
+    marked "CHANGES §69". Any new module that indexes over all timepoints and uses commitment, fuel or reserve
+    components should follow the same pattern (`GEN_TPS_OP` / `OP_TIMEPOINTS`). Also worth a look: the compact
+    reserve rows in `prm_regional.py` (#86): grouping stress hours by derate vector, and the per-group shortfall link.

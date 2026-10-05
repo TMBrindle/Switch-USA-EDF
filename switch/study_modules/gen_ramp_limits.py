@@ -88,7 +88,8 @@ def define_components(m):
         ramp_up = m.DispatchGen[g, tp] - m.DispatchGen[g, m.tp_previous[tp]]
         return ramp_up <= max_ramp_up
 
-    m.Max_Ramp_Up = Constraint(m.GEN_TPS, rule=ramp_up_rule)
+    # operating generator-timepoints only (no commitment on light stress timepoints; CHANGES §69)
+    m.Max_Ramp_Up = Constraint(getattr(m, "GEN_TPS_OP", m.GEN_TPS), rule=ramp_up_rule)
 
     def ramp_down_rule(m, g, tp):
         tp_dur = m.tp_duration_hrs[m.tp_previous[tp]]
@@ -119,7 +120,7 @@ def define_components(m):
         ramp_down = m.DispatchGen[g, m.tp_previous[tp]] - m.DispatchGen[g, tp]
         return ramp_down <= max_ramp_down
 
-    m.Max_Ramp_Down = Constraint(m.GEN_TPS, rule=ramp_down_rule)
+    m.Max_Ramp_Down = Constraint(getattr(m, "GEN_TPS_OP", m.GEN_TPS), rule=ramp_down_rule)
 
 
 def load_inputs(m, switch_data, inputs_dir):

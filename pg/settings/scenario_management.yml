@@ -1348,6 +1348,15 @@ settings_management:
     prm_design:
       regional:
         s0_production: {prm: {design: regional}}
+      # the regional reserve with light stress days (CHANGES §69; for the VM test before it becomes the default)
+      regional_light:
+        s0_production: {prm: {design: regional, stress_days: {formulation: light}}}
+      # compact reserve rows (CHANGES §69: one accredited-capacity variable per zone, period and derate group), with
+      # full or light stress days
+      regional_compact:
+        s0_production: {prm: {design: regional, reserve_rows: compact}}
+      regional_light_compact:
+        s0_production: {prm: {design: regional, reserve_rows: compact, stress_days: {formulation: light}}}
       legacy:
         s0_production: {prm: {design: legacy}}
     # Transmission policy, headroom and build-rate paths, and reserve imports for the S0 transmission baseline and the

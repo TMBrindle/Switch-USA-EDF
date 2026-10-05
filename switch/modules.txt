@@ -9,7 +9,9 @@ switch_model.generators.core.build
 study_modules.generators_core_dispatch
 switch_model.reporting
 # switch_model.generators.core.no_commit
-switch_model.generators.core.commit.operate
+# patched version: commitment only on operating timepoints when stress_light_timeseries.csv
+# lists light stress days (CHANGES §69); identical to the core module otherwise
+study_modules.commit_operate
 switch_model.generators.core.commit.fuel_use
 # switch_model.generators.extensions.storage
 study_modules.generators_extensions_storage
@@ -24,8 +26,9 @@ study_modules.trans_new_build_derate
 study_modules.trans_hurdle_cost
 study_modules.trans_asymmetric_capacity
 switch_model.transmission.local_td
-switch_model.balancing.operating_reserves.areas
-switch_model.balancing.operating_reserves.spinning_reserves
+# patched versions (CHANGES §69): no operating reserves on light stress timepoints; identical otherwise
+study_modules.operating_reserves_areas
+study_modules.spinning_reserves
 study_modules.carbon_policies_regional
 study_modules.min_capacity_constraint
 study_modules.max_capacity_constraint

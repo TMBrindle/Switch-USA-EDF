@@ -366,11 +366,12 @@ def define_components(m: AbstractModel):
 
     # amount of BRECs to send from each EG to each eligible RG during each
     # timepoint
-    m.ExportBRECsTP = Var(m.BREC_ROUTES, m.TIMEPOINTS, within=NonNegativeReals)
+    # operating timepoints only (light stress timeseries carry no policy terms; CHANGES §69)
+    m.ExportBRECsTP = Var(m.BREC_ROUTES, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS), within=NonNegativeReals)
 
     # exports must be less than production for the corresponding eligibility
     # groups in the source zone
-    @m.Constraint(m.ZONE_ELIGIBILITY_GROUPS, m.TIMEPOINTS)
+    @m.Constraint(m.ZONE_ELIGIBILITY_GROUPS, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS))
     def BREC_Export_Below_Production(m, z, eg, tp):
         RTS = m.BREC_ROUTES_FOR_ZONE_ELIGIBILITY_GROUP[z, eg]
         if RTS:
@@ -446,7 +447,7 @@ def define_components(m: AbstractModel):
     # exceed actual power transfers along that line
     m.Require_BRECs_Below_TX_Transfers = Constraint(
         m.DIRECTIONAL_TX_ON_ANY_BREC_ROUTE,
-        m.TIMEPOINTS,
+        getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS),
         rule=lambda m, z_from, z_to, tp: sum(
             # bundled RECs reaching zone z_from along all z_start ->
             # z_dest routes that use this corridor, net of losses
@@ -471,6 +472,7 @@ def define_components(m: AbstractModel):
         rule=lambda m, z, eg, rg, pe: sum(
             m.ExportBRECsTP[z, eg, rg, tp] * m.tp_weight[tp]
             for tp in m.TPS_IN_PERIOD[pe]
+            if tp not in getattr(m, "LIGHT_TPS", ())
         ),
     )
 

@@ -45,7 +45,7 @@ EXTREME_DAY_SCRIPT = "Add extreme day"
 DEFAULTS = {
     "design": "legacy",
     "config": "s0_workflow/specs/prm/prm_redesign_config.yaml",
-    "stress_days": {"rule": "greedy", "top_load_share": 0.01, "cover_plus_tolerance": 0.06,
+    "stress_days": {"rule": "greedy", "formulation": "full", "top_load_share": 0.01, "cover_plus_tolerance": 0.06,
                     "max_days": 12, "cover_tolerance": 0.02, "tolerance_step": 0.02, "max_tolerance": 0.20,
                     "summer_months": [6, 7, 8, 9], "winter_months": [12, 1, 2], "first_weather_year": 2007,
                     "diag_dir": "prm"},
@@ -53,6 +53,7 @@ DEFAULTS = {
                        "cold_c": -15, "hot_c": 35, "winter_months": [11, 12, 1, 2, 3], "summer_months": [5, 6, 7, 8, 9]},
     "imports": {"mode": "flat", "relax_from": 2031, "relax_to": 2050, "new_tx_allowance": 0.0},
     "new_tx_derate": 0.15,
+    "reserve_rows": "hourly",
     "penalty": "central",
     "penalty_values": {"central": {"usd_per_kw_yr": 300.0, "dollar_year": 2028},
                        "low": {"usd_per_kw_yr": 106.0, "dollar_year": 2025}},
@@ -542,6 +543,34 @@ def greedy_stress_days(load: dict, net: dict, sd: dict) -> tuple[pd.DataFrame, p
     return days.reset_index(drop=True), pd.DataFrame(cov), tol
 
 
+FORMULATIONS = ("full", "light")
+
+
+def stress_formulation(p: dict) -> str:
+    """prm.stress_days.formulation (CHANGES §69): full (the stress days carry the sample days' operating detail) or
+    light (stress_light_timeseries.csv: no unit commitment, ramping, operating reserves, fuel use or per-timepoint
+    cost/policy terms on them; thermal dispatch up to nameplate x prm_avail_frac)."""
+    f = (p.get("stress_days") or {}).get("formulation", "full")
+    if f not in FORMULATIONS:
+        raise ValueError(f"s0_production.prm.stress_days.formulation must be one of {FORMULATIONS}, not {f!r}")
+    return f
+
+
+RESERVE_ROWS = ("hourly", "compact")
+
+
+def reserve_rows(p: dict) -> str:
+    """prm.reserve_rows (CHANGES §69): hourly (each capacity-credit unit's capacity and the zone's shortfall in every
+    stress-hour reserve row) or compact (prm_compact_capacity = 1: one accredited-capacity variable per zone, period
+    and derate group, defined once from capacity x prm_avail_frac and used in that group's hourly rows, with one
+    shortfall variable per group linked once to the zone's shortfall). Same optimum; fewer nonzeros and far fewer
+    columns appearing in many rows (the factorisation fill-in the VM traced the slowdown to)."""
+    r = p.get("reserve_rows", "hourly")
+    if r not in RESERVE_ROWS:
+        raise ValueError(f"s0_production.prm.reserve_rows must be one of {RESERVE_ROWS}, not {r!r}")
+    return r
+
+
 def days_label(cal: pd.DataFrame, d: int) -> str:
     x = cal.loc[d]
     return f"{int(x.year):04d}-{int(x.month):02d}-{int(x.dom):02d}"
@@ -707,6 +736,10 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     if stress.empty:
         raise RuntimeError(f"s0_production.prm regional: no stress timeseries (<year>_pN_prm) in {folder}/timeseries.csv")
     pd.DataFrame({"TIMESERIES": stress.timeseries}).to_csv(folder / "prm_timeseries.csv", index=False)
+    form = stress_formulation(p)
+    rrows = reserve_rows(p)
+    if form == "light":        # §69: no commitment, ramping, operating reserves, fuel or cost terms on stress days
+        pd.DataFrame({"TIMESERIES": stress.timeseries}).to_csv(folder / "stress_light_timeseries.csv", index=False)
     classes[["GENERATION_PROJECT", "prm_credit", "prm_class"]].to_csv(folder / "prm_gen_credit.csv", index=False)
 
     # stress-day calendar: <diag_dir>/<year>/stress_days.csv from the time sampling
@@ -754,10 +787,14 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     allowance = float(p["imports"].get("new_tx_allowance") or 0.0)
     if allowance > 0:          # bill cases (§60): imports may also use this share of new interregional capacity
         params["prm_import_new_tx_allowance"] = [allowance]
+    if rrows == "compact":
+        params["prm_compact_capacity"] = [1]
     pd.DataFrame(params).to_csv(folder / "prm_params.csv", index=False)
     benchmark_rows(cfg).to_csv(folder / "prm_benchmarks.csv", index=False)
     log(f"prm regional: {len(set(regions.values()))} regions; margins "
         + "; ".join(f"{r.PRM_REGION} {r.PERIOD} {r.prm_margin:.4f} (RML {r.rml:.4f}, FOR_w {r.for_w:.4f})"
                     for r in m.itertuples())
         + f"; imports {p['imports']['mode']}; {len(stress)} stress timeseries ({len(stp)} timepoints, thermal derate "
-          f"{td['method']}); shortfall penalty {how}")
+          f"{td['method']}); shortfall penalty {how}; stress-day formulation {form}; reserve rows {rrows}"
+        + (" (stress_light_timeseries.csv: dispatch, storage, transmission and the reserve test only)"
+           if form == "light" else ""))

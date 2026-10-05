@@ -227,6 +227,30 @@ def define_components(mod):
             (g, tp) for g in m.GENERATION_PROJECTS for tp in m.TPS_FOR_GEN[g]
         ),
     )
+    # "Light" stress days (CHANGES §69): zero-weight timeseries listed in the optional
+    # stress_light_timeseries.csv carry only dispatch, the energy balance, storage, hydro,
+    # transmission and the reserve test; commitment, ramping, operating reserves, fuel use,
+    # emissions and per-timepoint costs/policies are built on the other (operating) timepoints
+    # only. Without the file LIGHT_TPS is empty and every set below is what it was before.
+    mod.LIGHT_TIMESERIES = Set(dimen=1, within=mod.TIMESERIES)
+    mod.LIGHT_TPS = Set(
+        dimen=1,
+        within=mod.TIMEPOINTS,
+        initialize=lambda m: [t for t in m.TIMEPOINTS if m.tp_ts[t] in m.LIGHT_TIMESERIES],
+    )
+    mod.Check_Light_Timeseries_Zero_Weight = BuildCheck(
+        mod.LIGHT_TIMESERIES, rule=lambda m, ts: m.ts_scale_to_period[ts] == 0
+    )
+    # operating timepoints and generator-timepoints (virtual set differences: nothing is
+    # copied when LIGHT_TPS is empty)
+    mod.OP_TIMEPOINTS = mod.TIMEPOINTS - mod.LIGHT_TPS
+    mod.GEN_TPS_LIGHT = Set(
+        dimen=2,
+        within=mod.GEN_TPS,
+        initialize=lambda m: [(g, t) for t in m.LIGHT_TPS for g in m.GENS_IN_PERIOD[m.tp_period[t]]
+                              if (g, t) in m.GEN_TPS],
+    )
+    mod.GEN_TPS_OP = mod.GEN_TPS - mod.GEN_TPS_LIGHT
     mod.VARIABLE_GEN_TPS = Set(
         dimen=2,
         initialize=lambda m: (
@@ -237,6 +261,7 @@ def define_components(mod):
         dimen=2,
         initialize=lambda m: (
             (g, tp) for g in m.FUEL_BASED_GENS for tp in m.TPS_FOR_GEN[g]
+            if tp not in m.LIGHT_TPS
         ),
     )
     mod.GEN_TP_FUELS = Set(
@@ -422,7 +447,7 @@ def define_components(mod):
 
     mod.GenVariableOMCostsInTP = Expression(
         mod.TIMEPOINTS,
-        rule=lambda m, t: sum(
+        rule=lambda m, t: 0.0 if t in m.LIGHT_TPS else sum(
             m.DispatchGen[g, t] * m.gen_variable_om[g]
             for g in m.GENS_IN_PERIOD[m.tp_period[t]]
         ),
@@ -442,7 +467,15 @@ def load_inputs(mod, switch_data, inputs_dir):
     variable_capacity_factors.csv
         GENERATION_PROJECT, timepoint, gen_max_capacity_factor
 
+    stress_light_timeseries.csv (optional; CHANGES §69)
+        TIMESERIES   zero-weight stress timeseries built with the light formulation
+
     """
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "stress_light_timeseries.csv"),
+        optional=True,
+        set=mod.LIGHT_TIMESERIES,
+    )
 
     switch_data.load_aug(
         optional=True,
@@ -521,7 +554,7 @@ def post_solve(instance, outdir):
                         for f in instance.FUELS_FOR_GEN[g]
                     )
                 )
-                if instance.gen_uses_fuel[g]
+                if instance.gen_uses_fuel[g] and t not in instance.LIGHT_TPS
                 else 0
             ),
             "GenCapacity_MW": value(instance.GenCapacity[g, p]),

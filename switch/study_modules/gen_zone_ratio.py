@@ -120,7 +120,7 @@ def define_components(m):
     )
     # Per-timepoint in-zone generation (reused in hourly constraints & post_solve)
     m.ZoneTimeGenMW = Expression(
-        m.LOAD_ZONES, m.TIMEPOINTS,
+        m.LOAD_ZONES, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS),
         rule=lambda m, z, t: sum(
             m.DispatchGen[g, t]
             for g in m.GENS_IN_ZONE[z]
@@ -168,7 +168,7 @@ def define_components(m):
         )
 
     m.Zone_Min_Peak_Share = Constraint(
-        m.LOAD_ZONES, m.TIMEPOINTS,
+        m.LOAD_ZONES, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS),
         rule=zone_min_peak_rule,
         doc="In-zone gen must cover at least min_peak_share of load at every timepoint.",
     )
@@ -182,7 +182,7 @@ def define_components(m):
         )
 
     m.Zone_Max_Peak_Share = Constraint(
-        m.LOAD_ZONES, m.TIMEPOINTS,
+        m.LOAD_ZONES, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS),
         rule=zone_max_peak_rule,
         doc="In-zone gen must not exceed max_peak_share of load at any timepoint.",
     )
@@ -256,14 +256,14 @@ def define_components(m):
         doc="Annual load (MWh/yr) summed across all zones in a group.",
     )
     m.GroupTimeGenMW = Expression(
-        m.GEN_RATIO_GROUPS, m.TIMEPOINTS,
+        m.GEN_RATIO_GROUPS, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS),
         rule=lambda m, g, t: sum(
             m.ZoneTimeGenMW[z, t] for z in m.ZONES_IN_GEN_RATIO_GROUP[g]
         ),
         doc="Total generation (MW) summed across all zones in a group at each timepoint.",
     )
     m.GroupTimeLoadMW = Expression(
-        m.GEN_RATIO_GROUPS, m.TIMEPOINTS,
+        m.GEN_RATIO_GROUPS, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS),
         rule=lambda m, g, t: sum(
             m.zone_demand_mw[z, t] for z in m.ZONES_IN_GEN_RATIO_GROUP[g]
         ),
@@ -309,7 +309,7 @@ def define_components(m):
         )
 
     m.Group_Min_Peak_Share = Constraint(
-        m.GEN_RATIO_GROUPS, m.TIMEPOINTS,
+        m.GEN_RATIO_GROUPS, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS),
         rule=group_min_peak_rule,
         doc="Group gen must cover at least min_peak_share of group load at every timepoint.",
     )
@@ -323,7 +323,7 @@ def define_components(m):
         )
 
     m.Group_Max_Peak_Share = Constraint(
-        m.GEN_RATIO_GROUPS, m.TIMEPOINTS,
+        m.GEN_RATIO_GROUPS, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS),
         rule=group_max_peak_rule,
         doc="Group gen must not exceed max_peak_share of group load at any timepoint.",
     )
@@ -527,6 +527,7 @@ def post_solve(m, outputs_dir):
                 value(m.ZoneTimeGenMW[z, t]) / value(m.zone_demand_mw[z, t])
                 if value(m.zone_demand_mw[z, t]) else None
                 for t in m.TPS_IN_PERIOD[p]
+                if t not in getattr(m, "LIGHT_TPS", ())
             ]
             shares_valid = [s for s in shares if s is not None]
 
@@ -561,6 +562,7 @@ def post_solve(m, outputs_dir):
                 value(m.GroupTimeGenMW[g, t]) / value(m.GroupTimeLoadMW[g, t])
                 if value(m.GroupTimeLoadMW[g, t]) else None
                 for t in m.TPS_IN_PERIOD[p]
+                if t not in getattr(m, "LIGHT_TPS", ())
             ]
             shares_valid = [s for s in shares if s is not None]
 

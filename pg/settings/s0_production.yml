@@ -240,6 +240,12 @@ s0_production:
       #   day already in the set is not added again. At most 12 + 3 = 15 days. The guaranteed rule gave 36 days
       #   (864 of 1,464 timepoints) and the 2035 test hit the VM's 120 GB stop.
       rule: cover_plus_interconnect_wind
+      # formulation (CHANGES §69): full (S0 default until the VM has tested light) | light. light: on the zero-weight
+      # stress timeseries, no unit commitment (thermal dispatch up to nameplate x the seasonal 1 - FOR the reserve
+      # credit uses), no ramp limits, no spinning/operating reserves, no fuel use, emissions or per-timepoint cost and
+      # policy terms; dispatch, hourly wind/solar/hydro, storage state of charge, transmission with losses, the energy
+      # balance, the regional requirement, the import cap and the shortfall stay (stress_light_timeseries.csv)
+      formulation: full
       cover_plus_tolerance: 0.06   # cover_plus_interconnect_wind
       top_load_share: 0.01         # guaranteed and the interconnection days: top 1% of days (26 of 2,555) by peak load
       max_days: 12                 # greedy and cover_plus_interconnect_wind (the cover part)
@@ -264,6 +270,13 @@ s0_production:
       # region to date (nameplate MW on lines crossing the region boundary); S0: 0 (historical shares only)
       new_tx_allowance: 0.0
     new_tx_derate: 0.15            # new transmission, reserve purposes (ReEDS GSw_TransInvPRMderate)
+    # reserve_rows (CHANGES §69): hourly (S0 default until the VM has tested compact) | compact. compact: one
+    # accredited-capacity variable per zone, period and derate group (stress hours with the same seasonal derates),
+    # defined once from capacity x (1 - seasonal FOR), used in that group's hourly reserve rows in place of every
+    # capacity-credit unit's capacity column; wind, solar, hydro, storage and imports keep their hourly terms; the
+    # zone shortfall enters the hourly rows through one shortfall variable per group, linked once. Same optimum, far
+    # fewer columns in many rows (prm_params.csv prm_compact_capacity = 1)
+    reserve_rows: hourly
     penalty: central               # central ($300/kW-yr, 2028$) | low ($106/kW-yr, 2025$, PJM RTO Net CONE)
     inflation_after_cpi: 0.025     # dollar-year conversion past the last CPI-U year in the repo (2024)
 

@@ -642,6 +642,8 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
    - **Enforcement:** the requirement is checked in every stress hour and only there. The S0 scenario line
      excludes `planning_reserves` and `planning_reserves_extreme_days`, and the case drops the extreme-day script.
    - **Samplers:** works with both PowerGenome's k-means days and the fleet-independent selector.
+   - **Formulation** (`stress_days.formulation`, CHANGES §69): `full` (S0 default for now) or `light`; see "Light
+     stress days" below.
 4. **Thermal and hydro:**
    - **Thermal:** nameplate × (1 − FOR) in each stress hour, using the murphy2019 curves (checked against ReEDS
      2026.09.21's `outage_forced_temperature_murphy2019.csv`; the config's `steam_coal_ogs` is ReEDS's `steam`).
@@ -727,6 +729,97 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
      The S0 cases are LPs (no unit sizes or minimum builds); a MIP would give none, and `prm_summary.csv` reports
      `duals_available`.
    - **Sign:** solvers differ in the sign they report for ≥ constraints, so prices and weights use the magnitude.
+
+### Light stress days (§69)
+
+The stress days have zero weight and exist only for the reserve test. Under `full`, they carry the sample days' whole
+operating model. The VM's 2035 stage (24 sample days + 15 stress days, 960 timepoints) took 4 h 29 min and peaked at
+114 GB of 128 GB; the stress days are 360 of the 960 timepoints.
+
+`light` (`prm.stress_days.formulation: light`; the case build writes `stress_light_timeseries.csv` with the stress
+timeseries) keeps, on the stress days:
+- dispatch with hourly wind, solar and hydro availability;
+- storage with its state of charge through each stress day (charging counted);
+- transmission flows with limits and losses;
+- the energy balance with every withdrawal (load, local T&D, storage charging);
+- the regional requirement, the import cap in every stress hour and the shortfall slack.
+
+It removes, on those timepoints only:
+- **Unit commitment:** no `CommitGen`, start-up or shut-down variables, minimum load, or minimum up and down time.
+  Dispatch is limited to available capacity (`GenCapacityInTP` × `gen_availability`, × the capacity factor for
+  variable units). Thermal units are further limited to nameplate × `prm_avail_frac`, the seasonal 1 − FOR the
+  reserve credit already uses (`prm_regional.Prm_Light_Thermal_Limit`).
+- **Ramp limits.**
+- **Spinning and operating reserves:** balancing-area timepoints are the operating ones.
+- **Scheduled-outage variables.**
+- **Fuel use and emissions:** `GenFuelUseRate`, the heat-rate constraints, `DispatchEmissions`.
+- **Per-timepoint policy variables and constraints:** bundled-REC trade, the in-zone generation shares.
+- **Per-timepoint cost terms:** variable O&M, fuel, start-up, hurdle, import carbon cost, tax credits. These are 0 there;
+  zero weight already removed them from the objective.
+
+**Mechanism:** one set, `LIGHT_TPS` (from `stress_light_timeseries.csv`; each listed timeseries must have zero
+weight), is defined in `study_modules.generators_core_dispatch`. The modules that index over every timepoint use
+`OP_TIMEPOINTS` / `GEN_TPS_OP` instead. `switch/modules.txt` now loads repo copies of Switch's `commit.operate`,
+`operating_reserves.areas` and `spinning_reserves` that do this. Without the file, every case builds the same model as
+before: the toy test compares variable and constraint counts by component and the objective against the core
+modules. See `SHARED_CHANGES.md` #81-#87.
+
+**What changes in the answer:**
+- Light drops operating limits that only matter on zero-weight days. Commitment, minimum loads and ramping on a stress
+  day can no longer move the hour the reserve binds, and thermal dispatch there is bounded by the derated capacity
+  instead.
+- The toy gives the same builds, shortfall and cost when commitment doesn't bind.
+- Recipe I runs the 2035 cases on the VM. Light becomes the S0 default only after that.
+
+**Size (2035 stage of `s4x1_S0prod_2035_new`: 600 sample + 360 stress timepoints):** 
+
+| | full | light |
+|---|---|---|
+| variables (stage) | 22,576,685 | 15,801,380 |
+| constraints (stage) | 28,477,267 | 20,386,267 |
+| variables on stress days | 8,575,560 | 1,806,840 |
+| constraints on stress days | 10,960,920 | 2,869,920 |
+| per stress timepoint (variables / constraints) | 23,821 / 30,447 | 5,019 / 7,972 |
+| memory (scaled from the VM's 114 GB) | 114 GB | about 81 GB |
+
+Sample timepoints are the same in both (23,195 variables and 29,067 constraints each). Counts come from building
+`s4x1_fedpol_current` with synthetic reserve inputs and scaling its per-timepoint rates
+(`s0_workflow/scripts/estimate_stress_model_size.py`; `s0_workflow/data/stress_model_size.csv`).
+
+### Compact reserve rows (§69)
+
+The VM traced the 4 h 29 min to factorisation fill-in (barrier factor ops 1.26e13 against 5.75e11 in v2). The cause
+is the regional reserve's structure. Every capacity-credit unit's new-build column and each zone's shortfall column
+appear in every stress-hour row of the zone (360 rows), and the region rows link up to 689 generators per hour. Each
+such column joins all its rows into one dense block of the normal matrix.
+
+`prm.reserve_rows: compact` (`prm_params.csv` `prm_compact_capacity = 1`; default `hourly`) reformulates:
+- **Accredited capacity:** stress hours of a zone in a period are grouped by their derate vector (with the seasonal
+  thermal derate: summer, winter and shoulder, at most three groups). One variable `PrmAccCap[z, p, k]` per group is
+  defined once, `Prm_Acc_Cap_Def`: Σ capacity × `prm_avail_frac` over the zone's thermal (capacity-credit) units. The
+  group's hourly rows use it in place of the units' capacity columns.
+- **Kept hourly:** wind, solar and hydro (hourly profiles), storage (its dispatch, so the state-of-charge check stays;
+  crediting storage at its power capacity would change the answer), demand response, transmission inflows and
+  imports.
+- **Shortfall:** a shortfall must relax every hourly row, so it can't be linked into one row only. Each group gets
+  `PrmGroupShortfall[z, p, k]` in its hourly rows, linked once to the zone's shortfall
+  (`PrmZoneShortfall ≥ PrmGroupShortfall`, `Prm_Group_Shortfall_Link`). The zone's shortfall, its cost and the
+  reserve prices are as before.
+
+It is the same LP (the toy test gives the same builds, shortfall, prices and cost). The nonzeros move from the hourly
+rows into a few definition rows. A unit's capacity column now appears in one row per group, not in every stress hour.
+Real-case reserve-row nonzeros and dense columns: measurement in progress (estimator `--builds full,full_compact`).
+
+The hourly form stays available (and is the S0 default until the VM has solved recipe I's compact case).
+
+**Not added: a contiguous window of each stress day** (e.g. 12 hours around the peak). It would cut stress timepoints
+by half again, but:
+- the k-means sample path builds one 24-hour timeseries per slot, so mixed-length stress timeseries need the
+  block-sampling timepoint code in both samplers;
+- storage is cyclic within each timeseries, so a window would let storage start the peak hours full only if it
+  recharges within the window. That is an assumption about the hours outside the window that the full day avoids.
+
+If wanted, it is a follow-up with that storage assumption documented.
 
 ### Related: the in-state generation rule
 

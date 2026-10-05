@@ -203,6 +203,7 @@ def define_components(m):
             for g in m.GENS_IN_ZONE[z]
             if g in m.FUEL_BASED_GENS
             for tp in m.TPS_FOR_GEN_IN_PERIOD[g, pe]
+            if tp not in getattr(m, "LIGHT_TPS", ())
             for f in m.FUELS_FOR_GEN[g]
         )
 
@@ -330,6 +331,7 @@ def post_solve(m, outputs_dir):
             for g in m.GENS_IN_ZONE[z]
             if g in m.FUEL_BASED_GENS
             for tp in m.TPS_FOR_GEN_IN_PERIOD[g, pe]
+            if tp not in getattr(m, "LIGHT_TPS", ())
             for f in m.FUELS_FOR_GEN[g]
         )
 

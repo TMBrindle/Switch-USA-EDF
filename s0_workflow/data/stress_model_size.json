@@ -1,0 +1,39 @@
+{
+ "full": {
+  "var": {
+   "none": 84125,
+   "per_sample_tp": 23195.0,
+   "per_stress_tp": 23821.0,
+   "stage_total": 22576685,
+   "stage_on_stress": 8575560
+  },
+  "con": {
+   "none": 76147,
+   "per_sample_tp": 29067.0,
+   "per_stress_tp": 30447.0,
+   "stage_total": 28477267,
+   "stage_on_stress": 10960920
+  }
+ },
+ "light": {
+  "var": {
+   "none": 77540,
+   "per_sample_tp": 23195.0,
+   "per_stress_tp": 5019.0,
+   "stage_total": 15801380,
+   "stage_on_stress": 1806840
+  },
+  "con": {
+   "none": 76147,
+   "per_sample_tp": 29067.0,
+   "per_stress_tp": 7972.0,
+   "stage_total": 20386267,
+   "stage_on_stress": 2869920
+  }
+ },
+ "memory_gb": {
+  "full": 114.0,
+  "light": 80.8
+ },
+ "memory_gb_basis": "114.0 GB measured (VM, full, 600+360 timepoints) x (variables + constraints) / full's"
+}

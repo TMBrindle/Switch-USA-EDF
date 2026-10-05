@@ -37,6 +37,8 @@ def define_components(m):
             (g, ts)
             for g, p in m.SCHEDULED_OUTAGE_GEN_PERIODS
             for ts in m.TS_IN_PERIOD[p]
+            # not on light stress timeseries (zero weight, no commitment; CHANGES §69)
+            if ts not in getattr(m, "LIGHT_TIMESERIES", ())
         ],
     )
     m.SCHEDULED_OUTAGE_GEN_TPS = Set(
@@ -65,6 +67,7 @@ def define_components(m):
         rule=lambda m, g, p: sum(
             m.ScheduleOutage[g, ts] * m.ts_hours_per_year[ts]
             for ts in m.TS_IN_PERIOD[p]
+            if ts not in getattr(m, "LIGHT_TIMESERIES", ())   # zero weight; no outage variable there (§69)
         )
         >= m.gen_scheduled_outage_rate[g] * m.GenCapacity[g, p] * m.hours_per_year[p],
     )

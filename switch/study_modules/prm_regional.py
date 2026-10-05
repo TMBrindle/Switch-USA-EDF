@@ -58,7 +58,21 @@ Inputs:
     prm_gen_credit.csv*         GENERATION_PROJECT, prm_credit*, prm_class*
     prm_gen_availability.csv*   GENERATION_PROJECT, TIMEPOINT, prm_avail_frac
     prm_params.csv*             prm_new_tx_derate, prm_shortfall_cost_per_mw_yr, prm_import_cap_all_hours,
-                                prm_import_new_tx_allowance* (bill cases: + allowance x new boundary capacity)
+                                prm_import_new_tx_allowance* (bill cases: + allowance x new boundary capacity),
+                                prm_compact_capacity* (1: compact reserve rows, below)
+
+Compact reserve rows (prm_compact_capacity = 1; CHANGES §69). The hourly rows above put every capacity-credit unit's
+capacity (GenCapacity: one BuildGen / SuspendGen column per vintage) and the zone's shortfall column into every stress
+hour of the zone: dense columns that drive factorisation fill-in. Compact form, exact:
+  * the zone's stress hours fall into derate groups k: hours whose capacity-credit units and prm_avail_frac values are
+    identical (with the seasonal derate, the stress days' seasons: at most 3 per zone and period);
+  * PrmAccCap[z, p, k] == sum over capacity-credit units of GenCapacity x prm_avail_frac (x the T&D gross-up),
+    defined once per group (Prm_Acc_Cap_Def);
+  * each hourly row uses PrmAccCap[z, p, k(t)] instead of the units' capacity terms; variable (wind, solar), dispatch
+    (hydro, imports) and storage credits keep their hourly terms;
+  * shortfall: PrmGroupShortfall[z, p, k] in the hourly rows, PrmZoneShortfall[z, p] >= PrmGroupShortfall[z, p, k]
+    once per group (Prm_Group_Shortfall_Link); the penalty stays on PrmZoneShortfall, so the optimum is the same.
+A capacity column then appears in at most one row per group instead of every stress hour.
     trans_built_to_date.csv*    TRANSMISSION_LINE, trans_built_to_date_mw (chained stages; prepare_next_stage)
     prm_benchmarks.csv*         PRM_REGION, prm_class, benchmark, benchmark_value
 """
@@ -133,6 +147,9 @@ def define_components(m):
     m.prm_import_cap_all_hours = Param(within=NonNegativeReals, default=1)
     # bill cases: reserve imports may also use this share of new interregional capacity built into the region
     m.prm_import_new_tx_allowance = Param(within=NonNegativeReals, default=0.0)
+    # 1: compact reserve rows (CHANGES §69): capacity-credit units enter through one accredited-capacity variable per
+    # zone, period and derate group, and the shortfall through one variable per group; 0 (default): hourly terms
+    m.prm_compact_capacity = Param(within=NonNegativeReals, default=0)
 
     # generator credit
     def credit_default(m, g):
@@ -283,14 +300,58 @@ def define_dynamic_components(m):
     )
     m.PrmGenCredit = Expression(m.PRM_GEN_TPS, rule=credit_rule)
 
+    # light stress days (CHANGES §69): with no commitment there, thermal dispatch is held to the same derated
+    # capacity the reserve credit uses (nameplate x prm_avail_frac, 1 - FOR at the stress-day temperature)
+    m.PRM_LIGHT_THERMAL_TPS = Set(
+        dimen=2,
+        initialize=lambda m: [(g, t) for (g, t) in m.PRM_GEN_AVAIL_TPS
+                              if t in getattr(m, "LIGHT_TPS", ()) and (g, t) in m.GEN_TPS],
+    )
+    m.Prm_Light_Thermal_Limit = Constraint(
+        m.PRM_LIGHT_THERMAL_TPS,
+        rule=lambda m, g, t: m.DispatchGen[g, t] <= m.GenCapacityInTP[g, t] * m.prm_avail_frac[g, t],
+    )
+
     def gens_in_zone_tp(m, z, t):
         return [g for g in m.GENS_IN_ZONE[z] if (g, t) in m.PRM_GEN_TPS]
 
-    m.PrmLocalCredit = Expression(
-        m.LOAD_ZONES,
-        m.PRM_TPS,
-        rule=lambda m, z, t: sum(m.PrmGenCredit[g, t] for g in gens_in_zone_tp(m, z, t)),
+    # compact reserve rows (prm_compact_capacity): derate groups of stress hours per zone and period
+    def acc_groups(m):
+        m._prm_acc_of, m._prm_acc_rep, keys, out = {}, {}, {}, []
+        if value(m.prm_compact_capacity) < 1:
+            return out
+        for t in m.PRM_TPS:
+            p = m.tp_period[t]
+            for z in m.LOAD_ZONES:
+                r = m.prm_region_of_zone[z]
+                if r == "" or (r, p) not in m.PRM_REGION_PERIODS:
+                    continue
+                gens = tuple(g for g in gens_in_zone_tp(m, z, t) if m.prm_credit[g] == "capacity")
+                frac = tuple(round(value(m.prm_avail_frac[g, t]), 9) if (g, t) in m.PRM_GEN_AVAIL_TPS else 1.0
+                             for g in gens)
+                k = keys.setdefault((z, p, gens, frac), sum(1 for kk in keys if kk[:2] == (z, p)))
+                m._prm_acc_of[z, t] = k
+                if (z, p, k) not in m._prm_acc_rep:
+                    m._prm_acc_rep[z, p, k] = (t, gens)
+                    out.append((z, p, k))
+        return out
+
+    m.PRM_ACC_GROUPS = Set(dimen=3, initialize=acc_groups)
+    m.PrmAccCap = Var(m.PRM_ACC_GROUPS, within=Reals)
+    m.Prm_Acc_Cap_Def = Constraint(
+        m.PRM_ACC_GROUPS,
+        rule=lambda m, z, p, k: m.PrmAccCap[z, p, k]
+        == sum(m.PrmGenCredit[g, m._prm_acc_rep[z, p, k][0]] for g in m._prm_acc_rep[z, p, k][1]),
     )
+
+    def local_credit(m, z, t):
+        if (z, t) in getattr(m, "_prm_acc_of", {}):
+            p = m.tp_period[t]
+            return m.PrmAccCap[z, p, m._prm_acc_of[z, t]] + sum(
+                m.PrmGenCredit[g, t] for g in gens_in_zone_tp(m, z, t) if m.prm_credit[g] != "capacity")
+        return sum(m.PrmGenCredit[g, t] for g in gens_in_zone_tp(m, z, t))
+
+    m.PrmLocalCredit = Expression(m.LOAD_ZONES, m.PRM_TPS, rule=local_credit)
 
     def served_load(m, z, t):
         if hasattr(m, "Distributed_Power_Withdrawals") and hasattr(m, "local_td_loss_rate"):
@@ -318,11 +379,20 @@ def define_dynamic_components(m):
         rule=lambda m, z, t: (1 + m.prm_margin[m.prm_region_of_zone[z], m.tp_period[t]])
         * m.PrmServedLoad[z, t],
     )
+    m.PrmGroupShortfall = Var(m.PRM_ACC_GROUPS, within=NonNegativeReals)
+    m.Prm_Group_Shortfall_Link = Constraint(
+        m.PRM_ACC_GROUPS, rule=lambda m, z, p, k: m.PrmZoneShortfall[z, p] >= m.PrmGroupShortfall[z, p, k])
+
+    def zone_shortfall(m, z, t):
+        if (z, t) in getattr(m, "_prm_acc_of", {}):
+            return m.PrmGroupShortfall[z, m.tp_period[t], m._prm_acc_of[z, t]]
+        return m.PrmZoneShortfall[z, m.tp_period[t]]
+
     m.Prm_Zone_Requirement = Constraint(
         m.PRM_ZONE_TPS,
         rule=lambda m, z, t: m.PrmLocalCredit[z, t]
         + m.PrmNetInflow[z, t]
-        + m.PrmZoneShortfall[z, m.tp_period[t]]
+        + zone_shortfall(m, z, t)
         >= m.PrmRequirement[z, t],
     )
 
@@ -407,7 +477,7 @@ def load_inputs(m, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, "prm_params.csv"),
         optional=True,
         param=(m.prm_new_tx_derate, m.prm_shortfall_cost_per_mw_yr, m.prm_import_cap_all_hours,
-               m.prm_import_new_tx_allowance),
+               m.prm_import_new_tx_allowance, m.prm_compact_capacity),
     )
 
 

@@ -41,6 +41,8 @@ def define_components(m):
 
     def import_cost(m, tp):
         p = m.tp_period[tp]
+        if tp in getattr(m, "LIGHT_TPS", ()):                 # light stress timepoints: no per-timepoint cost terms (CHANGES §69)
+            return 0.0
         return sum(
             m.DispatchTx[a, b, tp] * m.trans_efficiency[m.trans_d_line[a, b]] * m.trans_import_cost_per_mwh[a, b, pp]
             for (a, b, pp) in m.TX_IMPORT_COST_DIRS
@@ -51,6 +53,8 @@ def define_components(m):
 
     def TxHurdleCostPerTP_rule(m, tp):
         p = m.tp_period[tp]
+        if tp in getattr(m, "LIGHT_TPS", ()):
+            return 0.0
         return sum(
             (
                 m.DispatchTx[m.trans_lz1[tx], m.trans_lz2[tx], tp]

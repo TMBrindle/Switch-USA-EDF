@@ -52,7 +52,7 @@ def define_components(m):
 
     m.Gen_Variable_OM_by_Period = Expression(
         m.TIMEPOINTS,
-        rule=lambda m, tp: sum(
+        rule=lambda m, tp: 0.0 if tp in getattr(m, "LIGHT_TPS", ()) else sum(  # light stress timepoints (CHANGES §69)
             m.DispatchGen[g, tp] * m.gen_variable_om_by_period[g, m.tp_period[tp]]
             for g in m.GENS_IN_PERIOD[m.tp_period[tp]]
         ),

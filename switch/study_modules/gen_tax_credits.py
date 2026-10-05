@@ -59,7 +59,7 @@ def define_components(m):
     # component. Kept separate so it can be reported on its own.
     m.TaxCreditEarned = Expression(
         m.TIMEPOINTS,
-        rule=lambda m, tp: sum(
+        rule=lambda m, tp: 0.0 if tp in getattr(m, "LIGHT_TPS", ()) else sum(  # light stress timepoints: none (CHANGES §69)
             m.DispatchGen[g, tp]
             * m.gen_ptc_value_per_mwh[g, m.tp_period[tp]]
             for g in m.GENS_IN_PERIOD[m.tp_period[tp]]
