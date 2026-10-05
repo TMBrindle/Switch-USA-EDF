@@ -863,13 +863,16 @@ refresh with `python s0_workflow/scripts/fetch_fuel_prices_eia.py`, verify with 
 - **Missing prices:** a region with no AEO price in a year (no consumption, e.g. coal after its plants retire) takes
   the nearest year's ratio. A region AEO never prices for a fuel (coal in ISO-NE, NY, California) gets 2 × the
   national value, the hist5 rule for states without prices.
-- **Zones → EMM regions:** `s0_workflow/specs/fuel/zone_emm.csv`, all 134 US zones, with a basis note per zone. It
-  was built from `hierarchy.csv` (NERC region, transmission group, state) and the county → zone file for the split
-  states (PA, NY, CA, NV, ID, WY, MI). EIA's EMM shapefile was not reachable, so this is a documented crosswalk
-  rather than a spatial overlay. Judgement calls are noted in the file:
-  - p127 (NY except Long Island, NYC included) → Upstate NY; AEO prices NYC and Upstate gas the same;
-  - KY p109/p110 → PJM West, following the hierarchy (LG&E-KU may sit in SERC Central in EMM);
-  - p13 (Las Vegas) → Southwest.
+- **Zones → EMM regions:** `s0_workflow/specs/fuel/zone_emm.csv` (zone, emm, abbr, share), all 134 US zones. It is
+  the existing ReEDS-zone → EMM crosswalk `growth_rates/crosswalk_v7.csv` (on `ollie/edf-baseline`, commit 43fb0ec,
+  2026-07-13; the crosswalk behind the EPRI/AEO load-growth rates). That file is a county overlay with each zone's
+  load share in each region.
+  - **Split zones:** five zones straddle two regions (p7, p8, p21, p24, p89). They take the load-share-weighted average
+    of the regions' factors.
+  - **Earlier draft:** the first §67 commit used a hand-built crosswalk. Its main region differed in 10 zones (p7, p8, p13,
+    p19, p22, p89, p118, p119, p121, p124), and p21 and p24 gained a second region's share. Points to confirm in crosswalk_v7:
+    - p118 → PJM West and p124 → PJM East, not Dominion;
+    - p13 (Las Vegas) → Basin, not Southwest.
 - **Not regionalised:** non-US zones keep the case's prices, and so do distillate and uranium.
 
 **Stage value:** the mean over the period's years (2028 = 2026-28, 2030 = 2029-30, 2035 = 2031-35, ...). The case
@@ -888,15 +891,15 @@ price, national).
 
 | Coal | 2028 | 2030 | 2035 | 2040 | 2045 |
 |---|---|---|---|---|---|
-| `hist5` / `hist5_high_gas` (flat) | 2.65 | 2.65 | 2.65 | 2.65 | 2.65 |
+| `hist5` / `hist5_high_gas` (flat) | 2.68 | 2.68 | 2.68 | 2.68 | 2.68 |
 | `steo_aeo` | 2.32 | 2.34 | 2.39 | 2.46 | 2.43 |
 | `steo_aeo_low_supply` | 2.33 | 2.40 | 2.53 | 2.64 | 2.63 |
 | `steo_aeo_high_supply` | 2.32 | 2.36 | 2.43 | 2.50 | 2.47 |
 
 - **How the rows are computed:** the steo_aeo rows are the national path. The hist5 rows weight the zone prices by
-  AEO2026's 2026 power-sector burn per EMM region, split equally over its zones.
+  AEO2026's 2026 power-sector burn per EMM region, split over its zones by their load shares.
 - **Same weights for both:** with those weights, steo_aeo's zone prices give gas 3.45 / 3.71 / 4.46 / 5.12 / 5.06
-  and coal 2.32 / 2.32 / 2.29 / 2.33 / 2.27 (`s0_workflow/data/fuel/fuel_price_options_by_stage.csv`;
+  and coal 2.32 / 2.32 / 2.30 / 2.33 / 2.27 (`s0_workflow/data/fuel/fuel_price_options_by_stage.csv`;
   `python s0_workflow/scripts/compare_fuel_prices.py`).
 - **Annual path, steo_aeo** (2024 $):
   - gas 3.73 (2026), 3.22 (2027), 3.42 (2028), 3.83 (2030), 4.85 (2035), 5.08 (2040), 4.79 (2045);

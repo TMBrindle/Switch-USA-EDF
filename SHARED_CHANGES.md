@@ -297,3 +297,8 @@ every other case build as before — tests check the legacy settings and that th
     AEO2026 path. For fedpol to match, use `s0_workflow/fuel_prices.py` (`stage_prices`) on its `fuel_cost.csv`. Note
     that AEO2026's base case is the "Counterfactual Baseline" (formerly Reference). `scenario_inputs.csv` has one more
     column (`fuel_prices`).
+    - **Crosswalk:** the zone → EMM mapping is Ollie's `growth_rates/crosswalk_v7.csv` (copied with its load shares).
+    - **Possible bug in `make_epri_growth_rates.py` (ollie/edf-baseline), not changed here:** `ZONE_TO_EMM` maps
+      "SERC Reliability Corporation / Central" to SRCA and "/ East" to SRCE. In EIA's numbering and in
+      crosswalk_v7, 14 SRCA is SERC East (Carolinas) and 16 SRCE is SERC Central. If AEO's region names are mapped
+      that way, the non-DC growth rates of the Carolinas and SERC Central zones are swapped. Worth checking.

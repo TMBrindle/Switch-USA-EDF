@@ -82,6 +82,9 @@ def test_regional_scaling_and_stages():
     cw = pd.read_csv(REPO / "s0_workflow/specs/fuel/zone_emm.csv", dtype={"emm": str})
     h = pd.read_csv(REPO / "hierarchy.csv")
     assert set(cw.zone) == set(h[h.country == "USA"].ba) and cw.emm.nunique() == 25
+    assert cw.groupby("zone").share.sum().round(9).eq(1).all() and (cw.zone.value_counts() > 1).sum() == 5
+    # the source: growth_rates/crosswalk_v7.csv (ollie/edf-baseline)
+    assert cw[cw.zone == "p89"].set_index("emm").share.round(4).to_dict() == {"16": 0.5242, "15": 0.4758}
     path = fp.national_path("steo_aeo").set_index(["fuel", "year"]).price
     e = pd.read_csv(REPO / "s0_workflow/data/fuel/aeo2026_power_fuel_emm.csv", dtype={"emm": str})
     # the consumption-weighted national average of the regional prices is the path, every year
@@ -92,6 +95,7 @@ def test_regional_scaling_and_stages():
             assert (f[g.emm] * g.consumption_quads.values).sum() / g.consumption_quads.sum() == pytest.approx(1.0)
             r = zp[(zp.fuel == fuel) & (zp.year == y)].set_index("zone")
             assert r.price["p60"] == pytest.approx(path[(fuel, y)] * f["01"])          # ERCOT zone: TRE factor
+            assert r.price["p89"] == pytest.approx(path[(fuel, y)] * (0.5242 * f["16"] + 0.4758 * f["15"]), rel=1e-4)
     # coal in a region AEO no longer prices keeps its nearest year's factor; never priced: x2
     f = fp.regional_factors().set_index(["fuel", "emm", "year"])
     assert f.at[("coal", "05", 2035), "basis"] == "nearest AEO year" and f.at[("coal", "05", 2035), "factor"] > 0

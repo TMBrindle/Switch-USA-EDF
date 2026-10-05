@@ -18,9 +18,11 @@ National path, 2024 $/MMBtu, for each fuel (naturalgas, coal):
   - glide_to on: the AEO case's Table 3 Electric Power price (2025 $ -> 2024 $ with STEO's CPI-U 2024 / 2025).
 The STEO start and the glide are the same in every case; only the AEO end differs.
 
-Regional: zone price(y) = path(y) x AEO2026 reference EMM-region price(y) / AEO consumption-weighted national price(y),
-so the consumption-weighted national average of the regional prices follows the path each year. Zones -> EMM regions:
-s0_workflow/specs/fuel/zone_emm.csv. A region with no price in a year (no consumption: e.g. coal after its plants
+Regional: EMM-region price(y) = path(y) x AEO2026 reference EMM-region price(y) / AEO consumption-weighted national
+price(y), so the consumption-weighted national average of the regional prices follows the path each year. Zones -> EMM
+regions: s0_workflow/specs/fuel/zone_emm.csv, from growth_rates/crosswalk_v7.csv (ollie/edf-baseline 43fb0ec, the
+crosswalk behind the EPRI/AEO load growth: county overlay, load shares); a zone that straddles regions (5 do) takes the
+load-share-weighted average of their factors. A region with no price in a year (no consumption: e.g. coal after its plants
 retire) takes its factor from the nearest year that has one; a region never priced takes missing_factor (2.0, the
 hist5 convention for states without prices: no cheap restart). The side cases publish national tables only, so they
 use the reference case's regional factors.
@@ -156,20 +158,36 @@ def regional_factors(f: dict | None = None) -> pd.DataFrame:
     return pd.concat(filled, ignore_index=True)
 
 
-def crosswalk(f: dict | None = None) -> dict:
+def crosswalk_table(f: dict | None = None) -> pd.DataFrame:
+    """zone, emm, abbr, share: each zone's load share in each EMM region it overlaps (shares sum to 1)."""
     x = pd.read_csv(REPO / (f or DEFAULTS)["crosswalk"], dtype={"emm": str})
+    tot = x.groupby("zone").share.sum()
+    if ((tot - 1).abs() > 1e-6).any():
+        raise ValueError(f"fuel_prices crosswalk: shares don't sum to 1 for {list(tot.index[(tot - 1).abs() > 1e-6])}")
+    return x
+
+
+def crosswalk(f: dict | None = None) -> dict:
+    """zone -> its largest-share EMM region."""
+    x = crosswalk_table(f).sort_values("share", ascending=False).drop_duplicates("zone")
     return dict(zip(x.zone, x.emm))
 
 
 def zone_prices(mode: str, zones=None, f: dict | None = None) -> pd.DataFrame:
-    """zone, year, fuel, price (2024 $/MMBtu), emm."""
+    """zone, year, fuel, price (2024 $/MMBtu), factor, emm (the zone's regions, by share), basis. A zone that
+    overlaps several EMM regions takes their factors weighted by its load share in each (crosswalk)."""
     f = f or DEFAULTS
     path = national_path(mode, f)
     fac = regional_factors(f)
-    cw = crosswalk(f)
-    zones = [z for z in (zones if zones is not None else cw) if z in cw]
-    z = pd.DataFrame({"zone": zones, "emm": [cw[x] for x in zones]})
-    out = z.merge(fac, on="emm").merge(path[["year", "fuel", "price"]], on=["year", "fuel"])
+    cw = crosswalk_table(f)
+    if zones is not None:
+        cw = cw[cw.zone.isin(set(zones))]
+    x = cw[["zone", "emm", "share"]].merge(fac, on="emm")
+    x["wf"] = x.share * x.factor
+    x["lab"] = [f"{e} {sh:.2f}" if sh < 1 else e for e, sh in zip(x.emm, x.share)]
+    out = x.groupby(["zone", "year", "fuel"]).agg(factor=("wf", "sum"), emm=("lab", "; ".join),
+                                                  basis=("basis", lambda b: "; ".join(sorted(set(b))))).reset_index()
+    out = out.merge(path[["year", "fuel", "price"]], on=["year", "fuel"])
     out["price"] = out.price * out.factor
     return out[["zone", "emm", "year", "fuel", "price", "factor", "basis"]]
 

@@ -2809,8 +2809,9 @@ in every year, with gas +15%.
    - Dollars: 2025 $ and nominal to 2024 $ with STEO's CPI-U.
    - Stage value: the mean over the stage's years.
 2. **Regional:** AEO2026 EMM-region prices, scaled each year so their consumption-weighted average follows the path.
-   Zones map to EMM regions through a new documented crosswalk (`s0_workflow/specs/fuel/zone_emm.csv`; no EMM
-   shapefile was reachable).
+   Zones map to EMM regions through the existing crosswalk `growth_rates/crosswalk_v7.csv` (`ollie/edf-baseline`
+   43fb0ec; county overlay with load shares), copied to `s0_workflow/specs/fuel/zone_emm.csv`. The five split zones
+   are load-share weighted. The first commit's hand-built crosswalk was replaced.
 3. **Options:** `steo_aeo` (S0 default; AEO2026's base case, which EIA now calls the "Counterfactual Baseline",
    formerly Reference), `steo_aeo_low_supply`, `steo_aeo_high_supply` (same STEO start and glide), and `hist5` (the
    case's `fuel_price_forecast` as it is).
@@ -2825,8 +2826,8 @@ in every year, with gas +15%.
 
 | Option | Natural gas | Coal |
 |---|---|---|
-| current (`hist5_high_gas`) | 5.44 flat | 2.65 flat |
-| `hist5` | 4.73 flat | 2.65 flat |
+| current (`hist5_high_gas`) | 5.44 flat | 2.68 flat |
+| `hist5` | 4.73 flat | 2.68 flat |
 | `steo_aeo` | 3.46 / 3.73 / 4.44 / 5.06 / 5.01 | 2.32 / 2.34 / 2.39 / 2.46 / 2.43 |
 | `steo_aeo_low_supply` | 3.60 / 4.84 / 7.12 / 9.57 / 11.48 | 2.33 / 2.40 / 2.53 / 2.64 / 2.63 |
 | `steo_aeo_high_supply` | 3.41 / 3.40 / 3.65 / 3.76 / 3.34 | 2.32 / 2.36 / 2.43 / 2.50 / 2.47 |

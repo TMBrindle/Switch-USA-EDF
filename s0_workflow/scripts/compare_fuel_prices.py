@@ -4,7 +4,7 @@
 Two measures per option and stage (2024 $/MMBtu, mean over the stage's years):
   path      the national path (steo_aeo options only; consumption-weighted by AEO's own national price);
   zone_avg  the zone prices weighted the same way for every option, hist5 included: each EMM region's AEO2026 2026
-            power-sector consumption of the fuel, split equally over the region's zones (s0_workflow/specs/fuel/
+            power-sector consumption of the fuel, split over its zones by their load shares (s0_workflow/specs/fuel/
             zone_emm.csv). hist5 / hist5_high_gas are the user_fuel_price values in pg/settings/scenario_management.yml
             (flat: every stage the same).
 
@@ -27,9 +27,10 @@ HIST = ("hist5", "hist5_high_gas")
 def weights(fuel: str, year: int = 2026) -> pd.Series:
     e = fp._data(fp.DEFAULTS, "aeo2026_power_fuel_emm.csv", dtype={"emm": str})
     e = e[(e.fuel == fuel) & (e.year == year)].set_index("emm").consumption_quads
-    cw = pd.Series(fp.crosswalk())
-    n = cw.value_counts()
-    return cw.map(lambda r: e.get(r, 0.0) / n[r])
+    cw = fp.crosswalk_table()
+    n = cw.groupby("emm").share.sum()                       # zone-equivalents per region
+    w = cw.share * cw.emm.map(lambda r: e.get(r, 0.0) / n[r])
+    return w.groupby(cw.zone).sum()
 
 
 def table() -> pd.DataFrame:

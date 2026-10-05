@@ -1,135 +1,140 @@
-zone,emm,basis
-p1,23,"Northwest Power Pool (WA, OR)"
-p2,23,"Northwest Power Pool (WA, OR)"
-p3,23,"Northwest Power Pool (WA, OR)"
-p4,23,"Northwest Power Pool (WA, OR)"
-p5,23,"Northwest Power Pool (WA, OR)"
-p6,23,"Northwest Power Pool (WA, OR)"
-p7,23,"Northwest Power Pool (WA, OR)"
-p8,21,"northeastern CA (Modoc, Lassen)"
-p9,21,"northern CA (SF, Sacramento, Fresno)"
-p10,22,"southern CA (Los Angeles, Kern)"
-p11,22,San Diego
-p12,25,northern NV (Washoe)
-p13,20,"southern NV (Clark): NV Energy South, in SRSG"
-p14,23,northern ID (Kootenai)
-p15,25,Idaho Power (Ada)
-p16,25,eastern ID
-p17,23,NorthWestern MT (NWPP)
-p18,23,NorthWestern MT (NWPP)
-p19,23,NorthWestern MT (NWPP)
-p20,23,NorthWestern MT (NWPP)
-p21,25,PacifiCorp East WY (Sweetwater)
-p22,25,"northern WY (Johnson, Sheridan)"
-p23,24,WACM WY
-p24,24,"WACM WY (Laramie, Natrona)"
-p25,25,PacifiCorp East UT
-p26,25,PacifiCorp East UT
-p27,20,"WestConnect South (AZ, NM, El Paso)"
-p28,20,"WestConnect South (AZ, NM, El Paso)"
-p29,20,"WestConnect South (AZ, NM, El Paso)"
-p30,20,"WestConnect South (AZ, NM, El Paso)"
-p31,20,"WestConnect South (AZ, NM, El Paso)"
-p32,24,Black Hills SD
-p33,24,Rockies (CO)
-p34,24,Rockies (CO)
-p35,19,SPP North
-p36,19,SPP North
-p37,03,MISO North
-p38,19,SPP North
-p39,19,SPP North
-p40,19,SPP North
-p41,19,SPP North
-p42,03,MISO North
-p43,03,MISO North
-p44,03,MISO North
-p45,03,MISO North
-p46,03,MISO North
-p47,17,SPP South
-p48,17,SPP South
-p49,17,SPP South
-p50,17,SPP South
-p51,17,SPP South
-p52,18,SPP Central
-p53,18,SPP Central
-p54,18,SPP Central
-p55,18,SPP Central
-p56,17,SPP South
-p57,17,SPP South
-p58,06,MISO South
-p59,20,"WestConnect South (AZ, NM, El Paso)"
-p60,01,ERCOT
-p61,01,ERCOT
-p62,01,ERCOT
-p63,01,ERCOT
-p64,01,ERCOT
-p65,01,ERCOT
-p66,06,MISO South
-p67,01,ERCOT
-p68,03,MISO North
-p69,03,MISO North
-p70,03,MISO North
-p71,04,MISO Central
-p72,04,MISO Central
-p73,04,MISO Central
-p74,03,Upper Peninsula (MISO North)
-p75,03,MISO North
-p76,03,MISO North
-p77,03,MISO North
-p78,03,MISO North
-p79,03,MISO North
-p80,12,ComEd (Cook Co.)
-p81,04,MISO Central
-p82,04,MISO Central
-p83,04,MISO Central
-p84,04,MISO Central
-p85,06,MISO South
-p86,06,MISO South
-p87,06,MISO South
-p88,16,SERC Central
-p89,15,SERC Southeastern
-p90,15,SERC Southeastern
-p91,15,SERC Southeastern
-p92,16,SERC Central
-p93,16,SERC Central
-p94,15,SERC Southeastern
-p95,14,SERC East (Carolinas)
-p96,14,SERC East (Carolinas)
-p97,14,SERC East (Carolinas)
-p98,14,SERC East (Carolinas)
-p99,13,Dominion (VA)
-p100,13,Dominion (VA)
-p101,02,FRCC
-p102,02,FRCC
-p103,05,"Lower Michigan, Detroit (Wayne Co.)"
-p104,11,"Indiana Michigan Power, SW Michigan (PJM West)"
-p105,04,MISO Central
-p106,04,MISO Central
-p107,04,MISO Central
-p108,04,MISO Central
-p109,11,PJM West (hierarchy puts these KY zones in PJM; LG&E-KU may be SERC Central in EMM)
-p110,11,PJM West (hierarchy puts these KY zones in PJM; LG&E-KU may be SERC Central in EMM)
-p111,11,PJM West
-p112,11,PJM West
-p113,11,PJM West
-p114,11,PJM West
-p115,11,"western PA, Pittsburgh"
-p116,11,PJM West
-p117,11,PJM West
-p118,13,Dominion (VA)
-p119,11,"central PA (Centre Co.), Penelec"
-p120,11,"south-central PA (Franklin, Fulton), APS"
-p121,10,PJM East
-p122,10,eastern and most of central PA
-p123,10,PJM East
-p124,13,Dominion (VA)
-p125,10,PJM East
-p126,10,PJM East
-p127,09,NY except Long Island (incl. NYC): AEO's NYCW and NYUP gas prices are equal; assigned upstate
-p128,08,Long Island (Nassau Co.)
-p129,07,ISO-NE
-p130,07,ISO-NE
-p131,07,ISO-NE
-p132,07,ISO-NE
-p133,07,ISO-NE
-p134,07,ISO-NE
+zone,emm,abbr,share
+p1,23,NWPP,1
+p2,23,NWPP,1
+p3,23,NWPP,1
+p4,23,NWPP,1
+p5,23,NWPP,1
+p6,23,NWPP,1
+p7,25,BASN,0.7541
+p7,23,NWPP,0.2459
+p8,23,NWPP,0.5401
+p8,25,BASN,0.4599
+p9,21,CANO,1
+p10,22,CASO,1
+p11,22,CASO,1
+p12,25,BASN,1
+p13,25,BASN,1
+p14,23,NWPP,1
+p15,25,BASN,1
+p16,25,BASN,1
+p17,23,NWPP,1
+p18,23,NWPP,1
+p19,19,SPPN,1
+p20,23,NWPP,1
+p21,25,BASN,0.5084
+p21,23,NWPP,0.4916
+p22,24,RMRG,1
+p23,24,RMRG,1
+p24,24,RMRG,0.5985
+p24,25,BASN,0.4015
+p25,25,BASN,1
+p26,25,BASN,1
+p27,20,SRSG,1
+p28,20,SRSG,1
+p29,20,SRSG,1
+p30,20,SRSG,1
+p31,20,SRSG,1
+p32,24,RMRG,1
+p33,24,RMRG,1
+p34,24,RMRG,1
+p35,19,SPPN,1
+p36,19,SPPN,1
+p37,03,MISW,1
+p38,19,SPPN,1
+p39,19,SPPN,1
+p40,19,SPPN,1
+p41,19,SPPN,1
+p42,03,MISW,1
+p43,03,MISW,1
+p44,03,MISW,1
+p45,03,MISW,1
+p46,03,MISW,1
+p47,17,SPPS,1
+p48,17,SPPS,1
+p49,17,SPPS,1
+p50,17,SPPS,1
+p51,17,SPPS,1
+p52,18,SPPC,1
+p53,18,SPPC,1
+p54,18,SPPC,1
+p55,18,SPPC,1
+p56,17,SPPS,1
+p57,17,SPPS,1
+p58,06,MISS,1
+p59,20,SRSG,1
+p60,01,TRE,1
+p61,01,TRE,1
+p62,01,TRE,1
+p63,01,TRE,1
+p64,01,TRE,1
+p65,01,TRE,1
+p66,06,MISS,1
+p67,01,TRE,1
+p68,03,MISW,1
+p69,03,MISW,1
+p70,03,MISW,1
+p71,04,MISC,1
+p72,04,MISC,1
+p73,04,MISC,1
+p74,03,MISW,1
+p75,03,MISW,1
+p76,03,MISW,1
+p77,03,MISW,1
+p78,03,MISW,1
+p79,03,MISW,1
+p80,12,PJMC,1
+p81,04,MISC,1
+p82,04,MISC,1
+p83,04,MISC,1
+p84,04,MISC,1
+p85,06,MISS,1
+p86,06,MISS,1
+p87,06,MISS,1
+p88,16,SRCE,1
+p89,16,SRCE,0.5242
+p89,15,SRSE,0.4758
+p90,15,SRSE,1
+p91,15,SRSE,1
+p92,16,SRCE,1
+p93,16,SRCE,1
+p94,15,SRSE,1
+p95,14,SRCA,1
+p96,14,SRCA,1
+p97,14,SRCA,1
+p98,14,SRCA,1
+p99,13,PJMD,1
+p100,13,PJMD,1
+p101,02,FRCC,1
+p102,02,FRCC,1
+p103,05,MISE,1
+p104,11,PJMW,1
+p105,04,MISC,1
+p106,04,MISC,1
+p107,04,MISC,1
+p108,04,MISC,1
+p109,11,PJMW,1
+p110,11,PJMW,1
+p111,11,PJMW,1
+p112,11,PJMW,1
+p113,11,PJMW,1
+p114,11,PJMW,1
+p115,11,PJMW,1
+p116,11,PJMW,1
+p117,11,PJMW,1
+p118,11,PJMW,1
+p119,10,PJME,1
+p120,11,PJMW,1
+p121,11,PJMW,1
+p122,10,PJME,1
+p123,10,PJME,1
+p124,10,PJME,1
+p125,10,PJME,1
+p126,10,PJME,1
+p127,09,NYUP,1
+p128,08,NYCW,1
+p129,07,ISNE,1
+p130,07,ISNE,1
+p131,07,ISNE,1
+p132,07,ISNE,1
+p133,07,ISNE,1
+p134,07,ISNE,1
