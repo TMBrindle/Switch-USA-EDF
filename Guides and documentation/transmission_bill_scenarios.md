@@ -30,13 +30,14 @@ S0's, so its early stages can be reused from S0prod_A (`s0_workflow/chain_reuse.
 
 Before §72 the bill rows used headroom atts_planned, a 1.4 cap and the allowance from 2028.
 
-**The bill's build-rate effect is regional (wind siting) only** (§73). Its build-rate channel is the `reform` level
-(regional queue and siting relief). `reform` has the same national rate, tiers and 2.0R ceiling as `central`. It
-raises only onshore wind's regional (transreg) ceilings: multiplier 1.5 → 3.0, and floors 1,500 MW/yr / 0.10 of
-stock / 1.5 × peak build. So a bill row is not looser nationally than S0 on wind, solar or storage build rates. Its
-build rate binds differently only where a region's wind ceiling bound. A looser national build rate is a separate
-lever: `high`, or `high_reform` (high's national limits plus reform's regional wind relief; the S-set's L and P,
-below).
+**The bill's build-rate channel is `reform_bp`** (§74, from each row's switch year).
+- **Method:** a queue reform benchmarked on the best-performing states (`Guides and documentation/build_rate.md`).
+  States below the benchmark get its completion rate and time to operation.
+- **Effect:** national R rises (wind ×1.47, solar ×1.62, storage ×1.49 on central), and regional ceilings rise where
+  queues are large and performance poor.
+- **Old `reform`:** §73's regional-only wind siting relief (the same national limits as `central`) is kept for
+  reference only.
+- **The S-set's L and P** use `high_reform`: per region and year the larger of `high` and `reform_bp`.
 
 ERCOT ties and ERCOT-internal lines always keep the no-bill values: moratorium 2040 and the S0 cap trajectory (see
 "Interpretations").

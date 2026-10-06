@@ -96,7 +96,8 @@ def queue_components(q: pd.DataFrame, c2t: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for k in (1, 2, 3):
         part = pd.DataFrame({"req": q.index, "group": q[f"type_{k}"].map(queue_group), "mw": q[f"mw_{k}"],
-                             "transreg": tr, "status": q["q_status"].astype(str).str.lower(),
+                             "transreg": tr, "state": q["state"].astype(str).str.upper().str.strip()
+                             if "state" in q else None, "status": q["q_status"].astype(str).str.lower(),
                              "phase": q["IA_phase_clean"].astype(str), "q_year": q["q_year"],
                              "prop_year": q["prop_year"], "on_year": q["on_year"], "ia_year": q["ia_year"]})
         rows.append(part[part["group"].notna() & (part["mw"] > 0)])

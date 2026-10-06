@@ -272,6 +272,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 |---|---|---|---|---|
 | 92 | `build_rate/config.yaml`, `build_rate/brc/cli.py`, `pg/settings/scenario_management.yml` (`build_rate: high_reform`, `tx_sens: br_high_reform`, `br_path_p`), `s0_workflow/production.py` (`apply_levels_by_period`: "off") | New level high_reform (high nationally + reform's wind regional relief); "off" by period disables build_rate. | §73: reform is central nationally; the S-set's L and P need a looser national path. | none (new values; existing outputs byte-identical) |
 
+### Added in §74 (Oct 2026: reform_bp, high_reform redefined) — for Tom's review
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 93 | `build_rate/brc/rates.py` (`queue_metrics`, `benchmark`, `reform_benchmark`, `reform_uplift`, `derived_rate_table`, `rate_tables`), `build_rate/brc/data.py` (queue state column), `build_rate/brc/cli.py`, `build_rate/config.yaml` (`reform_benchmark`, levels `reform_bp`, `high_reform`), `pg/settings/scenario_management.yml` (bill build rate → `reform_bp`), `build_rate/scripts/reform_sensitivity.py` | Queue reform benchmarked on the best-performing states (round 1's Implied Rate rule) on completion and time to operation; high_reform = max(high, reform_bp) by region and year. | Tom's decision (§74). | BILL rows from their switch year; S0 and the regression case unchanged; existing level tables byte-identical |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

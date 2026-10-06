@@ -13,7 +13,7 @@ import yaml
 
 from . import data, rates
 
-LEVELS = ("low", "central", "high", "reform", "high_reform", "high_ipm")
+LEVELS = ("low", "central", "high", "reform", "reform_bp", "high_reform", "high_ipm")
 
 
 def load_cfg(path: str = "config.yaml") -> dict:
@@ -61,10 +61,16 @@ def cmd_run(cfg: dict) -> dict:
     tier_table(None).to_csv(out / "tiers.csv", index=False)       # default tier_set
     for lv in LEVELS:
         tier_table(rates.level_tier_set(cfg, lv)).to_csv(out / f"tiers_{lv}.csv", index=False)
+    uplift = None
+    if cfg.get("reform_benchmark"):
+        bm, uplift = rates.reform_uplift(comp, cfg)
+        bm.to_csv(out / "reform_benchmark.csv", index=False)
+        uplift.to_csv(out / "reform_uplift.csv", index=False)
     written, skipped = [], {}
     for lv in LEVELS:
         try:
-            rates.rate_table(cfg, lv, base, near, shares, basis).to_csv(out / f"rates_{lv}.csv", index=False)
+            rates.rate_tables(cfg, [lv], base, near, shares, basis, uplift)[lv].to_csv(out / f"rates_{lv}.csv",
+                                                                                         index=False)
             written.append(lv)
         except ValueError as e:
             skipped[lv] = str(e)

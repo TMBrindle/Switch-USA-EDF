@@ -92,14 +92,40 @@ levels:
             regional_mult: {wind_onshore: 3.0},
             # reform scales all three floor terms up for wind (PLACEHOLDER)
             regional_floor: {wind_onshore: {floor_min_mw: 1500, k_stock: 0.10, k_peak: 1.5}}}
-  # high national rate and growth with reform's regional wind relief (CHANGES §73): reform alone is central
-  # nationally, so it is not looser than high; this combines both
-  high_reform: {r0: high, growth: high,
-                regional_mult: {wind_onshore: 3.0},
-                regional_floor: {wind_onshore: {floor_min_mw: 1500, k_stock: 0.10, k_peak: 1.5}}}
+  # §74 (Tom's decision): queue reform benchmarked on the best-performing regions (the first-round S0-S4 "Implied
+  # Rate" method). Central's tables, each region's R x its uplift (reform_benchmark below; regional R and ceilings
+  # recomputed, national R = the sum of the regions'). `reform` above is kept for reference (wind siting relief only).
+  reform_bp: {r0: central, growth: central, benchmark_of: central}
+  # per region and year the larger of high and reform_bp (national = the sum of the regions'); high's growth (ramp)
+  high_reform: {r0: high, growth: high, max_of: [high, reform_bp]}
   # IPM's own shape (EPA 2025 Reference Case): R = Table 4-13 Step 1 per build year (implied build
   # windows, ipm.run_year_span), ipm2025 tiers; storage (no Table 4-13 row) follows `high`'s R.
   high_ipm: {r0: ipm, growth: high, tier_set: ipm2025}
+
+# Reform benchmark (§74; level reform_bp). Round 1's "Implied Rate" best-performer rule applied to the queue
+# parameters the module uses. Per unit and group, from LBNL Queued Up: completion = MW share reaching operation among
+# resolved requests (any phase) queued in completion_cohort_queue_years; duration = median years from request to
+# operation of requests online in duration_on_years. Benchmark = drop the top and bottom trim_share of units, then the
+# mean of the best top_share of the rest (units with min_basis_mw resolved and min_operational completions). Units
+# below it are raised to it (completion up, duration down); better ones keep theirs. Implied rate of the active queue
+# I = sum MW x completion / duration (each request's unit's values); a transreg's increment delta_r = (I'_r - I_r) / I;
+# reform_bp's R: regional (share_r + delta_r) x R_central, national R_central x I'/I. Every value below is a choice
+# FOR TOM'S REVIEW (sensitivities: scripts/reform_sensitivity.py -> outputs/reform_sensitivity.csv).
+reform_benchmark:
+  groups: [wind_onshore, solar, storage]
+  unit: state                               # state | transreg. States: 15 wind / 20 solar units pass the thresholds
+                                            # (transreg: 7 / 10), enough for the trim and top-share rule
+  proxy: {storage: solar}                   # storage: 1 state (3 transregs) pass; its resolved history is pre-2019
+                                            # and tiny, so its active queue is valued at solar's unit completion and
+                                            # duration (shared queues, hybrids)
+  completion_cohort_queue_years: [2000, 2018]   # resolved cohort (later cohorts are mostly unresolved: biased low)
+  duration_on_years: [2018, 2025]           # completions in these years (durations lengthen: wind 3 -> 4 -> 6 yr
+                                            # for 2014-17 / 2018-21 / 2022-25 completions)
+  min_duration_years: 1.0                   # floor on one request's duration (a few show 0: repowerings, data)
+  min_basis_mw: 2000                        # resolved MW for a unit's own completion rate
+  min_operational: 5                        # completions in the window for a unit's own duration
+  trim_share: 0.10                          # round 1: drop the top and bottom 10%
+  top_share: 0.25                           # round 1: mean of the top 25% of the remaining 80%
 
 # Tier bands (upper edge as a multiple of R) and adders (fraction of the group's new-build
 # overnight capex, marginal: only the MW inside a band pay its adder). The top band's edge is a

@@ -3181,3 +3181,78 @@ rate high_reform / high, against central), so they reuse no stage.
   writes nothing.
 
 **Results:** pandas 3.0.6: 195 passed with build_rate; 1.4.4: 194 passed and 1 skipped.
+
+## 74. Build Rate: reform_bp (Best-Performing-State Queue Benchmark) and high_reform Redefined — FOR TOM'S REVIEW
+
+**Date:** 2026-10-06 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/build_rate.md` ("How R is computed", "Reform benchmarked on best-performing
+states"), `Guides and documentation/transmission_bill_scenarios.md`
+
+**Why (Tom's decision):** the bill's build-rate reform should follow round 1's "Implied Rate" method: benchmark
+against the best-performing states (trim the top and bottom 10%, average the top 25% of the rest). It is applied to
+the queue parameters this module uses, not to a capacity trend.
+
+**New level `reform_bp`** (`build_rate/config.yaml` `levels`, `reform_benchmark`; `brc/rates.py`):
+1. **Per state and technology** (LBNL Queued Up; `queue_components` now carries the state):
+   - completion = MW share reaching operation among resolved requests queued 2000-2018;
+   - duration = median years from request to operation of 2018-25 completions;
+   - a state with too little data (< 2,000 MW resolved, < 5 completions) takes the national value and is out of the
+     benchmark.
+2. **Benchmark:** round 1's rule (`rates.benchmark`, tested against `cap_derivation_methodology.py`).
+   - wind: completion 0.201, 4.0 years;
+   - solar: completion 0.186, 4.0 years;
+   - storage takes solar's state values (proxy).
+3. **Reform:** states below the benchmark are raised (completion up, duration down); better ones keep theirs.
+   - Implied rate of the active queue: I = Σ MW × completion / duration (I reproduces R0: wind 8.2, solar 26.7 GW/yr).
+   - A transreg's increment: delta_r = (I'_r − I_r) / I.
+   - Regional R = (share + delta_r) × R_central; national R = R_central × I'/I (wind ×1.47, solar ×1.62, storage
+     ×1.49).
+   - Tiers and ceilings are recomputed.
+4. **Old `reform`** (wind siting relief, central nationally) stays for reference. Its relief isn't in reform_bp. The
+   queue benchmark doesn't relieve the siting-limited regions (PJM, SERTP, ISONE, NYISO wind stay at or near their
+   floors), so whether to add it is Tom's call.
+
+**`high_reform` redefined:** per region and year the larger of `high` and `reform_bp` (national at least both; high's
+growth). §73's version (high + reform's wind relief) is replaced; nothing had run on it.
+
+**National ceilings, GW/yr** (central / reform_bp / high / high_reform):
+
+| year | wind | solar | storage |
+|---|---|---|---|
+| 2026 | 16.5 / 24.2 / 27.7 / 30.4 | 72.2 / 116.6 / 72.2 / 116.6 | 45.4 / 67.6 / 45.4 / 67.6 |
+| 2028 | 16.5 / 24.2 / 27.7 / 30.4 | 66.8 / 107.9 / 66.8 / 107.9 | 41.6 / 61.9 / 41.6 / 61.9 |
+| 2030 | 16.5 / 24.2 / 27.7 / 30.4 | 53.7 / 86.8 / 62.3 / 89.1 | 23.1 / 34.4 / 32.7 / 38.0 |
+| 2035 | 21.1 / 30.9 / 44.6 / 46.8 | 68.6 / 110.8 / 100.4 / 121.3 | 34.0 / 50.6 / 65.8 / 71.3 |
+| 2040 | 26.9 / 39.4 / 71.8 / 74.0 | 87.5 / 141.4 / 161.6 / 176.0 | 49.9 / 74.3 / 132.3 / 136.5 |
+| 2045 | 34.3 / 50.3 / 115.6 / 117.3 | 111.7 / 180.5 / 260.3 / 268.3 | 73.3 / 109.2 / 266.2 / 267.2 |
+
+(every year 2026-2045 in the guide's tables are produced by `python -m brc.cli run`; the sensitivities by
+`scripts/reform_sensitivity.py`.)
+
+**Choices for review**, each a config parameter with its 2035 sensitivity in the guide:
+- unit (states / transregs);
+- the storage proxy;
+- the completion cohort and duration window;
+- trim and top shares;
+- minimum resolved MW and completions;
+- one benchmark per technology (durations lengthen over time; the windows carry that);
+- whether to add the old wind siting relief.
+
+**Wiring:**
+- `tx_bill` rows switch the build rate to `reform_bp` at their switch year (central 2035, low 2040, high 2030,
+  bronly 2035).
+- L (`br_high_reform`) and P (`br_path_p`) use `high_reform`, so they follow its definition without edits.
+- S0 unchanged (central). Every existing output table is byte-identical except `rates_high_reform.csv`.
+- **On the VM:** `python -m brc.cli run` (in `build_rate/`) writes `rates_reform_bp.csv`, `tiers_reform_bp.csv`,
+  `reform_benchmark.csv`, `reform_uplift.csv` and the new `rates_high_reform.csv`. **Nothing is to be run until Tom
+  has reviewed.**
+
+**Tests** (`build_rate/tests/test_build_rate.py`):
+- the benchmark equals round 1's function on random sets;
+- the state benchmark and implied-rate increment on a hand-built queue;
+- reform_bp's regional and national R and ceilings; reform unchanged (= central nationally);
+- high_reform ≥ max(high, reform_bp) everywhere.
+
+`test_tx_policy.py` checks the bill paths name `reform_bp`.
+
+**Results:** pandas 3.0.6: 197 passed with build_rate; 1.4.4: 196 passed and 1 skipped.

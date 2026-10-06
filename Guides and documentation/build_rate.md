@@ -210,12 +210,131 @@ all three floor terms (floor_min 500 → 1,500 MW/yr, k_stock 0.05 → 0.10, k_p
 | central | max(mean 2023–25, mean 2021–25) | central | |
 | high | best year 2021–25 | high | |
 | reform | as central | central | wind regional multiplier 3.0; wind floor terms 1,500 MW/yr / 0.10 / 1.5 (national limits = central's) |
-| high_reform | as high | high | as reform: wind regional multiplier 3.0 and floor terms (national limits = high's; §73) |
+| reform_bp | central × the queue-reform gain (§74) | central | best-performing-state benchmark of completion and time to operation (below) |
+| high_reform | per region and year the larger of high and reform_bp (§74) | high | |
 | high_ipm | EPA 2025 Table 4-13 Step 1 per build year (implied windows) | high (after 2036; storage) | `ipm2025` tiers, no ceiling |
 
 R0, GW/yr (low / central / high): wind 5.98 / 8.25 / 13.84, solar 21.14 / 26.87 / 31.16, storage
 8.48 / 11.56 / 16.36, gas 5.38 / 6.02 / 9.65. Near-term years use the queue-based rate whenever it
 is higher.
+
+## How R is computed, by year and region (as of §74)
+
+**National data rate R[G, y]** (MW/yr; `rates.rate_table`):
+
+- **2026-2030 (near-term years):** R = max(Q[G, y], R0[G]).
+  - **Q, the expected queue additions in year y:** active LBNL Queued Up requests (end-2025) with an executed IA or
+    under construction, each MW × its completion rate, counted in its expected COD year.
+  - **Completion rates:** IA-executed = MW share of resolved IA-executed requests queued by 2018 that reached
+    operation, national per group: wind 46.4%, solar 65.0%, storage 86.9%. Under construction: 0.9 (PLACEHOLDER).
+  - **COD:** for IA-executed requests, max(proposed year, IA year + median IA-to-operation years): wind 1, solar 2,
+    storage 2 (operational requests queued from 2015). Under construction: the proposed year.
+  - **Overdue requests** (COD already passed) are spread evenly over 2026-30: solar 57 GW, wind 18 GW, storage 11 GW.
+- **R0, the demonstrated rate** from EIA-860M national additions:
+  - central = max(mean 2023-25, mean 2021-25): wind 8.25, solar 26.87, storage 11.56 GW/yr;
+  - high = best single year 2021-25: 13.84 / 31.16 / 16.36;
+  - low = min of the two means.
+- **After 2030:** R[y] = R[2030] × (1 + growth)^(y − 2030). Growth is central 5% / 5% / 8% (wind / solar /
+  storage) and high 10% / 10% / 15% (PLACEHOLDER).
+- **Tiers on R:** 0-1.3R free, 1.3-1.75R +15% of capex, 1.75-2.0R +50%, hard ceiling 2.0R.
+- **Regional (transreg) ceilings:** max(share_r × 1.5 × 2.0 × R, floor_r). share_r is the region's share of EIA
+  2016-25 additions. The floor is max(500-1,000 MW/yr, k_stock × end-2025 stock, k_peak × peak 2010-25 build). They
+  apply to wind and solar in S0 (storage national-only).
+
+**Why solar and storage ceilings fall from 2027 to 2029-30.**
+- **Solar:** Q is 36.1 / 41.8 / 33.4 / 17.2 / 12.9 GW for 2026-30.
+- **Storage:** Q is 22.7 / 27.7 / 20.8 / 9.8 / 8.6 GW.
+- **Why the queue thins:** projects that will come online in 2029-30 mostly don't have an executed IA yet. So the
+  visible queue thins, and R falls back to R0 (26.9 solar, 11.6 storage) in 2029-30. It then grows from 2031.
+- **What it is not:** this reflects what the queue file can see, not a forecast of falling build.
+
+**What the limit counts:**
+- **Counted:** the constraint counts every new build dated inside the period's window. That is the model's
+  BuildGen plus predetermined builds in the window, for example EIA-860M planned or under-construction units the
+  case carries as predetermined.
+- **Committed above the ceiling:** committed MW count against the ceiling. If they exceed it, the case writer raises
+  the ceiling to the committed amount.
+- **Not counted:** the existing fleet, online before the window.
+- **No double counting:** the near-term R is built from the same queue pipeline, so 860M pipeline capacity uses up
+  part of R rather than adding to it.
+
+## Reform benchmarked on best-performing states (`reform_bp`, §74; FOR TOM'S REVIEW)
+
+Tom's decision: the bill's build-rate reform follows round 1's "Implied Rate" best-performer method
+(`Switch_cap_methodology.zip`, `cap_derivation_methodology.py`).
+- **Carried over:** the benchmarking logic.
+  - Rule: trim the top and bottom 10% of units, then average the top 25% of the remaining 80%. It is the same
+    function, with Python `round` for both counts (test against round 1's code).
+  - Unit: subnational units (states).
+  - Benchmarks: separate per technology.
+- **Not carried over:** the quadratic capacity trend.
+- **What it benchmarks instead:** the queue parameters this module uses. These are the completion rate and the
+  time from request to operation. The result feeds the module's own R, tiers and ceilings.
+
+1. **Per state and technology** (LBNL Queued Up):
+   - completion = MW share reaching operation among resolved requests (any phase) queued 2000-2018;
+   - duration = median years from request to operation of requests online in 2018-25 (each at least 1 year).
+   - A state with under 2,000 MW resolved, or under 5 completions in the window, takes the national value. It is
+     left out of the benchmark.
+2. **Benchmark** over the states with their own data, by the round-1 rule:
+
+   | | completion benchmark | duration benchmark (yr) | states with own completion / own duration | national (before reform) |
+   |---|---|---|---|---|
+   | wind | 0.201 | 4.0 | 32 / 15 | 0.163, 4.0 yr |
+   | solar | 0.186 | 4.0 | 36 / 20 | 0.146, 5.0 yr |
+   | storage | as solar (proxy) | as solar | — | — |
+
+   - States keeping their own completion rate (at or above the benchmark): wind IA, KS, NY, OK, TX, WV; solar FL,
+     NY, OH, TX, VA, WI. Every other state is raised.
+   - Durations at or below 4.0 years (kept): wind IA, IL, IN, MI, MN, MO, MT; solar AR, IL, LA, MI, NJ, NY, TX.
+     Every other state's duration is cut to 4.0.
+3. **Implied rate of the active queue** (round 1's "Implied Rate", on queue parameters):
+   - I = Σ active MW × completion / duration, each request at its state's values; I' is the same with the reformed
+     values.
+   - Check: I reproduces the observed rate (wind 8.2 GW/yr against R0 8.25; solar 26.7 against 26.9).
+   - A transreg's increment is delta_r = (I'_r − I_r) / I.
+4. **reform_bp's R:**
+   - regional = (share_r + delta_r) × R_central;
+   - national = R_central × I'/I: wind ×1.47, solar ×1.62, storage ×1.49 (solar's values on storage's own queue);
+   - tiers and ceilings are recomputed from the new R.
+   - Gains go where queues are large and performance poor: solar MISO +0.154 of national, NorthernGrid +0.122,
+     WestConnect +0.100, CAISO +0.075.
+5. **high_reform:** per region and year the larger of `high` and `reform_bp`. The national value is at least
+   both. Growth (ramp) is high's.
+
+**Choices for review** (`build_rate/config.yaml` `reform_benchmark`):
+- **Unit = states.** In the queue data, 15 wind and 20 solar states pass both thresholds, against 7 / 10
+  transregs. That is enough for the trim and top-share rule. A transreg's gain is the sum of its states'.
+- **Storage uses solar's state values.** Only 1 state (3 transregs) has robust storage data, and resolved storage
+  history is mostly before 2019. Storage and solar share queues and hybrids.
+- **One benchmark per technology, not per period.**
+  - Durations have lengthened (wind 3 → 4 → 6 years for 2014-17 / 2018-21 / 2022-25 completions; solar 4 → 4 → 5).
+  - Recent completion cohorts are biased low: withdrawals resolve before completions, and later cohorts are mostly
+    unresolved.
+  - That trend is in the data windows, not a forecast. So the windows are parameters, with their sensitivities
+    below.
+- **Wind siting relief:** reform's old relief (wind regional multiplier 3.0 and larger floors) is not in reform_bp.
+  The queue benchmark lifts wind where queues are large (MISO, SPP, NorthernGrid, WestConnect). It barely moves
+  the siting-limited regions: 2035 PJM 0.70 → 0.90 GW/yr, SERTP and ISONE at the 0.5 floor, NYISO 0.50 → 0.67;
+  the old relief gave 1.5 in each. If the bill should relieve siting there too, add `regional_mult` /
+  `regional_floor` to reform_bp. `reform` (old) stays for reference.
+- **Reform start:** applies from whenever the level is selected (bill switch year; L from 2028, so in L it also
+  lifts the 2026-28 window).
+
+**Sensitivity of the 2035 national ceilings** (GW/yr; one choice at a time; `build_rate/scripts/reform_sensitivity.py`;
+central 21.1 wind / 68.6 solar / 34.0 storage):
+
+| Variant | wind | solar | storage |
+|---|---|---|---|
+| base (states; cohort to 2018; durations 2018-25; trim 10%, top 25%; ≥ 2,000 MW, ≥ 5 completions) | 30.9 | 110.8 | 50.6 |
+| unit = transreg | 29.8 | 141.6 | 63.7 |
+| duration window 2022-25 / 2014-25 | 31.1 / 31.6 | 108.6 / 113.9 | 50.9 / 52.2 |
+| completion cohort to 2016 / to 2020 | 31.9 / 31.3 | 128.7 / 97.1 | 57.8 / 45.5 |
+| trim 0% / 20% | 41.9 / 28.5 | 134.5 / 99.9 | 60.0 / 46.2 |
+| top share 10% / 50% | 33.2 / 28.2 | 123.5 / 96.3 | 55.6 / 44.8 |
+| minimum resolved 1,000 / 5,000 MW | 29.4 / 29.6 | 111.4 / 116.5 | 50.8 / 54.1 |
+| minimum completions 3 / 10 | 33.8 / 29.5 | 111.1 / 109.0 | 50.6 / 49.6 |
+| storage on its own data (no proxy; 6 states) | 30.9 | 110.8 | 70.5 |
 
 ## Interactions
 

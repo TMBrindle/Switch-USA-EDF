@@ -577,29 +577,108 @@ def test_patch_case_regional_groups_option(tmp_path, monkeypatch):
     assert set(pd.read_csv(d / "build_rate_regions.csv")["BR_GROUP"]) == {"wind_onshore", "solar"}
 
 
-def test_high_reform_level():
-    """§73: high_reform = high's national R, growth and ceilings + reform's regional wind relief (multiplier and
-    floors); solar and storage as high. reform alone equals central nationally."""
+def _round1_trimmed_top_quartile_mean(rates_, trim_frac=0.10, top_frac=0.25):
+    """Round 1's rule, as in cap_derivation_methodology.py (Switch_cap_methodology.zip), for comparison."""
+    s = pd.Series(rates_).dropna().sort_values().reset_index(drop=True)
+    n = len(s)
+    trim_n = round(n * trim_frac)
+    middle = s.iloc[trim_n: n - trim_n] if trim_n > 0 else s
+    top_n = round(len(middle) * top_frac)
+    return middle.sort_values(ascending=False).head(top_n).mean()
+
+
+def test_benchmark_matches_round_one_rule():
+    """§74: the best-performer benchmark is round 1's Implied Rate rule (trim round(10% n) at each end, mean of the
+    top round(25% m)); for lower-is-better values (duration) the best are the smallest."""
+    rng = np.random.default_rng(7)
+    for n in (5, 9, 10, 11, 15, 20, 32, 36, 49):
+        v = rng.uniform(0, 1, n)
+        assert rates.benchmark(v, True, 0.10, 0.25) == pytest.approx(_round1_trimmed_top_quartile_mean(v))
+        assert rates.benchmark(v, False, 0.10, 0.25) == pytest.approx(-_round1_trimmed_top_quartile_mean(-v))
+    # 10 units: trim 1 at each end, top round(8 x 0.25) = 2 of the remaining 8
+    assert rates.benchmark(range(10), True, 0.10, 0.25) == pytest.approx((8 + 7) / 2)
+    assert rates.benchmark(range(1, 11), False, 0.10, 0.25) == pytest.approx((2 + 3) / 2)
+
+
+def _reform_queue():
+    """Two states per transreg, hand-built: resolved cohort (completion), recent completions (duration), actives."""
+    rows, k = [], 0
+    spec = {  # state: (transreg, completed MW of 10 resolved, durations of 5 completions, active MW)
+        "A": ("R1", 4, [3] * 5, 100), "B": ("R1", 1, [8] * 5, 200),
+        "C": ("R2", 2, [4] * 5, 100), "D": ("R2", 3, [5] * 5, 50)}
+    for st, (tr, done, durs, act) in spec.items():
+        for i in range(10):
+            rows.append({"req": k, "group": "solar", "mw": 1.0, "transreg": tr, "state": st,
+                         "status": "operational" if i < done else "withdrawn", "phase": "IA Executed", "q_year": 2010,
+                         "prop_year": 2014, "on_year": 2014 if i < done else np.nan, "ia_year": 2012})
+            k += 1
+        for d in durs:
+            rows.append({"req": k, "group": "solar", "mw": 1.0, "transreg": tr, "state": st, "status": "operational",
+                         "phase": "IA Executed", "q_year": 2022 - d, "prop_year": 2022, "on_year": 2022, "ia_year": 2020})
+            k += 1
+        rows.append({"req": k, "group": "solar", "mw": act, "transreg": tr, "state": st, "status": "active",
+                     "phase": "Feasibility Study", "q_year": 2024, "prop_year": 2028, "on_year": np.nan, "ia_year": np.nan})
+        k += 1
+    return pd.DataFrame(rows)
+
+
+def test_reform_benchmark_and_implied_rate_increment():
+    """States raised to the benchmark (completion up, duration down), better ones keep theirs; a transreg's increment
+    is its requests' implied-rate gain over the national implied rate."""
+    q = _reform_queue()
+    rb = dict(CFG["reform_benchmark"], groups=["solar"], proxy={}, completion_cohort_queue_years=[2000, 2018],
+              duration_on_years=[2018, 2025], min_basis_mw=5, min_operational=3, trim_share=0.0, top_share=0.5)
+    bm, up = rates.reform_uplift(q, CFG, rb)
+    b = bm.set_index("unit")
+    comp = {s: b.at[s, "completion"] for s in "ABCD"}
+    dur = {s: b.at[s, "duration_years"] for s in "ABCD"}
+    assert dur == {"A": 3.0, "B": 8.0, "C": 4.0, "D": 5.0}
+    bc = rates.benchmark(list(comp.values()), True, 0.0, 0.5)
+    bd = rates.benchmark(list(dur.values()), False, 0.0, 0.5)
+    assert b.at["A", "benchmark_completion"] == pytest.approx(bc) and bd == pytest.approx(3.5)
+    assert b.at["B", "completion_reform"] == pytest.approx(max(comp["B"], bc)) and b.at["B", "duration_reform_years"] == 3.5
+    assert b.at["A", "duration_reform_years"] == 3.0 and not b.at["A", "cut_duration"]       # better keeps its own
+    I0 = {s: m * comp[s] / dur[s] for s, m in zip("ABCD", (100, 200, 100, 50))}
+    I1 = {s: m * max(comp[s], bc) / min(dur[s], bd) for s, m in zip("ABCD", (100, 200, 100, 50))}
+    tot = sum(I0.values())
+    u = up.set_index("region")
+    assert u.at["R1", "delta"] == pytest.approx((I1["A"] + I1["B"] - I0["A"] - I0["B"]) / tot)
+    assert u.at["R2", "delta"] == pytest.approx((I1["C"] + I1["D"] - I0["C"] - I0["D"]) / tot)
+    assert u.at["national", "delta"] == pytest.approx(sum(I1.values()) / tot - 1)
+
+
+def test_reform_bp_and_high_reform_tables():
+    """reform_bp: regional R = (share + delta) x R_central, national = R_central x I'/I, ceilings recomputed (2.0 x R
+    national; share x mult x 2.0 x R regional, floored); reform (old) unchanged and equal to central nationally.
+    high_reform: per region and year the larger of high and reform_bp; national at least both."""
     b = rates.base_rates(_additions(), 2015, 2025)
     shares = rates.regional_shares(b, [2016, 2025])
     nt = rates.near_term(_queue(), rates.completion_rates(_queue(), CFG), rates.cod_delay(_queue(), CFG), CFG)
     cfg = dict(CFG, groups=["wind_onshore", "solar"])
-    tabs = {lv: rates.rate_table(cfg, lv, b, nt, shares).set_index(["group", "region", "year"])
-            for lv in ("central", "high", "reform", "high_reform")}
-    nat = lambda lv: tabs[lv].xs("national", level="region")  # noqa: E731
-    pd.testing.assert_frame_equal(nat("high_reform"), nat("high"))
-    pd.testing.assert_frame_equal(nat("reform"), nat("central"))
-    solar = lambda lv: tabs[lv].xs("solar", level="group")  # noqa: E731
-    pd.testing.assert_frame_equal(solar("high_reform"), solar("high"))
-    hr, hi = tabs["high_reform"], tabs["high"]
-    rf = CFG["levels"]["high_reform"]
-    assert rf["regional_mult"] == CFG["levels"]["reform"]["regional_mult"]
-    assert rf["regional_floor"] == CFG["levels"]["reform"]["regional_floor"]
-    for reg in ("MISO", "SPP"):
-        r = nat("high").loc[("wind_onshore", 2030), "r_data_mw_per_yr"]
-        s = float(shares[(shares.group == "wind_onshore") & (shares.region == reg)]["share"].iat[0])
-        assert hr.loc[("wind_onshore", reg, 2030), "ceiling_mw_per_yr"] == pytest.approx(
-            max(s * 3.0 * 2.0 * r, rf["regional_floor"]["wind_onshore"]["floor_min_mw"]))
-        assert hr.loc[("wind_onshore", reg, 2030), "ceiling_mw_per_yr"] >= hi.loc[("wind_onshore", reg, 2030),
-                                                                                  "ceiling_mw_per_yr"]
-    assert "high_reform" in cli.LEVELS
+    up = pd.DataFrame([{"group": "wind_onshore", "region": "SPP", "delta": 0.30},
+                       {"group": "wind_onshore", "region": "MISO", "delta": 0.10},
+                       {"group": "wind_onshore", "region": "national", "delta": 0.40},
+                       {"group": "solar", "region": "ERCOT", "delta": 0.0},
+                       {"group": "solar", "region": "national", "delta": 0.0}])
+    t = rates.rate_tables(cfg, ["central", "reform", "reform_bp", "high", "high_reform"], b, nt, shares, None, up)
+    ix = {k: v.set_index(["group", "region", "year"]) for k, v in t.items()}
+    c, r = ix["central"], ix["reform_bp"]
+    for y in (2026, 2030, 2035):
+        rc = c.loc[("wind_onshore", "national", y), "r_data_mw_per_yr"]
+        assert r.loc[("wind_onshore", "national", y), "r_data_mw_per_yr"] == pytest.approx(rc * 1.40)
+        assert r.loc[("wind_onshore", "national", y), "ceiling_mw_per_yr"] == pytest.approx(2.0 * rc * 1.40)
+        s_spp = c.loc[("wind_onshore", "SPP", y), "r_data_mw_per_yr"] / rc
+        assert r.loc[("wind_onshore", "SPP", y), "r_data_mw_per_yr"] == pytest.approx((s_spp + 0.30) * rc)
+        assert r.loc[("wind_onshore", "SPP", y), "ceiling_mw_per_yr"] == pytest.approx(
+            max((s_spp + 0.30) * rc * 1.5 * 2.0, CFG["regional_floor"]["wind_onshore"]["floor_min_mw"]))
+        assert r.loc[("solar", "national", y), "r_data_mw_per_yr"] == pytest.approx(
+            c.loc[("solar", "national", y), "r_data_mw_per_yr"])
+    nat = lambda k: ix[k].xs("national", level="region")  # noqa: E731
+    pd.testing.assert_series_equal(nat("reform")["r_data_mw_per_yr"], nat("central")["r_data_mw_per_yr"])
+    hr, hi = ix["high_reform"], ix["high"]
+    for col in ("r_data_mw_per_yr", "ceiling_mw_per_yr"):
+        assert (hr[col] >= np.maximum(hi[col], r[col].reindex(hi.index)) - 1e-6).all()
+    assert hr["growth"].equals(hi["growth"])                                           # high's growth (ramp)
+    assert {"reform_bp", "high_reform", "reform"} <= set(cli.LEVELS)
+    assert CFG["levels"]["high_reform"]["max_of"] == ["high", "reform_bp"]
+    assert CFG["levels"]["reform_bp"]["benchmark_of"] == "central"

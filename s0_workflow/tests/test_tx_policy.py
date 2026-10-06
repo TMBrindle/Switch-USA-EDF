@@ -239,14 +239,14 @@ EXPECT = {   # tx_bill value: (moratorium, cap by period 2028-2045, headroom by 
              # import allowance by period); §72: S0 (0 / 1.4, atts_s0, central, 0) until each change takes effect
     "s0_tx": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], None, None, [0.0] * 5),
     "bill_central": (2035, [0.0, 1.4, 3.0, 3.0, 3.0], ["atts_s0"] * 2 + ["atts_reform"] * 3,
-                     ["central"] * 2 + ["reform"] * 3, [0.0] * 2 + [0.85] * 3),
+                     ["central"] * 2 + ["reform_bp"] * 3, [0.0] * 2 + [0.85] * 3),
     "bill_low": (2040, [0.0, 1.4, 2.0, 2.0, 2.0], ["atts_s0"] * 3 + ["atts_reform"] * 2,
-                 ["central"] * 3 + ["reform"] * 2, [0.0] * 3 + [0.85] * 2),
+                 ["central"] * 3 + ["reform_bp"] * 2, [0.0] * 3 + [0.85] * 2),
     "bill_high": (2035, [0.0, 2.0, 4.0, 4.0, 4.0], ["atts_s0", "atts_reform"] + ["atts_reform_techmax"] * 3,
-                  ["central"] + ["reform"] * 4, [0.0] * 2 + [0.85] * 3),
+                  ["central"] + ["reform_bp"] * 4, [0.0] * 2 + [0.85] * 3),
     "bill_central_txonly": (2035, [0.0, 1.4, 3.0, 3.0, 3.0], None, None, [0.0] * 2 + [0.85] * 3),
     "bill_central_bronly": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], ["atts_s0"] * 2 + ["atts_reform"] * 3,
-                            ["central"] * 2 + ["reform"] * 3, [0.0] * 5),
+                            ["central"] * 2 + ["reform_bp"] * 3, [0.0] * 5),
 }
 
 

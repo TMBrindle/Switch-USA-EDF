@@ -251,3 +251,185 @@ def tiers(cfg: dict, group: str, tier_set: str | None = None) -> pd.DataFrame:
     if (t["width"] <= 0).any() or not t["adder"].is_monotonic_increasing:
         raise ValueError(f"tiers for {group} must have increasing edges and non-decreasing adders")
     return t[["tier", "lower", "upto", "width", "adder", "adders_last_year"]]
+
+
+# --------------------------------------------------------------------------------------------- reform: benchmark
+def queue_metrics(comp: pd.DataFrame, cfg: dict, group: str, rb: dict | None = None) -> pd.DataFrame:
+    """Per unit of analysis (reform_benchmark.unit: state | transreg) for one group, from LBNL Queued Up:
+    completion = MW share reaching operation among resolved requests (operational, withdrawn, suspended; every phase)
+    queued in completion_cohort_queue_years; duration = median years from request (q_year) to operation (on_year) of
+    requests online in duration_on_years (each at least min_duration_years). A unit with too little data (resolved
+    MW below min_basis_mw; fewer than min_operational requests online in the window) takes the national value
+    (own_completion / own_duration False) and is left out of the benchmark."""
+    rb = rb or cfg["reform_benchmark"]
+    unit = rb["unit"]
+    d = comp[comp["group"] == group]
+    c0, c1 = rb["completion_cohort_queue_years"]
+    res = d[d["status"].isin(["operational", "withdrawn", "suspended"]) & d["q_year"].between(c0, c1)]
+    lo, hi = rb["duration_on_years"]
+    op = d[(d["status"] == "operational") & d["on_year"].between(lo, hi) & d["q_year"].notna()]
+    dur = (op["on_year"] - op["q_year"]).clip(lower=rb["min_duration_years"])
+    nat_c = res.loc[res["status"] == "operational", "mw"].sum() / res["mw"].sum()
+    nat_d = float(dur.median())
+    rows = []
+    units = sorted(u for u in set(res[unit].dropna()) | set(op[unit].dropna()) | set(d[unit].dropna())
+                   if str(u) not in ("", "NAN", "NONE"))
+    for u in units:
+        x, o = res[res[unit] == u], dur[op[unit] == u]
+        basis = float(x["mw"].sum())
+        own_c = basis >= rb["min_basis_mw"]
+        own_d = len(o) >= rb["min_operational"]
+        rows.append({"group": group, "unit": u, "resolved_mw": basis, "n_operational": len(o),
+                     "completion": float(x.loc[x["status"] == "operational", "mw"].sum() / basis) if own_c else nat_c,
+                     "duration_years": float(o.median()) if own_d else nat_d, "own_completion": own_c,
+                     "own_duration": own_d})
+    rows.append({"group": group, "unit": NATIONAL, "resolved_mw": float(res["mw"].sum()), "n_operational": len(op),
+                 "completion": nat_c, "duration_years": nat_d, "own_completion": True, "own_duration": True})
+    return pd.DataFrame(rows)
+
+
+def benchmark(values, higher_is_better: bool, trim_share: float, top_share: float) -> float:
+    """Best-performer benchmark, round 1's Implied Rate rule (cap_derivation_methodology.trimmed_top_quartile_mean):
+    drop round(n x trim_share) units at each end, then the mean of the best round(m x top_share) of the m left
+    (Python round; at least one)."""
+    v = sorted(float(x) for x in values if pd.notna(x))
+    n = len(v)
+    if not n:
+        raise ValueError("reform benchmark: no unit has enough queue data (lower min_basis_mw / min_operational)")
+    k = round(n * trim_share)
+    kept = v[k:n - k] if k > 0 else v
+    kept = sorted(kept, reverse=higher_is_better)
+    m = max(1, round(len(kept) * top_share))
+    return float(np.mean(kept[:m]))
+
+
+def reform_benchmark(comp: pd.DataFrame, cfg: dict, rb: dict | None = None) -> pd.DataFrame:
+    """Per group and unit: completion, duration, the benchmark (units with their own data), and the reformed values:
+    completion raised to the benchmark, duration cut to it; better units keep theirs. A group in `proxy` takes another
+    group's unit values (e.g. storage -> solar: too little resolved storage history)."""
+    rb = rb or cfg["reform_benchmark"]
+    out = []
+    for g in rb["groups"]:
+        src = (rb.get("proxy") or {}).get(g, g)
+        q = queue_metrics(comp, cfg, src, rb).assign(group=g, metrics_from=src)
+        reg = q[q["unit"] != NATIONAL]
+        bc = benchmark(reg.loc[reg["own_completion"], "completion"], True, rb["trim_share"], rb["top_share"])
+        bd = benchmark(reg.loc[reg["own_duration"], "duration_years"], False, rb["trim_share"], rb["top_share"])
+        q = q.assign(benchmark_completion=bc, benchmark_duration_years=bd)
+        q["completion_reform"] = q["completion"].clip(lower=bc)
+        q["duration_reform_years"] = q["duration_years"].clip(upper=bd)
+        q["raised_completion"] = q["completion"] < bc - 1e-12
+        q["cut_duration"] = q["duration_years"] > bd + 1e-12
+        out.append(q)
+    return pd.concat(out, ignore_index=True)
+
+
+def reform_uplift(comp: pd.DataFrame, cfg: dict, rb: dict | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(benchmark table by unit, reform increment by group and transreg).
+
+    Implied rate of the active queue (round 1's Implied Rate, on the queue parameters): I = sum over active requests
+    of MW x completion / duration, with each request's unit's values (national ones where the unit lacks data);
+    I' the same with the reformed values. A transreg's increment delta_r = (I'_r - I_r) / I, its requests' gain as
+    a share of the national implied rate (requests outside any transreg count in I and in the national increment).
+    reform_bp's R: regional = (share_r + delta_r) x R_central, national = R_central x I' / I."""
+    rb = rb or cfg["reform_benchmark"]
+    bm = reform_benchmark(comp, cfg, rb)
+    unit = rb["unit"]
+    rows = []
+    for g in rb["groups"]:
+        b = bm[bm["group"] == g].set_index("unit")
+        nat = b.loc[NATIONAL]
+        act = comp[(comp["group"] == g) & (comp["status"] == "active")]
+        u = act[unit].where(act[unit].isin(b.index), NATIONAL)
+        i0 = act["mw"] * u.map(b["completion"]) / u.map(b["duration_years"])
+        i1 = act["mw"] * u.map(b["completion_reform"]) / u.map(b["duration_reform_years"])
+        tot0, tot1 = float(i0.sum()), float(i1.sum())
+        for r, idx in act.groupby("transreg").groups.items():
+            rows.append({"group": g, "region": r, "active_mw": float(act.loc[idx, "mw"].sum()),
+                         "implied_mw_per_yr": float(i0[idx].sum()), "implied_reform_mw_per_yr": float(i1[idx].sum()),
+                         "delta": float((i1[idx].sum() - i0[idx].sum()) / tot0)})
+        rows.append({"group": g, "region": NATIONAL, "active_mw": float(act["mw"].sum()), "implied_mw_per_yr": tot0,
+                     "implied_reform_mw_per_yr": tot1, "delta": tot1 / tot0 - 1.0})
+    return bm, pd.DataFrame(rows)
+
+
+def derived_rate_table(cfg: dict, level: str, tables: dict, uplift: pd.DataFrame | None) -> pd.DataFrame:
+    """Rate tables of levels defined on others (cfg levels[level]):
+    benchmark_of: L   R of level L with each region's R x its uplift (reform_uplift) from reform_from_year
+                      (regional R = share x R_L x uplift; national R = the sum of the regions'), ceilings recomputed
+                      (regional: max(share x uplift x mult x top x R_L, floor); national: top x R);
+    max_of: [A, B]    per region and year the larger R of A and B (national = the sum of the regions'), the larger
+                      regional ceiling; national ceiling = top x R."""
+    lv = cfg["levels"][level]
+    if "benchmark_of" in lv:
+        t = tables[lv["benchmark_of"]].copy()
+        if uplift is None:
+            raise ValueError(f"level {level} needs reform_uplift (LBNL queue data)")
+        dl = uplift.set_index(["group", "region"])["delta"]
+        start = int(lv.get("reform_from_year", 0))
+        out = []
+        for g, d in t.groupby("group", sort=False):
+            top = tiers(cfg, g, level_tier_set(cfg, level))["upto"].max()
+            mult = level_params(cfg, level, g, "regional_mult")
+            d = d.copy()
+            reg = (d["region"] != NATIONAL).values
+            on = (d["year"] >= start).values
+            r_nat = d["year"].map(d.loc[~reg].set_index("year")["r_data_mw_per_yr"])     # R of the base level
+            add = np.array([dl.get((g, r), 0.0) for r in d["region"]]) * r_nat.values
+            d.loc[reg & on, "r_data_mw_per_yr"] = (d["r_data_mw_per_yr"] + add)[reg & on]
+            floor = d["ceiling_mw_per_yr"].where(d["floor_applied"], 0.0)                 # the base level's floor
+            cap = d["r_data_mw_per_yr"] * mult * top
+            d.loc[reg, "ceiling_mw_per_yr"] = np.maximum(cap[reg], floor[reg])
+            d.loc[reg, "floor_applied"] = (cap < floor)[reg]
+            f = 1.0 + float(dl.get((g, NATIONAL), 0.0))
+            d.loc[~reg & on, "r_data_mw_per_yr"] = d.loc[~reg & on, "r_data_mw_per_yr"] * f
+            d.loc[~reg, "ceiling_mw_per_yr"] = top * d.loc[~reg, "r_data_mw_per_yr"]
+            out.append(d)
+        return pd.concat(out, ignore_index=True)
+    if "max_of" in lv:
+        a, b = (tables[x].set_index(["group", "region", "year"]) for x in lv["max_of"])
+        b = b.reindex(a.index)
+        t = a.copy()
+        t["r_data_mw_per_yr"] = np.maximum(a["r_data_mw_per_yr"], b["r_data_mw_per_yr"])
+        t["ceiling_mw_per_yr"] = np.maximum(a["ceiling_mw_per_yr"], b["ceiling_mw_per_yr"])
+        t["floor_applied"] = a["floor_applied"] & b["floor_applied"]
+        t = t.reset_index()
+        for g in t["group"].unique():
+            top = tiers(cfg, g, level_tier_set(cfg, level))["upto"].max()
+            regm = (t["group"] == g) & (t["region"] != NATIONAL)
+            natm = (t["group"] == g) & (t["region"] == NATIONAL)
+            # national: each level's national R plus the regions where the other is higher (the regional maxima,
+            # keeping each level's part of R outside any transreg); the larger of the two
+            ka = a.reset_index()
+            kb = b.reset_index()
+            ra = ka[(ka["group"] == g) & (ka["region"] != NATIONAL)].set_index(["region", "year"])["r_data_mw_per_yr"]
+            rbv = kb[(kb["group"] == g) & (kb["region"] != NATIONAL)].set_index(["region", "year"])["r_data_mw_per_yr"]
+            mx = np.maximum(ra, rbv)
+            na = ka[(ka["group"] == g) & (ka["region"] == NATIONAL)].set_index("year")["r_data_mw_per_yr"]
+            nb = kb[(kb["group"] == g) & (kb["region"] == NATIONAL)].set_index("year")["r_data_mw_per_yr"]
+            via_a = na + (mx - ra).groupby("year").sum().reindex(na.index).fillna(0)
+            via_b = nb + (mx - rbv).groupby("year").sum().reindex(nb.index).fillna(0)
+            t.loc[natm, "r_data_mw_per_yr"] = t.loc[natm, "year"].map(np.maximum(via_a, via_b)).values
+            t.loc[natm, "ceiling_mw_per_yr"] = top * t.loc[natm, "r_data_mw_per_yr"]
+        return t
+    raise ValueError(f"level {level} is not a derived level")
+
+
+def rate_tables(cfg: dict, levels, base, near, shares, basis=None, uplift=None) -> dict:
+    """Rate tables of the given levels: data levels by rate_table, derived ones (benchmark_of / max_of) from their
+    dependencies, resolved recursively."""
+    out = {}
+
+    def get(lv):
+        if lv not in out:
+            spec = cfg["levels"][lv]
+            deps = [d for d in [spec.get("benchmark_of")] + list(spec.get("max_of", [])) if d]
+            if deps:
+                for d in deps:
+                    get(d)
+                out[lv] = derived_rate_table(cfg, lv, out, uplift)
+            else:
+                out[lv] = rate_table(cfg, lv, base, near, shares, basis)
+        return out[lv]
+
+    return {lv: get(lv) for lv in levels}

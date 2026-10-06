@@ -8,7 +8,7 @@ Settings (pg/settings/build_rate.yml):
 
     build_rate:
       enabled: false
-      level: central                 # low | central | high | reform | high_reform | high_ipm
+      level: central                 # low | central | high | reform | reform_bp | high_reform | high_ipm
       tables_dir: build_rate/outputs
       groups: [wind_onshore, solar, storage]   # add gas only with MaxCapTag_GasTurbineSupply released
       regional: true
