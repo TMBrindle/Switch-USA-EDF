@@ -180,6 +180,9 @@ Virginia in RGGI, the CA/WA imports generators and fixed O&M by period. The new 
 of step 2; the forced-transmission checks below for `reeds_certain` now apply to the certain lines plus the class-A
 projects (recipe G has the S0_tx checks).
 
+**§70:** the stress days are now the greedy 12-day cover at 6% (in place of §66's guaranteed rule and §68's
+`cover_plus_interconnect_wind`), with light stress days and compact reserve rows (recipe I's result).
+
 **Case:** `S0prod_A` (`s0_production = on`). Five single-year stages (2028, 2030, 2035, 2040, 2045) on
 the October 2026 defaults:
 - fleet-independent days;
@@ -368,15 +371,17 @@ in the stage folder. Don't patch around it: send Tom those files and
      `loads.csv`, `scenarios` line). The build reports no `flexible_demand_resources` error: the 2045
      load entries are now in the settings.
    - **§66 checks (each stage):**
-     - **Stress days (§68, `cover_plus_interconnect_wind`):**
-       - `prm/<year>/stress_info.txt` says `rule cover_plus_interconnect_wind; cover tolerance 0.060` (higher only if
-         12 days did not suffice: report it) and `interconnection low-wind days: <a> added, <b> already in the set`.
-       - `stress_coverage.csv`: 48 region rows, no `NOT COVERED`, plus three `interconnection:<eastern|western|ercot>`
-         rows with `top_load_days` 26 and `added`.
+     - **Stress days (§70: `greedy` at 6%, light, compact):**
+       - `prm/<year>/stress_info.txt` says `rule greedy; cover tolerance 0.060` (higher only if 12 days did not
+         suffice: report it).
+       - `stress_coverage.csv`: 48 region rows, no `NOT COVERED` (no interconnection rows: that is the
+         `cover_plus_interconnect_wind` option).
+       - Each stage folder has `stress_light_timeseries.csv` listing the same timeseries as `prm_timeseries.csv`, and
+         `prm_params.csv` has `prm_compact_capacity` 1. The build log line ends `stress-day formulation light; reserve
+         rows compact`.
        - **Report** the number of stress days and the console line `Model size <year>: <n> timepoints (<a> sample,
          <b> on <c> stress days)`.
-       - **Expected:** 600 sample timepoints; at most 12 + 3 = 15 stress days, so at most 960 timepoints (840-960 for
-         10-15 days), against 1,464 with the guaranteed rule (36 days).
+       - **Expected:** 600 sample timepoints; at most 12 stress days, so at most 888 timepoints.
      - **Lifetime backstop:** `lifetime_retirements_by_stage.csv` and the log line `lifetime backstop (coal 65 yr,
        gas 55 yr ...)`. Coal GW out of service by lifetime (block_all; the committed model basis): 0 / 0 / 12.78 /
        37.06 / 61.92 for 2028 / 2030 / 2035 / 2040 / 2045. The build's own unit table may differ slightly (860M
@@ -420,10 +425,10 @@ in the stage folder. Don't patch around it: send Tom those files and
    - `ic_headroom.csv` slack.
    - Wall time and peak memory per stage (`measure_run.py`).
    - §66: `retirement_rules_check.csv` `suspended_mw` and `friction_cost_per_yr` by source and period; coal and gas
-     GW retired by lifetime per stage (from the build); the stress-day count and timepoints per stage. **Memory
-     estimate** (§68): at most 960 timepoints per stage. At the foresight runs' 65 MB per timepoint that is about
-     62 GB. Scaled from the 2035 guaranteed-rule test (1,464 timepoints, stopped at 120 GB, so at least that) it is
-     at least about 79 GB. Compare with the measured peak.
+     GW retired by lifetime per stage (from the build); the stress-day count and timepoints per stage. **Expected
+     time and memory** (§70): about 1 h 45 min and 80 GB per stage, as the VM's 2035 light + compact test (1 h 43
+     min, 79.7 GB; full + hourly was 2 h 50 min, 102.7 GB). Later stages carry more new-build columns; **report** any
+     stage above 100 GB. Compare with the measured peak.
 
 Optional: build and solve `s4x1_S0prod_2035_new` (now the 2035 stage on the final configuration, `on_single`; the
 same inputs as `s4x1_S0_tx_2035`). Compare it with recipe A's run. The retirement sensitivities on S0_tx 2035:
@@ -739,49 +744,34 @@ Expected (S0 before §66, RGGI10 only; the 2035 comparison rows still look like 
   rows for p1 and p3 (Canada at 0). The build log line `ca_wa_carbon imports generators: ...` names them; **report**
   the generator names.
 
-## I. Light stress days and compact reserve rows: 2035 s4x1 (CHANGES §69)
+## I. Light stress days and compact reserve rows: 2035 s4x1 (CHANGES §69-§70) — DONE
 
-**Cases** (same row except `prm_design`):
-- `s4x1_S0prod_2035_new`: full stress days, hourly reserve rows (the S0 default);
-- `s4x1_S0prod_2035_new_light` (`regional_light`): light stress days;
-- `s4x1_S0prod_2035_new_compact` (`regional_compact`): compact reserve rows;
-- `s4x1_S0prod_2035_new_light_compact` (`regional_light_compact`): both.
+**Result** (VM, 0a29884, 2035, greedy stress days): light + compact 1 h 43 min and 79.7 GB, against full + hourly
+2 h 50 min and 102.7 GB. Results within about 1% (CO2 +10 Mt, new solar −8 GW, new CT −1.7 GW, reserve prices 0-23%
+lower), explained by removing spinning reserves, minimum load and commitment from stress days, where the NERC margins
+already include operating reserves. Compact alone: same optimum, 50 more barrier iterations. Ramping off: no gain.
+Light + compact (with the greedy rule at 6%) is the S0 default since §70.
 
-Build each into a fresh folder:
-```bash
-for c in s4x1_S0prod_2035_new s4x1_S0prod_2035_new_light s4x1_S0prod_2035_new_compact s4x1_S0prod_2035_new_light_compact; do
-  test -e switch/in/s0light/$c && echo "exists: pick another name" || \
-  "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0light --case-id $c --year 2035
-done
-```
-1. **Before solving:**
-   - Only the light folders have `stress_light_timeseries.csv`, listing the same timeseries as `prm_timeseries.csv`
-     (15 `*_prm`). Only the compact folders have `prm_compact_capacity = 1` in `prm_params.csv`.
-   - Every other input file is byte-identical across the four (`diff -rq`, excluding `s0_production_log.txt` and
-     `scenarios*.txt`). **Report** any difference.
-   - Optional: `python s0_workflow/scripts/estimate_stress_model_size.py --case switch/in/s0light/<folder>` gives the
-     counts for the actual case. It builds the model three times (one at a time) and so needs memory; run it only if
-     there is room.
-2. **Solve** with recipe A's solver options and `measure_run.py`. The VM found compact rows worth only about 2% of
-   factor ops and ramping-off nothing, so light is the run that matters: light first (it needs the fix in
-   `gen_annual_availability_limits`, after fc756a7), then light_compact. **Report** for each:
-   - wall time and peak memory (full measured 4 h 29 min and 114 GB at f0e7ca3);
-   - Gurobi's rows, columns and nonzeros, and the barrier's factor nonzeros and factor ops ("Factor NZ", "Factor Ops").
-3. **Compare** each with the full/hourly run:
-   - objective;
-   - builds by technology (`compare_s0_runs.py`);
-   - `prm_shortfall.csv` and `prm_summary.csv` (margins, prices);
-   - `prm_capacity_credit.csv`.
+**To repeat the comparison** (same row except `prm_design`):
+- `s4x1_S0prod_2035_new`: the S0 default (light + compact);
+- `s4x1_S0prod_2035_new_full` (`regional_full`): full stress days, hourly reserve rows (S0 before §70).
 
-   Expected:
-   - **compact:** the same optimum as hourly (same LP, reformulated); differences only at solver tolerance. Anything
-     larger is a bug: **report** it.
-   - **light:** close. Light only drops operating constraints on zero-weight days; commitment, minimum loads and
-     ramping on stress days can move a reserve-binding hour. Thermal dispatch on stress days is bounded by nameplate ×
-     `prm_avail_frac`.
-   - **Report** the largest relative difference in builds by technology and in each region's reserve price. If they
-     are close, compact and/or light can become the S0 default (`reserve_rows: compact`, `formulation: light` in
-     `s0_production.yml`).
+`s4x1_S0prod_2035_new_light`, `_compact` and `_light_compact` remain (the first and last now build the same inputs as
+`s4x1_S0prod_2035_new`).
+
+1. **Build** each into a fresh folder:
+   ```bash
+   for c in s4x1_S0prod_2035_new s4x1_S0prod_2035_new_full; do
+     test -e switch/in/s0light/$c && echo "exists: pick another name" || \
+     "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0light --case-id $c --year 2035
+   done
+   ```
+   Only the default folder has `stress_light_timeseries.csv` and `prm_compact_capacity = 1`; every other input file is
+   byte-identical (`diff -rq`, excluding `s0_production_log.txt` and `scenarios*.txt`). **Report** any difference.
+2. **Solve** both with recipe A's solver options and `measure_run.py`. **Expected:** about 1 h 45 min / 80 GB and
+   2 h 50 min / 103 GB.
+3. **Compare** (objective; builds by technology with `compare_s0_runs.py`; `prm_shortfall.csv`, `prm_summary.csv`;
+   CO2). **Expected:** within about 1%, as above; **report** anything larger.
 
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 

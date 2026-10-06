@@ -36,7 +36,15 @@ def resolved(*axes):
 # ------------------------------------------------------------------------------------------------ defaults and pins
 def test_defaults_and_regression_pins():
     s = resolved(("s0_production", "on"), ("tx_bill", "s0_tx"), ("retirement_sens", "none"))
-    assert s["prm"]["design"] == "regional" and s["prm"]["stress_days"]["rule"] == "cover_plus_interconnect_wind"
+    # §70 (VM 2035 at 0a29884): greedy 12-day cover at 6%, light stress days, compact reserve rows
+    sd = s["prm"]["stress_days"]
+    assert s["prm"]["design"] == "regional" and sd["rule"] == "greedy"
+    assert sd["max_days"] == 12 and sd["cover_tolerance"] == 0.06
+    assert sd["formulation"] == "light" and s["prm"]["reserve_rows"] == "compact"
+    from s0_workflow import prm
+    assert prm.stress_formulation(s["prm"]) == "light" and prm.reserve_rows(s["prm"]) == "compact"
+    full = resolved(("s0_production", "on"), ("tx_bill", "s0_tx"), ("prm_design", "regional_full"))["prm"]
+    assert full["stress_days"]["formulation"] == "full" and full["reserve_rows"] == "hourly"   # the pre-§70 form
     assert s["demand_response"]["enabled"] is False
     assert s["time_sampling"]["method"] == "fleet_independent" and s["time_sampling"]["n_days"] == 24
     assert s["tx_policy"]["mode"] == "national_cap" and s["tx_policy"]["moratorium_first_period"] == 2040
@@ -50,6 +58,7 @@ def test_defaults_and_regression_pins():
     reg = resolved(("s0_production", "on_pgdays"), ("tx_bill", "legacy"), ("retirement_sens", "none"))
     assert reg["tx_policy"]["mode"] == "legacy" and reg["forced_tx"] == "named_projects"
     assert reg["prm"]["design"] == "legacy" and reg["rggi"]["mode"] == "legacy" and reg["ca_wa_carbon"]["mode"] == "legacy"
+    assert prm.prm_settings(reg) is None and prm.scenario_options(reg) == ""   # no stress days, light or compact files
     assert cf.lifetime_settings(reg) is None and not s0prod.friction_on(reg) and reg["existing_fixed_om"] == "mean"
     assert reg["time_sampling"]["method"] == "powergenome"
     assert "retirement_rules" not in s0prod.scenario_options({"s0_production": dict(reg, retirement_rule={"enabled": False})})

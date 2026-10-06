@@ -2982,3 +2982,48 @@ It fails with the VM's KeyError without the fix.
 compact stays an option, off by default. Recipe I now solves light first.
 
 **Results:** pandas 3.0.6: 185 passed with build_rate; 1.4.4: 184 passed and 1 skipped.
+
+## 70. S0 Production: Greedy Stress Days, Light Stress Days and Compact Reserve Rows as S0 Defaults
+
+**Date:** 2026-10-06 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s0_production.md` ("The regional design" item 3, "Light stress days (§69)",
+"Compact reserve rows (§69)"), recipes C and I, `SHARED_CHANGES.md` #89
+
+**VM test** (2035, greedy stress days, at 0a29884):
+
+| | full + hourly | light + compact |
+|---|---|---|
+| wall time | 2 h 50 min | 1 h 43 min |
+| peak memory | 102.7 GB | 79.7 GB |
+
+- **Results:** within about 1%: CO2 +10 Mt, new solar −8 GW, new CT −1.7 GW, reserve prices 0-23% lower.
+- **Why:** light removes spinning reserves, minimum load and commitment from the stress days. The NERC reference
+  margins already include operating reserves, so those terms counted them twice.
+- **Compact alone:** same optimum as hourly, 50 more barrier iterations. **Ramping off:** no gain.
+
+**Tom's decision:** S0 defaults in `pg/settings/s0_production.yml`:
+- `prm.stress_days.rule: greedy`, `cover_tolerance: 0.06`, `max_days: 12` (recipe E's 12-day cover at 6%; the
+  tolerance widens only if 12 days don't suffice). At most 12 stress days, 888 timepoints per stage.
+  `cover_plus_interconnect_wind` (§68) and `guaranteed` (§66) stay options; the code defaults (`greedy` at 0.02)
+  are unchanged.
+- `prm.stress_days.formulation: light`.
+- `prm.reserve_rows: compact`.
+
+**Cases:** new axis value `prm_design: regional_full` (full stress days, hourly reserve rows: S0 before §70) and row
+`s4x1_S0prod_2035_new_full`, for the comparison in recipe I. `regional_light` and `regional_light_compact` now build
+the same inputs as `regional`.
+
+**Case writer:** a full build into a folder that holds an earlier light list (`stress_light_timeseries.csv`) now
+removes it.
+
+**Regression case:** legacy reserve design; no stress days, light or compact files, so it is unchanged
+(`test_defaults_and_regression_pins` checks it).
+
+**Docs:** recipe C's stress-day checks and expected time and memory (about 1 h 45 min and 80 GB per stage); recipe I
+marked done, with the result and the two-case comparison; the guide gains the measured comparison and the reason.
+
+**Tests:** `test_defaults_and_regression_pins` (greedy at 6%, 12 days, light, compact; `regional_full` gives full +
+hourly; the regression case has no regional reserve options); `test_prm.py` (axis values, the new row, the default
+writer output and the full form).
+
+**Results:** pandas 3.0.6: 185 passed with build_rate; 1.4.4: 184 passed and 1 skipped.

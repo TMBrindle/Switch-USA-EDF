@@ -248,6 +248,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 | 87 | `s0_workflow/prm.py`, `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml` (`prm_design: regional_light`, `regional_compact`, `regional_light_compact`), `pg/extra_inputs/scenario_inputs.csv` (rows `s4x1_S0prod_2035_new_light`, `_compact`, `_light_compact`) | `prm.stress_days.formulation: full | light` (S0 default **full** until the VM test); light writes `stress_light_timeseries.csv`. `prm.reserve_rows: hourly | compact` (S0 default **hourly** until the VM test); compact writes `prm_compact_capacity = 1`. Axis values `regional_compact`, `regional_light_compact`; rows `s4x1_S0prod_2035_new_compact`, `s4x1_S0prod_2035_new_light_compact`. | §69. | S0 only |
 | 88 | `switch/study_modules/gen_annual_availability_limits.py` | `Respect_Annual_Availability_Limit` sums over the period's timepoints minus `LIGHT_TPS` (light stress timepoints have no `CommitUpperLimit`). They have zero weight, so the sums are unchanged. | VM bug at fc756a7: KeyError `CommitUpperLimit[(p10_conventional_steam_coal_1, 920351080700)]` building a light case. | none (same constraint; without light the list is every timepoint, in order) |
 
+### Added in §70 (Oct 2026: S0 stress-day defaults after the VM test)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 89 | `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml` (`prm_design: regional_full`), `pg/extra_inputs/scenario_inputs.csv` (row `s4x1_S0prod_2035_new_full`), `s0_workflow/prm.py` | S0 defaults: `stress_days.rule: greedy` with `cover_tolerance` 0.06 (12 days), `formulation: light`, `reserve_rows: compact`. `regional_full` keeps the earlier full + hourly form. A full build into a folder holding this writer's earlier light list removes it. | VM 2035 at 0a29884: light + compact 1 h 43 min / 79.7 GB against 2 h 50 min / 102.7 GB, results within ~1%. | S0 regional cases only: they now load #81-#88's light and compact paths. The regression case (legacy reserve) is unchanged |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

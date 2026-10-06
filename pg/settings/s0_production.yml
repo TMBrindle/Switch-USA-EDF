@@ -231,25 +231,30 @@ s0_production:
       #   chosen on weather alone; every one of them is in the set, whatever the count (no day cap; a day that is
       #   several needs' worst day counts once). The count and model size are logged per model year and in
       #   <case>/prm/<year>/stress_info.txt.
-      # greedy (S0 before §66): greedy coverage of the three needs (low-wind/solar = daily max stylised net load)
-      #   within cover_tolerance of each worst value, at most max_days days (the tolerance widens until it fits)
-      # cover_plus_interconnect_wind (S0 default, CHANGES §68): the greedy cover rule at cover_plus_tolerance (0.06, as
+      # greedy (S0 default again from CHANGES §70, at 6%; S0 before §66 at 2%): greedy coverage of the three needs
+      #   (low-wind/solar = daily max stylised net load) within cover_tolerance of each worst value, at most max_days
+      #   days (the tolerance widens until it fits). The VM's 2035 light + compact test used it (1 h 43 min, 79.7 GB)
+      # cover_plus_interconnect_wind (S0 default in §68-§69; an option since §70): the greedy cover rule at cover_plus_tolerance (0.06, as
       #   recipe E settled: a day covers a region's need if within 6% of that region's worst value; widens only past
       #   max_days), PLUS for each interconnection (Eastern, Western, ERCOT; hierarchy.csv interconnect) its lowest-wind
       #   day among its top_load_share load days (interconnection-wide load and onshore-wind CF), on weather alone; a
       #   day already in the set is not added again. At most 12 + 3 = 15 days. The guaranteed rule gave 36 days
       #   (864 of 1,464 timepoints) and the 2035 test hit the VM's 120 GB stop.
-      rule: cover_plus_interconnect_wind
-      # formulation (CHANGES §69): full (S0 default until the VM has tested light) | light. light: on the zero-weight
+      rule: greedy
+      # formulation (CHANGES §69; light the S0 default from §70) full | light. light: on the zero-weight
       # stress timeseries, no unit commitment (thermal dispatch up to nameplate x the seasonal 1 - FOR the reserve
       # credit uses), no ramp limits, no spinning/operating reserves, no fuel use, emissions or per-timepoint cost and
       # policy terms; dispatch, hourly wind/solar/hydro, storage state of charge, transmission with losses, the energy
-      # balance, the regional requirement, the import cap and the shortfall stay (stress_light_timeseries.csv)
-      formulation: full
+      # balance, the regional requirement, the import cap and the shortfall stay (stress_light_timeseries.csv).
+      # VM 2035 (§70): light + compact 1 h 43 min / 79.7 GB against full + hourly 2 h 50 min / 102.7 GB, results
+      # within ~1%; NERC reference margins already include operating reserves, so stress days need no spinning
+      # reserve, minimum load or commitment
+      formulation: light
       cover_plus_tolerance: 0.06   # cover_plus_interconnect_wind
       top_load_share: 0.01         # guaranteed and the interconnection days: top 1% of days (26 of 2,555) by peak load
       max_days: 12                 # greedy and cover_plus_interconnect_wind (the cover part)
-      cover_tolerance: 0.02        # greedy only: starting tolerance (widens in tolerance_step until max_days fit)
+      cover_tolerance: 0.06        # greedy only: starting tolerance (widens in tolerance_step until max_days fit;
+                                   # 0.06 as recipe E settled, §70; the code default stays 0.02)
       tolerance_step: 0.02
       max_tolerance: 0.20
       summer_months: [6, 7, 8, 9]  # summer peak-load needs
@@ -270,13 +275,14 @@ s0_production:
       # region to date (nameplate MW on lines crossing the region boundary); S0: 0 (historical shares only)
       new_tx_allowance: 0.0
     new_tx_derate: 0.15            # new transmission, reserve purposes (ReEDS GSw_TransInvPRMderate)
-    # reserve_rows (CHANGES §69): hourly (S0 default until the VM has tested compact) | compact. compact: one
+    # reserve_rows (CHANGES §69; compact the S0 default from §70) hourly | compact. compact: one
     # accredited-capacity variable per zone, period and derate group (stress hours with the same seasonal derates),
     # defined once from capacity x (1 - seasonal FOR), used in that group's hourly reserve rows in place of every
     # capacity-credit unit's capacity column; wind, solar, hydro, storage and imports keep their hourly terms; the
     # zone shortfall enters the hourly rows through one shortfall variable per group, linked once. Same optimum, far
-    # fewer columns in many rows (prm_params.csv prm_compact_capacity = 1)
-    reserve_rows: hourly
+    # fewer columns in many rows (prm_params.csv prm_compact_capacity = 1). VM 2035: same optimum as hourly (alone,
+    # 50 more barrier iterations; about 2% fewer factor ops)
+    reserve_rows: compact
     penalty: central               # central ($300/kW-yr, 2028$) | low ($106/kW-yr, 2025$, PJM RTO Net CONE)
     inflation_after_cpi: 0.025     # dollar-year conversion past the last CPI-U year in the repo (2024)
 

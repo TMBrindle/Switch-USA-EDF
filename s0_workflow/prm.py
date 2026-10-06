@@ -740,6 +740,8 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     rrows = reserve_rows(p)
     if form == "light":        # §69: no commitment, ramping, operating reserves, fuel or cost terms on stress days
         pd.DataFrame({"TIMESERIES": stress.timeseries}).to_csv(folder / "stress_light_timeseries.csv", index=False)
+    else:                      # a rebuild into the same folder with full: drop this writer's earlier light list
+        (folder / "stress_light_timeseries.csv").unlink(missing_ok=True)
     classes[["GENERATION_PROJECT", "prm_credit", "prm_class"]].to_csv(folder / "prm_gen_credit.csv", index=False)
 
     # stress-day calendar: <diag_dir>/<year>/stress_days.csv from the time sampling

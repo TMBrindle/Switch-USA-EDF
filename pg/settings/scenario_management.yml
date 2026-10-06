@@ -1348,7 +1348,10 @@ settings_management:
     prm_design:
       regional:
         s0_production: {prm: {design: regional}}
-      # the regional reserve with light stress days (CHANGES §69; for the VM test before it becomes the default)
+      # the regional reserve as S0 ran it before §70 (full stress days, hourly reserve rows), for comparison
+      regional_full:
+        s0_production: {prm: {design: regional, reserve_rows: hourly, stress_days: {formulation: full}}}
+      # the regional reserve with light stress days (CHANGES §69; the S0 default from §70, so now the same as regional)
       regional_light:
         s0_production: {prm: {design: regional, stress_days: {formulation: light}}}
       # compact reserve rows (CHANGES §69: one accredited-capacity variable per zone, period and derate group), with

@@ -25,7 +25,8 @@ Cases:
 **Final S0 configuration (CHANGES §66, Tom's decisions, Oct 2026):** `S0prod_A`, `S0prod_B`, `s4x1_S0prod_2035_new` and
 the S0_tx-based bill and S-scenario cases build with:
 - the regional reserve (demand response off) on 24 fleet-independent single days plus the stress days, chosen by
-  `cover_plus_interconnect_wind` since §68 (below; the guaranteed rule of §66 is an option);
+  the greedy 12-day cover at 6% since §70 (below; `cover_plus_interconnect_wind` of §68 and the guaranteed rule of
+  §66 are options), with light stress days and compact reserve rows (§69-§70);
 - the S0_tx transmission baseline: `reeds_certain_plus_A` forced, national discretionary cap 0 in 2028 and 1.4 TW-mi/yr
   from 2030, interregional moratorium to 2040 (`tx_bill = s0_tx`);
 - RGGI 3PR with Virginia from 2028; the CA/WA central linked price, with the imports generators in p11 / p1 / p3;
@@ -608,7 +609,12 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
 
 3. **Stress days** (`stress_days.rule`), real days from the 7 weather years (2007-2013, 365-day years), chosen on
    weather alone (load and wind/solar profiles, not the fleet):
-   - **`cover_plus_interconnect_wind` (S0 default since §68):**
+   - **`greedy` (S0 default since §70; `cover_tolerance` 0.06 in `s0_production.yml`):** greedy coverage of the
+     summer and winter peak-load needs and a low wind/solar need (daily maximum net load with a stylised fleet), within
+     6% of each worst value, the tolerance widening (by 0.02) only if more than 12 days (`max_days`) would be needed.
+     At most 12 days, 288 stress timepoints. The VM's 2035 light + compact test used it (CHANGES §70). Before §66 S0
+     ran it at 2% (the code default, `cover_tolerance` 0.02).
+   - **`cover_plus_interconnect_wind` (S0 default in §68-§69, now an option):**
      - **Cover part:** recipe E's greedy cover rule at `cover_plus_tolerance` 0.06. A day covers a region's need if
        it is within 6% of that region's worst value, for each region's summer peak, winter peak and low wind/solar
        needs below. The tolerance widens only if more than `max_days` (12) would be needed.
@@ -631,9 +637,6 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
      the worst for several needs or regions counts once). There is no day cap and no tolerance. The count and the
      model size are in the build log (`Model size <year>: <n> timepoints (<sample> sample, <stress> on <n> stress
      days)`) and in `<case>/prm/<year>/stress_info.txt`.
-   - **`greedy` (S0 before §66):** greedy coverage of the same summer and winter needs and a low wind/solar need
-     (daily maximum net load with a stylised fleet), within 2% of each worst value, the tolerance widening until at
-     most 12 days (`max_days`) cover every need.
 
    `<case>/prm/<year>/stress_days.csv` lists which day covers which region and need, and `stress_coverage.csv` gives
    each need's worst day (with the low-wind day's CF and the top-load-day count).
@@ -642,8 +645,8 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
    - **Enforcement:** the requirement is checked in every stress hour and only there. The S0 scenario line
      excludes `planning_reserves` and `planning_reserves_extreme_days`, and the case drops the extreme-day script.
    - **Samplers:** works with both PowerGenome's k-means days and the fleet-independent selector.
-   - **Formulation** (`stress_days.formulation`, CHANGES §69): `full` (S0 default for now) or `light`; see "Light
-     stress days" below.
+   - **Formulation** (`stress_days.formulation`, CHANGES §69): `light` (S0 default since §70) or `full`; see "Light
+     stress days" below. Reserve rows (`reserve_rows`): `compact` (S0 default since §70) or `hourly`.
 4. **Thermal and hydro:**
    - **Thermal:** nameplate × (1 − FOR) in each stress hour, using the murphy2019 curves (checked against ReEDS
      2026.09.21's `outage_forced_temperature_murphy2019.csv`; the config's `steam_coal_ogs` is ReEDS's `steam`).
@@ -775,7 +778,25 @@ the next one.
   day can no longer move the hour the reserve binds, and thermal dispatch there is bounded by the derated capacity
   instead.
 - The toy gives the same builds, shortfall and cost when commitment doesn't bind.
-- Recipe I runs the 2035 cases on the VM. Light becomes the S0 default only after that.
+- **S0 default since §70**, after the VM test below. `prm_design = regional_full` (row `s4x1_S0prod_2035_new_full`)
+  gives the earlier full stress days with hourly reserve rows.
+
+**VM test (2035, greedy stress days, at 0a29884; CHANGES §70):**
+
+| | full + hourly | light + compact |
+|---|---|---|
+| wall time | 2 h 50 min | 1 h 43 min (−39%) |
+| peak memory | 102.7 GB | 79.7 GB (−22%) |
+| results | | within about 1%: CO2 +10 Mt, new solar −8 GW, new CT −1.7 GW, reserve prices 0-23% lower |
+
+**Why the results move:** light takes spinning reserves, minimum load and unit commitment off the stress days. The
+NERC reference margins the regional requirement uses already include operating reserves, so holding spinning reserve
+and committed minimum load in a stress hour as well counted them twice. Without them the stress hours are easier to
+meet: reserve prices are 0-23% lower and slightly less new capacity is built (solar −8 GW, CT −1.7 GW). The VM
+reported CO2 +10 Mt alongside; the run-level breakdown of that is not in this guide.
+
+Compact reserve rows alone gave the same optimum as hourly, with 50 more barrier iterations. Turning ramp limits off
+gave no gain.
 
 **Size (2035 stage of `s4x1_S0prod_2035_new`: 600 sample + 360 stress timepoints):** 
 
@@ -831,9 +852,10 @@ transmission capacity in the flow-limit rows. Variables and constraints barely c
 memory to build is the same). The gain is in the solver's factorisation, which only the VM can measure (recipe I:
 Gurobi's factor nonzeros and factor ops).
 
-The hourly form stays available and stays the S0 default. **VM result:** compact rows gave only about 2% fewer factor
-ops (turning ramp limits off gave none), so the reserve rows are not the main source of the fill-in; light stress days
-are the lever that matters.
+The hourly form stays available (`reserve_rows: hourly`). **VM result:** compact rows gave only about 2% fewer factor
+ops and the same optimum (alone, 50 more barrier iterations; turning ramp limits off gave nothing), so the reserve rows
+are not the main source of the fill-in; light stress days are the lever that matters. Compact is the S0 default since
+§70 together with light, the pair the VM tested.
 
 **Not added: a contiguous window of each stress day** (e.g. 12 hours around the peak). It would cut stress timepoints
 by half again, but:
