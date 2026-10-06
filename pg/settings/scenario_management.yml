@@ -1264,6 +1264,8 @@ settings_management:
         build_rate: {enabled: true, level: high}
       reform:
         build_rate: {enabled: true, level: reform}
+      high_reform:                 # high's national limits + reform's regional wind relief (CHANGES §73)
+        build_rate: {enabled: true, level: high_reform}
       high_ipm:
         build_rate: {enabled: true, level: high_ipm}
     # S0 production case build (pg/settings/s0_production.yml, s0_workflow/production.py). Touches
@@ -1433,6 +1435,12 @@ settings_management:
         s0_production: {tx_policy: {capex_multiplier: 1.5}}
       br_high:                     # generator build rate "high" in every period
         s0_production: {level_overrides: {build_rate: high}}
+      # §73 build-rate paths for the S-set rows: L = high_reform throughout; P = high (2028-30), high_reform
+      # (2035), off from 2040 ("off" in levels_by_period / level_overrides turns the build-rate limit off)
+      br_high_reform:
+        s0_production: {level_overrides: {build_rate: high_reform}}
+      br_path_p:
+        s0_production: {levels_by_period: {build_rate: {2028: high, 2035: high_reform, 2040: "off"}}}
     # Retirement sensitivities for S0 cases (pg/settings/s0_production.yml lifetime_backstop, retirement_friction;
     # CHANGES §66). Inert unless s0_production.enabled. Column `retirement_sens`: none (sets nothing: coal 65 / gas 55
     # years, friction 0.5) in every row but the sensitivity rows.

@@ -555,6 +555,10 @@ def apply_levels_by_period(s: dict, s0: dict, case=None, year=None) -> None:
     over = (s0 or {}).get("level_overrides") or {}
     for what, key in LEVEL_KEYS.items():
         v = over.get(what, level_for(s0, what, year))
+        if what == "build_rate" and (v is False or str(v) == "off"):   # §73: no build-rate limit this period
+            s.setdefault(what, {})["enabled"] = False
+            logger.info("s0_production %s/%s: build_rate off (levels_by_period)", case, year)
+            continue
         if v is not None:
             s.setdefault(what, {})[key] = v
             logger.info("s0_production %s/%s: %s %s %s (levels_by_period)", case, year, what, key, v)

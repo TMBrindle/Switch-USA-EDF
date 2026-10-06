@@ -30,6 +30,14 @@ S0's, so its early stages can be reused from S0prod_A (`s0_workflow/chain_reuse.
 
 Before §72 the bill rows used headroom atts_planned, a 1.4 cap and the allowance from 2028.
 
+**The bill's build-rate effect is regional (wind siting) only** (§73). Its build-rate channel is the `reform` level
+(regional queue and siting relief). `reform` has the same national rate, tiers and 2.0R ceiling as `central`. It
+raises only onshore wind's regional (transreg) ceilings: multiplier 1.5 → 3.0, and floors 1,500 MW/yr / 0.10 of
+stock / 1.5 × peak build. So a bill row is not looser nationally than S0 on wind, solar or storage build rates. Its
+build rate binds differently only where a region's wind ceiling bound. A looser national build rate is a separate
+lever: `high`, or `high_reform` (high's national limits plus reform's regional wind relief; the S-set's L and P,
+below).
+
 ERCOT ties and ERCOT-internal lines always keep the no-bill values: moratorium 2040 and the S0 cap trajectory (see
 "Interpretations").
 
@@ -55,6 +63,13 @@ supplied" until it has class-A rows.
   - `_floor`: minimum transfer floor by region pair (`transfer_floor`; placeholder file, so it stops until filled);
   - `_txcapex`: transmission capex ×1.5 (`tx_capex_x1_5`);
   - `_brhigh`: build rate "high" in every period (`br_high`);
+- **Build-rate paths for the S-set rows** (§73; the rows are on the VM, not in this repo's `scenario_inputs.csv`):
+  - L: `tx_sens = br_high_reform` (`level_overrides: {build_rate: high_reform}`), high_reform in every period;
+  - P: `tx_sens = br_path_p` (`levels_by_period: {build_rate: {2028: high, 2035: high_reform, 2040: "off"}}`): high in
+    2028-30, high_reform in 2035, no build-rate limit from 2040. "off" turns `build_rate.enabled` off for that
+    period; no `build_rate_*.csv` is written and the chained build-rate history is not aliased.
+  - If an L or P row already uses `tx_sens` for something else, put the same `s0_production` block in its own axis
+    value.
   - `_osw`: offshore wind approvals restored (`offshore_wind_policy = capped_2025_released`).
 
 ## 1. Interregional moratorium

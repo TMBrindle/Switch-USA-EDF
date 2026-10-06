@@ -3140,3 +3140,44 @@ atts_s0 (was atts_planned) and no import allowance (was 0.85), as the corrected 
   transmission-policy files as `s0_tx`, byte for byte, plus no allowance, S0's levels and no switch marker; the
   change shows in its first period;
 - new `test_expected_reuse_of_the_bill_rows`, and the updated §71 report test.
+
+## 73. Build Rate: high_reform Level, Build-Rate Paths for the S-Set, Bill's Build-Rate Effect Regional
+
+**Date:** 2026-10-06 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/build_rate.md` (levels), `Guides and documentation/transmission_bill_scenarios.md`
+
+**Why:** the input extraction showed `reform` equals `central` nationally (same R, tiers and 2.0R ceiling). It only
+loosens onshore wind's regional ceilings, so it is not looser than `high`.
+
+**New level `high_reform`** (`build_rate/config.yaml`, `brc.cli.LEVELS`, `build_rate` axis value): high's R0, growth,
+tiers and national ceilings, plus reform's wind regional multiplier (3.0) and floor terms (1,500 MW/yr / 0.10 / 1.5).
+`python -m brc.cli run` writes `rates_high_reform.csv` and `tiers_high_reform.csv`. Rerun here: every other output
+table is byte-identical. National rows equal `high`'s; solar and storage regional rows equal `high`'s; wind's regional
+ceilings double (summed, 2035: 68.1 → 137.5 GW/yr, against high's 44.6 GW/yr national ceiling).
+
+**"off" by period:** `levels_by_period` / `level_overrides` accept `"off"` for `build_rate`, turning
+`build_rate.enabled` off in that period (`production.apply_levels_by_period`; an unquoted YAML `off`, read as False,
+counts too). That stage then gets no `build_rate_*.csv` and no chained build-rate alias.
+
+**S-set paths** (the L and P rows are on the VM, not in this repo's `scenario_inputs.csv`; new `tx_sens` values for
+them):
+- `br_high_reform` (L): high_reform in every period;
+- `br_path_p` (P): high 2028-30, high_reform 2035, off from 2040.
+
+`s0_production.settings` fixes the S0 build-rate level (central), so an S0 row changes it only through these hooks
+(`levels_by_period` / `level_overrides`), not the `build_rate` column.
+
+**Bill rows:** the build-rate channel stays `reform` (regional queue relief). The scenario guide now says the bill's
+build-rate effect is regional (wind) only.
+
+**Expected reuse from S0prod_A:** rerun; unchanged for this repo's rows. L and P differ from S0prod_A in 2028 (build
+rate high_reform / high, against central), so they reuse no stage.
+
+**Tests:**
+- `build_rate/tests/test_build_rate.py::test_high_reform_level`: national rows equal high; reform's equal central;
+  solar as high; wind regional ceilings = max(share × 3.0 × 2.0 × R_high, the reform floor);
+- `s0_workflow/tests/test_levels_by_period.py::test_build_rate_paths_for_the_s_set_and_off`: the two hooks resolve
+  to high_reform ×5 and high, high, high_reform, off, off; "off" and False disable the build rate and the case writer
+  writes nothing.
+
+**Results:** pandas 3.0.6: 195 passed with build_rate; 1.4.4: 194 passed and 1 skipped.

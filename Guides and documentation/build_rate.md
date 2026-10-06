@@ -209,7 +209,8 @@ all three floor terms (floor_min 500 → 1,500 MW/yr, k_stock 0.05 → 0.10, k_p
 | low | min(mean 2023–25, mean 2021–25) | low | |
 | central | max(mean 2023–25, mean 2021–25) | central | |
 | high | best year 2021–25 | high | |
-| reform | as central | central | wind regional multiplier 3.0; wind floor terms 1,500 MW/yr / 0.10 / 1.5 |
+| reform | as central | central | wind regional multiplier 3.0; wind floor terms 1,500 MW/yr / 0.10 / 1.5 (national limits = central's) |
+| high_reform | as high | high | as reform: wind regional multiplier 3.0 and floor terms (national limits = high's; §73) |
 | high_ipm | EPA 2025 Table 4-13 Step 1 per build year (implied windows) | high (after 2036; storage) | `ipm2025` tiers, no ceiling |
 
 R0, GW/yr (low / central / high): wind 5.98 / 8.25 / 13.84, solar 21.14 / 26.87 / 31.16, storage

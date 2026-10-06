@@ -113,3 +113,32 @@ def test_chain_carries_headroom_onto_the_new_scenario(tmp_path):
                   "ic_tranche_cost_per_mw": [1.0]}).to_csv(nxt / "ic_tranches.csv", index=False)
     with pytest.raises(NotImplementedError, match="ic_tranches"):
         p.chain_ic_inputs(inp, out, nxt, "c", commit=2030)
+
+
+def test_build_rate_paths_for_the_s_set_and_off():
+    """§73: tx_sens br_high_reform (L) gives high_reform in every period; br_path_p (P) gives high (2028-30),
+    high_reform (2035) and no build-rate limit from 2040 ("off" disables build_rate, it is not a level name)."""
+    import yaml
+    ax = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))["settings_management"]["all_years"]
+    assert ax["build_rate"]["high_reform"] == {"build_rate": {"enabled": True, "level": "high_reform"}}
+    years = [2028, 2030, 2035, 2040, 2045]
+    first = {2028: 2026, 2030: 2029, 2035: 2031, 2040: 2036, 2045: 2041}
+    base = {"interconnection_headroom": {"enabled": True, "scenario": "atts_s0"},
+            "build_rate": {"enabled": True, "level": "central"}}
+    got = {}
+    for hook in ("br_high_reform", "br_path_p"):
+        s0 = s0prod.deep_merge({"enabled": True, "settings": base}, ax["tx_sens"][hook]["s0_production"])
+        cs = {"c": {y: {"s0_production": s0, "model_first_planning_year": first[y]} for y in years}}
+        s0prod.apply_settings(cs)
+        got[hook] = [cs["c"][y]["build_rate"]["level"] if cs["c"][y]["build_rate"].get("enabled") else "off"
+                     for y in years]
+        assert all(cs["c"][y]["interconnection_headroom"]["scenario"] == "atts_s0" for y in years)
+    assert got["br_high_reform"] == ["high_reform"] * 5
+    assert got["br_path_p"] == ["high", "high", "high_reform", "off", "off"]
+    # YAML: "off" stays a string; an unquoted off (False) is read as off too
+    for v in ("off", False):
+        s = {"build_rate": {"enabled": True, "level": "central"}}
+        s0prod.apply_levels_by_period(s, {"levels_by_period": {"build_rate": {2028: "central", 2040: v}}}, year=2045)
+        assert s["build_rate"]["enabled"] is False and s["build_rate"]["level"] == "central"
+    from build_rate.brc import switch_case as br_case
+    assert br_case.br_settings(s) is None                   # the case writer then writes no build_rate files

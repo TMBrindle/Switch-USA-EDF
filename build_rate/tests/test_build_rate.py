@@ -575,3 +575,31 @@ def test_patch_case_regional_groups_option(tmp_path, monkeypatch):
     assert set(pd.read_csv(d / "build_rate_regions.csv")["BR_GROUP"]) == {"wind_onshore"}
     cli.main(args)                                                                 # default: wind and solar
     assert set(pd.read_csv(d / "build_rate_regions.csv")["BR_GROUP"]) == {"wind_onshore", "solar"}
+
+
+def test_high_reform_level():
+    """§73: high_reform = high's national R, growth and ceilings + reform's regional wind relief (multiplier and
+    floors); solar and storage as high. reform alone equals central nationally."""
+    b = rates.base_rates(_additions(), 2015, 2025)
+    shares = rates.regional_shares(b, [2016, 2025])
+    nt = rates.near_term(_queue(), rates.completion_rates(_queue(), CFG), rates.cod_delay(_queue(), CFG), CFG)
+    cfg = dict(CFG, groups=["wind_onshore", "solar"])
+    tabs = {lv: rates.rate_table(cfg, lv, b, nt, shares).set_index(["group", "region", "year"])
+            for lv in ("central", "high", "reform", "high_reform")}
+    nat = lambda lv: tabs[lv].xs("national", level="region")  # noqa: E731
+    pd.testing.assert_frame_equal(nat("high_reform"), nat("high"))
+    pd.testing.assert_frame_equal(nat("reform"), nat("central"))
+    solar = lambda lv: tabs[lv].xs("solar", level="group")  # noqa: E731
+    pd.testing.assert_frame_equal(solar("high_reform"), solar("high"))
+    hr, hi = tabs["high_reform"], tabs["high"]
+    rf = CFG["levels"]["high_reform"]
+    assert rf["regional_mult"] == CFG["levels"]["reform"]["regional_mult"]
+    assert rf["regional_floor"] == CFG["levels"]["reform"]["regional_floor"]
+    for reg in ("MISO", "SPP"):
+        r = nat("high").loc[("wind_onshore", 2030), "r_data_mw_per_yr"]
+        s = float(shares[(shares.group == "wind_onshore") & (shares.region == reg)]["share"].iat[0])
+        assert hr.loc[("wind_onshore", reg, 2030), "ceiling_mw_per_yr"] == pytest.approx(
+            max(s * 3.0 * 2.0 * r, rf["regional_floor"]["wind_onshore"]["floor_min_mw"]))
+        assert hr.loc[("wind_onshore", reg, 2030), "ceiling_mw_per_yr"] >= hi.loc[("wind_onshore", reg, 2030),
+                                                                                  "ceiling_mw_per_yr"]
+    assert "high_reform" in cli.LEVELS

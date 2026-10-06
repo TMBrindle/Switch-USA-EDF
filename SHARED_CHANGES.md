@@ -266,6 +266,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 |---|---|---|---|---|
 | 91 | `pg/settings/scenario_management.yml` (`tx_bill`), `s0_workflow/prm.py` (`import_allowance`), `s0_workflow/chain_reuse.py` | Bill rows start from S0 (atts_s0, cap 0 / 1.4, no import allowance) until each change; `prm.imports.new_tx_allowance` may be period-keyed; the reuse report merges `s0_production.settings` as `apply_settings` does. | §72: bill rows must equal S0 until each change takes effect, so early stages can be reused. | BILL_* chains in 2028/2030 (and BILL_high 2028), and `s4x1_BILL_low_2035`; S0 and the regression case unchanged |
 
+### Added in §73 (Oct 2026: high_reform build-rate level, S-set paths)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 92 | `build_rate/config.yaml`, `build_rate/brc/cli.py`, `pg/settings/scenario_management.yml` (`build_rate: high_reform`, `tx_sens: br_high_reform`, `br_path_p`), `s0_workflow/production.py` (`apply_levels_by_period`: "off") | New level high_reform (high nationally + reform's wind regional relief); "off" by period disables build_rate. | §73: reform is central nationally; the S-set's L and P need a looser national path. | none (new values; existing outputs byte-identical) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

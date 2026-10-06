@@ -92,6 +92,11 @@ levels:
             regional_mult: {wind_onshore: 3.0},
             # reform scales all three floor terms up for wind (PLACEHOLDER)
             regional_floor: {wind_onshore: {floor_min_mw: 1500, k_stock: 0.10, k_peak: 1.5}}}
+  # high national rate and growth with reform's regional wind relief (CHANGES §73): reform alone is central
+  # nationally, so it is not looser than high; this combines both
+  high_reform: {r0: high, growth: high,
+                regional_mult: {wind_onshore: 3.0},
+                regional_floor: {wind_onshore: {floor_min_mw: 1500, k_stock: 0.10, k_peak: 1.5}}}
   # IPM's own shape (EPA 2025 Reference Case): R = Table 4-13 Step 1 per build year (implied build
   # windows, ipm.run_year_span), ipm2025 tiers; storage (no Table 4-13 row) follows `high`'s R.
   high_ipm: {r0: ipm, growth: high, tier_set: ipm2025}
