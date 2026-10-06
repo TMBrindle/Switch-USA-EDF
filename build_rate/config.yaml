@@ -152,7 +152,7 @@ path_groups:
     #    build puts 2030 starts online 2036-38.
     #  - Restarts (Palisades 0.8 GW 2025-27, Crane 0.8 GW 2027, Duane Arnold 0.6 GW 2028-29) come before 2031 and are
     #    existing units: not in this ceiling.
-    #  - NRC licensing: EO 14300 (May 2025) caps reviews at 18 months; Kemmerer and Clinch River took ~14-24 months.
+    #  - NRC licensing: the May 2025 NRC-reform executive order caps reviews at 18 months; Kemmerer and Clinch River took ~14-24 months.
     #  - DOE Liftoff (Sep 2024), upper bound: deployment from 2030 rising to 13 GW/yr by 2040 (+200 GW by 2050),
     #    i.e. ~4 GW/yr average 2031-35, ~10 GW/yr 2036-40, 13 GW/yr 2041-45. EO target 400 GW by 2050 is a goal,
     #    not a deliverability path.
