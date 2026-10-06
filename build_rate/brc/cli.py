@@ -13,7 +13,7 @@ import yaml
 
 from . import data, rates
 
-LEVELS = ("low", "central", "high", "reform", "reform_bp", "high_reform", "high_ipm")
+LEVELS = ("low", "central", "high", "reform", "reform_bp", "reform_bp_siting", "high_reform", "high_ipm")
 
 
 def load_cfg(path: str = "config.yaml") -> dict:

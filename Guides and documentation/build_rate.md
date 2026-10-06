@@ -234,8 +234,8 @@ is higher.
   - central = max(mean 2023-25, mean 2021-25): wind 8.25, solar 26.87, storage 11.56 GW/yr;
   - high = best single year 2021-25: 13.84 / 31.16 / 16.36;
   - low = min of the two means.
-- **After 2030:** R[y] = R[2030] × (1 + growth)^(y − 2030). Growth is central 5% / 5% / 8% (wind / solar /
-  storage) and high 10% / 10% / 15% (PLACEHOLDER).
+- **After 2030 (§76):** R[y] = R[y − 1] × (1 + g[y]). g is the year's growth from `growth_paths` in
+  `build_rate/config.yaml`, anchored to the first-round S0–S4 caps (below). Low and gas keep the scalar `growth`.
 - **Tiers on R:** 0-1.3R free, 1.3-1.75R +15% of capex, 1.75-2.0R +50%, hard ceiling 2.0R.
 - **Regional (transreg) ceilings:** max(share_r × 1.5 × 2.0 × R, floor_r). share_r is the region's share of EIA
   2016-25 additions. The floor is max(500-1,000 MW/yr, k_stock × end-2025 stock, k_peak × peak 2010-25 build). They
@@ -257,6 +257,81 @@ is higher.
 - **Not counted:** the existing fleet, online before the window.
 - **No double counting:** the near-term R is built from the same queue pipeline, so 860M pipeline capacity uses up
   part of R rather than adding to it.
+
+## Growth after 2030 anchored to the round-1 caps (§76; FOR TOM'S REVIEW)
+
+Tom's decision: replace the 5/5/8% (central) and 10/10/15% (high) growth placeholders with round 1's S0–S4 cap
+trajectories (`Switch_cap_methodology.zip`).
+- **Source files:** round 1's script and data are in `build_rate/data/reference/round1/`.
+- **Script:** `build_rate/scripts/round1_growth_paths.py` derives the paths written to `growth_paths`.
+- **Conversion:** cumulative capacity C(y) → annual additions A(y) = C(y) − C(y − 1) → growth of additions
+  g(y) = A(y)/A(y − 1) − 1, applied to R from 2031.
+
+**Central = round 1's Quadratic Trend (S0/S1):**
+- the national quadratic of `cap_derivation_methodology.py`: wind 0.1390x² + 5.989x + 34.21 (x = year − 2009);
+  solar 1.4466x² − 1.607x + 20.11 (x = year − 2015);
+- it reproduces the implemented caps: wind 198.2 / 221.3 / 283.9 GW and solar 243.7 / 321.5 / 566.6 GW at 2028 /
+  2030 / 2035;
+- extended to 2045 by the same polynomial.
+
+Wind additions grow 2.4% a year in 2031, falling to 1.8% by 2045; solar 7.2% falling to 3.6%.
+
+- **Why not the write-up's formulas:** the write-up prints the solar fit with +1.607x. That gives about 285 GW in
+  2028, not the implemented 243.7, so the script and the implemented values are used.
+
+**High = round 1's Implied Rate (S2):**
+- **2031–35:** the rates implied by the implemented S2 caps: wind (351.0/235.9)^(1/5) − 1 = 8.27%, solar
+  (727.8/364.4)^(1/5) − 1 = 14.84%.
+- **2036–45:** round 1's own method for two further five-year periods. Each state's quadratic is projected to 2040
+  and 2045, the annualised growth per period taken, and the trimmed top-quartile mean applied: wind 7.33% / 6.24%,
+  solar 10.78% / 8.47%.
+- **Within a period:** compounding cumulative capacity at r makes annual additions grow at r, so g is the period's
+  rate.
+- **Not carried over:** the literal year-on-year series dips at each period boundary (solar −18.6% in 2031,
+  −16.6% in 2036) because round 1 steps the rate down. That step is not carried into R.
+
+**Storage:** no round-1 cap. Proposed: follow solar's path in both levels (shared queues, hybrids, the same
+supply-chain pacing). The alternative is storage's own 2015–25 trend (round 1's quadratic on EIA-860M storage
+additions): additions growth 8.5% in 2031 falling to 3.9% by 2045. FLAGGED.
+
+**Other details:**
+- **Ramp bound:** the scalar growth between model periods (`br_growth`) is the path's geometric mean: central wind
+  2.06%, solar and storage 4.99%; high 7.28% and 11.33%.
+- **Beyond 2045:** years take the 2045 value.
+- **Recalibrating:** edit `growth_paths` or rerun the script after an outlook review.
+
+**National ceilings, GW/yr** (2.0 × R; central / reform_bp / high / high_reform; 2026–30 are unchanged by §76):
+
+| year | wind | solar | storage |
+|---|---|---|---|
+| 2030 | 16.5 / 24.2 / 27.7 / 30.4 | 53.7 / 86.8 / 62.3 / 89.1 | 23.1 / 34.4 / 32.7 / 38.0 |
+| 2035 | 18.5 / 27.1 / 41.2 / 43.1 | 73.0 / 118.0 / 124.5 / 139.8 | 31.4 / 46.8 / 65.3 / 69.9 |
+| 2040 | 20.4 / 30.0 / 58.6 / 60.1 | 92.3 / 149.1 / 207.7 / 215.0 | 39.7 / 59.1 / 109.0 / 111.9 |
+| 2045 | 22.4 / 32.8 / 79.4 / 80.3 | 111.5 / 180.2 / 311.9 / 315.9 | 48.0 / 71.4 / 163.7 / 164.7 |
+
+(every year in CHANGES §76.)
+
+**S0 (central) for its next iteration:**
+
+| year | wind | solar | storage |
+|---|---|---|---|
+| 2035 | 21.1 → 18.5 | 68.6 → 73.0 | 34.0 → 31.4 |
+| 2040 | 26.9 → 20.4 | 87.5 → 92.3 | 49.9 → 39.7 |
+| 2045 | 34.3 → 22.4 | 111.7 → 111.5 | 73.3 → 48.0 |
+
+Cumulative 2031–45 ceilings: wind −21%, solar +4%, storage −20%. The S0 chain now running built its inputs before
+this change and is unaffected. Don't rerun `python -m brc.cli run` or rebuild it mid-chain.
+
+**reform_bp_siting** (§76; the bill sensitivity row `BILL_central_siting`): reform_bp plus the old `reform`'s wind
+siting relief (wind regional multiplier 3.0; floor terms 1,500 MW/yr / 0.10 / 1.5). It is the same as reform_bp
+nationally. 2035 regional wind ceilings, GW/yr, reform_bp → reform_bp_siting:
+- PJM 0.79 → 1.58;
+- MISO 7.29 → 14.58;
+- SERTP 0.50 → 1.50;
+- NYISO 0.59 → 1.50;
+- ISONE 0.50 → 1.50;
+- CAISO 1.48 → 2.95;
+- ERCOT 8.55 → 17.11.
 
 ## Reform benchmarked on best-performing states (`reform_bp`, §74; FOR TOM'S REVIEW)
 

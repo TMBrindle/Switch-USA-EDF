@@ -3328,3 +3328,108 @@ settings), `s0_workflow/specs/credits/credit_spend.yaml`
 - Column-order and row-set checks in six tests updated for `s_set`.
 
 **Results:** pandas 3.0.6: 209 passed with build_rate; 1.4.4: 208 passed and 1 skipped.
+
+## 76. Build Rate: Growth Anchored to the Round-1 Caps; reform_bp_siting; Credit-Spend Sources — FOR TOM'S REVIEW
+
+**Date:** 2026-10-06 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/build_rate.md` ("Growth after 2030 anchored to the round-1 caps"),
+`build_rate/scripts/round1_growth_paths.py`, `build_rate/data/reference/round1/`,
+`s0_workflow/specs/credits/credit_spend.yaml`
+
+**1. Post-2030 growth (Tom's decision).** The 5/5/8% (central) and 10/10/15% (high) placeholders are replaced by
+`growth_paths` in `build_rate/config.yaml`. Each is the growth of annual additions converted from round 1's
+cumulative caps: A(y) = C(y) − C(y − 1), g(y) = A(y)/A(y − 1) − 1.
+- **Central = round 1's Quadratic Trend (S0/S1):**
+  - the national quadratic of round 1's `cap_derivation_methodology.py`, which reproduces the implemented caps;
+  - extended to 2045 by the same polynomial;
+  - wind 2.4% → 1.8%, solar 7.2% → 3.6% a year over 2031–45.
+- **Why the script, not the write-up:** the write-up prints the solar fit with +1.607x, which gives about 285 GW in
+  2028 against the implemented 243.7. The script (−1.607x) reproduces 243.7, so the script and the implemented values
+  are used.
+- **High = round 1's Implied Rate (S2):**
+  - 2031–35: the rates implied by the implemented caps (wind 8.27%, solar 14.84%);
+  - 2036–45: extended by round 1's own per-state method for 2035–40 and 2040–45 (wind 7.33% / 6.24%, solar
+    10.78% / 8.47%);
+  - within a period, compounding capacity at r grows additions at r. The literal series' dip at each period boundary
+    (round 1 steps its rate down) is not carried into R.
+- **Storage (no round-1 cap):** proposed to follow solar's path in both levels; the alternative is its own 2015–25
+  trend (8.5% → 3.9%). FLAGGED.
+- **Ramp bound:** the scalar growth is the path's geometric mean.
+- **Unchanged:** low and gas keep their scalar placeholders; 2026–30 are unchanged.
+- **Recalibration:** edit `growth_paths`, or rerun the script after an outlook review.
+
+**National ceilings, GW/yr (central / reform_bp / high / high_reform):**
+
+| year | wind | solar | storage |
+|---|---|---|---|
+| 2026 | 16.5 / 24.2 / 27.7 / 30.4 | 72.2 / 116.6 / 72.2 / 116.6 | 45.4 / 67.6 / 45.4 / 67.6 |
+| 2027 | 16.7 / 24.4 / 27.7 / 30.4 | 83.6 / 135.1 / 83.6 / 135.1 | 55.4 / 82.5 / 55.4 / 82.5 |
+| 2028 | 16.5 / 24.2 / 27.7 / 30.4 | 66.8 / 107.9 / 66.8 / 107.9 | 41.6 / 61.9 / 41.6 / 61.9 |
+| 2029 | 16.5 / 24.2 / 27.7 / 30.4 | 53.7 / 86.8 / 62.3 / 89.1 | 23.1 / 34.4 / 32.7 / 38.0 |
+| 2030 | 16.5 / 24.2 / 27.7 / 30.4 | 53.7 / 86.8 / 62.3 / 89.1 | 23.1 / 34.4 / 32.7 / 38.0 |
+| 2031 | 16.9 / 24.8 / 30.0 / 32.5 | 57.6 / 93.1 / 71.6 / 97.0 | 24.8 / 36.9 / 37.6 / 42.8 |
+| 2032 | 17.3 / 25.4 / 32.4 / 34.7 | 61.5 / 99.3 / 82.2 / 105.3 | 26.4 / 39.4 / 43.1 / 48.4 |
+| 2033 | 17.7 / 25.9 / 35.1 / 37.2 | 65.3 / 105.5 / 94.4 / 114.8 | 28.1 / 41.8 / 49.5 / 54.6 |
+| 2034 | 18.1 / 26.5 / 38.0 / 40.0 | 69.2 / 111.7 / 108.4 / 126.2 | 29.7 / 44.3 / 56.9 / 61.8 |
+| 2035 | 18.5 / 27.1 / 41.2 / 43.1 | 73.0 / 118.0 / 124.5 / 139.8 | 31.4 / 46.8 / 65.3 / 69.9 |
+| 2036 | 18.9 / 27.7 / 44.2 / 46.0 | 76.9 / 124.2 / 137.9 / 151.8 | 33.1 / 49.2 / 72.4 / 76.8 |
+| 2037 | 19.2 / 28.2 / 47.4 / 49.2 | 80.7 / 130.4 / 152.8 / 164.7 | 34.7 / 51.7 / 80.2 / 84.4 |
+| 2038 | 19.6 / 28.8 / 50.9 / 52.6 | 84.6 / 136.6 / 169.2 / 179.3 | 36.4 / 54.2 / 88.8 / 92.7 |
+| 2039 | 20.0 / 29.4 / 54.6 / 56.2 | 88.4 / 142.9 / 187.5 / 196.2 | 38.0 / 56.6 / 98.4 / 101.8 |
+| 2040 | 20.4 / 30.0 / 58.6 / 60.1 | 92.3 / 149.1 / 207.7 / 215.0 | 39.7 / 59.1 / 109.0 / 111.9 |
+| 2041 | 20.8 / 30.5 / 62.3 / 63.7 | 96.1 / 155.3 / 225.3 / 232.1 | 41.3 / 61.6 / 118.2 / 120.7 |
+| 2042 | 21.2 / 31.1 / 66.2 / 67.5 | 100.0 / 161.6 / 244.4 / 250.5 | 43.0 / 64.0 / 128.3 / 130.3 |
+| 2043 | 21.6 / 31.7 / 70.3 / 71.5 | 103.8 / 167.8 / 265.0 / 270.5 | 44.7 / 66.5 / 139.1 / 140.6 |
+| 2044 | 22.0 / 32.3 / 74.7 / 75.8 | 107.7 / 174.0 / 287.5 / 292.0 | 46.3 / 69.0 / 150.9 / 152.2 |
+| 2045 | 22.4 / 32.8 / 79.4 / 80.3 | 111.5 / 180.2 / 311.9 / 315.9 | 48.0 / 71.4 / 163.7 / 164.7 |
+
+**S0 (central), for its next iteration:**
+- **Ceilings before → after:** 2035 wind 21.1 → 18.5, solar 68.6 → 73.0, storage 34.0 → 31.4; 2040 26.9 → 20.4,
+  87.5 → 92.3, 49.9 → 39.7; 2045 34.3 → 22.4, 111.7 → 111.5, 73.3 → 48.0.
+- **Cumulative 2031–45:** wind −21% (374 → 295 GW), solar +4% (1,218 → 1,269), storage −20% (678 → 546).
+- **The S0 chain now running** built its inputs before this change and is not affected; don't rerun the pipeline or
+  rebuild it mid-chain.
+
+**2. reform_bp base settings** accepted as §74 (states, 10% trim, top 25%, one benchmark per technology, storage on
+solar's values).
+
+**3. Wind siting relief** stays out of reform_bp.
+- **New level `reform_bp_siting`:** reform_bp + the old wind regional multiplier 3.0 and floor terms 1,500 MW/yr /
+  0.10 / 1.5. Floors come from the level's own terms (`derived_rate_table` now takes the floor basis).
+- **New sensitivity row `BILL_central_siting`:** `tx_sens = br_reform_siting`, which switches the 2035 build rate to
+  reform_bp_siting.
+- **Effect:** the same nationally as reform_bp. 2035 wind ceilings: PJM 0.79 → 1.58, MISO 7.29 → 14.58, SERTP / ISONE
+  0.50 → 1.50, NYISO 0.59 → 1.50 GW/yr.
+- **Reuse:** 2028–2030 from S0prod_A.
+
+**4. Credit spend sourced** (`credit_spend.yaml`; sources cited there):
+- **(a) Solar PTC share:** 0.40 (Norton Rose Fulbright, Cost of Capital 2024 Outlook: 2023 solar financings about
+  60/40 ITC/PTC). Range up to 0.72 (Berkeley Lab Utility-Scale Solar 2024: the PTC more valuable for 54 of 75 projects,
+  economics not elections). Crux's 2024 transfer data shows few solar PTC sales. FOR REVIEW.
+- **(b) PTC value:**
+  - $30/MWh in 2024$ (the model's dollar year): 3.0 ¢/kWh with prevailing wage and apprenticeship, 2024 (inflation
+    factor 1.9499) and 2025 (45Y, 1.9971);
+  - indexed yearly and rounded to 0.1 ¢, so about constant in real terms;
+  - $29/MWh for facilities in service before 2022.
+  - The model's `full_ira` value ($27.5/MWh) differs; aligning it is flagged.
+- **(c) Current-law eligibility:**
+  - placed in service by end-2027, or construction begun by 4 July 2026 (P.L. 119-21);
+  - physical-work test only, four-year continuity safe harbour, so in service by end-2030 (IRS Notice 2025-42);
+  - 860M pipeline units dated 2028–30 are taken as safe-harboured (FOR REVIEW).
+- **Placeholder kept:** the wind 2017–21 construction-start phase-down (share 1.0).
+
+**Tests:**
+- `build_rate/tests`:
+  - the config's growth paths equal the script's, and the script reproduces round 1's implemented caps;
+  - storage follows solar; low keeps its scalar;
+  - the ramp growth is the geometric mean;
+  - reform_bp_siting national = reform_bp, with the siting floors.
+- `test_s_set.py`:
+  - the BILL_central_siting row, its levels and reuse;
+  - the sourced credit values;
+  - the pre-2022 value and the solar share in `spend()`.
+- One existing test now follows the growth path.
+
+**Nothing is run until Tom has reviewed.**
+
+**Results:** pandas 3.0.6: 214 passed with build_rate; 1.4.4: 213 passed and 1 skipped.

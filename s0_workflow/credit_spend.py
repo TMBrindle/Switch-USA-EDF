@@ -107,7 +107,9 @@ def spend(stages: list[dict], cfg: dict | None = None, case: str = "") -> pd.Dat
                         rule = ep[grp]
                         ok = y >= int(rule["first_in_service"]) and (last_ok is None or y <= last_ok) \
                             and p <= y + int(cfg["ptc_years"]) - 1
-                        val = float(cfg["value_per_mwh"]) * float(rule["ptc_share"]) if ok else 0.0
+                        unit = float(cfg.get("pre2022_value_per_mwh", cfg["value_per_mwh"])) if y < 2022 \
+                            else float(cfg["value_per_mwh"])
+                        val = unit * float(rule["ptc_share"]) if ok else 0.0
                         cat, dollars = "existing_pipeline", mwh * val + credit * sh
                     else:
                         built_stage = stage_of.get(y, y)

@@ -286,6 +286,13 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 | 95 | `s0_workflow/production.py` (`gas_turbine_path`, "off" for headroom), `build_rate/brc/turbine_cap.py` (`off`, `drop_tag_rows`), `s0_workflow/tx_policy.py` (mode `unconstrained`) | Per-period gas-turbine path incl. off; headroom off; unconstrained transmission keeping forced lines. | §75. | none unless set |
 | 96 | `s0_workflow/credit_spend.py`, `s0_workflow/scripts/credit_spend.py`, `s0_workflow/specs/credits/credit_spend.yaml` (new) | Post-run credit spend by vintage. | §75. | none (reporting) |
 
+### Added in §76 (Oct 2026: growth anchored to round 1, reform_bp_siting, credit sources) — for Tom's review
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 97 | `build_rate/config.yaml` (`growth_paths`, level `reform_bp_siting`), `build_rate/brc/rates.py` (`growth_path`, `path_value`, `ramp_growth`; level floors in derived levels), `build_rate/brc/cli.py`, `build_rate/scripts/round1_growth_paths.py`, `build_rate/data/reference/round1/` | Post-2030 growth of R from round 1's S0/S1 (central) and S2 (high) caps; storage follows solar; siting sensitivity level. | Tom's decision (§76). | central/high R from 2031 (S0's next iteration; the running chain's built inputs unaffected) |
+| 98 | `pg/settings/scenario_management.yml` (`tx_sens: br_reform_siting`), `pg/extra_inputs/scenario_inputs.csv` (row `BILL_central_siting`), `s0_workflow/specs/credits/credit_spend.yaml`, `s0_workflow/credit_spend.py` | Bill siting sensitivity row; sourced credit values (pre-2022 value). | §76. | none (new row; reporting) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

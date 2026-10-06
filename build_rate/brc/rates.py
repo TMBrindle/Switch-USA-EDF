@@ -2,7 +2,8 @@
 
 R_data[G, national, y] (MW/yr) by level:
     y <= near_term.last_year:  max(queue-based expected additions in y, R0)
-    later:                     R_data[last near-term year] x (1 + growth_G) ** (y - last near-term year)
+    later:                     R_data[y-1] x (1 + growth_paths[level growth][G][y]) (§76: anchored to the round-1
+                               caps), or R_data[last near-term year] x (1 + growth_G) ** (y - last) without a path
 Regional ceiling[G, r, y] = max(share_r x regional_mult_G x top band x R_data[G, y], floor[G, r]),
 floor[G, r] = max(floor_min_G, k_stock_G x existing MW end-2025, k_peak_G x peak annual build 2010-25).
 """
@@ -188,6 +189,30 @@ def level_params(cfg: dict, level: str, group: str, key: str):
     return (lv.get(key) or {}).get(group, cfg[key][group])
 
 
+def growth_path(cfg: dict, growth_set: str, group: str) -> dict | None:
+    """growth_paths[growth_set][group] as {year: growth}; a group name as value follows that group's path (storage:
+    solar). None when the set or group has no path (the scalar `growth` applies)."""
+    gp = (cfg.get("growth_paths") or {}).get(growth_set) or {}
+    v, seen = gp.get(group), set()
+    while isinstance(v, str) and v not in seen:
+        seen.add(v)
+        v = gp.get(v)
+    return {int(k): float(x) for k, x in v.items()} if isinstance(v, dict) else None
+
+
+def path_value(path: dict, year: int) -> float:
+    """The path's growth in `year`; years after its last key take the last value, earlier ones the first."""
+    ks = sorted(path)
+    return path[max([k for k in ks if k <= year] or [ks[0]])]
+
+
+def ramp_growth(path: dict) -> float:
+    """One growth rate for the ramp bound between model periods (study_modules.build_rate br_growth): the geometric
+    mean of the path."""
+    v = [path[k] for k in sorted(path)]
+    return float(np.prod([1 + x for x in v]) ** (1 / len(v)) - 1)
+
+
 def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, shares: pd.DataFrame,
                basis: pd.DataFrame | None = None) -> pd.DataFrame:
     """R_data (national) and regional ceilings, MW/yr, for every year near_term.first_year..horizon.
@@ -197,7 +222,8 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
     years = range(nt["first_year"], cfg["horizon_last_year"] + 1)
     rows = []
     for g in cfg["groups"]:
-        growth = cfg["growth"][lv["growth"]][g]
+        path = growth_path(cfg, lv["growth"], g)
+        growth = ramp_growth(path) if path else cfg["growth"][lv["growth"]][g]
         if lv["r0"] == "ipm":
             ipm = ipm_r0(cfg, g)
             base_r0 = (ipm_rate_for_year(cfg, ipm, nt["first_year"], growth) if ipm
@@ -209,6 +235,8 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
         for y in years:
             if y <= nt["last_year"]:
                 r[y] = max(float(q.get(y, 0.0)), base_r0)
+            elif path:                                    # §76: anchored year-by-year growth path
+                r[y] = r[y - 1] * (1 + path_value(path, y))
             else:
                 r[y] = r[nt["last_year"]] * (1 + growth) ** (y - nt["last_year"])
             if ipm:   # IPM's shape: R = Step 1 per build year (implied build windows)
@@ -353,7 +381,8 @@ def reform_uplift(comp: pd.DataFrame, cfg: dict, rb: dict | None = None) -> tupl
     return bm, pd.DataFrame(rows)
 
 
-def derived_rate_table(cfg: dict, level: str, tables: dict, uplift: pd.DataFrame | None) -> pd.DataFrame:
+def derived_rate_table(cfg: dict, level: str, tables: dict, uplift: pd.DataFrame | None,
+                       basis: pd.DataFrame | None = None) -> pd.DataFrame:
     """Rate tables of levels defined on others (cfg levels[level]):
     benchmark_of: L   R of level L with each region's R x its uplift (reform_uplift) from reform_from_year
                       (regional R = share x R_L x uplift; national R = the sum of the regions'), ceilings recomputed
@@ -377,7 +406,13 @@ def derived_rate_table(cfg: dict, level: str, tables: dict, uplift: pd.DataFrame
             r_nat = d["year"].map(d.loc[~reg].set_index("year")["r_data_mw_per_yr"])     # R of the base level
             add = np.array([dl.get((g, r), 0.0) for r in d["region"]]) * r_nat.values
             d.loc[reg & on, "r_data_mw_per_yr"] = (d["r_data_mw_per_yr"] + add)[reg & on]
-            floor = d["ceiling_mw_per_yr"].where(d["floor_applied"], 0.0)                 # the base level's floor
+            if basis is not None:                         # the level's own floor terms (e.g. reform_bp_siting)
+                bg = basis[basis["group"] == g].set_index("region")
+                fl = {r: regional_floor(cfg, level, g, float(bg["stock_mw"].get(r, 0.0)),
+                                        float(bg["peak_build_mw"].get(r, 0.0))) for r in d.loc[reg, "region"].unique()}
+                floor = pd.Series([fl.get(r, 0.0) for r in d["region"]], index=d.index)
+            else:                                         # without the basis: the base level's floor
+                floor = d["ceiling_mw_per_yr"].where(d["floor_applied"], 0.0)
             cap = d["r_data_mw_per_yr"] * mult * top
             d.loc[reg, "ceiling_mw_per_yr"] = np.maximum(cap[reg], floor[reg])
             d.loc[reg, "floor_applied"] = (cap < floor)[reg]
@@ -427,7 +462,7 @@ def rate_tables(cfg: dict, levels, base, near, shares, basis=None, uplift=None) 
             if deps:
                 for d in deps:
                     get(d)
-                out[lv] = derived_rate_table(cfg, lv, out, uplift)
+                out[lv] = derived_rate_table(cfg, lv, out, uplift, basis)
             else:
                 out[lv] = rate_table(cfg, lv, base, near, shares, basis)
         return out[lv]

@@ -1436,6 +1436,10 @@ settings_management:
         s0_production: {tx_policy: {capex_multiplier: 1.5}}
       br_high:                     # generator build rate "high" in every period
         s0_production: {level_overrides: {build_rate: high}}
+      # §76 bill sensitivity: the bill's build-rate reform with the old wind siting relief (reform_bp_siting) from 2035
+      # (with tx_bill bill_central; the 2035 key replaces bill_central's reform_bp)
+      br_reform_siting:
+        s0_production: {levels_by_period: {build_rate: {2035: reform_bp_siting}}}
     # Retirement sensitivities for S0 cases (pg/settings/s0_production.yml lifetime_backstop, retirement_friction;
     # CHANGES §66). Inert unless s0_production.enabled. Column `retirement_sens`: none (sets nothing: coal 65 / gas 55
     # years, friction 0.5) in every row but the sensitivity rows.

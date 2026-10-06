@@ -1,26 +1,56 @@
-# Post-run tax-credit spend by vintage (s0_workflow/credit_spend.py; CHANGES §75). Annual $ in each model period
-# (typical year, as tax_credit_value.csv). Values marked PLACEHOLDER are assumptions FOR REVIEW.
+# Post-run tax-credit spend by vintage (s0_workflow/credit_spend.py; CHANGES §75, sourced §76). Annual $ in each
+# model period (typical year, as tax_credit_value.csv), in the model's dollar year (target_usd_year 2024).
 #
 # Categories:
 #   existing_pipeline   wind/solar already built or in the EIA-860M pipeline (the case's base
 #                       gen_build_predetermined.csv), not in the model (pg_to_switch credits new builds only):
-#                       energy x value_per_mwh while the plant is within ptc_years of entering service and its
+#                       energy x value x ptc_share while the plant is within ptc_years of entering service and its
 #                       in-service year is eligible (below)
 #   paid_not_optimised  model builds whose build stage had no credit for them, paid once credits apply: in
 #                       reinstated cases the 2028 builds (credit restored from reinstated_from; 2028 builds were
 #                       optimised without it): the model's own credit in later stages plus energy x value in
 #                       reinstated years the model did not credit
 #   optimised_on        the model's credits (tax_credit_value.csv) on vintages whose build stage had them
+#
+# Sources (accessed Oct 2026):
+#  [IRS24] IRS, Credit for Renewable Electricity Production ... for Calendar Year 2024 (Federal Register 89 FR, 11 Jul
+#          2024): inflation adjustment factor 1.9499; facilities placed in service after 2021: 0.6 c/kWh, 3.0 c/kWh
+#          with prevailing wage and apprenticeship; placed in service before 2022: 2.9 c/kWh. Summaries:
+#          hklaw.com/en/insights/publications/2024/07/irs-releases-2024-section-45-production-tax-credit-amounts,
+#          taxnews.ey.com/news/2024-1358.
+#  [IRS25] IRS, Publication of Inflation Adjustment Factor and Applicable Amounts for Clean Electricity Production
+#          Credit for Calendar Year 2025 (Federal Register, 25 Aug 2025, 2025-16249): 45Y factor 1.9971; 0.6 / 3.0 c/kWh.
+#  [OBBBA] Public Law 119-21 (4 Jul 2025), amending 45Y/48E: wind and solar facilities must be placed in service by
+#          31 Dec 2027 unless construction begins by 4 Jul 2026.
+#  [N2542] IRS Notice 2025-42 (15 Aug 2025): beginning of construction for wind and solar by the physical work test only
+#          (5% safe harbour removed except solar <= 1.5 MWac); continuity safe harbour if placed in service within four
+#          calendar years after the year construction began (so a 2026 start must be in service by end-2030).
+#          Summaries: klgates.com (IRS-Notice-2025-42 ... 8-18-2025), hklaw.com/en/insights/publications/2025/09.
+#  [IRA]   Inflation Reduction Act (P.L. 117-169) s.13101/13701: solar may elect the PTC from 2022; the wind phase-down
+#          does not apply to facilities placed in service after 2021; 10-year credit term.
+#  [NRF24] Norton Rose Fulbright, Cost of Capital: 2024 Outlook (projectfinance.law, Feb 2024): solar projects financed in
+#          2023 split about 60/40 investment credit / production credit.
+#  [LBNL24] Berkeley Lab, Utility-Scale Solar 2024 Edition, executive summary: the PTC "appears more beneficial" for 54 of
+#          75 (72%) new projects (economics, not observed elections).
+#  [Crux24] Crux, 2024 transferable tax credit market reports: solar PTC sales about 3% of 2024 transfers against
+#          $5.75 bn of solar ITC (understates the PTC share: PTC credits come over ten years).
 techs:                      # matched against gen_tech, case-insensitive, ignoring spaces and underscores
   wind: [landbasedwind, onshorewind, offshorewind]
   solar: [utilitypv, solarphotovoltaic]
-value_per_mwh: 27.5         # = the full_ira tax_credit_values for wind and solar (pg/settings/scenario_management.yml)
-ptc_years: 10               # 45 / 45Y production credit term
+# PTC value, 2024$/MWh: 3.0 c/kWh for facilities placed in service after 2021 meeting prevailing wage and apprenticeship
+# [IRS24], 3.0 c/kWh again in 2025 [IRS25]; inflation-adjusted every year and rounded to 0.1 c, so about constant in
+# real 2024$. NOTE: the model's full_ira tax_credit_values use 27.5 $/MWh (pg/settings/scenario_management.yml); the
+# post-hoc categories use the sourced value; aligning the model's value is a separate decision (flagged).
+value_per_mwh: 30.0
+pre2022_value_per_mwh: 29.0  # facilities placed in service before 2022 [IRS24]
+ptc_years: 10               # 45 / 45Y production credit term [IRA]
 reinstated_from: 2028       # reinstated cases: credits restored from this year
 existing_pipeline:          # in-service years whose output still earns a production credit
-  wind: {first_in_service: 2016, ptc_share: 1.0}      # PLACEHOLDER (phase-down by construction start ignored)
-  solar: {first_in_service: 2022, ptc_share: 1.0}     # PLACEHOLDER (PTC election from 2022; share electing PTC
-                                                      # over the ITC not sourced)
-  # current law: pipeline units in service by this year count as eligible (OBBBA placed-in-service end-2027,
-  # plus safe-harboured projects with construction begun by mid-2026 and four years to finish). PLACEHOLDER
+  wind: {first_in_service: 2016, ptc_share: 1.0}       # PLACEHOLDER share 1.0: the 2017-2021 construction-start
+                                                       # phase-down (80/60/40/60%) is not mapped to in-service years
+  solar: {first_in_service: 2022, ptc_share: 0.40}     # PTC election from 2022 [IRA]; 40% electing the PTC [NRF24];
+                                                       # range 0.40 [NRF24] to 0.72 [LBNL24 economics]; FOR REVIEW
+  # current law: in service by end-2027, or construction begun by 4 Jul 2026 and in service within the four-year
+  # continuity safe harbour, i.e. by end-2030 [OBBBA][N2542]. 860M pipeline units dated 2028-2030 are taken as
+  # safe-harboured (the 860M doesn't record construction start): FOR REVIEW
   current_last_in_service: 2030

@@ -66,11 +66,17 @@ Per case and model period ($/yr, typical year; long table by technology and vint
 | optimised_on | the model's own credits (`tax_credit_value.csv`) on vintages whose build stage had them |
 
 - **How the split is made:** a generator's energy is split over its vintages by capacity (`BuildGen.csv`).
-- **Values FOR REVIEW** (`s0_workflow/specs/credits/credit_spend.yaml`):
-  - eligible in-service years: wind from 2016, solar from 2022; under current law up to 2030 (placed in service by
-    end-2027, or safe-harboured);
-  - the share electing a production credit (1.0);
-  - the $/MWh value.
+- **Values** (`s0_workflow/specs/credits/credit_spend.yaml`, sourced §76):
+  - **PTC value:** $30/MWh in 2024$ (3.0 ¢/kWh with prevailing wage and apprenticeship, 2024 and 2025 IRS amounts;
+    inflation-adjusted yearly, so about constant in real terms); $29/MWh for wind placed in service before 2022.
+  - **Solar share electing the PTC:** 0.40. Norton Rose Fulbright: 2023 solar financings split about 60/40
+    ITC/PTC. Berkeley Lab finds the PTC more valuable for 72% of projects (economics, not elections). FOR REVIEW.
+  - **Current-law eligibility:** in service by end-2027, or construction begun by 4 July 2026 and in service within
+    the four-year continuity safe harbour (by end-2030) (P.L. 119-21; IRS Notice 2025-42). 860M pipeline units dated
+    2028–30 are taken as safe-harboured (FOR REVIEW).
+  - **Wind phase-down:** the 2017–21 construction-start phase-down is not mapped (share 1.0; PLACEHOLDER).
+  - **Value mismatch:** the model's own `full_ira` value is $27.5/MWh, below the sourced $30. Aligning it is flagged
+    as a separate decision.
 - **Credit term:** the model's own credits follow `gen_tax_credits.csv`, which pays a project's whole dispatch in a
   period, whatever the vintage's age.
 

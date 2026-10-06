@@ -38,6 +38,12 @@ Before §72 the bill rows used headroom atts_planned, a 1.4 cap and the allowanc
 - **Old `reform`:** §73's regional-only wind siting relief (the same national limits as `central`) is kept for
   reference only.
 - **The S-set's L and P** use `high_reform`: per region and year the larger of `high` and `reform_bp`.
+- **Siting sensitivity (§76):** `BILL_central_siting` is BILL_central with `tx_sens = br_reform_siting`.
+  - From 2035 the build rate is `reform_bp_siting`: reform_bp plus the old wind siting relief (regional multiplier
+    3.0, larger floors).
+  - It is the same nationally as reform_bp, but lifts the siting-limited regions' wind ceilings (2035: PJM, SERTP,
+    ISONE and NYISO to 1.5 GW/yr or more).
+  - It reuses 2028-2030 from S0prod_A.
 
 ERCOT ties and ERCOT-internal lines always keep the no-bill values: moratorium 2040 and the S0 cap trajectory (see
 "Interpretations").

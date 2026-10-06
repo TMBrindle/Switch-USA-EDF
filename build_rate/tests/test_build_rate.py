@@ -96,9 +96,10 @@ def test_rate_table_levels_regional_floor():
     for y in (2026, 2030, 2035, 2050):
         assert nat["low"][("solar", y)] <= nat["central"][("solar", y)] + 1e-9 or y <= 2030
         assert nat["central"][("wind_onshore", y)] <= nat["high"][("wind_onshore", y)] + 1e-9
-    # after the near-term years, R grows at the level's rate from the last near-term rate
-    g = CFG["growth"]["central"]["wind_onshore"]
-    assert nat["central"][("wind_onshore", 2035)] == pytest.approx(nat["central"][("wind_onshore", 2030)] * (1 + g) ** 5)
+    # after the near-term years, R grows along the level's growth path (§76) from the last near-term rate
+    gp = rates.growth_path(CFG, "central", "wind_onshore")
+    assert nat["central"][("wind_onshore", 2035)] == pytest.approx(
+        nat["central"][("wind_onshore", 2030)] * np.prod([1 + gp[y] for y in range(2031, 2036)]))
     # regional ceiling = max(share x mult x top x R, floor); MISO wind share 0.25 x small R -> floor applies
     t = tabs["central"].set_index(["group", "region", "year"])
     floor = CFG["regional_floor"]["wind_onshore"]["floor_min_mw"]     # no basis -> floor_min
@@ -682,3 +683,62 @@ def test_reform_bp_and_high_reform_tables():
     assert {"reform_bp", "high_reform", "reform"} <= set(cli.LEVELS)
     assert CFG["levels"]["high_reform"]["max_of"] == ["high", "reform_bp"]
     assert CFG["levels"]["reform_bp"]["benchmark_of"] == "central"
+
+
+def test_growth_paths_anchored_to_round_one():
+    """§76: central / high growth after 2030 = round 1's Quadratic Trend / Implied Rate, converted to the growth of annual
+    additions (scripts/round1_growth_paths.py reproduces the config values and round 1's implemented caps); storage
+    follows solar; years after 2045 take the last value; the ramp growth is the path's geometric mean; low (no path)
+    keeps its scalar growth."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("r1g", ROOT / "scripts/round1_growth_paths.py")
+    r1 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(r1)
+    paths, info = r1.paths()                       # asserts the quadratic reproduces the implemented S0/S1 caps
+    for lv in ("central", "high"):
+        for g in ("wind_onshore", "solar"):
+            cfgp = rates.growth_path(CFG, lv, g)
+            assert sorted(cfgp) == list(range(2031, 2046))
+            for y in range(2031, 2046):
+                assert cfgp[y] == pytest.approx(paths[lv][g][y], abs=5e-5), (lv, g, y)
+        assert rates.growth_path(CFG, lv, "storage") == rates.growth_path(CFG, lv, "solar")   # storage follows solar
+    assert rates.growth_path(CFG, "low", "wind_onshore") is None and rates.growth_path(CFG, "central", "gas") is None
+    # high = the Implied Rate within each period (round 1's implemented 2031-35 rates)
+    assert paths["high"]["wind_onshore"][2033] == pytest.approx((351.0 / 235.9) ** 0.2 - 1)
+    assert paths["high"]["solar"][2033] == pytest.approx((727.8 / 364.4) ** 0.2 - 1)
+    assert info["quadratic_caps"]["solar"][2028] == pytest.approx(243.7, abs=0.06)
+    b = rates.base_rates(_additions(), 2015, 2025)
+    shares = rates.regional_shares(b, [2016, 2025])
+    nt = rates.near_term(_queue(), rates.completion_rates(_queue(), CFG), rates.cod_delay(_queue(), CFG), CFG)
+    t = rates.rate_table(dict(CFG, groups=["wind_onshore", "solar", "storage"]), "central", b, nt, shares)
+    nat = t[t.region == "national"].set_index(["group", "year"])
+    gp = rates.growth_path(CFG, "central", "solar")
+    assert nat.loc[("solar", 2050), "r_data_mw_per_yr"] == pytest.approx(
+        nat.loc[("solar", 2045), "r_data_mw_per_yr"] * (1 + gp[2045]) ** 5)
+    assert nat.loc[("solar", 2031), "growth"] == pytest.approx(rates.ramp_growth(gp))
+    tl = rates.rate_table(dict(CFG, groups=["wind_onshore"]), "low", b, nt, shares)
+    tl = tl[tl.region == "national"].set_index("year")["r_data_mw_per_yr"]
+    assert tl[2035] == pytest.approx(tl[2030] * (1 + CFG["growth"]["low"]["wind_onshore"]) ** 5)
+
+
+def test_reform_bp_siting_level():
+    """§76 bill sensitivity: reform_bp_siting = reform_bp nationally, with the old reform's wind regional multiplier and
+    floor terms (computed from the floor basis)."""
+    b = rates.base_rates(_additions(), 2015, 2025)
+    shares = rates.regional_shares(b, [2016, 2025])
+    nt = rates.near_term(_queue(), rates.completion_rates(_queue(), CFG), rates.cod_delay(_queue(), CFG), CFG)
+    basis = pd.DataFrame({"group": ["wind_onshore"] * 2, "region": ["SPP", "MISO"], "stock_mw": [40000.0, 30000.0],
+                          "peak_build_mw": [6000.0, 3000.0]})
+    up = pd.DataFrame([{"group": "wind_onshore", "region": "SPP", "delta": 0.2},
+                       {"group": "wind_onshore", "region": "national", "delta": 0.2}])
+    t = rates.rate_tables(dict(CFG, groups=["wind_onshore"]), ["reform_bp", "reform_bp_siting"], b, nt, shares, basis, up)
+    a, s = (t[k].set_index(["region", "year"]) for k in ("reform_bp", "reform_bp_siting"))
+    pd.testing.assert_series_equal(a.loc["national"]["ceiling_mw_per_yr"], s.loc["national"]["ceiling_mw_per_yr"])
+    f = CFG["levels"]["reform_bp_siting"]["regional_floor"]["wind_onshore"]
+    assert f == CFG["levels"]["reform"]["regional_floor"]["wind_onshore"]
+    for reg, stock, peak in (("SPP", 40000.0, 6000.0), ("MISO", 30000.0, 3000.0)):
+        floor = max(f["floor_min_mw"], f["k_stock"] * stock, f["k_peak"] * peak)
+        r = s.loc[(reg, 2035), "r_data_mw_per_yr"]
+        assert s.loc[(reg, 2035), "ceiling_mw_per_yr"] == pytest.approx(max(r * 3.0 * 2.0, floor))
+        assert s.loc[(reg, 2035), "ceiling_mw_per_yr"] >= a.loc[(reg, 2035), "ceiling_mw_per_yr"]
+    assert "reform_bp_siting" in cli.LEVELS

@@ -175,7 +175,8 @@ def test_credit_spend_by_vintage(tmp_path):
     s30 = _stage_dirs(tmp_path, "R", 2030, {"w_new": 27.5, "nuc": 15.0},
                       [("w_old", 2026, 100.0), ("w_new", 2028, 50.0), ("w_new", 2030, 150.0), ("nuc", 2028, 10.0)],
                       {"w_old": 300.0, "w_new": 600.0, "nuc": 80.0}, {"w_new": 27.5 * 600e3, "nuc": 15.0 * 80e3}, base)
-    long = cs.spend([s28, s30], case="R")
+    cfg = dict(cs.yaml.safe_load(open(cs.CONFIG)), value_per_mwh=27.5)      # the fixture's numbers use 27.5
+    long = cs.spend([s28, s30], cfg, case="R")
     t = long.groupby(["period", "category"]).dollars_per_yr.sum()
     assert t[(2028, "existing_pipeline")] == pytest.approx(300e3 * 27.5)
     assert t[(2028, "paid_not_optimised")] == pytest.approx(150e3 * 27.5)           # post-hoc, reinstated 2028
@@ -187,7 +188,7 @@ def test_credit_spend_by_vintage(tmp_path):
     # current-law chain: no wind credit in any stage -> 2028 builds get nothing; the pipeline plant still earns
     c28 = _stage_dirs(tmp_path, "C", 2028, {"nuc": 15.0}, [("w_old", 2026, 100.0), ("w_new", 2028, 50.0)],
                       {"w_old": 300.0, "w_new": 150.0}, {}, base)
-    lc = cs.spend([c28], case="C")
+    lc = cs.spend([c28], cfg, case="C")
     assert set(lc.category) == {"existing_pipeline"}
     assert lc.dollars_per_yr.sum() == pytest.approx(300e3 * 27.5)
 
@@ -201,3 +202,42 @@ def test_expected_reuse_of_the_s_set():
         assert c not in got, c
     assert "build_rate" in df[(df.case == "S2") & (df.stage == 2028)].differences.iat[0]
     assert "tax_credit" in df[(df.case == "S1") & (df.stage == 2030)].differences.iat[0]
+
+
+def test_bill_central_siting_sensitivity_row():
+    """§76: BILL_central_siting = BILL_central with tx_sens br_reform_siting: the build rate switches to reform_bp_siting
+    (reform_bp + the old wind siting relief) at 2035; S0 before, so 2028 and 2030 are reusable from S0prod_A."""
+    a = SI[SI.case_id == "BILL_central"].set_index("year")
+    b = SI[SI.case_id == "BILL_central_siting"].set_index("year")
+    assert {k for k in SI.columns if k != "year" and (a[k] != b[k]).any()} == {"case_id", "tx_sens"}
+    assert (b.tx_sens == "br_reform_siting").all()
+    lv = [resolved("BILL_central_siting", y)[1] for y in YEARS]
+    assert lv == ["central", "central"] + ["reform_bp_siting"] * 3
+    assert [resolved("BILL_central", y)[1] for y in YEARS] == ["central", "central"] + ["reform_bp"] * 3
+    df = cr.expected_reuse(REPO / "pg/extra_inputs/scenario_inputs.csv", REPO / "pg/settings/scenario_management.yml",
+                           cases=["BILL_central_siting"])
+    assert list(df[df.expected_reuse].stage) == [2028, 2030]
+
+
+def test_credit_spend_sourced_values():
+    """§76: sourced values in credit_spend.yaml: 30 $/MWh (2024$, post-2021 facilities), 29 $/MWh before 2022, solar
+    PTC share 0.40, current-law in-service horizon 2030 (OBBBA + Notice 2025-42 continuity safe harbour)."""
+    cfg = yaml.safe_load(open(cs.CONFIG))
+    assert (cfg["value_per_mwh"], cfg["pre2022_value_per_mwh"], cfg["ptc_years"]) == (30.0, 29.0, 10)
+    assert cfg["existing_pipeline"]["solar"] == {"first_in_service": 2022, "ptc_share": 0.40}
+    assert cfg["existing_pipeline"]["current_last_in_service"] == 2030
+
+
+def test_credit_spend_pre2022_and_solar_share(tmp_path):
+    """Existing wind in service 2020 earns the pre-2022 value; a 2010 plant is past its 10-year term; existing solar in
+    service 2023 earns value x the PTC share; a 2031 pipeline unit is outside current law's 2030 horizon."""
+    s = _stage_dirs(tmp_path, "C", 2028, {"nuc": 15.0},
+                    [("w_old", 2010, 10.0), ("w_old", 2020, 30.0), ("nuc", 2023, 50.0)], {"w_old": 400.0, "nuc": 100.0},
+                    {}, [("w_old", 2010, 10.0), ("w_old", 2020, 30.0), ("nuc", 2023, 50.0)])
+    gi = pd.read_csv(s["inputs"] / "gen_info.csv")
+    gi.loc[gi.GENERATION_PROJECT == "nuc", "gen_tech"] = "Solar Photovoltaic"
+    gi.to_csv(s["inputs"] / "gen_info.csv", index=False)
+    long = cs.spend([s], case="C").set_index("vintage")
+    assert 2010 not in long.index
+    assert long.loc[2020, "dollars_per_yr"] == pytest.approx(400e3 * 30 / 40 * 29.0)
+    assert long.loc[2023, "dollars_per_yr"] == pytest.approx(100e3 * 30.0 * 0.40)
