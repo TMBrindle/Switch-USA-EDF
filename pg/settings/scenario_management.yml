@@ -1436,12 +1436,6 @@ settings_management:
         s0_production: {tx_policy: {capex_multiplier: 1.5}}
       br_high:                     # generator build rate "high" in every period
         s0_production: {level_overrides: {build_rate: high}}
-      # §73 build-rate paths for the S-set rows: L = high_reform throughout; P = high (2028-30), high_reform
-      # (2035), off from 2040 ("off" in levels_by_period / level_overrides turns the build-rate limit off)
-      br_high_reform:
-        s0_production: {level_overrides: {build_rate: high_reform}}
-      br_path_p:
-        s0_production: {levels_by_period: {build_rate: {2028: high, 2035: high_reform, 2040: "off"}}}
     # Retirement sensitivities for S0 cases (pg/settings/s0_production.yml lifetime_backstop, retirement_friction;
     # CHANGES §66). Inert unless s0_production.enabled. Column `retirement_sens`: none (sets nothing: coal 65 / gas 55
     # years, friction 0.5) in every row but the sensitivity rows.
@@ -1455,6 +1449,36 @@ settings_management:
         s0_production: {lifetime_backstop: {enabled: false}}
       friction_off:
         s0_production: {retirement_friction: {fraction: 0.0}}
+    # S-set scenarios on the S0 v3 defaults (CHANGES §75; Guides and documentation/s_set_scenarios.md). Inert unless
+    # s0_production.enabled. Column `s_set`: none (sets nothing) in every row but the S-set rows. Build rate, headroom and
+    # gas-turbine supply by period (level_overrides: every period; levels_by_period: each key holds until the next;
+    # "off" = no limit in that period); credits in the `tax_credits` column (reinstated: no_wind_solar in 2028, full_ira
+    # from 2030; current: no_wind_solar). high_reform is a build_rate level (build_rate/config.yaml), so the rows follow
+    # its definition (§74) without edits.
+    s_set:
+      none: ~
+      S1: ~                        # S0 + reinstated credits (tax_credits column)
+      S2:
+        s0_production: {level_overrides: {build_rate: high, interconnection_headroom: atts_planned}}
+      S4:                          # = S2 with current credits
+        s0_production: {level_overrides: {build_rate: high, interconnection_headroom: atts_planned}}
+      L:
+        s0_production: {level_overrides: {build_rate: high_reform, interconnection_headroom: atts_reform_techmax,
+                                          gas_turbine_cap: high}}
+      P:
+        s0_production:
+          levels_by_period:
+            build_rate: {2028: high, 2035: high_reform, 2040: "off"}
+            interconnection_headroom: {2028: atts_planned, 2035: atts_reform, 2040: atts_reform_techmax}
+            gas_turbine_cap: {2028: central, 2035: high, 2040: "off"}
+      S3:                          # unconstrained transmission: no interregional moratorium, no national cap
+        s0_production:
+          level_overrides: {build_rate: "off", interconnection_headroom: atts_reform_techmax, gas_turbine_cap: "off"}
+          tx_policy: {mode: unconstrained}
+      S5:                          # = S3 with current credits
+        s0_production:
+          level_overrides: {build_rate: "off", interconnection_headroom: atts_reform_techmax, gas_turbine_cap: "off"}
+          tx_policy: {mode: unconstrained}
     # Fuel prices for S0 cases (pg/settings/s0_production.yml fuel_prices; CHANGES §67). Inert unless
     # s0_production.enabled. Column `fuel_prices`: steo_aeo (sets nothing: the S0 default; the regression case's
     # s0_production value pins hist5) in every row but the sensitivity rows.

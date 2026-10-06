@@ -49,6 +49,17 @@ other §66 defaults.
 | `coal_holds` | `scenario: s0` (axis `coal_holds`): eight units held in the 2028 stage (and 2030 with block_all) | `enabled: false` (no holds) |
 | `retirements_pre2030` | `block_all` (axis and column `retirements_pre2030`): no coal or gas retirement before 2030; or `planned_only`, `unrestricted` | `legacy` (settings as they were) |
 
+**Per-period settings (S0 itself sets none):**
+- **`level_overrides`** (one value in every period) and **`levels_by_period`** (`{period: value}`; each key holds
+  until the next, earlier periods take the first) accept these keys:
+  - `build_rate`: a level from `build_rate/config.yaml` (central, high, reform, reform_bp, high_reform, ...);
+  - `interconnection_headroom`: a scenario (atts_s0, atts_planned, atts_reform, atts_reform_techmax, ...);
+  - `gas_turbine_cap`: an allowance path (low, central, high), with `form: allowance` (§75).
+- **`"off"`** (quoted in YAML) means no limit of that kind in the period (§73, §75).
+- **`tx_policy.mode`:** `legacy`, `national_cap` (S0_tx and the bill rows), or `unconstrained` (§75: the
+  national-cap line handling and forced lines, without the moratorium or the cap).
+- **Where they're used:** the S-set rows (`Guides and documentation/s_set_scenarios.md`) and the bill rows.
+
 ```bash
 python pg_to_switch.py pg/settings switch/in/s0prod --case-id S0prod_A      # mode A: 5 stage folders
 python pg_to_switch.py pg/settings switch/in/s0prod --case-id S0prod_B      # mode B: 4 window folders

@@ -1,0 +1,26 @@
+# Post-run tax-credit spend by vintage (s0_workflow/credit_spend.py; CHANGES §75). Annual $ in each model period
+# (typical year, as tax_credit_value.csv). Values marked PLACEHOLDER are assumptions FOR REVIEW.
+#
+# Categories:
+#   existing_pipeline   wind/solar already built or in the EIA-860M pipeline (the case's base
+#                       gen_build_predetermined.csv), not in the model (pg_to_switch credits new builds only):
+#                       energy x value_per_mwh while the plant is within ptc_years of entering service and its
+#                       in-service year is eligible (below)
+#   paid_not_optimised  model builds whose build stage had no credit for them, paid once credits apply: in
+#                       reinstated cases the 2028 builds (credit restored from reinstated_from; 2028 builds were
+#                       optimised without it): the model's own credit in later stages plus energy x value in
+#                       reinstated years the model did not credit
+#   optimised_on        the model's credits (tax_credit_value.csv) on vintages whose build stage had them
+techs:                      # matched against gen_tech, case-insensitive, ignoring spaces and underscores
+  wind: [landbasedwind, onshorewind, offshorewind]
+  solar: [utilitypv, solarphotovoltaic]
+value_per_mwh: 27.5         # = the full_ira tax_credit_values for wind and solar (pg/settings/scenario_management.yml)
+ptc_years: 10               # 45 / 45Y production credit term
+reinstated_from: 2028       # reinstated cases: credits restored from this year
+existing_pipeline:          # in-service years whose output still earns a production credit
+  wind: {first_in_service: 2016, ptc_share: 1.0}      # PLACEHOLDER (phase-down by construction start ignored)
+  solar: {first_in_service: 2022, ptc_share: 1.0}     # PLACEHOLDER (PTC election from 2022; share electing PTC
+                                                      # over the ITC not sourced)
+  # current law: pipeline units in service by this year count as eligible (OBBBA placed-in-service end-2027,
+  # plus safe-harboured projects with construction begun by mid-2026 and four years to finish). PLACEHOLDER
+  current_last_in_service: 2030

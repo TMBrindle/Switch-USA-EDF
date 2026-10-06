@@ -3256,3 +3256,75 @@ growth). §73's version (high + reform's wind relief) is replaced; nothing had r
 `test_tx_policy.py` checks the bill paths name `reform_bp`.
 
 **Results:** pandas 3.0.6: 197 passed with build_rate; 1.4.4: 196 passed and 1 skipped.
+
+## 75. S0 Production: S-Set Scenario Rows (S1–S5, L, P)
+
+**Date:** 2026-10-06 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/s_set_scenarios.md`, `Guides and documentation/s0_production.md` (per-period
+settings), `s0_workflow/specs/credits/credit_spend.yaml`
+
+**Rows** (`pg/extra_inputs/scenario_inputs.csv`, new column `s_set`, `none` in every other row):
+- Mode-A chains `S1`, `S2`, `S4`, `L`, `P`, `S3`, `S5` (2028–2045). Each is S0prod_A's rows with only `case_id`,
+  `s_set` and `tax_credits` changed.
+- Single-year `s4x1_<case>_2035`, each `s4x1_S0prod_2035_new`'s row with the same three columns changed.
+
+| Case | Build rate | Headroom | Gas-turbine supply | Transmission | Credits |
+|---|---|---|---|---|---|
+| S1 | central | atts_s0 | central | s0_tx | reinstated |
+| S2 | high | atts_planned | central | s0_tx | reinstated |
+| S4 | high | atts_planned | central | s0_tx | current |
+| L | high_reform | atts_reform_techmax | high | s0_tx | reinstated |
+| P | high → high_reform (2035) → off (2040+) | atts_planned → atts_reform (2035) → atts_reform_techmax (2040+) | central → high (2035) → off (2040+) | s0_tx | reinstated |
+| S3 | off | atts_reform_techmax | off | unconstrained | reinstated |
+| S5 | off | atts_reform_techmax | off | unconstrained | current |
+
+**Mechanism:**
+- **Settings blocks:** S0's own settings fix the build-rate level and headroom scenario over the columns, so each
+  `s_set` value carries an `s0_production` block with `level_overrides` or `levels_by_period`.
+- **Credits:** in `tax_credits`. Reinstated = `no_wind_solar` in 2028, `full_ira` from 2030; the 2035 versions use
+  `full_ira`. Current = `no_wind_solar`.
+- **high_reform:** the build-rate level name (§74), so L and P follow its definition without edits.
+- **Removed:** §73's interim `tx_sens` hooks (`br_high_reform`, `br_path_p`).
+
+**New code:**
+- **Gas-turbine cap by period** (`production.gas_turbine_path`): `level_overrides` / `levels_by_period` accept
+  `gas_turbine_cap`: an allowance path, or `"off"`. Off removes PowerGenome's `MaxCapTag_GasTurbineSupply` rows too
+  (`turbine_cap.drop_tag_rows`), so no turbine limit applies.
+- **Headroom `"off"`** by period (`apply_levels_by_period`), as for the build rate (§73).
+- **`tx_policy.mode: unconstrained`** (S3, S5):
+  - the national-cap line handling: interregional lines buildable, per-line limits replaced;
+  - forced `reeds_certain_plus_A` lines at their minimum and forced-period cap, as in s0_tx;
+  - no moratorium rows, no cap files and no `tx_build_cap` module.
+- **Credit spend by vintage** (`s0_workflow/credit_spend.py`, `scripts/credit_spend.py`; run on the VM after each
+  solve): per case and model period, $/yr in three categories:
+  - existing and 860M-pipeline plants (computed; not in the model);
+  - 2028 builds in reinstated cases (paid, not optimised on);
+  - credits the model optimised on.
+
+  Assumptions are in `specs/credits/credit_spend.yaml`, with the placeholders for review marked: eligible
+  in-service years, safe-harbour horizon, solar PTC share.
+
+**S0 and the regression case:**
+- **Their rows are unchanged** apart from the new column's `none`, which sets nothing. Stripping the new column
+  gives back the old file byte for byte.
+- **The new switches only act when set.** S0's gas-turbine path is `central` in every period, as before.
+- **Not checked here:** a full case build, which needs PowerGenome data.
+
+**Expected reuse from S0prod_A** (report rerun):
+- S1 and BILL_central_S1: 2028 (credits differ from 2030);
+- S2, S4, L, P, S3 and S5: none (the build rate differs in 2028);
+- BILL rows: as §72.
+
+**Tests:**
+- `test_s_set.py` (new):
+  - settings by case and period for each chain and its 2035 version;
+  - rows = S0 + the S-set columns only, and S0 resolves as before;
+  - gas-turbine off drops every turbine limit;
+  - unconstrained transmission against national_cap on the real transmission tables (only forced line-periods keep
+    a limit, identical to national_cap's);
+  - credit spend by vintage on hand-built reinstated and current chains;
+  - expected reuse.
+- `test_levels_by_period.py`: "off" for build rate and headroom.
+- Column-order and row-set checks in six tests updated for `s_set`.
+
+**Results:** pandas 3.0.6: 209 passed with build_rate; 1.4.4: 208 passed and 1 skipped.

@@ -159,7 +159,7 @@ def test_step_values_and_settings():
         "regions": ["ERCOT"], "moratorium_first_period": 2045, "cap_tw_mi_per_yr": {2028: 0.0, 2030: 1.4}}
     with pytest.raises(ValueError, match="mode"):
         tx_policy.tx_settings({"tx_policy": {"mode": "zero"}})
-    assert tx_policy.MODES == ("legacy", "national_cap")
+    assert tx_policy.MODES == ("legacy", "national_cap", "unconstrained")
 
 
 def test_capex_multiplier_and_transfer_floor(tmp_path):
@@ -317,7 +317,8 @@ def test_bill_case_rows():
         assert r.retirement_sens == v
     # S0 defaults (§66): S0prod_A / B and s4x1_S0prod_2035_new on the S0_tx baseline; every older row: legacy / none
     # (+ its §69 light/compact variants, which differ only in prm_design)
-    final = si.case_id.isin(["S0prod_A", "S0prod_B"]) | si.case_id.str.startswith("s4x1_S0prod_2035_new")
+    final = (si.case_id.isin(["S0prod_A", "S0prod_B"]) | si.case_id.str.startswith("s4x1_S0prod_2035_new")
+             | (si.s_set != "none"))                                         # §75: the S-set rows are on S0
     assert (si[final].tx_bill == "s0_tx").all() and (si[final].forced_tx == "reeds_certain_plus_A").all()
     old = si[~si.case_id.str.contains("S0_tx|BILL") & ~final]
     assert (old.tx_bill == "legacy").all() and (old.tx_sens == "none").all()

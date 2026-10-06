@@ -137,10 +137,24 @@ def cap_mw(cfg: dict, period: int, start: int, end: int) -> float:
     return sum(_add(cfg["annual_additions_mw"], y) for y in range(int(start), int(end) + 1))
 
 
+def drop_tag_rows(out_folder: Path) -> None:
+    """Remove the MaxCapTag_GasTurbineSupply rows from max_cap_requirements.csv and max_cap_generators.csv."""
+    for name in ("max_cap_generators.csv", "max_cap_requirements.csv"):
+        p = Path(out_folder) / name
+        if p.exists():
+            d = pd.read_csv(p)
+            if (d["MAX_CAP_PROGRAM"] == GAS_CAP_TAG).any():
+                d[d["MAX_CAP_PROGRAM"] != GAS_CAP_TAG].to_csv(p, index=False)
+
+
 def write_case_inputs(out_folder: Path, settings: dict) -> list[str]:
     """Write the gas-turbine cap files and drop the MaxCapTag rows. Returns the files written."""
-    cfg = gtc_settings(settings)
     out_folder = Path(out_folder)
+    if (((settings.get("build_rate") or {}).get("gas_turbine_cap")) or {}).get("off"):
+        drop_tag_rows(out_folder)       # §75: no gas-turbine supply limit at all (neither this cap nor the old tag)
+        logger.info("gas_turbine_cap: off (%s rows removed)", GAS_CAP_TAG)
+        return []
+    cfg = gtc_settings(settings)
     if cfg is None:
         return []
     gi = pd.read_csv(out_folder / "gen_info.csv", na_values=["."])

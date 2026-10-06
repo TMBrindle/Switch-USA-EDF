@@ -236,7 +236,7 @@ def test_settings_axis_column_and_legacy():
                                 "legacy": {"s0_production": {"prm": {"design": "legacy"}}}}
     assert ax["s0_production"]["on_pgdays"]["s0_production"]["prm"] == {"design": "legacy"}
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
-    regional = set(si.loc[si.prm_design == "regional", "case_id"])
+    regional = set(si.loc[(si.prm_design == "regional") & (si.s_set == "none"), "case_id"])   # §75 S-set aside
     assert {c for c in regional if not ("S0_tx" in c or "BILL" in c)} == {"S0prod_A", "S0prod_B", "s4x1_S0prod_2035_prm",
                                                                                 "s4x1_S0prod_2035_new"}
     lt = si[si.case_id == "s4x1_S0prod_2035_new_light"].iloc[0]                  # §69: VM test of light stress days

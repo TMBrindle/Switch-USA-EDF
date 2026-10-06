@@ -104,9 +104,13 @@ def apply_settings(case_settings: dict) -> None:
             form = gtc.get("form", "legacy")
             if form == "allowance":
                 br = s.setdefault("build_rate", {})
-                br["gas_turbine_cap"] = deep_merge(br.get("gas_turbine_cap") or {}, {
-                    "enabled": True, "form": "cumulative_additions",
-                    "allowance_path": gtc.get("path", "central")})
+                path = gas_turbine_path(s0, year)
+                if path is False or str(path) == "off":   # §75: no gas-turbine supply limit in this period
+                    br["gas_turbine_cap"] = {"enabled": False, "off": True}
+                    logger.info("s0_production %s/%s: gas_turbine_cap off", case, year)
+                else:
+                    br["gas_turbine_cap"] = deep_merge(br.get("gas_turbine_cap") or {}, {
+                        "enabled": True, "form": "cumulative_additions", "allowance_path": path})
             elif form != "legacy":
                 raise ValueError(f"s0_production.gas_turbine_cap.form must be allowance or legacy, not {form!r}")
             spans = s0.get("period_spans") or {}
@@ -547,6 +551,17 @@ def level_for(s0: dict, what: str, year: int):
     return tx_policy.step_value(table, int(year))
 
 
+def gas_turbine_path(s0: dict, year) -> str:
+    """The gas-turbine allowance path in a model year (§75): level_overrides.gas_turbine_cap, else
+    levels_by_period.gas_turbine_cap (each key holds until the next; earlier years take the first), else
+    gas_turbine_cap.path (central). "off": no gas-turbine supply limit in that period."""
+    over = ((s0 or {}).get("level_overrides") or {}).get("gas_turbine_cap")
+    if over is not None:
+        return over
+    v = level_for(s0, "gas_turbine_cap", year) if year is not None else None
+    return v if v is not None else ((s0 or {}).get("gas_turbine_cap") or {}).get("path", "central")
+
+
 def apply_levels_by_period(s: dict, s0: dict, case=None, year=None) -> None:
     """s0_production.levels_by_period (CHANGES §60 item 3): the interconnection-headroom scenario and the build-rate
     level by period, so they can change between the stages of a mode-A chain. Empty (default): the levels of
@@ -555,9 +570,9 @@ def apply_levels_by_period(s: dict, s0: dict, case=None, year=None) -> None:
     over = (s0 or {}).get("level_overrides") or {}
     for what, key in LEVEL_KEYS.items():
         v = over.get(what, level_for(s0, what, year))
-        if what == "build_rate" and (v is False or str(v) == "off"):   # §73: no build-rate limit this period
+        if v is False or str(v) == "off":   # §73 build_rate, §75 headroom: no limit in this period
             s.setdefault(what, {})["enabled"] = False
-            logger.info("s0_production %s/%s: build_rate off (levels_by_period)", case, year)
+            logger.info("s0_production %s/%s: %s off (levels_by_period)", case, year, what)
             continue
         if v is not None:
             s.setdefault(what, {})[key] = v

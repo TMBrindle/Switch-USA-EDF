@@ -35,7 +35,7 @@ DEFAULTS = {
     "capex_multiplier": 1.0,
     "transfer_floor": None,
 }
-MODES = ("legacy", "national_cap")
+MODES = ("legacy", "national_cap", "unconstrained")
 FLOOR_COLUMNS = ["region_a", "region_b", "PERIOD", "min_transfer_mw"]
 
 
@@ -58,7 +58,7 @@ def active(s0: dict) -> bool:
 
 def needs_module(s0: dict) -> bool:
     t = tx_settings(s0)
-    return t["mode"] == "national_cap" or bool(t["transfer_floor"])
+    return t["mode"] == "national_cap" or bool(t["transfer_floor"])     # unconstrained: no cap module
 
 
 def step_value(table: dict, year: int):
@@ -102,13 +102,15 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     tl = pd.read_csv(folder / "transmission_lines.csv", na_values=["."])
     years = sorted(int(y) for y in pd.read_csv(folder / "periods.csv").INVESTMENT_PERIOD)
     cls = line_classes(tl, first.get("_zone_map"), t["no_bill"]["regions"])
-    if t["mode"] == "national_cap":
-        _national_cap(folder, t, first, tl, cls, years, log)
+    if t["mode"] in ("national_cap", "unconstrained"):
+        _national_cap(folder, t, first, tl, cls, years, log, capped=t["mode"] == "national_cap")
     if t["transfer_floor"]:
         _transfer_floor(folder, t["transfer_floor"], cls, years, log)
 
 
-def _national_cap(folder, t, first, tl, cls, years, log):
+def _national_cap(folder, t, first, tl, cls, years, log, capped=True):
+    """capped=False (mode unconstrained, §75): the same line handling (interregional lines may be built, the case's
+    per-line limits replaced, forced lines as in national_cap), with no moratorium and no national cap."""
     fmin = {}
     if (folder / "trans_build_minimum.csv").exists():
         bm = pd.read_csv(folder / "trans_build_minimum.csv")
@@ -138,11 +140,16 @@ def _national_cap(folder, t, first, tl, cls, years, log):
             if (line, p) in fmin:
                 if cap_forced:
                     rows.append((line, p, fmin[(line, p)]))
-            elif c.at[line, "tx_cap_class"] == "inter" and p < first_ok:
+            elif capped and c.at[line, "tx_cap_class"] == "inter" and p < first_ok:
                 rows.append((line, p, 0.0))
                 n_mor += 1
     pd.DataFrame(rows, columns=["TRANSMISSION_LINE", "PERIOD", "trans_path_expansion_limit_mw"]).to_csv(
         folder / "trans_path_expansion_limit.csv", index=False)
+    if not capped:
+        log(f"tx_policy unconstrained: {int((~inter).sum())} intra-region and {int(inter.sum())} interregional lines "
+            f"({int(blocked.sum())} unblocked for building); no moratorium, no national cap; {len(fmin)} forced "
+            "line-periods at their minimum")
+        return
     pd.DataFrame({"PERIOD": years,
                   "tx_cap_tw_mi_per_yr": [float(step_value(t["cap_tw_mi_per_yr"], p)) for p in years],
                   "tx_cap_no_bill_tw_mi_per_yr": [float(step_value(t["no_bill"]["cap_tw_mi_per_yr"], p))

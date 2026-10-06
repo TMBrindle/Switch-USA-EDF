@@ -161,7 +161,7 @@ def test_settings_axis_column_and_regression():
     reg = s0prod.deep_merge(copy.deepcopy(S0), ax["s0_production"]["on_pgdays"]["s0_production"])
     assert not fp.active(reg) and fp.active(dict(S0, enabled=True))
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
-    assert list(si.columns)[-1] == "fuel_prices"
+    assert list(si.columns)[-2:] == ["fuel_prices", "s_set"]                       # §75 added s_set
     assert set(si[si.fuel_prices != "steo_aeo"].case_id) == {"s4x1_S0_tx_2035_fuel_low", "s4x1_S0_tx_2035_fuel_high",
                                                              "s4x1_S0_tx_2035_fuel_hist5"}
     base = si[si.case_id == "s4x1_S0_tx_2035"].iloc[0]
