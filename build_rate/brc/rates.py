@@ -7,9 +7,10 @@ R_data[G, national, y] (MW/yr) by level:
 Regional ceiling[G, r, y] = max(share_r x regional_mult_G x top band x R_data[G, y], floor[G, r]),
 floor[G, r] = max(floor_min_G, k_stock_G x existing MW end-2025, k_peak_G x peak annual build 2010-25).
 
-§77 deliverability layer (config `deliverability`): final national ceiling = min(top band x R, D[G, y]), D the
-level's deliverability path; where it cuts, regional ceilings are scaled by the same factor. R is unchanged (the case
-writer truncates the tier bands at the final ceiling). Module floor: R[G, y] >= D_path[G, y] in configured years.
+§77/§78 deliverability layer (config `deliverability`), from first_year (2029): final national ceiling =
+min(top band x R, D[G, y]), D the level's deliverability path; where D binds, R (national and regional) and the
+regional ceilings are scaled by D / module ceiling, so the ceiling is top band x R with the tiers kept. Module floor:
+R[G, y] >= D_path[G, y] in configured years.
 """
 from __future__ import annotations
 
@@ -256,26 +257,31 @@ def module_floor(cfg: dict, group: str) -> dict:
 
 
 def apply_deliverability(cfg: dict, level: str, t: pd.DataFrame) -> pd.DataFrame:
-    """§77: the module table with the deliverability layer. Adds module_ceiling_mw_per_yr (the module's own),
-    deliverability_mw_per_yr (national rows), deliverability_factor = min(1, D / national module ceiling) by group and
-    year, deliverability_binds; ceiling_mw_per_yr = module ceiling x factor (national: min(module, D); regional: scaled
-    by the national factor). r_data_mw_per_yr is unchanged."""
+    """§77/§78: the module table with the deliverability layer, from deliverability.first_year (2029; earlier years keep
+    the module's pipeline-based ceilings). factor = min(1, D / national module ceiling) by group and year; where it is
+    below 1, R is scaled by it (national and regional), so the national ceiling becomes top band x R = D with the tier
+    bands intact (free to 1.3R, +15% to 1.75R, +50% to 2.0R), and regional ceilings (floors included) scale by the
+    same factor. Adds module_r_data_mw_per_yr, module_ceiling_mw_per_yr, deliverability_mw_per_yr (national rows,
+    from first_year), deliverability_factor and deliverability_binds."""
     t = t.copy()
+    t["module_r_data_mw_per_yr"] = t["r_data_mw_per_yr"]
     t["module_ceiling_mw_per_yr"] = t["ceiling_mw_per_yr"]
     t["deliverability_mw_per_yr"] = np.nan
     t["deliverability_factor"] = 1.0
     name = level_deliverability(cfg, level)
+    first = int((cfg.get("deliverability") or {}).get("first_year", 0))
     for g in t["group"].unique():
         path = deliverability_path(cfg, name, g) if name else None
         if not path:
             continue
         nat = (t["group"] == g) & (t["region"] == NATIONAL)
         n = t[nat].set_index("year")
-        dv = pd.Series(path).reindex(n.index)
+        dv = pd.Series({y: v for y, v in path.items() if y >= first}, dtype=float).reindex(n.index)
         fac = np.minimum(1.0, dv / n["ceiling_mw_per_yr"].where(n["ceiling_mw_per_yr"] > 0)).fillna(1.0)
         gm = t["group"] == g
         t.loc[nat, "deliverability_mw_per_yr"] = t.loc[nat, "year"].map(dv).values
         t.loc[gm, "deliverability_factor"] = t.loc[gm, "year"].map(fac).fillna(1.0).values
+    t["r_data_mw_per_yr"] = t["module_r_data_mw_per_yr"] * t["deliverability_factor"]
     t["ceiling_mw_per_yr"] = t["module_ceiling_mw_per_yr"] * t["deliverability_factor"]
     t["deliverability_binds"] = t["deliverability_factor"] < 1.0 - 1e-12
     return t

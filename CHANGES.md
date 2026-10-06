@@ -3574,3 +3574,125 @@ growth after 2030, no deliverability layer). Annual values, then window means pe
 - the case writer truncates bands, leaves old tables unchanged, and lets committed builds raise the ceiling.
 
 **Nothing is run until Tom has reviewed.**
+
+
+## 78. Build Rate: Deliverability Ceiling From 2029, Tiers Kept by Scaling R — FOR TOM'S REVIEW
+
+**Date:** 2026-10-06 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/build_rate.md` ("Deliverability ceiling: the two-layer method"),
+`build_rate/scripts/deliverability_report.py`
+
+**Tom's decisions on §77:**
+1. **The ceiling applies from 2029 only** (`deliverability.first_year: 2029`). 2026–28 keep the module's own,
+   pipeline-based ceilings: the brief's path starts from the 2025 trough, a base-year artefact for the near term. The
+   paths are unchanged from 2029.
+2. **The cost tiers are kept.** Where D binds, R (national and regional) is scaled by D / module ceiling, so D becomes
+   2.0R: free to 1.3R, +15% to 1.75R, +50% to the ceiling. Regional ceilings and floors scale by the same factor, as
+   in §77. §77's band truncation in the case writer is withdrawn: `switch_case.py` is back to its §76 state and writes
+   the full bands on the scaled R.
+3. **high_ipm stays on the central path.**
+
+**Unchanged:** the storage floor in 2029–30 (module layer; D binds storage from 2029 anyway); the level → path map;
+the interconnection note.
+
+**New columns:** `module_r_data_mw_per_yr` and `module_ceiling_mw_per_yr` keep the module's values;
+`r_data_mw_per_yr` and `ceiling_mw_per_yr` are the final ones.
+
+**National ceilings 2026–2045, GW/yr.** Each cell is central / reform_bp / high / high_reform. 2026–28 are the
+module's. From 2029, † means the module binds; otherwise D binds.
+
+| Year | Wind | Solar | Storage |
+|---|---|---|---|
+| 2026 | 16.5 / 24.2 / 27.7 / 30.4 | 72.2 / 116.6 / 72.2 / 116.6 | 45.4 / 67.6 / 45.4 / 67.6 |
+| 2027 | 16.7 / 24.4 / 27.7 / 30.4 | 83.6 / 135.1 / 83.6 / 135.1 | 55.4 / 82.5 / 55.4 / 82.5 |
+| 2028 | 16.5 / 24.2 / 27.7 / 30.4 | 66.8 / 107.9 / 66.8 / 107.9 | 41.6 / 61.9 / 41.6 / 61.9 |
+| 2029 | 12.1 / 15.3 / 15.3 / 15.3 | 44.2 / 54.5 / 54.5 / 54.5 | 33.2 / 42.8 / 42.8 / 42.8 |
+| 2030 | 15.0 / 20.0 / 20.0 / 20.0 | 49.9 / 64.9 / 62.3† / 64.9 | 40.0 / 54.9 / 54.9 / 54.9 |
+| 2031 | 15.6 / 21.4 / 21.4 / 21.4 | 51.7 / 68.5 / 68.5 / 68.5 | 41.8 / 58.4 / 58.4 / 58.4 |
+| 2032 | 16.1 / 22.9 / 22.9 / 22.9 | 53.7 / 72.2 / 72.2 / 72.2 | 43.7 / 62.2 / 62.2 / 62.2 |
+| 2033 | 16.7 / 24.5 / 24.5 / 24.5 | 55.6 / 76.2 / 76.2 / 76.2 | 45.7 / 66.2 / 66.2 / 66.2 |
+| 2034 | 17.3 / 26.2 / 26.2 / 26.2 | 57.7 / 80.4 / 80.4 / 80.4 | 47.9 / 70.4 / 70.4 / 70.4 |
+| 2035 | 18.0 / 27.1† / 28.0 / 28.0 | 59.8 / 84.8 / 84.8 / 84.8 | 50.1 / 74.9 / 74.9 / 74.9 |
+| 2036 | 18.7 / 27.7† / 29.3 / 29.3 | 61.7 / 87.6 / 87.6 / 87.6 | 51.9 / 77.7 / 77.7 / 77.7 |
+| 2037 | 19.2† / 28.2† / 30.7 / 30.7 | 63.6 / 90.5 / 90.5 / 90.5 | 53.8 / 80.5 / 80.5 / 80.5 |
+| 2038 | 19.6† / 28.8† / 32.1 / 32.1 | 65.6 / 93.5 / 93.5 / 93.5 | 55.8 / 83.5 / 83.5 / 83.5 |
+| 2039 | 20.0† / 29.4† / 33.6 / 33.6 | 67.6 / 96.6 / 96.6 / 96.6 | 57.9 / 86.6 / 86.6 / 86.6 |
+| 2040 | 20.4† / 30.0† / 35.1 / 35.1 | 69.7 / 99.8 / 99.8 / 99.8 | 60.0 / 89.8 / 89.8 / 89.8 |
+| 2041 | 20.8† / 30.5† / 36.0 / 36.0 | 70.7 / 101.7 / 101.7 / 101.7 | 61.0 / 91.7 / 91.7 / 91.7 |
+| 2042 | 21.2† / 31.1† / 37.0 / 37.0 | 71.7 / 103.6 / 103.6 / 103.6 | 62.0 / 93.6 / 93.6 / 93.6 |
+| 2043 | 21.6† / 31.7† / 38.0 / 38.0 | 72.7 / 105.6 / 105.6 / 105.6 | 63.0 / 95.6 / 95.6 / 95.6 |
+| 2044 | 22.0† / 32.3† / 39.0 / 39.0 | 73.7 / 107.6 / 107.6 / 107.6 | 64.0 / 97.6 / 97.6 / 97.6 |
+| 2045 | 22.4† / 32.8† / 40.1 / 40.1 | 74.7 / 109.6 / 109.6 / 109.6 | 65.0 / 99.7 / 99.7 / 99.7 |
+
+**Which layer binds, 2029–45:**
+- central wind: D 2029–36, module 2037–45;
+- reform_bp and reform_bp_siting wind: D 2029–34, module 2035–45;
+- high solar: module in 2030;
+- everything else: D.
+
+**What follows:**
+- **Shared ceiling:** wherever D binds, high, reform_bp and high_reform share the national ceiling and R.
+- **Step down into 2029:** ceilings fall from 2028 into 2029 (S0 wind 16.5 → 12.1, solar 66.8 → 44.2; reform_bp solar
+  107.9 → 54.5).
+
+**S0's tier edges per model period, GW/yr** (free 1.3R / +15% to 1.75R / ceiling 2.0R, window means; in brackets the
+running chain's 1.3R):
+
+| Period | Wind | Solar | Storage |
+|---|---|---|---|
+| 2028 | 10.8 / 14.5 / 16.6 (was 10.8) | 48.2 / 64.9 / 74.2 (was 48.2) | 30.9 / 41.5 / 47.5 (was 30.9) |
+| 2030 | 8.8 / 11.9 / 13.6 (was 10.7) | 30.6 / 41.2 / 47.0 (was 34.9) | 23.8 / 32.0 / 36.6 (was 15.0) |
+| 2035 | 10.9 / 14.7 / 16.8 (was 12.4) | 36.2 / 48.7 / 55.7 (was 40.5) | 29.8 / 40.1 / 45.8 (was 19.0) |
+| 2040 | 12.7 / 17.2 / 19.6 (was 15.9) | 42.7 / 57.4 / 65.6 (was 51.7) | 36.3 / 48.9 / 55.9 (was 28.0) |
+| 2045 | 14.0 / 18.9 / 21.6 (was 20.3) | 47.2 / 63.6 / 72.7 (was 66.0) | 40.9 / 55.1 / 63.0 (was 41.1) |
+
+**S0 (central) final ceilings vs the running S0 v3 chain's tables** (5 / 5 / 8% growth, no deliverability layer),
+GW/yr:
+
+| Span | Wind | Solar | Storage |
+|---|---|---|---|
+| 2026 | 16.5 → 16.5 (+0%) | 72.2 → 72.2 (+0%) | 45.4 → 45.4 (+0%) |
+| 2027 | 16.7 → 16.7 (+0%) | 83.6 → 83.6 (+0%) | 55.4 → 55.4 (+0%) |
+| 2028 | 16.5 → 16.5 (+0%) | 66.8 → 66.8 (+0%) | 41.6 → 41.6 (+0%) |
+| 2029 | 16.5 → 12.1 (-26%) | 53.7 → 44.2 (-18%) | 23.1 → 33.2 (+44%) |
+| 2030 | 16.5 → 15.0 (-9%) | 53.7 → 49.9 (-7%) | 23.1 → 40.0 (+73%) |
+| 2031 | 17.3 → 15.6 (-10%) | 56.4 → 51.7 (-8%) | 25.0 → 41.8 (+68%) |
+| 2032 | 18.2 → 16.1 (-11%) | 59.3 → 53.7 (-9%) | 27.0 → 43.7 (+62%) |
+| 2033 | 19.1 → 16.7 (-12%) | 62.2 → 55.6 (-11%) | 29.1 → 45.7 (+57%) |
+| 2034 | 20.1 → 17.3 (-14%) | 65.3 → 57.7 (-12%) | 31.4 → 47.9 (+52%) |
+| 2035 | 21.1 → 18.0 (-15%) | 68.6 → 59.8 (-13%) | 34.0 → 50.1 (+47%) |
+| 2036 | 22.1 → 18.7 (-15%) | 72.0 → 61.7 (-14%) | 36.7 → 51.9 (+42%) |
+| 2037 | 23.2 → 19.2 (-17%) | 75.6 → 63.6 (-16%) | 39.6 → 53.8 (+36%) |
+| 2038 | 24.4 → 19.6 (-19%) | 79.4 → 65.6 (-17%) | 42.8 → 55.8 (+30%) |
+| 2039 | 25.6 → 20.0 (-22%) | 83.4 → 67.6 (-19%) | 46.2 → 57.9 (+25%) |
+| 2040 | 26.9 → 20.4 (-24%) | 87.5 → 69.7 (-20%) | 49.9 → 60.0 (+20%) |
+| 2041 | 28.2 → 20.8 (-26%) | 91.9 → 70.7 (-23%) | 53.9 → 61.0 (+13%) |
+| 2042 | 29.6 → 21.2 (-28%) | 96.5 → 71.7 (-26%) | 58.2 → 62.0 (+6%) |
+| 2043 | 31.1 → 21.6 (-31%) | 101.3 → 72.7 (-28%) | 62.9 → 63.0 (+0%) |
+| 2044 | 32.7 → 22.0 (-33%) | 106.4 → 73.7 (-31%) | 67.9 → 64.0 (-6%) |
+| 2045 | 34.3 → 22.4 (-35%) | 111.7 → 74.7 (-33%) | 73.3 → 65.0 (-11%) |
+| period 2028 (2026-2028) | 16.6 → 16.6 (+0%) | 74.2 → 74.2 (+0%) | 47.5 → 47.5 (+0%) |
+| period 2030 (2029-2030) | 16.5 → 13.6 (-18%) | 53.7 → 47.0 (-12%) | 23.1 → 36.6 (+58%) |
+| period 2035 (2031-2035) | 19.1 → 16.8 (-13%) | 62.4 → 55.7 (-11%) | 29.3 → 45.8 (+57%) |
+| period 2040 (2036-2040) | 24.4 → 19.6 (-20%) | 79.6 → 65.6 (-18%) | 43.0 → 55.9 (+30%) |
+| period 2045 (2041-2045) | 31.2 → 21.6 (-31%) | 101.6 → 72.7 (-28%) | 63.2 → 63.0 (-0%) |
+
+- **Summed 2026–45:** wind 456 → 367 GW (−20%), solar 1,548 → 1,287 (−17%), storage 866 → 1,039 (+20%).
+  - 2026–28: unchanged (wind 50, solar 223, storage 142 GW).
+  - 2029–45: wind 407 → 317 (−22%), solar 1,325 → 1,064 (−20%), storage 724 → 897 (+24%).
+- **Reuse:** S0's 2026–28 R and ceilings (national and regional) equal the running chain's. But
+  `build_rate_groups.csv` carries `br_growth`, which §76 changed in every stage (the path's geometric mean: wind 2.06%,
+  solar and storage 4.99%, against 5 / 5 / 8%). So a 2028 stage built from the new tables is not byte-identical to
+  S0prod_A's, and the hash-based reuse (§71) will not reuse it, although `br_growth` has no effect in the first stage
+  (no previous period to ramp from). The 2030 and later stages change in substance.
+
+**Tests (`build_rate/tests`):**
+- R and the regional ceilings scale by the factor, and the national ceiling = 2.0R = min(module, D);
+- 2026–28 are untouched even under a path that binds every year;
+- the case writer keeps the full bands and adders on the scaled R;
+- the §77 truncation test is replaced.
+
+**Results:** pandas 3.0.6: 219 passed (s0_workflow + build_rate); 1.4.4: 218 passed, 1 skipped.
+
+**Not changed:** the running S0 chain. Don't rerun `brc.cli run` on the VM or rebuild mid-chain. **Nothing is run
+until Tom has reviewed.**

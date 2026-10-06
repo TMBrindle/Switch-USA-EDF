@@ -44,10 +44,10 @@ Before §72 the bill rows used headroom atts_planned, a 1.4 cap and the allowanc
   - It is the same nationally as reform_bp, but lifts the siting-limited regions' wind ceilings (2035: PJM, SERTP,
     ISONE and NYISO to 1.5 GW/yr or more).
   - It reuses 2028-2030 from S0prod_A.
-- **Deliverability ceiling (§77):** reform_bp, reform_bp_siting and high_reform take the brief's high path as a
-  national cap (high's too); central (S0) takes the central path. Wherever it binds (solar and storage every year,
-  wind to 2034), the bill's build-rate effect is national R, the ramp and the regional ceilings, not a higher
-  national ceiling than `high`. See `Guides and documentation/build_rate.md`, "Deliverability ceiling".
+- **Deliverability ceiling (§77–78, from 2029):** reform_bp, reform_bp_siting and high_reform take the brief's high
+  path as a national cap (high's too); central (S0) takes the central path. Where it binds, R is scaled so the cap is
+  2.0R (tiers kept). Wherever it binds (solar and storage from 2029, wind 2029–34), reform_bp's national ceiling and
+  R equal `high`'s; the bill's build-rate effect is then in the regional ceilings (and in 2026–28). See `Guides and documentation/build_rate.md`, "Deliverability ceiling".
 
 ERCOT ties and ERCOT-internal lines always keep the no-bill values: moratorium 2040 and the S0 cap trajectory (see
 "Interpretations").

@@ -5,8 +5,12 @@ Per level, group and year 2026-2045: the module ceiling (queue/pace layer: top b
 placeholder tables the running S0 v3 chain was built with (post-2030 growth 5 / 5 / 8% a year, no deliverability
 layer, no storage floor): annual and per model period (window means, as the case writer averages them).
 
+§78: the layer applies from 2029, and where it binds R is scaled so the ceiling is 2.0R (tiers kept). Also S0's
+effective free tier (1.3 x the window mean of R) per model period, against the placeholder tables'.
+
 usage (build_rate/): python scripts/deliverability_report.py
-    -> outputs/deliverability_report.csv, outputs/deliverability_s0_vs_placeholder.csv
+    -> outputs/deliverability_report.csv, outputs/deliverability_s0_vs_placeholder.csv,
+       outputs/deliverability_s0_tiers.csv
 """
 import copy
 import sys
@@ -80,6 +84,17 @@ def run():
     cmp = pd.DataFrame(cmp_rows)
     cmp["change_pct"] = 100 * (cmp["final_gw"] / cmp["placeholder_gw"] - 1)
     cmp.round(3).to_csv(ROOT / "outputs/deliverability_s0_vs_placeholder.csv", index=False)
+    r_new = national(tabs["central"])["r_data_mw_per_yr"]
+    r_old = national(rates.rate_tables(placeholder_cfg(cfg), ["central"], *args)["central"])["r_data_mw_per_yr"]
+    tiers = []
+    for p, (s, e) in PERIODS.items():
+        for g in GROUPS:
+            ys = range(s, e + 1)
+            rn = sum(r_new[(g, y)] for y in ys) / len(ys)
+            ro = sum(r_old[(g, y)] for y in ys) / len(ys)
+            tiers.append({"period": p, "group": g, "free_1p3r_gw": 1.3 * rn / 1e3, "plus15_to_1p75r_gw": 1.75 * rn / 1e3,
+                          "ceiling_2r_gw": 2.0 * rn / 1e3, "placeholder_free_1p3r_gw": 1.3 * ro / 1e3})
+    pd.DataFrame(tiers).round(3).to_csv(ROOT / "outputs/deliverability_s0_tiers.csv", index=False)
     return rep, cmp
 
 

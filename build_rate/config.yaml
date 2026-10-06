@@ -77,11 +77,13 @@ growth:
   central: {wind_onshore: 0.05, solar: 0.05, storage: 0.08, gas: 0.02}   # PLACEHOLDER
   high:    {wind_onshore: 0.10, solar: 0.10, storage: 0.15, gas: 0.05}   # PLACEHOLDER
 
-# National DELIVERABILITY CEILING (§77, Tom's decision), a second layer on top of the module (queue/pace) layer above.
-# Final national ceiling per group and year = min(module ceiling = top band x R, deliverability ceiling); where it
-# cuts, every regional ceiling of that group and year is scaled by the same factor (regional limits can't add back
-# what the national cap removes). R (the pace) and the tier bands below the final ceiling are unchanged; the case
-# writer truncates the bands at it. A level whose build rate is "off" has neither layer.
+# National DELIVERABILITY CEILING (§77, Tom's decisions §78), a second layer on top of the module (queue/pace) layer.
+# From first_year (2029; 2026-28 keep the module's pipeline-based ceilings: the path starts from the 2025 trough, a
+# base-year artefact for the near term): final national ceiling per group and year = min(module ceiling = top band x
+# R, deliverability ceiling). Where D binds, R is scaled down by D / module ceiling (national and regional) so the
+# ceiling becomes 2.0R with the tiers kept (free to 1.3R, +15% to 1.75R, +50% to the ceiling), and every regional
+# ceiling of that group and year, floors included, scales by the same factor (regional limits can't add back what the
+# national cap removes). A level whose build rate is "off" has neither layer.
 # Source: "US Wind, Solar & Storage Build-Rate Limits to 2045" (brief to Tom, 6 Oct 2026), from its least-circular
 # evidence: observed US build records (EIA), domestic manufacturing capacity (SEIA / DOE-LBNL / Benchmark) and the
 # international share-of-supply frontier (Cherp et al. 2021; China NEA and Germany FA Wind 2025). Not from
@@ -92,6 +94,7 @@ growth:
 #   central (2030 / 2045): solar 49.9 / 74.7, wind 15.0 / 25.0, storage 40.0 / 65.0 GW/yr
 #   high, the observed frontier: solar 64.9 / 109.7, wind 20.0 / 40.1, storage 54.8 / 99.4 GW/yr
 deliverability:
+  first_year: 2029                 # §78 (Tom): the layer applies from 2029; the paths themselves are unchanged
   base_year: 2025
   actual_gw: {solar: 27.2, wind_onshore: 5.2, storage: 15.8}   # the brief's 2025 actuals (EIA, Feb 2026)
   cagr:                            # the brief's "implied compound annual growth of the ceiling", keyed by period end
@@ -107,7 +110,8 @@ deliverability:
       solar:        {2030: 0.190, 2035: 0.055, 2040: 0.033, 2045: 0.019}
       wind_onshore: {2030: 0.309, 2035: 0.070, 2040: 0.046, 2045: 0.027}
       storage:      {2030: 0.283, 2035: 0.064, 2040: 0.037, 2045: 0.021}
-  # Path per build-rate level (null = no deliverability ceiling). Central (S0) and the other existing levels: central;
+  # Path per build-rate level (null = no deliverability ceiling). Central (S0) and the other existing levels (high_ipm
+  # confirmed, §78): central;
   # high and the reform levels: high. Gas has no path (no ceiling).
   level_path: {low: central, central: central, reform: central, high_ipm: central,
                high: high, reform_bp: high, reform_bp_siting: high, high_reform: high}
