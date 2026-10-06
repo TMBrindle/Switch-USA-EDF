@@ -53,6 +53,7 @@ def post_solve(m, outdir):
     out["_prm_dense_cols"] = sum(1 for n in rows.values() if n > 2)
     out["_prm_max_rows_per_col"] = max(rows.values()) if rows else 0
     out["_prm_clique"] = sum(n * n for n in rows.values())  # sum of (rows per column)^2: fill-in proxy
+    out["_constraints"] = sorted(c.name for c in m.component_objects(Constraint, active=True) if len(c))
     out["_n_vars"] = sum(len(c) for c in m.component_objects(Var, active=True))
     out["_n_cons"] = sum(len(c) for c in m.component_objects(Constraint, active=True))
     with open(os.path.join(outdir, "stress_components.json"), "w") as f:
@@ -61,6 +62,7 @@ def post_solve(m, outdir):
 
 
 def light_toy(tmp_path, name, light, min_load=0.0, demand_stress=(8, 9, 10, 9), core=False, compact=False,
+              repo_modules=None, add_modules=(),
               new_build=False):
     """mini_case with the S0 operating modules: the repo's patched dispatch and commitment, fuel costs, ramp limits,
     balancing areas and 3+5 spinning reserves; a coal unit (fuel), a geothermal unit, wind and storage."""
@@ -118,6 +120,70 @@ def light_toy(tmp_path, name, light, min_load=0.0, demand_stress=(8, 9, 10, 9), 
             pd.concat([bc, add], ignore_index=True).to_csv(inp / "gen_build_costs.csv", index=False, na_rep=".")
         if light:
             pd.DataFrame({"TIMESERIES": ["2020_stress"]}).to_csv(inp / "stress_light_timeseries.csv", index=False)
+        if repo_modules is not None:   # the repo's switch/modules.txt list, its study modules copied in as mods.*
+            out = []
+            for ln in (REPO / "switch/modules.txt").read_text().splitlines():
+                ln = ln.split("#")[0].strip()
+                if not ln or ln in repo_modules:
+                    continue
+                if ln.startswith("study_modules."):
+                    mod = ln.split(".", 1)[1]
+                    (mods / f"{mod}.py").write_text((REPO / f"switch/study_modules/{mod}.py").read_text())
+                    ln = f"mods.{mod}"
+                out.append(ln)
+            for mod in add_modules:      # S0's scenario-line modules (production.scenario_options)
+                (mods / f"{mod}.py").write_text((REPO / f"switch/study_modules/{mod}.py").read_text())
+                out.append(f"mods.{mod}")
+            if "demand_response_investment" in add_modules:    # 0.2 MW shiftable in each zone and hour
+                pd.DataFrame([{"LOAD_ZONE": z, "TIMEPOINT": t, "dr_shift_down_limit": 0.2, "dr_shift_up_limit": 0.2}
+                              for z in ("North", "Central", "South") for t in tps]).to_csv(inp / "dr_data.csv", index=False)
+                pd.DataFrame({"LOAD_ZONE": ["North", "Central", "South"], "PERIOD": 2020, "dr_annual_cost": 1000.0}
+                             ).to_csv(inp / "dr_annual_cost.csv", index=False)
+            if "switch_model.generators.extensions.storage" not in out and "mods.generators_extensions_storage" not in out:
+                out.append("switch_model.generators.extensions.storage")
+            (inp / "modules.txt").write_text("\n".join(out + ["mods.light_probe"]) + "\n")
+            # hydro_system: one hydro unit (hyd, North) on a two-node water network with constant inflow
+            gi = pd.read_csv(inp / "gen_info.csv", na_values=".")
+            h = gi[gi.GENERATION_PROJECT == "geo"].copy()
+            h["GENERATION_PROJECT"], h["gen_load_zone"], h["gen_energy_source"], h["gen_tech"] = "hyd", "North", "Water", "hydro"
+            h["gen_min_load_fraction"], h["gen_scheduled_outage_rate"] = 0.0, 0.0
+            pd.concat([gi, h], ignore_index=True).to_csv(inp / "gen_info.csv", index=False, na_rep=".")
+            for f, col, v in (("gen_build_costs.csv", "gen_overnight_cost", 0.0),
+                              ("gen_build_predetermined.csv", "build_gen_predetermined", 2.0)):
+                x = pd.read_csv(inp / f, na_values=".")
+                r = x[x.GENERATION_PROJECT == "geo"].head(1).copy()
+                r["GENERATION_PROJECT"], r[col] = "hyd", v
+                pd.concat([x, r], ignore_index=True).to_csv(inp / f, index=False, na_rep=".")
+            gc = pd.read_csv(inp / "prm_gen_credit.csv")
+            pd.concat([gc, pd.DataFrame([{"GENERATION_PROJECT": "hyd", "prm_credit": "none", "prm_class": "hydro"}])]
+                      ).to_csv(inp / "prm_gen_credit.csv", index=False)
+            pd.DataFrame({"WATER_NODES": ["hyd_in", "hyd_out"], "wn_is_sink": [0, 1],
+                          "wnode_constant_consumption": [0, 0], "wnode_constant_inflow": [1.5, 0]}).to_csv(
+                inp / "water_nodes.csv", index=False)
+            pd.DataFrame({"WATER_CONNECTIONS": ["hyd"], "water_node_from": ["hyd_in"], "water_node_to": ["hyd_out"],
+                          "wc_capacity": ["."]}).to_csv(inp / "water_connections.csv", index=False)
+            pd.DataFrame({"RESERVOIRS": ["hyd_in"], "res_min_vol": [0], "res_max_vol": [10.0]}).to_csv(
+                inp / "reservoirs.csv", index=False)
+            pd.DataFrame({"HYDRO_GENERATION_PROJECTS": ["hyd"], "hydro_efficiency": [1.0],
+                          "hydraulic_location": ["hyd"]}).to_csv(inp / "hydro_generation_projects.csv", index=False)
+            if "study_modules.planning_reserves" not in repo_modules:     # legacy per-zone reserve, peak-load form
+                zones = ["North", "Central", "South"]
+                pd.DataFrame({"PLANNING_RESERVE_REQUIREMENT": [f"CapRes_{z}" for z in zones], "LOAD_ZONE": zones}
+                             ).to_csv(inp / "planning_reserve_requirement_zones.csv", index=False)
+                pd.DataFrame({"PLANNING_RESERVE_REQUIREMENT": [f"CapRes_{z}" for z in zones],
+                              "prr_cap_reserve_margin": 0.08, "prr_enforcement_timescale": "peak_load"}
+                             ).to_csv(inp / "planning_reserve_requirements.csv", index=False)
+                pd.DataFrame({"LOAD_ZONE": zones, "TIMESERIES": "2020_stress", "planning_reserve_margin": 0.08}
+                             ).to_csv(inp / "planning_reserve_margin.csv", index=False)
+            # inputs those modules need that the toy lacks: header only (no water network, policies, caps, ...),
+            # with the headers of the committed s4x1 case
+            for f in sorted((REPO / "switch/in/foresight/s4x1_fedpol_current").glob("*.csv")):
+                if not (inp / f.name).exists():
+                    (inp / f.name).write_text(f.read_text().splitlines()[0] + "\n")
+            # an annual availability limit below 1 on the committed coal unit (CommitUpperLimit in its rule)
+            gi = pd.read_csv(inp / "gen_info.csv", na_values=".")
+            gi["gen_max_annual_availability"] = [0.8 if g == "coal" else 1.0 for g in gi.GENERATION_PROJECT]
+            gi.to_csv(inp / "gen_info.csv", index=False, na_rep=".")
 
     loads = {"North": ([4, 5], list(demand_stress)), "Central": ([3, 4], [4, 5, 6, 5]), "South": ([1, 1], [1, 1, 1, 1])}
     out = mini_case(tmp_path, name, gens, loads, [("NC", "North", "Central", 3, 0.95), ("CS", "Central", "South", 3, 0.95)],
@@ -253,3 +319,34 @@ def test_compact_reserve_rows_same_results(tmp_path, light):
     assert pc["_prm_hourly_nnz"] < ph["_prm_hourly_nnz"]
     assert pc["_prm_dense_cols"] < ph["_prm_dense_cols"]
     assert pc["_prm_clique"] < ph["_prm_clique"]
+
+
+LEGACY_RESERVES = ("study_modules.planning_reserves", "study_modules.planning_reserves_extreme_days")
+S0_EXTRA = ("gen_amortization_period", "retirement_rules", "build_rules", "tx_build_cap", "demand_response_investment")
+
+
+@pytest.mark.parametrize("light", [False, True])
+@pytest.mark.parametrize("drop", [LEGACY_RESERVES, ()], ids=["s0_modules", "every_module"])
+def test_light_builds_with_every_module(tmp_path, light, drop):
+    """Every module in switch/modules.txt (VM bug at fc756a7: gen_annual_availability_limits used CommitUpperLimit on
+    light stress timepoints, where light has no commitment), with prm_regional, an annual availability limit on the
+    committed coal unit and light stress days. s0_modules: as S0 runs them (the two legacy reserve modules out, the
+    scenario-line modules in); every_module: the file as is. Light builds and solves, has no commitment on stress timepoints, and the annual
+    limit (weighted timepoints only) is the same constraint as under full."""
+    out = Path(light_toy(tmp_path, f"all{int(light)}{len(drop)}", light=light, repo_modules=drop,
+                         add_modules=S0_EXTRA if drop else ()))
+    probe = _probe(out)
+    if light:
+        assert probe["_light_tps"] == sorted(STRESS_TPS)
+        for c in ("CommitGen", "CommitUpperLimit", "StartupGenCapacity", "Enforce_Dispatch_Lower_Limit"):
+            assert c not in probe
+    else:
+        assert probe["CommitGen"] > 0
+    assert "Respect_Annual_Availability_Limit" not in probe          # one row per generator and period, no timepoint
+    assert "Respect_Annual_Availability_Limit" in probe["_constraints"]   # built (coal at 0.8), as under full
+    loaded = (out.parent / "inputs/modules.txt").read_text().split()
+    want = [ln.split("#")[0].strip() for ln in (REPO / "switch/modules.txt").read_text().splitlines()]
+    want = [w.replace("study_modules.", "mods.") for w in want if w and w not in drop]
+    assert [x for x in loaded if x in want] == want                 # every module of switch/modules.txt, in order
+    for c in ("Prm_Zone_Requirement", "Enforce_Dispatch_Upper_Limit", "Enforce_Wnode_Balance"):  # reserve, hydro
+        assert c in probe["_constraints"]

@@ -762,7 +762,13 @@ weight), is defined in `study_modules.generators_core_dispatch`. The modules tha
 `OP_TIMEPOINTS` / `GEN_TPS_OP` instead. `switch/modules.txt` now loads repo copies of Switch's `commit.operate`,
 `operating_reserves.areas` and `spinning_reserves` that do this. Without the file, every case builds the same model as
 before: the toy test compares variable and constraint counts by component and the objective against the core
-modules. See `SHARED_CHANGES.md` #81-#87.
+modules. See `SHARED_CHANGES.md` #81-#88.
+
+**Every module that sums over a period's timepoints** must skip `LIGHT_TPS` where it uses commitment, fuel or reserve
+components. The first VM build failed in `gen_annual_availability_limits` (`CommitUpperLimit[g, t]` on a stress
+timepoint); it now sums over operating timepoints only (zero weight added nothing there). `test_light_stress.py`
+builds and solves a toy with light and every module in `switch/modules.txt`, plus S0's scenario-line modules, to catch
+the next one.
 
 **What changes in the answer:**
 - Light drops operating limits that only matter on zero-weight days. Commitment, minimum loads and ramping on a stress
@@ -825,7 +831,9 @@ transmission capacity in the flow-limit rows. Variables and constraints barely c
 memory to build is the same). The gain is in the solver's factorisation, which only the VM can measure (recipe I:
 Gurobi's factor nonzeros and factor ops).
 
-The hourly form stays available (and is the S0 default until the VM has solved recipe I's compact case).
+The hourly form stays available and stays the S0 default. **VM result:** compact rows gave only about 2% fewer factor
+ops (turning ramp limits off gave none), so the reserve rows are not the main source of the fill-in; light stress days
+are the lever that matters.
 
 **Not added: a contiguous window of each stress day** (e.g. 12 hours around the peak). It would cut stress timepoints
 by half again, but:

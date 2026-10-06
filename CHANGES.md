@@ -2963,3 +2963,22 @@ with `s4x1_S0prod_2035_new`):
 - the estimator's scaling; settings, axis values, rows and the written files.
 
 **Results:** pandas 3.0.6: 181 passed with build_rate; 1.4.4: 180 passed and 1 skipped.
+
+**Fix after fc756a7 (VM):** building a light case failed with `KeyError: ('p10_conventional_steam_coal_1',
+920351080700)` in `CommitUpperLimit`: `gen_annual_availability_limits` summed `CommitUpperLimit[g, t] × tp_weight`
+over every timepoint of the period. It now sums over the period's timepoints minus `LIGHT_TPS` (zero weight, so the
+constraint is the same). An audit of every module in `switch/modules.txt` and S0's scenario-line modules
+(`gen_amortization_period`, `retirement_rules`, `build_rules`, `tx_build_cap`, `demand_response_investment`) for
+commitment, start-up/shut-down, spinning-reserve, fuel-use or outage components over all timepoints found no other
+case (`fuel_use` runs over `FUEL_BASED_GEN_TPS`, which already skips light timepoints; demand response is dispatch and
+stays). SHARED_CHANGES #88.
+
+New test `test_light_builds_with_every_module` (4 cases): a toy built and solved, light and full, with every module in
+`switch/modules.txt` (as is, and as S0 runs it: legacy reserve modules out, scenario-line modules in), `prm_regional`,
+a hydro unit on a water network, demand response, and an annual availability limit of 0.8 on the committed coal unit.
+It fails with the VM's KeyError without the fix.
+
+**VM:** compact reserve rows gave about 2% fewer factor ops; turning ramp limits off gave none. Light is the lever;
+compact stays an option, off by default. Recipe I now solves light first.
+
+**Results:** pandas 3.0.6: 185 passed with build_rate; 1.4.4: 184 passed and 1 skipped.

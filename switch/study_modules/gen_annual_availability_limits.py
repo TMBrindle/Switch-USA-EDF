@@ -60,10 +60,12 @@ def define_components(m):
             # no unit commitment
             limit = lambda g, t: m.DispatchUpperLimit[g, t]
 
-        max_production = sum(limit(g, t) * m.tp_weight[t] for t in m.TPS_IN_PERIOD[p])
-        actual_production = sum(
-            m.DispatchGen[g, t] * m.tp_weight[t] for t in m.TPS_IN_PERIOD[p]
-        )
+        # operating timepoints only: light stress timepoints (CHANGES §69, zero weight) have no commitment, and
+        # zero weight adds nothing to either sum
+        light = getattr(m, "LIGHT_TPS", ())
+        tps = [t for t in m.TPS_IN_PERIOD[p] if t not in light]
+        max_production = sum(limit(g, t) * m.tp_weight[t] for t in tps)
+        actual_production = sum(m.DispatchGen[g, t] * m.tp_weight[t] for t in tps)
         return actual_production <= limit_frac * max_production
 
     m.Respect_Annual_Availability_Limit = Constraint(m.GEN_PERIODS, rule=rule)

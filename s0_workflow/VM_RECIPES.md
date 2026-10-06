@@ -762,9 +762,9 @@ done
    - Optional: `python s0_workflow/scripts/estimate_stress_model_size.py --case switch/in/s0light/<folder>` gives the
      counts for the actual case. It builds the model three times (one at a time) and so needs memory; run it only if
      there is room.
-2. **Solve** with recipe A's solver options and `measure_run.py`, in this order: compact first (the VM traced the 4 h 29
-   min to factorisation fill-in from the hourly reserve rows: factor ops 1.26e13 vs 5.75e11 in v2), then light_compact,
-   then light. **Report** for each:
+2. **Solve** with recipe A's solver options and `measure_run.py`. The VM found compact rows worth only about 2% of
+   factor ops and ramping-off nothing, so light is the run that matters: light first (it needs the fix in
+   `gen_annual_availability_limits`, after fc756a7), then light_compact. **Report** for each:
    - wall time and peak memory (full measured 4 h 29 min and 114 GB at f0e7ca3);
    - Gurobi's rows, columns and nonzeros, and the barrier's factor nonzeros and factor ops ("Factor NZ", "Factor Ops").
 3. **Compare** each with the full/hourly run:
