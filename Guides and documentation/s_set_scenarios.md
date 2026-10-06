@@ -40,6 +40,8 @@ Each case is the S0 v3 defaults plus only the settings below:
 - **Deliverability ceiling (§77–78, from 2029):** every build-rate level's national ceiling is also capped by the
   brief's deliverability path (R scaled so the cap is 2.0R): central for S1 (and S0), high for S2, S4, L and P (`high`, `high_reform`). With "off" (S3, S5,
   P from 2040) neither layer applies. See `Guides and documentation/build_rate.md`, "Deliverability ceiling".
+- **Nuclear ceiling (§79, from the 2035 period):** central path for S1 (and S0, the BILL rows), high for S2, S4, L
+  and P (`high`, `high_reform`); none with "off" (S3, S5, P from 2040). See `build_rate.md`, "Nuclear".
 
 **Transmission `unconstrained`** (S3, S5; `s0_production.tx_policy.mode: unconstrained`):
 - the same line handling as the S0_tx national cap: interregional lines may be built, and the case's per-line limits

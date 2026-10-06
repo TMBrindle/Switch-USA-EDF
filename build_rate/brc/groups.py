@@ -1,7 +1,8 @@
 """Technology groups covered by the build-rate constraint.
 
-wind_onshore, solar, storage, gas (combined cycle + combustion turbine). Offshore wind, nuclear,
-distributed generation and all other technologies are not covered (None).
+wind_onshore, solar, storage, gas (combined cycle + combustion turbine), nuclear (§79: a path group, see
+config.yaml path_groups; large and SMR). Offshore wind, distributed generation and all other technologies are not
+covered (None).
 """
 from __future__ import annotations
 
@@ -9,7 +10,7 @@ import re
 
 import pandas as pd
 
-GROUPS = ("wind_onshore", "solar", "storage", "gas")
+GROUPS = ("wind_onshore", "solar", "storage", "gas", "nuclear")
 
 
 def eia_group(technology: str) -> str | None:
@@ -50,6 +51,8 @@ def switch_group(gen_tech: str, energy_source: str = "", is_distributed=0) -> st
     es = str(energy_source).lower()
     if "offshore" in t or "distributed" in t or "residential" in t or "commercial" in t:
         return None
+    if "nuclear" in t or es == "uranium":
+        return "nuclear"
     if "wind" in t or es == "wind":
         return "wind_onshore"
     if "csp" in t or "thermal" in t:

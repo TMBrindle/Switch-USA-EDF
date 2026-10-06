@@ -454,6 +454,85 @@ interconnection evidence into both the national cap and the headroom module. Her
 - **Order 2023:** the brief notes Order 2023 reforms could raise queue throughput. That belongs in the pace layer
   (reform_bp), not in D.
 
+## Nuclear: national ceiling from the 2035 period (§79; FOR TOM'S REVIEW)
+
+**Why:** the S0 v3 chain built 14.3 GW of new nuclear in 2036–40. Once the "no new nuclear before 2035" rule lifts,
+nothing binds: the old `MaxCapTag_NuclearGrowth` cap allows 10 GW/yr in 2035, rising 20% a year (about 89 GW of new
+build allowed over 2036–40).
+
+**How:** nuclear is a **path group** (`path_groups.nuclear` in `build_rate/config.yaml`). It has no queue or EIA
+module layer; its national ceiling is the sourced path below.
+- **Tiers kept:** R = ceiling / 2.0, so the bands are free to 1.3R (0.65 × the ceiling), +15% of nuclear capex to
+  1.75R and +50% to the ceiling. Nuclear uses the central tier set in every level, including high_ipm.
+- **National only.** The licensed projects are too few to support a regional split.
+- **No ramp bound** (ramp floor 1e6 MW/yr). The path is itself the ramp, and 2040s units come from construction
+  started in the early 2030s, whatever the model builds in 2035.
+- **Coverage:** new nuclear only, large LWR and SMR (`gen_tech` containing "nuclear" or energy source uranium,
+  `groups.switch_group`). Builds dated in a period's window count. Existing units and restarts carry pre-2031 build
+  years, so they don't count.
+- **Rows from 2031**, the 2035 period's window (2031–35). The case writer leaves nuclear out of earlier periods, and
+  out of a case's files entirely when no period reaches 2031. So S0's 2028 and 2030 stages are unchanged, and S0's
+  `new_build_rule` still bans new nuclear before the 2035 period.
+- **Levels:** nuclear has its own level map (`path_groups.nuclear.level_path`). It uses high only for `high` and
+  `high_reform` (S2, S4, L, P). The queue and siting reforms (reform_bp, reform_bp_siting: the BILL rows) use
+  central, so the BILL rows equal S0 on nuclear.
+- **"off"** (S3, S5, P from 2040): no build_rate files, so no nuclear ceiling either.
+- **Where it's on:** S0 v3.1 adds `nuclear` to `s0_production.settings.build_rate.groups`. The legacy regression
+  case (`on_pgdays`) pins its groups to the earlier three, so it is unchanged. fedpol's `pg/settings/build_rate.yml`
+  is unchanged.
+
+**Proposed values, GW/yr of new nuclear online** (step path; each holds to the next key; 2046–50 take 2045's):
+
+| Build years (model period) | Central | High | Upper-bound checks |
+|---|---|---|---|
+| 2031–35 (2035) | 0.8 (4 GW in the period) | 2.0 (10 GW) | ~1 GW licensed SMRs; Liftoff ~4 GW/yr average |
+| 2036–40 (2040) | 2.5 (12.5 GW) | 6.0 (30 GW) | Liftoff ~10 GW/yr average; US 1974–75 pace ~7.3 GW/yr |
+| 2041–45 (2045) | 4.0 (20 GW) | 10.0 (50 GW) | Liftoff 13 GW/yr; US 1985–90 ~4.0 GW/yr, 1980–85 ~5.5 |
+
+S0's 14.3 GW in 2036–40 is above the central period total (12.5 GW). The free tier there is 1.6 GW/yr (8.1 GW over
+the period).
+
+**Evidence** (accessed Oct 2026):
+- **Licensed and under construction, for 2030–35:**
+  - TerraPower Kemmerer 1: Natrium, 345 MWe. NRC construction permit 4 Mar 2026, construction from Apr 2026, grid
+    2030–31 ([ANS](https://www.ans.org/news/2026-04-24/article-7975/terrapower-begins-construction-on-natrium-power-plant-in-kemmerer/),
+    [POWER](https://www.powermag.com/terrapowers-kemmerer-1-enters-construction-timeline-of-the-natrium-projects-road-to-first-power/)).
+  - TVA Clinch River BWRX-300, about 300 MWe. Permit 29 Sep 2026 after a 14-month review
+    ([ANS](https://www.ans.org/news/article-8445/tva-receives-construction-permit-for-clinch-river/),
+    [WNN](https://world-nuclear-news.org/articles/first-construction-permit-issued-for-bwrx300-smr-in-us)).
+  - Dow / X-energy Long Mott, 4 × 80 MWe. Construction-permit application docketed May 2025
+    ([Utility Dive](https://www.utilitydive.com/news/nrc-speeds-timeline-for-dowx-energy-reactor-permit-review/751050/)).
+  - Oklo Aurora-INL, 75 MWe, 2027–28.
+  - In total about 1 GW is licensed for the early 2030s; the central path allows 4 GW in 2031–35.
+- **Large LWR pipeline:**
+  - Fermi America, 4 × AP1000 (about 4.4 GW). Combined licence application docketed 2026
+    ([POWER](https://www.powermag.com/nrc-accepts-cola-for-fermi-americas-behemoth-four-unit-ap1000-nuclear-plant-in-texas/)).
+  - US government – Westinghouse agreement, $80bn, Oct 2025: AP1000s with construction from 2030 (Westinghouse: 10
+    plants) ([ANS](https://www.ans.org/news/2025-10-28/article-7499/westinghouse-signs-80b-contract-to-meet-ai-demand/),
+    [ENR](https://www.enr.com/articles/61771-feds-reach-deal-with-westinghouse-for-80b-in-nuclear-reactor-deployments)).
+  - Vogtle 3/4 took about 10 years from construction to operation. A 6–8-year nth-of-a-kind build puts 2030 starts
+    online in 2036–38.
+- **Restarts** (Palisades 0.8 GW, Crane 0.8 GW 2027, Duane Arnold 0.6 GW 2028–29;
+  [ANS](https://www.ans.org/news/2025-10-28/article-7501/nextera-and-google-ink-a-deal-to-restart-duane-arnold/)) come
+  before 2031 and are existing units, so they are not in this ceiling.
+- **NRC licensing:** the May 2025 executive orders cap reviews at 18 months and set a 400 GW-by-2050 goal (a target,
+  not a deliverability path). Kemmerer and Clinch River took about 14–24 months.
+- **DOE Liftoff (Sep 2024), treated as an upper bound:** deployment from 2030, rising to 13 GW/yr by 2040, gives
+  +200 GW by 2050 ([summary](https://liftoff.energy.gov/wp-content/uploads/2024/09/Nuclear-Liftoff-Update-Summary-Presentation.pdf)).
+- **Historical US pace** (EIA Monthly Energy Review Table 8.1, net summer capacity;
+  [EIA](https://www.eia.gov/totalenergy/data/monthly/pdf/sec8.pdf),
+  [Today in Energy](https://www.eia.gov/todayinenergy/detail.php?id=2030)):
+  - 22.7 GW (1973) → 37.3 (1975): about 7.3 GW/yr;
+  - 51.8 (1980) → 79.4 (1985): about 5.5 GW/yr;
+  - 79.4 (1985) → 99.6 (1990): about 4.0 GW/yr.
+
+**Rationale:**
+- **Central:** the licensed SMRs plus a few more first-of-a-kind units in 2031–35; the Fermi AP1000s and part of the
+  Westinghouse programme online in 2036–40; the late-1980s US pace in 2041–45.
+- **High:** every licensed and docketed project and the Westinghouse programme on schedule, then 10 GW/yr. That is
+  above the historical US pace and below Liftoff.
+- **Report:** `scripts/deliverability_report.py` → `outputs/nuclear_ceilings.csv`.
+
 ## Reform benchmarked on best-performing states (`reform_bp`, §74; FOR TOM'S REVIEW)
 
 Tom's decision: the bill's build-rate reform follows round 1's "Implied Rate" best-performer method

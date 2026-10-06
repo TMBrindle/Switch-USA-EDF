@@ -124,9 +124,54 @@ deliverability:
   module_floor:
     storage: {years: [2029, 2030], path: central}
 
+# Groups whose national ceiling is a sourced path, with no queue / EIA module layer (§79, FOR TOM'S REVIEW). Per level
+# (the group's level_path: central or high) and build year: ceiling = the path's GW/yr, R = ceiling / top
+# band, so the tiers are kept (free to 1.3R = 0.65 x ceiling, +15% to 1.75R, +50% to the ceiling); national only; no
+# ramp bound (its ramp floor below is 1e6 MW/yr). Years before first_year have no rows: the case writer leaves the group out of periods
+# whose build window ends before it (no limit there; S0's new_build_rule bans new nuclear before the 2035 period).
+# Covers NEW nuclear (large LWR and SMR; gen_tech containing "nuclear"), counted in the module's NewBuild (build years
+# in the period's window; existing units and restarts carry pre-2031 build years and don't count).
+path_groups:
+  nuclear:
+    first_year: 2031          # the 2035 period's window (2031-35) is the first one covered
+    tier_set: central         # in every level (high_ipm's ipm2025 bands have no ceiling)
+    # path per level (own map, not deliverability.level_path): the queue / siting reforms (reform_bp, reform_bp_siting;
+    # the BILL rows) don't change nuclear deliverability, so BILL = S0 on nuclear; high only where the whole build-rate
+    # setting is high (high, high_reform: S2, S4, L, P). FOR TOM'S REVIEW
+    level_path: {low: central, central: central, reform: central, reform_bp: central, reform_bp_siting: central,
+                 high_ipm: central, high: high, high_reform: high}
+    # GW/yr of new nuclear coming online, by build year (each key holds until the next; years after 2045 take 2045's).
+    # Evidence (accessed Oct 2026; details in Guides and documentation/build_rate.md, "Nuclear"):
+    #  - Licensed / under construction for 2030-35: TerraPower Kemmerer 1 (Natrium, 345 MWe; NRC construction permit
+    #    4 Mar 2026, construction from Apr 2026, grid 2030-31); TVA Clinch River BWRX-300 (~300 MWe; permit 29 Sep
+    #    2026, 14-month review); Dow/X-energy Long Mott (4 x 80 MWe; permit application docketed May 2025); Oklo
+    #    Aurora-INL (75 MWe, 2028). About 1 GW licensed for the early 2030s.
+    #  - Large LWR pipeline: Fermi America 4 x AP1000 (~4.4 GW; COL application docketed 2026); US government /
+    #    Westinghouse $80bn agreement (Oct 2025) for AP1000s, construction from 2030 (Westinghouse: 10 plants).
+    #    Vogtle 3/4 took ~10 years from construction to operation (2013 -> 2023/24); a 6-8 year nth-of-a-kind
+    #    build puts 2030 starts online 2036-38.
+    #  - Restarts (Palisades 0.8 GW 2025-27, Crane 0.8 GW 2027, Duane Arnold 0.6 GW 2028-29) come before 2031 and are
+    #    existing units: not in this ceiling.
+    #  - NRC licensing: EO 14300 (May 2025) caps reviews at 18 months; Kemmerer and Clinch River took ~14-24 months.
+    #  - DOE Liftoff (Sep 2024), upper bound: deployment from 2030 rising to 13 GW/yr by 2040 (+200 GW by 2050),
+    #    i.e. ~4 GW/yr average 2031-35, ~10 GW/yr 2036-40, 13 GW/yr 2041-45. EO target 400 GW by 2050 is a goal,
+    #    not a deliverability path.
+    #  - Historical US pace (EIA MER Table 8.1, net summer capacity): 22.7 GW (1973) -> 37.3 (1975), ~7.3 GW/yr;
+    #    51.8 (1980) -> 79.4 (1985), ~5.5 GW/yr; 79.4 -> 99.6 (1990), ~4.0 GW/yr.
+    # central: the licensed SMR projects plus a few more first-of-a-kind units in 2031-35; the Fermi AP1000s and part
+    #   of the Westinghouse programme online 2036-40; late-1980s US pace (4 GW/yr) in 2041-45.
+    # high: all licensed / docketed projects and the Westinghouse programme on schedule, then 10 GW/yr in 2041-45:
+    #   above the 1970s-80s US pace, below Liftoff's 13 GW/yr. Every value FOR TOM'S REVIEW.
+    ceiling_gw:
+      central: {2031: 0.8, 2036: 2.5, 2041: 4.0}
+      high:    {2031: 2.0, 2036: 6.0, 2041: 10.0}
+
 # Ramp bound between model periods: R_p <= (1+growth)^W x build_{p-1}/W_{p-1} + floor.
 # PLACEHOLDER floors (MW/yr, national); ReEDS uses 100-300 MW per state (gbin_min).
-ramp_floor_mw: {wind_onshore: 1000, solar: 1000, storage: 1000, gas: 1000}   # PLACEHOLDER
+ramp_floor_mw: {wind_onshore: 1000, solar: 1000, storage: 1000, gas: 1000,   # PLACEHOLDER
+                # nuclear (§79): ramp bound off (1e6 MW/yr); the sourced path below is itself the ramp, and 2040s
+                # units come from construction started in the early 2030s whatever the model builds in 2035
+                nuclear: 1000000}
 
 # Regional ceiling per transreg: max(share_r x regional_mult x top band x R, regional_floor).
 regional_mult: {wind_onshore: 1.5, solar: 1.5, storage: 1.5, gas: 1.5}             # PLACEHOLDER
@@ -147,7 +192,7 @@ floor_basis: {stock_year: 2025, peak_years: [2010, 2025]}
 rps_check: {warn_share: 0.30, cf: {wind_onshore: 0.35, solar: 0.25}}             # PLACEHOLDER
 
 # Amortisation life for annualising tier adders (years). PLACEHOLDER: match gen_max_age.
-life_years: {wind_onshore: 30, solar: 30, storage: 15, gas: 30}                     # PLACEHOLDER
+life_years: {wind_onshore: 30, solar: 30, storage: 15, gas: 30, nuclear: 60}         # PLACEHOLDER (nuclear: 60-yr licence)
 
 # Levels. Each picks an R0 rule, a growth set, and optional overrides.
 levels:

@@ -57,7 +57,8 @@ def cmd_run(cfg: dict) -> dict:
     near = rates.near_term(comp, comp_rates, delay, cfg)
     near.to_csv(out / "near_term.csv", index=False)
     def tier_table(ts):
-        return pd.concat([rates.tiers(cfg, g, ts).assign(group=g) for g in cfg["groups"]])
+        return pd.concat([rates.tiers(cfg, g, ts).assign(group=g)
+                          for g in list(cfg["groups"]) + list(cfg.get("path_groups") or {})])
     tier_table(None).to_csv(out / "tiers.csv", index=False)       # default tier_set
     for lv in LEVELS:
         tier_table(rates.level_tier_set(cfg, lv)).to_csv(out / f"tiers_{lv}.csv", index=False)

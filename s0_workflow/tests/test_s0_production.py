@@ -109,7 +109,8 @@ def test_apply_settings_merges_and_sets_atb_moderate():
         "technology": "NaturalGas", "capex_mw": 2061000}}}}}
     s0prod.apply_settings(cs)
     s = cs["c"][2035]
-    assert s["build_rate"] == {"enabled": True, "level": "central", "groups": ["wind_onshore", "solar", "storage"],
+    assert s["build_rate"] == {"enabled": True, "level": "central",
+                               "groups": ["wind_onshore", "solar", "storage", "nuclear"],          # §79
                                "regional": True, "regional_groups": ["wind_onshore", "solar"],
                                "gas_turbine_cap": {"enabled": True, "form": "cumulative_additions",
                                                    "allowance_path": "central"}}

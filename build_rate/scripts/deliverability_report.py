@@ -10,7 +10,7 @@ effective free tier (1.3 x the window mean of R) per model period, against the p
 
 usage (build_rate/): python scripts/deliverability_report.py
     -> outputs/deliverability_report.csv, outputs/deliverability_s0_vs_placeholder.csv,
-       outputs/deliverability_s0_tiers.csv
+       outputs/deliverability_s0_tiers.csv, outputs/nuclear_ceilings.csv (§79)
 """
 import copy
 import sys
@@ -95,6 +95,18 @@ def run():
             tiers.append({"period": p, "group": g, "free_1p3r_gw": 1.3 * rn / 1e3, "plus15_to_1p75r_gw": 1.75 * rn / 1e3,
                           "ceiling_2r_gw": 2.0 * rn / 1e3, "placeholder_free_1p3r_gw": 1.3 * ro / 1e3})
     pd.DataFrame(tiers).round(3).to_csv(ROOT / "outputs/deliverability_s0_tiers.csv", index=False)
+    # §79: nuclear (path group): national ceiling and tier edges per model period from 2035, by level
+    nuc = []
+    for lv in LEVELS:
+        n = tabs[lv]
+        n = n[(n["group"] == "nuclear") & (n["region"] == rates.NATIONAL)].set_index("year")
+        for p, (s, e) in PERIODS.items():
+            if n.empty or e < n.index.min():
+                continue
+            c = n.loc[s:e, "ceiling_mw_per_yr"].mean() / 1e3
+            nuc.append({"level": lv, "period": p, "ceiling_gw_per_yr": c, "free_1p3r_gw_per_yr": 0.65 * c,
+                        "period_total_gw": c * (e - s + 1)})
+    pd.DataFrame(nuc).round(3).to_csv(ROOT / "outputs/nuclear_ceilings.csv", index=False)
     return rep, cmp
 
 

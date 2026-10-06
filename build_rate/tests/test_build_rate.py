@@ -177,7 +177,8 @@ def test_switch_groups():
     assert sg("Battery_Moderate_4hr", "Electricity") == "storage"
     assert sg("NaturalGas_CCAvgCF_Moderate", "Naturalgas") == "gas"
     assert sg("NaturalGas_CCCCSAvgCF_Moderate", "Naturalgas") is None
-    assert sg("Nuclear_Nuclear", "Uranium") is None
+    assert sg("Nuclear_Nuclear", "Uranium") == "nuclear"                                  # §79 path group
+    assert sg("Nuclear - small modular reactor", "") == "nuclear"
     assert sg("UtilityPV_Class1", "Solar", 1) is None
 
 
@@ -731,7 +732,8 @@ def test_reform_bp_siting_level():
                           "peak_build_mw": [6000.0, 3000.0]})
     up = pd.DataFrame([{"group": "wind_onshore", "region": "SPP", "delta": 0.2},
                        {"group": "wind_onshore", "region": "national", "delta": 0.2}])
-    t = rates.rate_tables(dict(CFG, groups=["wind_onshore"]), ["reform_bp", "reform_bp_siting"], b, nt, shares, basis, up)
+    t = rates.rate_tables(dict(CFG, groups=["wind_onshore"], path_groups={}), ["reform_bp", "reform_bp_siting"], b, nt,
+                          shares, basis, up)
     a, s = (t[k].set_index(["region", "year"]) for k in ("reform_bp", "reform_bp_siting"))
     pd.testing.assert_series_equal(a.loc["national"]["ceiling_mw_per_yr"], s.loc["national"]["ceiling_mw_per_yr"])
     f = CFG["levels"]["reform_bp_siting"]["regional_floor"]["wind_onshore"]
@@ -777,7 +779,7 @@ def _deliv_cfg(d_mw: dict, path="central", floor=None):
     dv = {"base_year": 2025, "actual_gw": {g: v / 1e3 for g, v in d_mw.items()},
           "cagr": {path: {g: {2045: 0.0} for g in d_mw}}, "level_path": {lv: path for lv in CFG["levels"]},
           "module_floor": floor or {}}
-    return dict(CFG, deliverability=dv)
+    return dict(CFG, deliverability=dv, path_groups={})
 
 
 def test_deliverability_layer_min_and_regional_scaling():
@@ -787,7 +789,7 @@ def test_deliverability_layer_min_and_regional_scaling():
     b = rates.base_rates(_additions(), 2015, 2025)
     shares = rates.regional_shares(b, [2016, 2025])
     nt = rates.near_term(_queue(), rates.completion_rates(_queue(), CFG), rates.cod_delay(_queue(), CFG), CFG)
-    base_cfg = dict(CFG, groups=["wind_onshore", "solar"], deliverability=None)
+    base_cfg = dict(CFG, groups=["wind_onshore", "solar"], deliverability=None, path_groups={})
     up = pd.DataFrame([{"group": "wind_onshore", "region": "SPP", "delta": 0.3},
                        {"group": "wind_onshore", "region": "national", "delta": 0.3}])
     mod = rates.rate_tables(base_cfg, ["central", "high_reform"], b, nt, shares, None, up)
@@ -889,3 +891,83 @@ def test_case_writer_keeps_tiers_with_scaled_r(tmp_path, monkeypatch):
     assert (w["br_tier_adder_per_mw"] > 0).sum() == 2                                    # +15% and +50% bands kept
     r = pd.read_csv(d / "build_rate_periods.csv").set_index("BR_GROUP").loc["wind_onshore", "br_rate_data_mw"]
     assert r == pytest.approx((3 * 8000 + 2 * 6000) / 5)
+
+
+# ---------------------------------------------------------------------------- §79 nuclear path group
+
+def test_nuclear_path_group_rows():
+    """§79: nuclear's national ceiling is the sourced step path from 2031 (central / high by the level's deliverability
+    path), R = ceiling / 2.0 (tiers kept), no ramp bound; no rows before 2031."""
+    pg = CFG["path_groups"]["nuclear"]
+    assert pg["first_year"] == 2031
+    assert pg["ceiling_gw"]["central"] == {2031: 0.8, 2036: 2.5, 2041: 4.0}
+    assert pg["ceiling_gw"]["high"] == {2031: 2.0, 2036: 6.0, 2041: 10.0}
+    assert CFG["ramp_floor_mw"]["nuclear"] >= 1e6 and CFG["life_years"]["nuclear"] == 60
+    assert set(pg["level_path"]) == set(cli.LEVELS)
+    for lv, path in (("central", "central"), ("low", "central"), ("high_ipm", "central"), ("high", "high"),
+                     ("reform_bp", "central"), ("reform_bp_siting", "central"), ("high_reform", "high")):
+        r = rates.path_group_rows(CFG, lv).set_index("year")
+        assert r.index.min() == 2031 and r.index.max() == CFG["horizon_last_year"] and (r["region"] == "national").all()
+        for y, gw in ((2031, path == "high" and 2.0 or 0.8), (2035, path == "high" and 2.0 or 0.8),
+                      (2036, path == "high" and 6.0 or 2.5), (2045, path == "high" and 10.0 or 4.0),
+                      (2050, path == "high" and 10.0 or 4.0)):
+            assert r.loc[y, "ceiling_mw_per_yr"] == pytest.approx(gw * 1e3), (lv, y)
+            assert r.loc[y, "r_data_mw_per_yr"] == pytest.approx(gw * 1e3 / 2.0)
+        assert (r["growth"] == 0).all()
+    none = dict(CFG, path_groups={"nuclear": dict(pg, level_path=dict(pg["level_path"], central=None))})
+    assert rates.path_group_rows(none, "central").empty
+    # rate_tables appends the rows, whatever cfg["groups"] holds
+    b = rates.base_rates(_additions(), 2015, 2025)
+    shares = rates.regional_shares(b, [2016, 2025])
+    nt = rates.near_term(_queue(), rates.completion_rates(_queue(), CFG), rates.cod_delay(_queue(), CFG), CFG)
+    t = rates.rate_tables(dict(CFG, groups=["wind_onshore"]), ["central"], b, nt, shares)["central"]
+    assert set(t["group"]) == {"wind_onshore", "nuclear"} and t[t.group == "nuclear"]["year"].min() == 2031
+    t_ipm = rates.tiers(CFG, "nuclear", rates.level_tier_set(CFG, "high_ipm"))     # central bands in every level
+    assert list(t_ipm["upto"]) == [1.3, 1.75, 2.0] and list(t_ipm["adder"]) == [0.0, 0.15, 0.5]
+
+
+def test_case_writer_nuclear_from_2035_period(tmp_path, monkeypatch):
+    """§79: the case writer limits nuclear only in periods whose window reaches the path (2035 on: window 2031-35);
+    a case with no such period gets no nuclear group or generators in its files (earlier stages unchanged)."""
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir = _tables(tmp_path)
+    t = pd.read_csv(tdir / "rates_central.csv")
+    pd.concat([t, rates.path_group_rows(CFG, "central")]).to_csv(tdir / "rates_central.csv", index=False)
+    pd.concat([rates.tiers(CFG, g).assign(group=g) for g in ("wind_onshore", "solar", "gas", "nuclear")]).to_csv(
+        tdir / "tiers.csv", index=False)
+    s = {"build_rate": {"enabled": True, "level": "central", "tables_dir": str(tdir),
+                        "groups": ["wind_onshore", "solar", "nuclear"]}}
+
+    def case(name, periods):
+        (tmp_path / name).mkdir()
+        d = _case(tmp_path / name)
+        pd.DataFrame(periods, columns=["INVESTMENT_PERIOD", "period_start", "period_end"]).to_csv(
+            d / "periods.csv", index=False)
+        gi = pd.read_csv(d / "gen_info.csv")
+        gi = pd.concat([gi, pd.DataFrame([{"GENERATION_PROJECT": "n1", "gen_tech": "Nuclear_Nuclear_Large",
+                                           "gen_energy_source": "Uranium", "gen_load_zone": "p60",
+                                           "gen_is_distributed": 0}])])
+        gi.to_csv(d / "gen_info.csv", index=False)
+        bc = pd.read_csv(d / "gen_build_costs.csv")
+        pd.concat([bc, pd.DataFrame([{"GENERATION_PROJECT": "n1", "build_year": periods[-1][0],
+                                      "gen_overnight_cost": 7.0e6, "gen_fixed_om": 0}])]).to_csv(
+            d / "gen_build_costs.csv", index=False)
+        switch_case.write_case_inputs(d, s)
+        return d
+
+    d = case("a", [(2030, 2029, 2030), (2035, 2031, 2035), (2040, 2036, 2040)])
+    per = pd.read_csv(d / "build_rate_periods.csv")
+    n = per[per.BR_GROUP == "nuclear"].set_index("PERIOD")["br_rate_data_mw"]
+    assert list(n.index) == [2035, 2040]
+    assert n[2035] == pytest.approx(400.0) and n[2040] == pytest.approx(1250.0)   # 0.8 / 2.5 GW / 2.0
+    tiers = pd.read_csv(d / "build_rate_tiers.csv").query("BR_GROUP == 'nuclear'")
+    assert list(tiers[tiers.PERIOD == 2040]["br_tier_width"]) == pytest.approx([1.3, 0.45, 0.25])
+    assert tiers[(tiers.PERIOD == 2040) & (tiers.BR_TIER == "t2")]["br_tier_adder_per_mw"].iat[0] == pytest.approx(
+        0.15 * 7.0e6)
+    grp = pd.read_csv(d / "build_rate_groups.csv").set_index("BR_GROUP")
+    assert grp.loc["nuclear", "br_ramp_floor_mw"] >= 1e6 and grp.loc["nuclear", "br_growth"] == 0
+    assert pd.read_csv(d / "build_rate_gens.csv").set_index("GENERATION_PROJECT").loc["n1", "br_gen_group"] == "nuclear"
+    d2 = case("b", [(2030, 2029, 2030)])
+    assert "nuclear" not in set(pd.read_csv(d2 / "build_rate_groups.csv")["BR_GROUP"])
+    assert "n1" not in set(pd.read_csv(d2 / "build_rate_gens.csv")["GENERATION_PROJECT"])
+    assert "nuclear" not in set(pd.read_csv(d2 / "build_rate_periods.csv")["BR_GROUP"])

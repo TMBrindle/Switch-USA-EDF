@@ -287,6 +287,40 @@ def apply_deliverability(cfg: dict, level: str, t: pd.DataFrame) -> pd.DataFrame
     return t
 
 
+def path_group_value(path: dict, year: int) -> float | None:
+    """§79: a step path {first year: value}; each key holds until the next; years before the first key: None."""
+    ks = sorted(int(k) for k in path)
+    past = [k for k in ks if k <= year]
+    return float(path[past[-1]]) if past else None
+
+
+def path_group_rows(cfg: dict, level: str) -> pd.DataFrame:
+    """§79: national rows of the path groups (config path_groups, e.g. nuclear) for one level: from the group's
+    first_year to the horizon, ceiling = ceiling_gw[path] (path from the group's own level_path, else
+    deliverability.level_path), R = ceiling / top band (tiers kept), growth 0. No rows when the level has no path (no limit)."""
+    rows = []
+    for g, spec in (cfg.get("path_groups") or {}).items():
+        lp = spec.get("level_path")
+        if lp is not None and level not in lp:
+            raise ValueError(f"path_groups.{g}.level_path has no entry for build-rate level {level!r} (null = none)")
+        name = lp[level] if lp is not None else level_deliverability(cfg, level)
+        path = (spec.get("ceiling_gw") or {}).get(name) if name else None
+        if not path:
+            continue
+        path = {int(k): float(v) for k, v in path.items()}
+        top = tiers(cfg, g, level_tier_set(cfg, level))["upto"].max()
+        for y in range(int(spec["first_year"]), int(cfg["horizon_last_year"]) + 1):
+            v = path_group_value(path, y)
+            if v is None:
+                continue
+            c = v * 1e3
+            rows.append({"group": g, "region": NATIONAL, "year": y, "r_data_mw_per_yr": c / top,
+                         "ceiling_mw_per_yr": c, "r0_mw_per_yr": np.nan, "growth": 0.0, "floor_applied": False,
+                         "module_r_data_mw_per_yr": c / top, "module_ceiling_mw_per_yr": c,
+                         "deliverability_mw_per_yr": c, "deliverability_factor": 1.0, "deliverability_binds": True})
+    return pd.DataFrame(rows)
+
+
 def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, shares: pd.DataFrame,
                basis: pd.DataFrame | None = None) -> pd.DataFrame:
     """R_data (national) and regional ceilings, MW/yr, for every year near_term.first_year..horizon.
@@ -346,6 +380,8 @@ def tiers(cfg: dict, group: str, tier_set: str | None = None) -> pd.DataFrame:
     """Bands for a group: tier, lower/upper edge (x R), width (x R), adder (fraction of capex),
     adders_last_year (last calendar build year the adders apply to; NaN = always)."""
     ts = tier_set or cfg["tier_set"]
+    # §79: a path group keeps its own tier set in every level (high_ipm's ipm2025 has no ceiling)
+    ts = ((cfg.get("path_groups") or {}).get(group) or {}).get("tier_set", ts)
     gt = cfg["gas_tiers"]
     override = ((cfg.get("group_tier_overrides") or {}).get(ts) or {}).get(group)
     t = pd.DataFrame(override or (gt.get(ts, gt["default"]) if group == "gas" else cfg["tier_sets"][ts]))
@@ -529,7 +565,8 @@ def derived_rate_table(cfg: dict, level: str, tables: dict, uplift: pd.DataFrame
 
 def rate_tables(cfg: dict, levels, base, near, shares, basis=None, uplift=None) -> dict:
     """Rate tables of the given levels: data levels by rate_table, derived ones (benchmark_of / max_of) from their
-    dependencies' module tables, resolved recursively; then each level's deliverability layer (§77)."""
+    dependencies' module tables, resolved recursively; then each level's deliverability layer (§77) and the path
+    groups' rows (§79)."""
     out = {}
 
     def get(lv):
@@ -544,4 +581,9 @@ def rate_tables(cfg: dict, levels, base, near, shares, basis=None, uplift=None) 
                 out[lv] = rate_table(cfg, lv, base, near, shares, basis)
         return out[lv]
 
-    return {lv: apply_deliverability(cfg, lv, get(lv)) for lv in levels}
+    def final(lv):
+        t = apply_deliverability(cfg, lv, get(lv))
+        p = path_group_rows(cfg, lv)                     # §79: nuclear etc., national path only
+        return pd.concat([t[~t["group"].isin(p["group"].unique())], p], ignore_index=True) if len(p) else t
+
+    return {lv: final(lv) for lv in levels}

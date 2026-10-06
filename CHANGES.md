@@ -3696,3 +3696,56 @@ GW/yr:
 
 **Not changed:** the running S0 chain. Don't rerun `brc.cli run` on the VM or rebuild mid-chain. **Nothing is run
 until Tom has reviewed.**
+
+
+## 79. Build Rate: National New-Nuclear Ceiling From the 2035 Period — FOR TOM'S REVIEW
+
+**Date:** 2026-10-06 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/build_rate.md` ("Nuclear"), `build_rate/config.yaml` (`path_groups`)
+
+**Why.** The S0 v3 chain built 14.3 GW of new nuclear in 2036–40. Once the "no new nuclear before 2035" rule lifts,
+nothing binds: `MaxCapTag_NuclearGrowth` allows 10 GW/yr from 2035, rising 20% a year.
+
+**What.** Nuclear is a build-rate **path group**: a sourced national ceiling with no queue or EIA layer.
+- **Rows from build year 2031**, the 2035 period's window.
+- **Tiers kept:** R = ceiling / 2.0, so free to 0.65 × the ceiling, +15% and +50% of nuclear capex above that; the
+  central tier set in every level.
+- **National only, no ramp bound** (ramp floor 1e6 MW/yr); life 60 years for the adders.
+- **Case writer:** leaves nuclear out of periods whose window ends before 2031, and out of a case's files when no
+  period reaches it. So the 2028 and 2030 stages are unchanged.
+- **Group mapping:** `groups.switch_group` maps new nuclear (gen_tech "nuclear" or uranium) to `nuclear`.
+- **Where it's on:** in S0 v3.1 (`s0_production.settings.build_rate.groups`). The legacy regression case pins its
+  old groups, and fedpol's `build_rate.yml` is unchanged.
+
+**Proposed paths, GW/yr** (FOR TOM'S REVIEW; sources and rationale in the guide):
+
+| Build years | Central | High |
+|---|---|---|
+| 2031–35 | 0.8 | 2.0 |
+| 2036–40 | 2.5 | 6.0 |
+| 2041–45 (and later) | 4.0 | 10.0 |
+
+- **Evidence:**
+  - licensed SMRs (Kemmerer 345 MWe, permit Mar 2026; Clinch River ~300 MWe, permit Sep 2026; Long Mott 320 MWe
+    docketed);
+  - Fermi America 4 × AP1000 combined licence application docketed;
+  - the government–Westinghouse AP1000 programme (construction from 2030);
+  - NRC reviews of about 14–24 months, with an 18-month cap;
+  - DOE Liftoff, as an upper bound: 13 GW/yr by 2040;
+  - US historical pace: about 7.3 GW/yr (1974–75), 5.5 (1980–85), 4.0 (1985–90).
+- **Path per level:** high only for `high` and `high_reform` (S2, S4, L, P); central for central, low, reform,
+  reform_bp, reform_bp_siting and high_ipm, so the BILL rows equal S0 on nuclear. "off" has no ceiling.
+- **Effect on S0:** the central period limit in 2036–40 is 12.5 GW, below the 14.3 GW S0 v3 built. The free tier is
+  1.6 GW/yr.
+
+**Tests:**
+- the path rows, level map and tier set;
+- the case writer covers nuclear from the 2035 period, and leaves it out of a 2030-only case;
+- the switch_group mapping;
+- the S0 settings pin;
+- the legacy regression case is byte-identical.
+
+**Results:** pandas 3.0.6: 221 passed; 1.4.4: 220 passed, 1 skipped.
+
+**Not changed:** the running S0 chain (its inputs are built), `MaxCapTag_NuclearGrowth` (left in place; looser),
+the `new_build_rule`. **Nothing is run until Tom has reviewed.**

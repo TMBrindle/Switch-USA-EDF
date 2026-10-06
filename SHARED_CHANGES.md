@@ -300,6 +300,13 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 | 99 | `build_rate/config.yaml` (`deliverability`), `build_rate/brc/rates.py` (`deliverability_path`, `level_deliverability`, `module_floor`, `apply_deliverability`; `rate_table` floor; `rate_tables` applies the layer), `build_rate/scripts/deliverability_report.py` (new) | Final national ceiling = min(module ceiling, deliverability path from the brief) from 2029 (§78); where it binds, R and the regional ceilings are scaled by the same factor so the ceiling is 2.0R with the tiers kept (§78); storage R floored at the central path in 2029–30. | Tom's decisions (§77–78). | every level's tables from the next `brc.cli run` (S0's next iteration); the running chain's built inputs unaffected |
 | 100 | ~~`build_rate/brc/switch_case.py` band truncation~~ | Withdrawn in §78: `switch_case.py` is back to its §76 state. | §78: R is scaled instead, so the case writer needs no change. | none |
 
+### Added in §79 (Oct 2026: nuclear build ceiling) — for Tom's review; Ollie, please look at #102
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 101 | `build_rate/config.yaml` (`path_groups.nuclear`, nuclear ramp floor / life), `build_rate/brc/rates.py` (`path_group_rows`, `path_group_value`; path groups' own tier set), `build_rate/brc/cli.py` (tiers), `build_rate/scripts/deliverability_report.py`, `pg/settings/s0_production.yml` (S0 groups + nuclear), `pg/settings/scenario_management.yml` (`on_pgdays` pins the old groups) | National new-nuclear ceiling from build year 2031 (the 2035 period), central / high, tiers kept. | §79: S0 v3 built 14.3 GW of new nuclear in 2036–40 with no binding limit. | S0 v3.1 from the 2035 period; the regression case and fedpol unchanged |
+| 102 | `build_rate/brc/groups.py` (`switch_group`: gen_tech with "nuclear" or energy source uranium -> `nuclear`), `build_rate/brc/switch_case.py` (path groups: periods before the path left out; groups / gens with no period dropped) | Nuclear group for the build-rate module. | §79. | none unless `nuclear` is in `build_rate.groups` (fedpol's `pg/settings/build_rate.yml` doesn't list it) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

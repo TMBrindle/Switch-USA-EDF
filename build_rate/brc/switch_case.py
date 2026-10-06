@@ -183,6 +183,7 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
 
     nat = rates[rates["region"] == "national"]
     rows_p, rows_t, ceil = [], [], []
+    path_groups = set(cfg.get("path_groups") or {})
     for g in groups:
         rd = nat[nat["group"] == g].set_index("year")["r_data_mw_per_yr"]
         tg = tiers[tiers["group"] == g]
@@ -191,6 +192,10 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
         for _, pr in periods.iterrows():
             p, s, e = int(pr["INVESTMENT_PERIOD"]), int(pr["period_start"]), int(pr["period_end"])
             w = e - s + 1
+            # §79: a path group (nuclear) has rows only from its first year; periods whose window ends before them
+            # (or a level with no path) get no limit
+            if g in path_groups and (rd.empty or e < rd.index.min()):
+                continue
             r = _window_mean(rd, s, e)        # = sum of R[y] over the window / W
             committed = 0.0
             if predet is not None:
@@ -216,6 +221,10 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
                 rows_t.append({"BR_GROUP": g, "PERIOD": p, "BR_TIER": t["tier"], "br_tier_width": t["width"],
                                "br_tier_adder_per_mw": round(float(t["adder"]) * frac * (0 if np.isnan(capex) else capex), 2)})
     slack_kw = br.get("ceiling_slack_cost")
+    # §79: a path group with no period in this case is left out (groups, gens), so earlier stages are unchanged
+    limited = {r["BR_GROUP"] for r in rows_p}
+    groups = [g for g in groups if g not in path_groups or g in limited]
+    gens = gens[gens["br_gen_group"].isin(groups)]
     grp_rows = [{"BR_GROUP": g, "br_growth": float(nat[nat["group"] == g]["growth"].iat[0]),
                  "br_ramp_floor_mw": cfg["ramp_floor_mw"][g], "br_life_years": cfg["life_years"][g],
                  "br_ceiling_slack_cost_per_mw": float(slack_kw) * 1000 if slack_kw is not None else -1}

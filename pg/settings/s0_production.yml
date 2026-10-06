@@ -21,7 +21,9 @@ s0_production:
     build_rate:
       enabled: true
       level: central
-      groups: [wind_onshore, solar, storage]
+      # nuclear (v3.1, §79, FOR TOM'S REVIEW): national ceiling from the 2035 period (build_rate/config.yaml
+      # path_groups); new_build_rule below still bans new nuclear before 2035
+      groups: [wind_onshore, solar, storage, nuclear]
       regional: true
       regional_groups: [wind_onshore, solar]
     # interconnection headroom, atts_s0 (host mode; the ic_v4 inputs of the test runs)

@@ -1304,6 +1304,8 @@ settings_management:
           retirement_friction: {fraction: 0.0}
           existing_fixed_om: mean
           fuel_prices: {mode: hist5}
+          # build-rate groups as before §79 (no nuclear ceiling); lists replace in the merge
+          settings: {build_rate: {groups: [wind_onshore, solar, storage]}}
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}
