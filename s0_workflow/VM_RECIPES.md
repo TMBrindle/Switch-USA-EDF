@@ -797,7 +797,8 @@ builds its own lines, start it at that stage instead.
    python s0_workflow/scripts/reuse_chain_stages.py expected --reference S0prod_A --out chain_reuse_expected.csv
    ```
    **Report** the printed lines (each case: its expected reusable stages, and the first difference). This repo's
-   rows: only `S0_tx` (all stages); every `BILL_*` row differs from 2028 (`s0_workflow/data/chain_reuse_expected.csv`).
+   rows (§72): `S0_tx` all stages; BILL_central, BILL_low, txonly and bronly 2028 and 2030; BILL_high and
+   BILL_central_S1 2028 (`s0_workflow/data/chain_reuse_expected.csv`).
 3. **Per scenario chain** (built, not solved; fresh outputs folders):
    ```bash
    python s0_workflow/scripts/reuse_chain_stages.py reuse switch/in/<root>/scenarios_<case>.txt \

@@ -187,19 +187,19 @@ def test_code_check(tmp_path, monkeypatch):
 
 
 def test_expected_reuse_from_case_definitions():
-    """From this repo's case definitions: S0_tx is S0prod_A (every stage); the BILL rows differ from 2028 (cap,
-    headroom level or import allowance in 2028); bronly differs only in the headroom level in 2028."""
+    """From this repo's case definitions (§72: the bill rows are S0 until each change): S0_tx is S0prod_A in every
+    stage; BILL_central from 2035 differs in headroom, build rate, cap, moratorium and import allowance; BILL_high
+    from 2030 (headroom, build rate, cap); BILL_central_S1 from 2030 (tax credits); S0prod_B (mode B) everywhere."""
     df = cr.expected_reuse(REPO / "pg/extra_inputs/scenario_inputs.csv", REPO / "pg/settings/scenario_management.yml")
     exp = df[df.expected_reuse].groupby("case").stage.apply(list).to_dict()
-    assert exp.get("S0_tx") == [2028, 2030, 2035, 2040, 2045]
-    for c in ("BILL_central", "BILL_low", "BILL_high", "BILL_central_txonly", "BILL_central_bronly", "BILL_central_S1"):
-        assert c not in exp
-    b = df[(df.case == "BILL_central_bronly") & (df.stage == 2028)].differences.iat[0]
-    assert b.startswith("interconnection_headroom.scenario") and "tx_policy" not in b
-    s1 = df[(df.case == "BILL_central_S1") & (df.stage == 2028)].differences.iat[0]
-    assert "tax_credits" in s1 or "cap_tw_mi_per_yr" in s1
-    t = df[(df.case == "BILL_central_txonly") & (df.stage == 2028)].differences.iat[0]
-    assert "cap_tw_mi_per_yr: 0.0 -> 1.4" in t and "interconnection_headroom" not in t
+    assert exp.get("S0_tx") == [2028, 2030, 2035, 2040, 2045] and "S0prod_B" not in exp
+    c35 = df[(df.case == "BILL_central") & (df.stage == 2035)].differences.iat[0]
+    for k in ("build_rate.level", "interconnection_headroom.scenario: 'atts_s0' -> 'atts_reform'",
+              "new_tx_allowance: 0.0 -> 0.85", "cap_tw_mi_per_yr: 1.4 -> 3.0", "moratorium_first_period"):
+        assert k in c35, k
+    h30 = df[(df.case == "BILL_high") & (df.stage == 2030)].differences.iat[0]
+    assert "cap_tw_mi_per_yr: 1.4 -> 2.0" in h30 and "atts_reform" in h30 and "new_tx_allowance" not in h30
+    assert "tax_credit" in df[(df.case == "BILL_central_S1") & (df.stage == 2030)].differences.iat[0]
     # period-keyed values and start years taken at the stage's year
     assert cr._at_year({"2028": 0.0, "2030": 1.4}, 2029) == 0.0 and cr._at_year({"2028": 0.0, "2030": 1.4}, 2045) == 1.4
     assert cr._at_year({"moratorium_first_period": 2040}, 2035) == {"moratorium_first_period": "not yet"}

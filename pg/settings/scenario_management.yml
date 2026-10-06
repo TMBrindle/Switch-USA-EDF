@@ -1373,39 +1373,45 @@ settings_management:
       s0_tx:
         s0_production:
           tx_policy: {mode: national_cap, moratorium_first_period: 2040, cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}}
+      # §72: every bill row is S0 (s0_tx, atts_s0, central, no import allowance) until each change takes effect, so
+      # its early stages are byte-identical to S0prod_A's and can be reused (s0_workflow/chain_reuse.py). The
+      # 2028 keys are explicit: a period-keyed table gives earlier years its first value
       bill_central:
         s0_production:
-          tx_policy: {mode: national_cap, moratorium_first_period: 2035, cap_tw_mi_per_yr: {2028: 1.4, 2035: 3.0}}
+          tx_policy: {mode: national_cap, moratorium_first_period: 2035,
+                      cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4, 2035: 3.0}}
           levels_by_period:
-            interconnection_headroom: {2028: atts_planned, 2035: atts_reform}
+            interconnection_headroom: {2028: atts_s0, 2035: atts_reform}
             build_rate: {2028: central, 2035: reform}
-          prm: {imports: {new_tx_allowance: 0.85}}
+          prm: {imports: {new_tx_allowance: {2028: 0.0, 2035: 0.85}}}
       bill_low:
         s0_production:
-          tx_policy: {mode: national_cap, moratorium_first_period: 2040, cap_tw_mi_per_yr: {2028: 1.4, 2035: 2.0}}
+          tx_policy: {mode: national_cap, moratorium_first_period: 2040,
+                      cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4, 2035: 2.0}}
           levels_by_period:
-            interconnection_headroom: {2028: atts_planned, 2040: atts_reform}
+            interconnection_headroom: {2028: atts_s0, 2040: atts_reform}
             build_rate: {2028: central, 2040: reform}
-          prm: {imports: {new_tx_allowance: 0.85}}
+          prm: {imports: {new_tx_allowance: {2028: 0.0, 2040: 0.85}}}
       bill_high:
         s0_production:
           tx_policy: {mode: national_cap, moratorium_first_period: 2035,
-                      cap_tw_mi_per_yr: {2028: 1.4, 2030: 2.0, 2035: 4.0}}
+                      cap_tw_mi_per_yr: {2028: 0.0, 2030: 2.0, 2035: 4.0}}
           levels_by_period:
-            interconnection_headroom: {2028: atts_planned, 2030: atts_reform, 2035: atts_reform_techmax}
+            interconnection_headroom: {2028: atts_s0, 2030: atts_reform, 2035: atts_reform_techmax}
             build_rate: {2028: central, 2030: reform}
-          prm: {imports: {new_tx_allowance: 0.85}}
+          prm: {imports: {new_tx_allowance: {2028: 0.0, 2035: 0.85}}}
       # bill central, transmission pieces only (moratorium, cap, reserve imports); S0 headroom and build rate
       bill_central_txonly:
         s0_production:
-          tx_policy: {mode: national_cap, moratorium_first_period: 2035, cap_tw_mi_per_yr: {2028: 1.4, 2035: 3.0}}
-          prm: {imports: {new_tx_allowance: 0.85}}
+          tx_policy: {mode: national_cap, moratorium_first_period: 2035,
+                      cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4, 2035: 3.0}}
+          prm: {imports: {new_tx_allowance: {2028: 0.0, 2035: 0.85}}}
       # bill central, headroom and build-rate reforms only; S0 transmission (as s0_tx)
       bill_central_bronly:
         s0_production:
           tx_policy: {mode: national_cap, moratorium_first_period: 2040, cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}}
           levels_by_period:
-            interconnection_headroom: {2028: atts_planned, 2035: atts_reform}
+            interconnection_headroom: {2028: atts_s0, 2035: atts_reform}
             build_rate: {2028: central, 2035: reform}
     # California-Washington linked carbon price path for S0 cases (pg/settings/s0_production.yml ca_wa_carbon; CHANGES
     # §65). Inert unless s0_production.enabled. Column `ca_wa_price`: central (sets nothing: the S0 default) everywhere.

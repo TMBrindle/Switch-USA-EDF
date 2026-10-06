@@ -12,7 +12,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from s0_workflow import tx_policy  # noqa: E402
+from s0_workflow import prm, tx_policy  # noqa: E402
 
 MWKM = 1.609344e6
 
@@ -110,7 +110,8 @@ def _names(out):
 
 SETTINGS = {
     "s0_tx": {"mode": "national_cap", "moratorium_first_period": 2040, "cap_tw_mi_per_yr": {2028: 0.0, 2030: 1.4}},
-    "bill_central": {"mode": "national_cap", "moratorium_first_period": 2035, "cap_tw_mi_per_yr": {2028: 1.4, 2035: 3.0}},
+    "bill_central": {"mode": "national_cap", "moratorium_first_period": 2035,
+                     "cap_tw_mi_per_yr": {2028: 0.0, 2030: 1.4, 2035: 3.0}},
 }
 
 
@@ -234,17 +235,18 @@ def _merged(*axis_values):
     return s["s0_production"], ax
 
 
-EXPECT = {   # tx_bill value: (moratorium, cap by period 2028-2045, headroom by period, build rate by period, allowance)
-    "s0_tx": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], None, None, 0.0),
-    "bill_central": (2035, [1.4, 1.4, 3.0, 3.0, 3.0], ["atts_planned"] * 2 + ["atts_reform"] * 3,
-                     ["central"] * 2 + ["reform"] * 3, 0.85),
-    "bill_low": (2040, [1.4, 1.4, 2.0, 2.0, 2.0], ["atts_planned"] * 3 + ["atts_reform"] * 2,
-                 ["central"] * 3 + ["reform"] * 2, 0.85),
-    "bill_high": (2035, [1.4, 2.0, 4.0, 4.0, 4.0], ["atts_planned", "atts_reform"] + ["atts_reform_techmax"] * 3,
-                  ["central"] + ["reform"] * 4, 0.85),
-    "bill_central_txonly": (2035, [1.4, 1.4, 3.0, 3.0, 3.0], None, None, 0.85),
-    "bill_central_bronly": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], ["atts_planned"] * 2 + ["atts_reform"] * 3,
-                            ["central"] * 2 + ["reform"] * 3, 0.0),
+EXPECT = {   # tx_bill value: (moratorium, cap by period 2028-2045, headroom by period, build rate by period,
+             # import allowance by period); §72: S0 (0 / 1.4, atts_s0, central, 0) until each change takes effect
+    "s0_tx": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], None, None, [0.0] * 5),
+    "bill_central": (2035, [0.0, 1.4, 3.0, 3.0, 3.0], ["atts_s0"] * 2 + ["atts_reform"] * 3,
+                     ["central"] * 2 + ["reform"] * 3, [0.0] * 2 + [0.85] * 3),
+    "bill_low": (2040, [0.0, 1.4, 2.0, 2.0, 2.0], ["atts_s0"] * 3 + ["atts_reform"] * 2,
+                 ["central"] * 3 + ["reform"] * 2, [0.0] * 3 + [0.85] * 2),
+    "bill_high": (2035, [0.0, 2.0, 4.0, 4.0, 4.0], ["atts_s0", "atts_reform"] + ["atts_reform_techmax"] * 3,
+                  ["central"] + ["reform"] * 4, [0.0] * 2 + [0.85] * 3),
+    "bill_central_txonly": (2035, [0.0, 1.4, 3.0, 3.0, 3.0], None, None, [0.0] * 2 + [0.85] * 3),
+    "bill_central_bronly": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], ["atts_s0"] * 2 + ["atts_reform"] * 3,
+                            ["central"] * 2 + ["reform"] * 3, [0.0] * 5),
 }
 
 
@@ -260,7 +262,7 @@ def test_bill_axis_values():
                                 "cap_tw_mi_per_yr": {2028: 0.0, 2030: 1.4}}, val          # ERCOT: no-bill values
         assert [s0prod.level_for(s0, "interconnection_headroom", y) for y in years] == (hr or [None] * 5), val
         assert [s0prod.level_for(s0, "build_rate", y) for y in years] == (br or [None] * 5), val
-        assert float(s0["prm"]["imports"]["new_tx_allowance"]) == allow, val
+        assert [prm.import_allowance(s0["prm"], [y]) for y in years] == allow, val
         assert "--include-module study_modules.tx_build_cap" in s0prod.scenario_options({"s0_production": s0})
     # legacy (every older row, the regression case): nothing changes
     s0, ax = _merged(("tx_bill", "legacy"), ("tx_sens", "none"))
@@ -436,3 +438,55 @@ def test_multi_project_pair_in_national_cap_and_chain(tmp_path):
     cl = pd.read_csv(nxt / "trans_path_expansion_limit.chained.c.csv")
     assert cm.set_index("TRANSMISSION_LINE").at[line["p80-p105"], "trans_build_minimum_mw"] == 896.0
     assert cl.set_index(["TRANSMISSION_LINE", "PERIOD"]).at[(line["p80-p105"], 2035), "trans_path_expansion_limit_mw"] == 896.0
+
+
+# the first period each bill row differs from S0 (§72): every case writer gives S0's files before it
+FIRST_CHANGE = {"bill_central": 2035, "bill_low": 2035, "bill_high": 2030, "bill_central_txonly": 2035,
+                "bill_central_bronly": 2035}
+
+
+def test_bill_rows_write_s0_inputs_until_their_change(tmp_path):
+    """§72: before its first change a bill row writes byte-identical transmission-policy files (moratorium rows, cap
+    by period, line classes), no reserve import allowance, the same headroom scenario and build-rate level, and no
+    headroom switch marker, so its early stages can be reused from S0prod_A (s0_workflow/chain_reuse.py)."""
+    from s0_workflow import production as s0prod
+    chain = [2028, 2030, 2035, 2040, 2045]
+    s0_ref, _ = _merged(("tx_bill", "s0_tx"))
+
+    def build(s0, y, tag):
+        out = _stage(tmp_path / tag, [y], chain)
+        tx_policy.write_case_inputs(out, s0, {y: {"forced_tx_expansion_limit": "minimum"}}, lambda x: None)
+        s0prod.write_level_switch(out, s0, {y: {"_chain_years": chain}}, lambda x: None)
+        return {f.name: f.read_bytes() for f in sorted(out.iterdir()) if f.is_file()}
+
+    for val, first in FIRST_CHANGE.items():
+        s0, _ = _merged(("tx_bill", val))
+        for y in [c for c in chain if c < first]:
+            (tmp_path / f"{val}{y}").mkdir()
+            (tmp_path / f"ref{val}{y}").mkdir()
+            assert build(s0, y, f"{val}{y}") == build(s0_ref, y, f"ref{val}{y}"), (val, y)
+            assert prm.import_allowance(s0["prm"], [y]) == 0.0
+            for what in ("interconnection_headroom", "build_rate"):
+                assert s0prod.level_for(s0, what, y) in (None, {"interconnection_headroom": "atts_s0",
+                                                               "build_rate": "central"}[what]), (val, y, what)
+        y = first                                      # and the first change shows in that period
+        s0_vals = (tx_policy.step_value(tx_policy.tx_settings(s0)["cap_tw_mi_per_yr"], y),
+                   s0prod.level_for(s0, "interconnection_headroom", y), prm.import_allowance(s0["prm"], [y]))
+        assert s0_vals != (1.4, None, 0.0) and s0_vals != (1.4, "atts_s0", 0.0), val
+    with pytest.raises(ValueError, match="single-period stages"):
+        prm.import_allowance({"imports": {"new_tx_allowance": {2028: 0.0, 2035: 0.85}}}, [2030, 2035])
+
+
+def test_expected_reuse_of_the_bill_rows():
+    """§72 acceptance: from the case definitions, BILL_central, BILL_low and the two decomposition rows reuse 2028
+    and 2030 from S0prod_A; BILL_high and BILL_central_S1 reuse 2028."""
+    from s0_workflow import chain_reuse as cr
+    df = cr.expected_reuse(REPO / "pg/extra_inputs/scenario_inputs.csv", REPO / "pg/settings/scenario_management.yml")
+    got = df[df.expected_reuse].groupby("case").stage.apply(list).to_dict()
+    assert got["S0_tx"] == [2028, 2030, 2035, 2040, 2045]
+    for c in ("BILL_central", "BILL_low", "BILL_central_txonly", "BILL_central_bronly"):
+        assert got.get(c) == [2028, 2030], c
+    for c in ("BILL_high", "BILL_central_S1"):
+        assert got.get(c) == [2028], c
+    s1 = df[(df.case == "BILL_central_S1") & (df.stage == 2030)].differences.iat[0]
+    assert "tax_credit" in s1

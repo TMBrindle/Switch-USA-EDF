@@ -556,6 +556,19 @@ def stress_formulation(p: dict) -> str:
     return f
 
 
+def import_allowance(p: dict, periods) -> float:
+    """prm.imports.new_tx_allowance in a stage: a number, or a period-keyed table ({2028: 0.0, 2035: 0.85}, each key
+    holding until the next; CHANGES §72) so a bill case writes S0's inputs until new interregional lines are allowed.
+    A stage spanning periods with different values is an error (prm_import_new_tx_allowance is one value)."""
+    from s0_workflow.tx_policy import step_value
+    a = (p.get("imports") or {}).get("new_tx_allowance") or 0.0
+    vals = {float(step_value(a, int(y)) if isinstance(a, dict) else a) for y in periods}
+    if len(vals) > 1:
+        raise ValueError(f"s0_production.prm.imports.new_tx_allowance {a} differs between this stage's periods "
+                         f"{sorted(periods)}; use single-period stages (mode A)")
+    return vals.pop() if vals else 0.0
+
+
 RESERVE_ROWS = ("hourly", "compact")
 
 
@@ -786,7 +799,7 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     pen, how = penalty_per_mw_yr(p, dollar_year)
     params = {"prm_new_tx_derate": [float(p["new_tx_derate"])], "prm_shortfall_cost_per_mw_yr": [round(pen, 2)],
               "prm_import_cap_all_hours": [1]}
-    allowance = float(p["imports"].get("new_tx_allowance") or 0.0)
+    allowance = import_allowance(p, periods)
     if allowance > 0:          # bill cases (§60): imports may also use this share of new interregional capacity
         params["prm_import_new_tx_allowance"] = [allowance]
     if rrows == "compact":

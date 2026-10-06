@@ -260,6 +260,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 |---|---|---|---|---|
 | 90 | `s0_workflow/chain_reuse.py`, `s0_workflow/scripts/reuse_chain_stages.py` (new) | Reuse a reference chain's leading stages when every input file, alias and option matches, with the same code (or no code-path commit since) and solver; hand over with `prepare_next_stage` on the copied outputs. | §71: skip re-solving 2028/2030 stages identical to S0prod_A's. | none: a separate step before `run_chain_A.py`; `prepare_next_stage` and the modules are unchanged |
 
+### Added in §72 (Oct 2026: bill rows identical to S0 until each change)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 91 | `pg/settings/scenario_management.yml` (`tx_bill`), `s0_workflow/prm.py` (`import_allowance`), `s0_workflow/chain_reuse.py` | Bill rows start from S0 (atts_s0, cap 0 / 1.4, no import allowance) until each change; `prm.imports.new_tx_allowance` may be period-keyed; the reuse report merges `s0_production.settings` as `apply_settings` does. | §72: bill rows must equal S0 until each change takes effect, so early stages can be reused. | BILL_* chains in 2028/2030 (and BILL_high 2028), and `s4x1_BILL_low_2035`; S0 and the regression case unchanged |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

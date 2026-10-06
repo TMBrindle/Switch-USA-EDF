@@ -3084,3 +3084,59 @@ writes `scenarios_<case>.from_<stage>.txt` with the lines left to solve.
 - the dry run; the build-rate history copied on handover;
 - the code check on a scratch git repository;
 - the expected-reuse report on this repo's rows.
+
+## 72. S0 Production: Bill Rows Identical to S0 Until Each Change Takes Effect
+
+**Date:** 2026-10-06 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `Guides and documentation/transmission_bill_scenarios.md`, `s0_workflow/data/chain_reuse_expected.csv`,
+recipe J
+
+**Why:** the §71 reuse report showed every BILL row differing from S0prod_A from 2028. That was a design error: a bill
+row must be S0 until each of its changes takes effect.
+
+**Case definitions** (`pg/settings/scenario_management.yml`, `tx_bill`):
+
+| value | headroom | cap (TW-mi/yr) | import allowance |
+|---|---|---|---|
+| bill_central | atts_s0, atts_reform from 2035 | 0 / 1.4 (2030) / 3.0 from 2035 | 0.85 from 2035 |
+| bill_low | atts_s0, atts_reform from 2040 | 0 / 1.4 / 2.0 from 2035 | 0.85 from 2040 |
+| bill_high | atts_s0, atts_reform 2030, atts_reform_techmax from 2035 | 0 / 2.0 (2030) / 4.0 from 2035 | 0.85 from 2035 |
+| bill_central_txonly | atts_s0 | 0 / 1.4 / 3.0 from 2035 | 0.85 from 2035 |
+| bill_central_bronly | atts_s0, atts_reform from 2035 | 0 / 1.4 | none |
+
+- **Unchanged:** the moratorium years (central, high and txonly 2035; low and bronly 2040; they write the same rows in
+  earlier periods), the build-rate switches (central 2035, low 2040, high 2030) and BILL_central_S1 (BILL_central +
+  `full_ira` from 2030).
+- **Explicit 2028 keys:** each table's 2028 key is explicit, because a period-keyed table gives earlier years its
+  first value.
+- **Headroom:** each table starts from `atts_s0`, so no headroom switch marker is written before the bill's switch.
+
+**Import allowance by period:** `prm.imports.new_tx_allowance` may be a period-keyed table (`prm.import_allowance`). The
+column is written only when the stage's value is above 0, so before the allowance starts the inputs are S0's. A stage
+spanning periods with different values is an error.
+
+**Reuse report fix:** `chain_reuse.expected_reuse` now merges `s0_production.settings` over the case's settings, as
+`production.apply_settings` does. Before, it reported S0's headroom as the `interconnection_headroom` axis's
+`reference`, not `atts_s0`.
+
+**Expected reuse from S0prod_A** (report rerun; `s0_workflow/data/chain_reuse_expected.csv`):
+
+| case | reusable | first differing stage: what differs |
+|---|---|---|
+| S0_tx | 2028-2045 | none |
+| BILL_central | 2028, 2030 | 2035: headroom, build rate, cap 1.4 → 3.0, moratorium in force, allowance 0.85 |
+| BILL_low | 2028, 2030 | 2035: cap 1.4 → 2.0 |
+| BILL_central_txonly | 2028, 2030 | 2035: cap, moratorium, allowance |
+| BILL_central_bronly | 2028, 2030 | 2035: headroom, build rate |
+| BILL_high | 2028 | 2030: headroom, build rate, cap 1.4 → 2.0 |
+| BILL_central_S1 | 2028 | 2030: tax credits (`full_ira`) |
+
+Nothing else differs. The single-year `s4x1_BILL_*_2035` rows change only for bill_low: in 2035 it now has headroom
+atts_s0 (was atts_planned) and no import allowance (was 0.85), as the corrected path says.
+
+**Tests:**
+- `test_tx_policy.py`: the bill paths by period, including the allowance;
+- new `test_bill_rows_write_s0_inputs_until_their_change`: before its first change each bill row writes the same
+  transmission-policy files as `s0_tx`, byte for byte, plus no allowance, S0's levels and no switch marker; the
+  change shows in its first period;
+- new `test_expected_reuse_of_the_bill_rows`, and the updated §71 report test.

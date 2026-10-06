@@ -16,11 +16,19 @@ switch), `switch/study_modules/prm_regional.py` (reserve import allowance).
 | `tx_bill` value | Moratorium (first period interregional lines can be built) | National cap on discretionary additions (TW-mi/yr) | Headroom (`interconnection_headroom.scenario`) | Generator build rate | Reserve import allowance |
 |---|---|---|---|---|---|
 | `s0_tx` (S0, no bill) | 2040 | 0 in 2028, 1.4 from 2030 | atts_s0 | central | 0 (historical shares) |
-| `bill_central` | 2035 | 1.4 to 2030, 3.0 from 2035 | atts_planned, atts_reform from 2035 | central, reform from 2035 | 0.85 |
-| `bill_low` | 2040 | 1.4 to 2030, 2.0 from 2035 | atts_planned, atts_reform from 2040 | central, reform from 2040 | 0.85 |
-| `bill_high` | 2035 | 1.4 in 2028, 2.0 in 2030, 4.0 from 2035 | atts_planned (2028), atts_reform (2030), atts_reform_techmax from 2035 | central (2028), reform from 2030 | 0.85 |
-| `bill_central_txonly` | as bill_central | as bill_central | atts_s0 | central | 0.85 |
+| `bill_central` | 2035 | 0 in 2028, 1.4 in 2030, 3.0 from 2035 | atts_s0, atts_reform from 2035 | central, reform from 2035 | 0.85 from 2035 |
+| `bill_low` | 2040 | 0 in 2028, 1.4 in 2030, 2.0 from 2035 | atts_s0, atts_reform from 2040 | central, reform from 2040 | 0.85 from 2040 |
+| `bill_high` | 2035 | 0 in 2028, 2.0 in 2030, 4.0 from 2035 | atts_s0 (2028), atts_reform (2030), atts_reform_techmax from 2035 | central (2028), reform from 2030 | 0.85 from 2035 |
+| `bill_central_txonly` | as bill_central | as bill_central | atts_s0 | central | 0.85 from 2035 |
 | `bill_central_bronly` | as s0_tx | as s0_tx | as bill_central | as bill_central | 0 |
+
+**Every bill row is S0 until each change takes effect** (§72). The import allowance starts in the first period
+new interregional lines may be built (the moratorium's end). Until then a bill row's case inputs are byte-identical to
+S0's, so its early stages can be reused from S0prod_A (`s0_workflow/chain_reuse.py`, VM recipe J):
+- BILL_central, BILL_low, txonly and bronly: 2028 and 2030;
+- BILL_high and BILL_central_S1: 2028.
+
+Before §72 the bill rows used headroom atts_planned, a 1.4 cap and the allowance from 2028.
 
 ERCOT ties and ERCOT-internal lines always keep the no-bill values: moratorium 2040 and the S0 cap trajectory (see
 "Interpretations").
@@ -119,8 +127,9 @@ supplied" until it has class-A rows.
   capacity built into the region to date.
 - **New capacity:** nameplate MW on lines crossing the PRM region's boundary: this stage's BuildTx up to the period,
   plus earlier stages' `trans_built_to_date`.
-- **Setting:** `prm.imports.new_tx_allowance`; S0 is 0, so historical shares only. `prm_params.csv` gets the column
-  only when it is above 0.
+- **Setting:** `prm.imports.new_tx_allowance`, a number or a period-keyed table (`{2028: 0.0, 2035: 0.85}`; each key
+  holds until the next). S0 is 0, so historical shares only. `prm_params.csv` gets the column only when the stage's
+  value is above 0. A stage spanning periods with different values is an error (mode A stages have one period).
 - **Region:** this uses the PRM regions (NERC regions, WECC_NW split), the regions the import cap is defined on, not
   transreg.
 
@@ -163,7 +172,7 @@ supplied" until it has class-A rows.
      the national cap).
    - ERCOT-internal lines are intra-region, so the moratorium doesn't touch them.
 2. **S0 cap in 2028 = 0:** "1.4 from the 2030 stage", and today's `zero`.
-3. **bill_high in 2028:** headroom atts_planned and build rate central. The bill's reforms start in 2030.
+3. **bill_high in 2028:** S0's headroom (atts_s0), cap (0) and build rate (central). The bill's reforms start in 2030.
 4. **The cap counts nameplate transfer capability** (BuildTx) × length. It uses 1.609344e6 MW-km per TW-mi; the
    request gave 1.609e6.
 5. **"Interregional":** for the moratorium and the cap it means transreg. For the reserve allowance it means the PRM

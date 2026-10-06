@@ -385,7 +385,8 @@ def reuse(scenarios_file: Path, reference_file: Path, through: int | None = None
 # --------------------------------------------------------------------------------------------- expected reuse
 def _merged(ax: dict, year_ax: dict, row: pd.Series, cols: list[str], base_s0: dict, year: int) -> dict:
     """The settings a scenario_inputs row gives in a model year: s0_production.yml, then each axis value's all-years
-    and year overrides (as pg_to_switch merges them), levels_by_period applied for the year (production code)."""
+    and year overrides (as pg_to_switch merges them), then (as production.apply_settings) s0_production.settings over
+    them and levels_by_period applied for the year."""
     from s0_workflow import production as s0prod
     out = {"s0_production": json.loads(json.dumps(base_s0, default=str))}
     for c in cols:
@@ -399,6 +400,9 @@ def _merged(ax: dict, year_ax: dict, row: pd.Series, cols: list[str], base_s0: d
                         out = s0prod.deep_merge(out, json.loads(json.dumps(opts[k], default=str)))
                         break
     s0 = out["s0_production"]
+    if s0.get("enabled"):          # as production.apply_settings: s0_production.settings over the case's settings
+        out = s0prod.deep_merge(out, json.loads(json.dumps(s0.get("settings") or {}, default=str)))
+        s0 = out["s0_production"]
     s0prod.apply_levels_by_period(out, s0, year=year)
     s0.pop("levels_by_period", None)
     return out
