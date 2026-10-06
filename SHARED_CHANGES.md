@@ -254,6 +254,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 |---|---|---|---|---|
 | 89 | `pg/settings/s0_production.yml`, `pg/settings/scenario_management.yml` (`prm_design: regional_full`), `pg/extra_inputs/scenario_inputs.csv` (row `s4x1_S0prod_2035_new_full`), `s0_workflow/prm.py` | S0 defaults: `stress_days.rule: greedy` with `cover_tolerance` 0.06 (12 days), `formulation: light`, `reserve_rows: compact`. `regional_full` keeps the earlier full + hourly form. A full build into a folder holding this writer's earlier light list removes it. | VM 2035 at 0a29884: light + compact 1 h 43 min / 79.7 GB against 2 h 50 min / 102.7 GB, results within ~1%. | S0 regional cases only: they now load #81-#88's light and compact paths. The regression case (legacy reserve) is unchanged |
 
+### Added in §71 (Oct 2026: reusing unchanged early stages of a mode-A chain)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 90 | `s0_workflow/chain_reuse.py`, `s0_workflow/scripts/reuse_chain_stages.py` (new) | Reuse a reference chain's leading stages when every input file, alias and option matches, with the same code (or no code-path commit since) and solver; hand over with `prepare_next_stage` on the copied outputs. | §71: skip re-solving 2028/2030 stages identical to S0prod_A's. | none: a separate step before `run_chain_A.py`; `prepare_next_stage` and the modules are unchanged |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

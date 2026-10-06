@@ -3027,3 +3027,60 @@ hourly; the regression case has no regional reserve options); `test_prm.py` (axi
 writer output and the full form).
 
 **Results:** pandas 3.0.6: 185 passed with build_rate; 1.4.4: 184 passed and 1 skipped.
+
+## 71. S0 Production: Reusing Unchanged Early Stages of a Mode-A Chain
+
+**Date:** 2026-10-06 · **Branch:** `tom/s0-prod-scripts`
+**See also:** `s0_workflow/chain_reuse.py`, `s0_workflow/scripts/reuse_chain_stages.py`, recipe J
+
+**Why:** a scenario chain's 2028 (and 2030) stage is often identical to S0prod_A's. Re-solving it costs a stage's run
+time for the same answer.
+
+**What:** `run_chain_A.py` is VM-only, so reuse is a step before it. `reuse_chain_stages.py reuse <scenarios> --reuse-from
+<reference scenarios> [--reuse-through <year>]` walks the stages in order. It reuses each while it matches exactly, and
+writes `scenarios_<case>.from_<stage>.txt` with the lines left to solve.
+- **Match:** every file of the stage's inputs folder, hashed (top level; the build log and scenario lists aside),
+  the alias pairs and the other options of the scenario line. The case name in `*.chained.<case>.*` is normalised.
+  Chained files count, so a stage after a reused one is compared with what the handover wrote. The first differing
+  file, alias or option is reported.
+- **Code:** the reference's recorded head, or every commit since it leaves Switch modules, module lists and input
+  writing alone (`CODE_PATHS`; tests, docs and `s0_workflow/scripts` exempt), with no uncommitted change there. The
+  commits since are recorded.
+- **Solver:** the same version and arguments as recorded for the reference.
+- **Reference record:** `reuse_chain_stages.py record` writes `chain_provenance.json` in each solved stage's outputs
+  folder: head, solver version and arguments, input digest.
+- **Reuse:** the reference's stage outputs are copied (or hard-linked, `--link`) into the scenario's fresh outputs
+  folder. Then `study_modules.prepare_next_stage` runs on them, unchanged: it works from written outputs. It runs in
+  the `switch` command's Python (`--python`), since pandas versions order the chained rows differently (a toy check
+  under pandas 1.4.4 refused at the next stage until it did). The one
+  model-dependent handover file, `build_rate_prev_build.chained.<case>.csv`, is copied from the reference's next
+  stage. Each reused stage gets `reuse_provenance.json`; `handoff_runs.csv` (the scenario's outputs root, or
+  `--handoff-runs`) gets a `reused` row per stage and a `solve` row with the reason reuse stopped.
+- **Expected reuse:** `reuse_chain_stages.py expected` compares each chain case's settings with the reference's, year by
+  year. It uses the merged axis values, `levels_by_period` and period-keyed values at the year, and treats moratorium
+  start years as in force or not yet. In this repo's rows (`s0_workflow/data/chain_reuse_expected.csv`):
+
+  | case | expected reusable from S0prod_A | first difference (2028) |
+  |---|---|---|
+  | S0_tx | 2028-2045 (all) | none: same definition |
+  | BILL_central, _low, _high | none | headroom `reference` → `atts_planned`; import allowance 0 → 0.85; cap 0 → 1.4 TW-mi/yr |
+  | BILL_central_txonly | none | import allowance 0 → 0.85; cap 0 → 1.4 |
+  | BILL_central_bronly | none | headroom `reference` → `atts_planned` |
+  | BILL_central_S1 | none | as BILL_central, and tax credits |
+  | S0prod_B | none | mode B (windows) |
+
+  S1-S5, L and P are not in this repo's `scenario_inputs.csv`; recipe J step 2 runs the same report on the VM's.
+
+**Not changed:** S0 defaults, `prepare_next_stage`, every module. The tool only adds files to a scenario's folders.
+
+**Results:** pandas 3.0.6: 191 passed with build_rate; 1.4.4: 190 passed and 1 skipped.
+
+**Tests** (`test_chain_reuse.py`, 6):
+- toy chain 2020/2030/2040: reference and scenario identical in 2020 and 2030, dearer new builds in 2040. Reuse takes
+  2020 and 2030. The 2030 and 2040 inputs, chained files included, are byte-identical to a full run's, and the 2040
+  results are the same (`BuildGen.csv` and `SuspendGen.csv` byte-identical);
+- refusals: one fuel cost differs in 2020 (nothing reused or copied, the file named); a reference without a record;
+  other solver arguments or version; `--reuse-through`; non-empty outputs folder;
+- the dry run; the build-rate history copied on handover;
+- the code check on a scratch git repository;
+- the expected-reuse report on this repo's rows.

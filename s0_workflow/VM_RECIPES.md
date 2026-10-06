@@ -773,6 +773,59 @@ Light + compact (with the greedy rule at 6%) is the S0 default since §70.
 3. **Compare** (objective; builds by technology with `compare_s0_runs.py`; `prm_shortfall.csv`, `prm_summary.csv`;
    CO2). **Expected:** within about 1%, as above; **report** anything larger.
 
+## J. Reuse unchanged early stages from S0prod_A (mode A chains; CHANGES §71)
+
+`run_chain_A.py` is VM-only, so the reuse runs as a step before it: `s0_workflow/scripts/reuse_chain_stages.py`
+copies the reference's solved stages that match exactly, hands over to the next stage as if they had been solved, and
+writes `scenarios_<case>.from_<stage>.txt` with the lines left to solve. Run `run_chain_A.py` on that file. If it
+builds its own lines, start it at that stage instead.
+
+1. **Record the reference once** (after S0prod_A's chain has solved). Give the code head it was solved at, and the
+   exact solver arguments `run_chain_A.py` adds to every line:
+   ```bash
+   python s0_workflow/scripts/reuse_chain_stages.py record switch/in/s0prod_A/scenarios_S0prod_A.fixed.txt \
+       --git-head <sha the chain was solved at> \
+       --solver-args "--solver gurobi --solver-options-string 'method=2 crossover=0 BarConvTol=1e-6 ScaleFlag=2 Threads=8' --tempdir /d/tmp" \
+       --solver-version "gurobi <x.y.z>"
+   ```
+   Each stage's outputs folder gets `chain_provenance.json`: head, solver version and arguments, input digest. The
+   solver version defaults to the installed gurobipy's if omitted; give it from the reference's solve log if gurobipy
+   has been upgraded since.
+2. **Expected reuse from the case definitions** (no builds needed). On the VM checkout, whose `scenario_inputs.csv`
+   has the S1-S5, L and P rows:
+   ```bash
+   python s0_workflow/scripts/reuse_chain_stages.py expected --reference S0prod_A --out chain_reuse_expected.csv
+   ```
+   **Report** the printed lines (each case: its expected reusable stages, and the first difference). This repo's
+   rows: only `S0_tx` (all stages); every `BILL_*` row differs from 2028 (`s0_workflow/data/chain_reuse_expected.csv`).
+3. **Per scenario chain** (built, not solved; fresh outputs folders):
+   ```bash
+   python s0_workflow/scripts/reuse_chain_stages.py reuse switch/in/<root>/scenarios_<case>.txt \
+       --reuse-from switch/in/s0prod_A/scenarios_S0prod_A.fixed.txt --solver-args "<the same string>" --dry-run
+   python s0_workflow/scripts/reuse_chain_stages.py reuse switch/in/<root>/scenarios_<case>.txt \
+       --reuse-from switch/in/s0prod_A/scenarios_S0prod_A.fixed.txt --solver-args "<the same string>" [--link]
+   ```
+   - The dry run compares each stage's inputs other than the chained files (those follow from the identical earlier
+     stages). The real run compares everything, the chained files included, after each handover.
+   - The scenario's lines must be in the same form as the reference's: same modules and flags, and the same alias
+     convention. With fixed forced-transmission aliases (recipe C), use the `.fixed.txt` lines on both sides.
+   - Stops at the first stage with any difference and names the first differing file, alias or option. It also stops
+     (reusing nothing) on code changes since the recorded head in Switch modules, module lists or input writing, on
+     uncommitted changes there, or on a different solver version or arguments.
+   - `--reuse-through 2030` reuses no later stage. `--link` hard-links outputs instead of copying.
+   - The handover runs `prepare_next_stage` in the Python of the `switch` command on PATH (its shebang), so it writes
+     what a solve would. Pandas versions order rows differently, and a mismatch makes the next stage's comparison
+     refuse. If `switch` is not on PATH, pass `--python "<switch-pg-reeds-fedpol python>"`.
+4. **Solve the rest:** `run_chain_A.py` on the printed `scenarios_<case>.from_<stage>.txt`. Then `record` the scenario's
+   scenarios file, so it can serve as a reference later.
+5. **Check and report:**
+   - Each reused stage's outputs folder has `reuse_provenance.json` (`reused_from`, the input digest, the files handed
+     over).
+   - `out/<root>/handoff_runs.csv` has one `reused` row per reused stage and one `solve` row with the reason reuse
+     stopped. (`--handoff-runs <csv>` points it at `run_chain_A.py`'s own file instead.)
+   - **Once, to validate:** solve one scenario both ways (with reuse and without, into another root). The first
+     solved stage's inputs, chained files included, are byte-identical, and the results match.
+
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 
 **Deferred** (Oct 2026): mode A is the production route for now. Keep this recipe for when mode B is
