@@ -293,6 +293,13 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 | 97 | `build_rate/config.yaml` (`growth_paths`, level `reform_bp_siting`), `build_rate/brc/rates.py` (`growth_path`, `path_value`, `ramp_growth`; level floors in derived levels), `build_rate/brc/cli.py`, `build_rate/scripts/round1_growth_paths.py`, `build_rate/data/reference/round1/` | Post-2030 growth of R from round 1's S0/S1 (central) and S2 (high) caps; storage follows solar; siting sensitivity level. | Tom's decision (§76). | central/high R from 2031 (S0's next iteration; the running chain's built inputs unaffected) |
 | 98 | `pg/settings/scenario_management.yml` (`tx_sens: br_reform_siting`), `pg/extra_inputs/scenario_inputs.csv` (row `BILL_central_siting`), `s0_workflow/specs/credits/credit_spend.yaml`, `s0_workflow/credit_spend.py` | Bill siting sensitivity row; sourced credit values (pre-2022 value). | §76. | none (new row; reporting) |
 
+### Added in §77 (Oct 2026: national deliverability ceiling) — for Tom's review; Ollie, please look at #100
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 99 | `build_rate/config.yaml` (`deliverability`), `build_rate/brc/rates.py` (`deliverability_path`, `level_deliverability`, `module_floor`, `apply_deliverability`; `rate_table` floor; `rate_tables` applies the layer), `build_rate/scripts/deliverability_report.py` (new) | Final national ceiling = min(module ceiling, deliverability path from the brief); regional ceilings scaled by the same factor; storage R floored at the central path in 2029–30. | Tom's decision (§77). | every level's tables from the next `brc.cli run` (S0's next iteration); the running chain's built inputs unaffected |
+| 100 | `build_rate/brc/switch_case.py` (`write_case_inputs`) | Truncates the tier bands at the period's final ceiling when the tables carry `deliverability_mw_per_yr`; committed builds above it raise it. | §77. | none for tables without the column (byte-identical bands); fedpol cases built from §77 tables get the cap |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

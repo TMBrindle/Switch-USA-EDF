@@ -6,6 +6,10 @@ R_data[G, national, y] (MW/yr) by level:
                                caps), or R_data[last near-term year] x (1 + growth_G) ** (y - last) without a path
 Regional ceiling[G, r, y] = max(share_r x regional_mult_G x top band x R_data[G, y], floor[G, r]),
 floor[G, r] = max(floor_min_G, k_stock_G x existing MW end-2025, k_peak_G x peak annual build 2010-25).
+
+§77 deliverability layer (config `deliverability`): final national ceiling = min(top band x R, D[G, y]), D the
+level's deliverability path; where it cuts, regional ceilings are scaled by the same factor. R is unchanged (the case
+writer truncates the tier bands at the final ceiling). Module floor: R[G, y] >= D_path[G, y] in configured years.
 """
 from __future__ import annotations
 
@@ -213,6 +217,70 @@ def ramp_growth(path: dict) -> float:
     return float(np.prod([1 + x for x in v]) ** (1 / len(v)) - 1)
 
 
+def deliverability_path(cfg: dict, path: str | None, group: str) -> dict | None:
+    """§77: national deliverability ceiling {year: MW/yr} for base_year + 1 .. horizon: actual_gw[group] (base year)
+    compounded by cagr[path][group] (years in (previous key, key] take that key's rate; later years the last one).
+    None when the path or the group has none (no ceiling)."""
+    d = cfg.get("deliverability") or {}
+    base = (d.get("actual_gw") or {}).get(group)
+    g = ((d.get("cagr") or {}).get(path) or {}).get(group) if path else None
+    if base is None or not g:
+        return None
+    ends = sorted(int(k) for k in g)
+    rate = {int(k): float(v) for k, v in g.items()}
+    out, v = {}, float(base) * 1e3
+    for y in range(int(d["base_year"]) + 1, int(cfg["horizon_last_year"]) + 1):
+        v *= 1 + rate[min([e for e in ends if e >= y] or [ends[-1]])]
+        out[y] = v
+    return out
+
+
+def level_deliverability(cfg: dict, level: str) -> str | None:
+    """The deliverability path of a level (deliverability.level_path; null = none). No `deliverability` block: none."""
+    d = cfg.get("deliverability")
+    if not d:
+        return None
+    lp = d.get("level_path") or {}
+    if level not in lp:
+        raise ValueError(f"deliverability.level_path has no entry for build-rate level {level!r} (null = no ceiling)")
+    return lp[level]
+
+
+def module_floor(cfg: dict, group: str) -> dict:
+    """§77: {year: MW/yr} floor on the module's R (deliverability.module_floor[group]: years, path); {} if none."""
+    f = ((cfg.get("deliverability") or {}).get("module_floor") or {}).get(group)
+    if not f:
+        return {}
+    path = deliverability_path(cfg, f["path"], group) or {}
+    return {int(y): path[int(y)] for y in f["years"] if int(y) in path}
+
+
+def apply_deliverability(cfg: dict, level: str, t: pd.DataFrame) -> pd.DataFrame:
+    """§77: the module table with the deliverability layer. Adds module_ceiling_mw_per_yr (the module's own),
+    deliverability_mw_per_yr (national rows), deliverability_factor = min(1, D / national module ceiling) by group and
+    year, deliverability_binds; ceiling_mw_per_yr = module ceiling x factor (national: min(module, D); regional: scaled
+    by the national factor). r_data_mw_per_yr is unchanged."""
+    t = t.copy()
+    t["module_ceiling_mw_per_yr"] = t["ceiling_mw_per_yr"]
+    t["deliverability_mw_per_yr"] = np.nan
+    t["deliverability_factor"] = 1.0
+    name = level_deliverability(cfg, level)
+    for g in t["group"].unique():
+        path = deliverability_path(cfg, name, g) if name else None
+        if not path:
+            continue
+        nat = (t["group"] == g) & (t["region"] == NATIONAL)
+        n = t[nat].set_index("year")
+        dv = pd.Series(path).reindex(n.index)
+        fac = np.minimum(1.0, dv / n["ceiling_mw_per_yr"].where(n["ceiling_mw_per_yr"] > 0)).fillna(1.0)
+        gm = t["group"] == g
+        t.loc[nat, "deliverability_mw_per_yr"] = t.loc[nat, "year"].map(dv).values
+        t.loc[gm, "deliverability_factor"] = t.loc[gm, "year"].map(fac).fillna(1.0).values
+    t["ceiling_mw_per_yr"] = t["module_ceiling_mw_per_yr"] * t["deliverability_factor"]
+    t["deliverability_binds"] = t["deliverability_factor"] < 1.0 - 1e-12
+    return t
+
+
 def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, shares: pd.DataFrame,
                basis: pd.DataFrame | None = None) -> pd.DataFrame:
     """R_data (national) and regional ceilings, MW/yr, for every year near_term.first_year..horizon.
@@ -231,6 +299,7 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
         else:
             ipm, base_r0 = None, float(r0(base, cfg["r0_rule"][lv["r0"]]).get(g, 0.0))
         q = near[(near["group"] == g) & (near["region"] == NATIONAL)].set_index("year")["mw"]
+        floor = module_floor(cfg, g)
         r = {}
         for y in years:
             if y <= nt["last_year"]:
@@ -241,6 +310,8 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
                 r[y] = r[nt["last_year"]] * (1 + growth) ** (y - nt["last_year"])
             if ipm:   # IPM's shape: R = Step 1 per build year (implied build windows)
                 r[y] = ipm_rate_for_year(cfg, ipm, y, growth)
+            elif y in floor:   # §77: queue-visibility floor (storage 2029-30); later years compound from it
+                r[y] = max(r[y], floor[y])
         top = tiers(cfg, g, level_tier_set(cfg, level))["upto"].max()
         mult = level_params(cfg, level, g, "regional_mult")
         sh = shares[shares["group"] == g].set_index("region")["share"]
@@ -452,7 +523,7 @@ def derived_rate_table(cfg: dict, level: str, tables: dict, uplift: pd.DataFrame
 
 def rate_tables(cfg: dict, levels, base, near, shares, basis=None, uplift=None) -> dict:
     """Rate tables of the given levels: data levels by rate_table, derived ones (benchmark_of / max_of) from their
-    dependencies, resolved recursively."""
+    dependencies' module tables, resolved recursively; then each level's deliverability layer (§77)."""
     out = {}
 
     def get(lv):
@@ -467,4 +538,4 @@ def rate_tables(cfg: dict, levels, base, near, shares, basis=None, uplift=None) 
                 out[lv] = rate_table(cfg, lv, base, near, shares, basis)
         return out[lv]
 
-    return {lv: get(lv) for lv in levels}
+    return {lv: apply_deliverability(cfg, lv, get(lv)) for lv in levels}

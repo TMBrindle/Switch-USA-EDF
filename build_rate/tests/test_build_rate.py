@@ -742,3 +742,139 @@ def test_reform_bp_siting_level():
         assert s.loc[(reg, 2035), "ceiling_mw_per_yr"] == pytest.approx(max(r * 3.0 * 2.0, floor))
         assert s.loc[(reg, 2035), "ceiling_mw_per_yr"] >= a.loc[(reg, 2035), "ceiling_mw_per_yr"]
     assert "reform_bp_siting" in cli.LEVELS
+
+
+# ---------------------------------------------------------------------------- §77 deliverability layer
+
+def test_deliverability_paths_match_brief():
+    """§77: the config's paths are the brief's 2025 actuals compounded by its growth table, annually; they reproduce
+    the brief's rounded 2030 / 2045 ceilings; levels map to central (central and the existing levels) or high (high
+    and the reform levels); gas has none."""
+    brief = {"central": {2030: {"solar": 50, "wind_onshore": 15, "storage": 40},
+                         2045: {"solar": 75, "wind_onshore": 25, "storage": 65}},
+             "high": {2030: {"solar": 65, "wind_onshore": 20, "storage": 55},
+                      2045: {"solar": 110, "wind_onshore": 40, "storage": 100}}}
+    for path, by_year in brief.items():
+        for y, v in by_year.items():
+            for g, gw in v.items():
+                assert rates.deliverability_path(CFG, path, g)[y] / 1e3 == pytest.approx(gw, rel=0.015), (path, g, y)
+    d = rates.deliverability_path(CFG, "central", "solar")
+    assert d[2026] == pytest.approx(27200 * 1.129) and d[2031] == pytest.approx(d[2030] * 1.037)
+    assert d[2050] == pytest.approx(d[2045] * 1.014 ** 5)                      # after 2045: the last rate
+    assert rates.deliverability_path(CFG, "central", "gas") is None
+    lp = CFG["deliverability"]["level_path"]
+    assert set(lp) == set(cli.LEVELS)
+    assert {lv for lv, p in lp.items() if p == "high"} == {"high", "reform_bp", "reform_bp_siting", "high_reform"}
+    assert {lv for lv, p in lp.items() if p == "central"} == {"low", "central", "reform", "high_ipm"}
+    with pytest.raises(ValueError, match="level_path"):
+        rates.level_deliverability(dict(CFG, levels=dict(CFG["levels"], new={"r0": "central", "growth": "central"})),
+                                   "new")
+    assert rates.level_deliverability({k: v for k, v in CFG.items() if k != "deliverability"}, "central") is None
+
+
+def _deliv_cfg(d_mw: dict, path="central", floor=None):
+    """CFG with a flat deliverability path per group (MW/yr, fixture values) for every level."""
+    dv = {"base_year": 2025, "actual_gw": {g: v / 1e3 for g, v in d_mw.items()},
+          "cagr": {path: {g: {2045: 0.0} for g in d_mw}}, "level_path": {lv: path for lv in CFG["levels"]},
+          "module_floor": floor or {}}
+    return dict(CFG, deliverability=dv)
+
+
+def test_deliverability_layer_min_and_regional_scaling():
+    """§77: final national ceiling = min(top x R, D); where D cuts, each regional ceiling (floors included) is scaled
+    by the national factor; R is unchanged; derived levels take the layer after their dependencies' module tables."""
+    b = rates.base_rates(_additions(), 2015, 2025)
+    shares = rates.regional_shares(b, [2016, 2025])
+    nt = rates.near_term(_queue(), rates.completion_rates(_queue(), CFG), rates.cod_delay(_queue(), CFG), CFG)
+    base_cfg = dict(CFG, groups=["wind_onshore", "solar"], deliverability=None)
+    up = pd.DataFrame([{"group": "wind_onshore", "region": "SPP", "delta": 0.3},
+                       {"group": "wind_onshore", "region": "national", "delta": 0.3}])
+    mod = rates.rate_tables(base_cfg, ["central", "high_reform"], b, nt, shares, None, up)
+    wind_mod = mod["central"].set_index(["group", "region", "year"]).loc[("wind_onshore", "national", 2035),
+                                                                          "ceiling_mw_per_yr"]
+    d = 0.5 * wind_mod                                    # binds wind in 2035; solar's path is far above its ceiling
+    cfg = dict(_deliv_cfg({"wind_onshore": d, "solar": 1e9}), groups=["wind_onshore", "solar"])
+    fin = rates.rate_tables(cfg, ["central", "high_reform"], b, nt, shares, None, up)
+    for lv in ("central", "high_reform"):
+        m, f = (x[lv].set_index(["group", "region", "year"]) for x in (mod, fin))
+        pd.testing.assert_series_equal(m["r_data_mw_per_yr"], f["r_data_mw_per_yr"])          # pace unchanged
+        pd.testing.assert_series_equal(m["ceiling_mw_per_yr"], f["module_ceiling_mw_per_yr"], check_names=False)
+        nat = f.xs("national", level="region")
+        assert (nat["ceiling_mw_per_yr"] <= nat["module_ceiling_mw_per_yr"] + 1e-9).all()
+        w = nat.loc["wind_onshore"]
+        assert np.allclose(w["ceiling_mw_per_yr"], np.minimum(w["module_ceiling_mw_per_yr"], d))
+        fac = w["ceiling_mw_per_yr"] / w["module_ceiling_mw_per_yr"]
+        for reg in ("SPP", "MISO"):
+            r = f.xs(("wind_onshore", reg), level=("group", "region"))
+            assert np.allclose(r["ceiling_mw_per_yr"], r["module_ceiling_mw_per_yr"] * fac.reindex(r.index))
+        assert bool(w.loc[2035, "deliverability_binds"]) and not nat.loc["solar"]["deliverability_binds"].any()
+        assert (nat.loc["solar"]["ceiling_mw_per_yr"] == nat.loc["solar"]["module_ceiling_mw_per_yr"]).all()
+        assert f.loc[("wind_onshore", "SPP", 2035), "deliverability_mw_per_yr"] != f.loc[
+            ("wind_onshore", "SPP", 2035), "deliverability_mw_per_yr"]                         # NaN on regional rows
+    # null path for a level: no layer
+    cfg_null = dict(cfg, deliverability=dict(cfg["deliverability"], level_path=dict(
+        cfg["deliverability"]["level_path"], central=None)))
+    t = rates.rate_tables(cfg_null, ["central"], b, nt, shares)["central"]
+    assert (t["ceiling_mw_per_yr"] == t["module_ceiling_mw_per_yr"]).all() and not t["deliverability_binds"].any()
+
+
+def test_storage_module_floor_2029_30():
+    """§77: R >= the central path in the floor years (storage 2029-30 in config); later years compound from the
+    floored 2030 value; other years and groups unchanged."""
+    f = CFG["deliverability"]["module_floor"]
+    assert f == {"storage": {"years": [2029, 2030], "path": "central"}}
+    fl = rates.module_floor(CFG, "storage")
+    cen = rates.deliverability_path(CFG, "central", "storage")
+    assert fl == {2029: cen[2029], 2030: cen[2030]} and rates.module_floor(CFG, "solar") == {}
+    add = pd.concat([_additions(), pd.DataFrame([{"group": "storage", "transreg": "ERCOT", "year": y, "mw": 5.0}
+                                                 for y in range(2021, 2026)])])
+    b = rates.base_rates(add, 2015, 2025)
+    shares = rates.regional_shares(b, [2016, 2025])
+    nt = rates.near_term(_queue(), rates.completion_rates(_queue(), CFG), rates.cod_delay(_queue(), CFG), CFG)
+    cfg = dict(CFG, groups=["wind_onshore", "storage"])
+    t = rates.rate_table(cfg, "central", b, nt, shares)
+    nat = t[t.region == "national"].set_index(["group", "year"])["r_data_mw_per_yr"]
+    no = rates.rate_table(dict(cfg, deliverability=None), "central", b, nt, shares)
+    nat0 = no[no.region == "national"].set_index(["group", "year"])["r_data_mw_per_yr"]
+    assert nat[("storage", 2029)] == pytest.approx(cen[2029]) and nat[("storage", 2030)] == pytest.approx(cen[2030])
+    assert nat[("storage", 2028)] == nat0[("storage", 2028)]
+    gp = rates.growth_path(CFG, "central", "storage")
+    assert nat[("storage", 2031)] == pytest.approx(cen[2030] * (1 + gp[2031]))
+    pd.testing.assert_series_equal(nat.loc["wind_onshore"], nat0.loc["wind_onshore"])
+    reg = t[(t.region == "ERCOT") & (t.group == "storage")].set_index("year")["r_data_mw_per_yr"]
+    assert reg[2030] == pytest.approx(cen[2030])                                              # one region, share 1
+
+
+def test_case_writer_truncates_bands_at_final_ceiling(tmp_path, monkeypatch):
+    """§77: with the deliverability columns, the case writer cuts the tier bands at the period's final ceiling (window
+    mean, as a multiple of R); R and the adders are unchanged. Tables without the columns (built before §77) write the
+    full bands, as before. Committed builds above the final ceiling raise it to them."""
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir = _tables(tmp_path)
+    s = {"build_rate": {"enabled": True, "level": "central", "tables_dir": str(tdir), "groups": ["wind_onshore", "solar"]}}
+    d0 = _case(tmp_path)
+    switch_case.write_case_inputs(d0, s)
+    old = pd.read_csv(d0 / "build_rate_tiers.csv")
+    assert list(old[old.BR_GROUP == "wind_onshore"]["br_tier_width"]) == pytest.approx([1.3, 0.45, 0.25])
+    t = pd.read_csv(tdir / "rates_central.csv")
+    nat = t["region"] == "national"
+    t["module_ceiling_mw_per_yr"] = t["ceiling_mw_per_yr"]
+    t["deliverability_mw_per_yr"] = np.where(nat, np.where(t["group"] == "wind_onshore", 12000.0, 1e9), np.nan)
+    t.loc[nat, "ceiling_mw_per_yr"] = np.minimum(t.loc[nat, "ceiling_mw_per_yr"], t.loc[nat, "deliverability_mw_per_yr"])
+    t.to_csv(tdir / "rates_central.csv", index=False)
+    d1 = _case(tmp_path / "b") if (tmp_path / "b").mkdir() is None else None
+    switch_case.write_case_inputs(d1, s)
+    new = pd.read_csv(d1 / "build_rate_tiers.csv")
+    w = new[new.BR_GROUP == "wind_onshore"].set_index("BR_TIER")
+    assert list(w["br_tier_width"]) == pytest.approx([1.3, 0.2, 0.0])         # 12000 / 8000 = 1.5 x R
+    pd.testing.assert_series_equal(w["br_tier_adder_per_mw"],
+                                   old[old.BR_GROUP == "wind_onshore"].set_index("BR_TIER")["br_tier_adder_per_mw"])
+    pd.testing.assert_frame_equal(new[new.BR_GROUP == "solar"].reset_index(drop=True),
+                                  old[old.BR_GROUP == "solar"].reset_index(drop=True))      # not binding: unchanged
+    assert pd.read_csv(d1 / "build_rate_periods.csv").set_index("BR_GROUP").loc["wind_onshore", "br_rate_data_mw"] == 8000
+    # committed wind build of 70,000 MW in 2026-30 (> 12,000 x 5) raises the final ceiling to it (still under 2 x R)
+    pd.DataFrame({"GENERATION_PROJECT": ["w1"], "build_year": [2027], "build_gen_predetermined": [70000.0]}).to_csv(
+        d1 / "gen_build_predetermined.csv", index=False)
+    switch_case.write_case_inputs(d1, s)
+    w = pd.read_csv(d1 / "build_rate_tiers.csv").query("BR_GROUP == 'wind_onshore'")
+    assert w["br_tier_width"].sum() * 8000 * 5 == pytest.approx(70000.0, rel=1e-6)

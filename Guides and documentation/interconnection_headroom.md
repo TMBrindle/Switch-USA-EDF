@@ -6,6 +6,11 @@
 
 ---
 
+**Relation to the build-rate module (§77):** headroom is grid capacity and its cost, by zone. Queue processing speed
+(completion, time to operation) is a pace constraint in the build-rate module, and its national deliverability ceiling
+uses no interconnection evidence, so the two don't count it twice (`Guides and documentation/build_rate.md`,
+"Deliverability ceiling").
+
 ## What it does
 
 Each ReEDS BA has intra-zonal network capacity **H** (MW). How full the zone is, **s = used / H**,

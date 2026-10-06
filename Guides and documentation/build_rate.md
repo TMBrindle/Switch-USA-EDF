@@ -220,7 +220,8 @@ is higher.
 
 ## How R is computed, by year and region (as of §74)
 
-**National data rate R[G, y]** (MW/yr; `rates.rate_table`):
+**National data rate R[G, y]** (MW/yr; `rates.rate_table`). Since §77 the national ceiling is also capped by the
+deliverability layer (below the growth section):
 
 - **2026-2030 (near-term years):** R = max(Q[G, y], R0[G]).
   - **Q, the expected queue additions in year y:** active LBNL Queued Up requests (end-2025) with an executed IA or
@@ -247,6 +248,8 @@ is higher.
 - **Why the queue thins:** projects that will come online in 2029-30 mostly don't have an executed IA yet. So the
   visible queue thins, and R falls back to R0 (26.9 solar, 11.6 storage) in 2029-30. It then grows from 2031.
 - **What it is not:** this reflects what the queue file can see, not a forecast of falling build.
+- **§77:** storage's R is now floored at the deliverability central path in 2029–30 (see "Deliverability ceiling").
+  Solar's is not: its final ceiling is unaffected.
 
 **What the limit counts:**
 - **Counted:** the constraint counts every new build dated inside the period's window. That is the model's
@@ -332,6 +335,105 @@ nationally. 2035 regional wind ceilings, GW/yr, reform_bp → reform_bp_siting:
 - ISONE 0.50 → 1.50;
 - CAISO 1.48 → 2.95;
 - ERCOT 8.55 → 17.11.
+
+## Deliverability ceiling (§77; FOR TOM'S REVIEW)
+
+A second, national layer on top of the module (Tom's decision, from the brief "US Wind, Solar & Storage Build-Rate
+Limits to 2045", 6 Oct 2026). The module above (queue pipeline, R0, round-1 growth) is the **queue / pace layer**: it
+sets R, the cost bands and the ramp. The new layer is a **deliverability ceiling** D[G, y], an upper bound on what the
+US could physically build each year. Each year:
+
+```
+final national ceiling = min(module ceiling = top band x R, D)
+factor                 = final / module ceiling            (1 where D does not bind)
+regional ceiling       = module regional ceiling x factor  (floors included)
+```
+
+- **Regional ceilings scale with the national cut,** so regional limits can't add back what the national cap removes.
+- **R and the bands are unchanged.** The case writer (`switch_case.write_case_inputs`) truncates the tier bands at
+  the period's final ceiling: window mean of the final ceiling ÷ window mean of R, as a multiple of R. Bands above it
+  get width 0, and a band it cuts keeps its adder. Committed (predetermined) builds above the final ceiling raise it
+  to the committed amount, as before. Tables built before §77 (no `deliverability_mw_per_yr` column, e.g. the running
+  S0 chain's) write the full bands, so their cases are unchanged.
+- **Where D is below 1.3 R, no tier adder is paid** (only the free band is left). In S0 (central) the final ceiling is
+  0.94–0.98 R in the 2028 period for all three groups, and 0.82–1.00 R for storage in every period. So where D binds,
+  the cost bands mostly stop acting; the ramp still does.
+- **"off"** (S3, S5, P from 2040) has no build_rate files, so neither layer applies.
+- **Outputs:** `rates_<level>.csv` gains `module_ceiling_mw_per_yr`, `deliverability_mw_per_yr` (national rows),
+  `deliverability_factor` and `deliverability_binds`; `ceiling_mw_per_yr` is the final ceiling.
+- **Report:** `python scripts/deliverability_report.py` (from build_rate/) writes `outputs/deliverability_report.csv`
+  and `outputs/deliverability_s0_vs_placeholder.csv`.
+
+**The paths** (`deliverability` in `build_rate/config.yaml`; the brief is the source note there):
+- **Base:** the brief's 2025 actuals: utility solar 27.2 GWac, onshore wind 5.2 GW, battery storage 15.8 GW of power.
+  The module's own EIA-860M 2025 additions are 29.6 / 6.3 / 16.4 GW. The brief is used as given.
+- **Annual path:** compounded at the brief's growth table, period by period: 2026–30 the 2025–30 rate, 2031–35 the
+  2030–35 rate, and so on; 2046–50 the 2040–45 rate.
+- **Values, GW/yr:**
+
+  | Path | Solar 2030 / 2045 | Wind 2030 / 2045 | Storage 2030 / 2045 |
+  |---|---|---|---|
+  | central | 49.9 / 74.7 | 15.0 / 25.0 | 40.0 / 65.0 |
+  | high (the observed frontier) | 64.9 / 109.7 | 20.0 / 40.1 | 54.8 / 99.4 |
+
+- **Path per level (`level_path`):**
+  - central for central (S0), low, reform and high_ipm;
+  - high for high, reform_bp, reform_bp_siting and high_reform;
+  - the brief's low path is recorded but unused;
+  - gas has no path, so no ceiling.
+- **Units:** solar in AC, as the module and the cases (EIA-860M nameplate). Rooftop solar and offshore wind are
+  excluded, as in the module.
+
+**Storage floor in 2029–30 (module layer, `deliverability.module_floor`):**
+- **What:** storage's R is floored at the central path in 2029 and 2030 (33.2 and 40.0 GW/yr) for every level.
+- **Why:** the queue rate dips (22.7 / 27.7 / 20.8 → 9.8 / 8.6 GW) because projects for those years have not yet
+  signed IAs. It is a queue-visibility artefact, not a forecast.
+- **Effect after 2030:** R compounds from the floored 2030 value, so storage's later module R is about 3.5× the §76
+  value.
+- **Solar needs no floor.** Its queue rate dips too (33.4 → 17.2 / 12.9 GW, R held at R0 26.9). But its module ceiling
+  (53.7) stays above the central path (44.2 / 49.9) in 2029–30, and D binds solar in every later year for every
+  level, so a floor would not change any final ceiling.
+
+**Which layer binds, 2026–2045:**
+
+| Level | Wind | Solar | Storage |
+|---|---|---|---|
+| central | D 2026–36, module 2037–45 | D every year | D every year |
+| reform_bp, reform_bp_siting | D 2026–34, module 2035–45 | D every year | D every year |
+| high | D every year | D, except module in 2030 | D every year |
+| high_reform | D every year | D every year | D every year |
+
+**Consequences:**
+- **The high and reform levels have the same national ceiling wherever D binds,** for example solar and storage in
+  every year. They still differ in R (and so in the ramp and the tier edges) and in their regional ceilings.
+  reform_bp wind is module-bound from 2035, below high's D.
+- **2026–28 sits below the developer-reported pipeline.** Compounding from the 2025 trough gives 2026 ceilings of
+  solar 30.7, wind 6.4 and storage 19.0 GW (central), against EIA's 2026 planned additions of 43.4, about 9.8 onshore
+  wind and 24.3 GW. The brief notes those planned figures overshoot.
+  - Over the 2028 period window (2026–28), central D sums to 104 GW solar, 24 GW wind and 70 GW storage. The module's
+    completion-weighted queue expects 111, 20 and 71 GW.
+  - Where the case carries the 860M pipeline as predetermined builds, there is little or no room for optimised
+    builds in 2026–28, and the case writer may raise the ceiling to the committed MW.
+  - FLAG FOR TOM: whether to start the path from 2026's planned or under-construction pipeline instead.
+
+**Interconnection evidence is not counted twice (the brief's caution).** The brief warns against putting
+interconnection evidence into both the national cap and the headroom module. Here:
+- **The deliverability layer uses none.** It takes the brief's least-circular evidence: observed build records,
+  manufacturing capacity and the international share-of-supply frontier. It does not use the brief's IA-backlog
+  conversion (35–50 GWac/yr solar, 25–35 storage, 10–12 wind).
+- **Queue processing is a pace constraint (the module layer).** Queue data set *how fast* projects move through
+  interconnection: completion shares and time to operation give R in 2026–30. reform_bp's benchmark raises that pace
+  (better completion, shorter queue durations). This is a throughput limit on the development pipeline, national and
+  shared across zones, with no location or network cost in it.
+- **Headroom is grid capacity and cost (the headroom module).** It prices *where* new capacity can connect: the
+  existing network's spare capacity by zone and the cost of upgrades beyond it. It uses Queued Up only for locations
+  (county), never for completion or timing.
+- **Why both can stay:** the pace layer can bind with plenty of headroom (a slow queue on an uncongested grid), and
+  headroom can bind below the pace (a fast queue into a full zone). Neither cost term contains the other. The
+  remaining overlap risk is that LBNL network-upgrade costs partly reflect queue congestion. It is limited as before:
+  the build-rate adders come from IPM and ReEDS, never from LBNL interconnection costs.
+- **Order 2023:** the brief notes Order 2023 reforms could raise queue throughput. That belongs in the pace layer
+  (reform_bp), not in D.
 
 ## Reform benchmarked on best-performing states (`reform_bp`, §74; FOR TOM'S REVIEW)
 
@@ -437,7 +539,8 @@ central 21.1 wind / 68.6 solar / 34.0 storage):
   throughput. Neither cost term contains the other. Possible overlap: LBNL network-upgrade costs
   partly reflect queue congestion, which is itself a rate effect. To limit it, the build-rate adders
   come from IPM and ReEDS, never from LBNL interconnection costs. Both use Queued Up, but for
-  different quantities (headroom: county location; build rate: stage and COD).
+  different quantities (headroom: county location; build rate: stage and COD). The §77 deliverability ceiling uses no
+  interconnection evidence (see "Deliverability ceiling": queue processing is pace, headroom is grid capacity/cost).
 
 ## Settings
 

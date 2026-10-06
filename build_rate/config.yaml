@@ -77,6 +77,49 @@ growth:
   central: {wind_onshore: 0.05, solar: 0.05, storage: 0.08, gas: 0.02}   # PLACEHOLDER
   high:    {wind_onshore: 0.10, solar: 0.10, storage: 0.15, gas: 0.05}   # PLACEHOLDER
 
+# National DELIVERABILITY CEILING (§77, Tom's decision), a second layer on top of the module (queue/pace) layer above.
+# Final national ceiling per group and year = min(module ceiling = top band x R, deliverability ceiling); where it
+# cuts, every regional ceiling of that group and year is scaled by the same factor (regional limits can't add back
+# what the national cap removes). R (the pace) and the tier bands below the final ceiling are unchanged; the case
+# writer truncates the bands at it. A level whose build rate is "off" has neither layer.
+# Source: "US Wind, Solar & Storage Build-Rate Limits to 2045" (brief to Tom, 6 Oct 2026), from its least-circular
+# evidence: observed US build records (EIA), domestic manufacturing capacity (SEIA / DOE-LBNL / Benchmark) and the
+# international share-of-supply frontier (Cherp et al. 2021; China NEA and Germany FA Wind 2025). Not from
+# interconnection data (that stays in the headroom module; see Guides and documentation/build_rate.md). Units: utility
+# solar GWac (EIA utility-scale >= 1 MW; rooftop excluded), onshore wind GW (offshore excluded), battery storage GW of
+# power. Path: actual_gw (2025) compounded by the brief's growth table, annually: years in (end of the previous
+# period, period end] take that period's rate; years after the last key take the last rate (2046-50).
+#   central (2030 / 2045): solar 49.9 / 74.7, wind 15.0 / 25.0, storage 40.0 / 65.0 GW/yr
+#   high, the observed frontier: solar 64.9 / 109.7, wind 20.0 / 40.1, storage 54.8 / 99.4 GW/yr
+deliverability:
+  base_year: 2025
+  actual_gw: {solar: 27.2, wind_onshore: 5.2, storage: 15.8}   # the brief's 2025 actuals (EIA, Feb 2026)
+  cagr:                            # the brief's "implied compound annual growth of the ceiling", keyed by period end
+    low:                           # record only (no level uses it): demonstrated build, interconnection-limited
+      solar:        {2030: 0.052, 2035: 0.027, 2040: 0.024, 2045: 0.000}
+      wind_onshore: {2030: 0.140, 2035: 0.000, 2040: 0.037, 2045: 0.000}
+      storage:      {2030: 0.096, 2035: 0.037, 2040: 0.031, 2045: 0.000}
+    central:                       # domestic manufacturing + normal imports, US share-of-supply growth of good years
+      solar:        {2030: 0.129, 2035: 0.037, 2040: 0.031, 2045: 0.014}
+      wind_onshore: {2030: 0.236, 2035: 0.037, 2040: 0.041, 2045: 0.026}
+      storage:      {2030: 0.204, 2035: 0.046, 2040: 0.037, 2045: 0.016}
+    high:                          # observed international frontier (~4%/yr of supply solar, ~2% wind)
+      solar:        {2030: 0.190, 2035: 0.055, 2040: 0.033, 2045: 0.019}
+      wind_onshore: {2030: 0.309, 2035: 0.070, 2040: 0.046, 2045: 0.027}
+      storage:      {2030: 0.283, 2035: 0.064, 2040: 0.037, 2045: 0.021}
+  # Path per build-rate level (null = no deliverability ceiling). Central (S0) and the other existing levels: central;
+  # high and the reform levels: high. Gas has no path (no ceiling).
+  level_path: {low: central, central: central, reform: central, high_ipm: central,
+               high: high, reform_bp: high, reform_bp_siting: high, high_reform: high}
+  # Module-layer floor: R >= the path in these years (applies to every level, so derived levels inherit it). Storage's
+  # queue rate dips in 2029-30 (22.7 / 27.7 / 20.8 -> 9.8 / 8.6 GW) because projects for those years have not yet
+  # signed IAs: a queue-visibility artefact. R after 2030 compounds from the floored 2030 value.
+  # Solar's queue rate dips too (33.4 -> 17.2 / 12.9 GW, R held at R0 26.9) but its module ceiling (2 x 26.9 = 53.7)
+  # stays above the central path (44.2 / 49.9) in 2029-30 and the deliverability ceiling binds every later year, so a
+  # floor would not change solar's final ceilings (not set; add `solar: {...}` here to apply it).
+  module_floor:
+    storage: {years: [2029, 2030], path: central}
+
 # Ramp bound between model periods: R_p <= (1+growth)^W x build_{p-1}/W_{p-1} + floor.
 # PLACEHOLDER floors (MW/yr, national); ReEDS uses 100-300 MW per state (gbin_min).
 ramp_floor_mw: {wind_onshore: 1000, solar: 1000, storage: 1000, gas: 1000}   # PLACEHOLDER

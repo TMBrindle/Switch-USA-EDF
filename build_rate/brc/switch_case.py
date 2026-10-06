@@ -185,6 +185,10 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
     rows_p, rows_t, ceil = [], [], []
     for g in groups:
         rd = nat[nat["group"] == g].set_index("year")["r_data_mw_per_yr"]
+        # §77: tables with the deliverability layer carry the final national ceiling (min(top x R, D)); older tables
+        # don't, and their bands are written as before
+        fin = (nat[nat["group"] == g].set_index("year")["ceiling_mw_per_yr"]
+               if "deliverability_mw_per_yr" in nat.columns else None)
         tg = tiers[tiers["group"] == g]
         top = float(tg["width"].sum())
         gproj = gens.loc[gens["br_gen_group"] == g, "GENERATION_PROJECT"]
@@ -192,17 +196,27 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
             p, s, e = int(pr["INVESTMENT_PERIOD"]), int(pr["period_start"]), int(pr["period_end"])
             w = e - s + 1
             r = _window_mean(rd, s, e)        # = sum of R[y] over the window / W
+            cap_x = top                       # the period's national ceiling as a multiple of R
+            if fin is not None and r > 0:
+                cm = _window_mean(fin, s, e)  # window sum of min(top x R[y], D[y]) / W
+                if cm < top * r * (1 - 1e-9):
+                    cap_x = cm / r
             committed = 0.0
             if predet is not None:
                 d = predet[predet["GENERATION_PROJECT"].isin(gproj)
                            & (predet["build_year"].between(s, e) | (predet["build_year"] == p))]
                 committed = float(d["build_gen_predetermined"].sum())
-            if committed > top * r * w + 1e-6:
+            if committed > cap_x * r * w + 1e-6 and committed <= top * r * w + 1e-6:
+                logger.warning("build_rate: committed %s build in period %s (%.0f MW) exceeds the deliverability "
+                               "ceiling; raising it to the committed build", g, p, committed)
+                cap_x = committed / (r * w)
+            elif committed > top * r * w + 1e-6:
                 logger.warning("build_rate: committed %s build in period %s (%.0f MW) exceeds the ceiling; "
                                "raising the rate to %.0f MW/yr", g, p, committed, committed / (top * w))
                 r = committed / (top * w)
+                cap_x = top
             rows_p.append({"BR_GROUP": g, "PERIOD": p, "br_rate_data_mw": round(r, 3)})
-            ceil.append({"group": g, "period": p, "ceiling_mw": top * r * w})
+            ceil.append({"group": g, "period": p, "ceiling_mw": cap_x * r * w})
             c = costs[costs["GENERATION_PROJECT"].isin(gproj)] if costs is not None else None
             capex = np.nan
             if c is not None and len(c):
@@ -213,7 +227,9 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
                 # of the period's build window up to that year
                 last = t.get("adders_last_year", np.nan)
                 frac = 1.0 if pd.isna(last) else min(max(int(last) - s + 1, 0), w) / w
-                rows_t.append({"BR_GROUP": g, "PERIOD": p, "BR_TIER": t["tier"], "br_tier_width": t["width"],
+                # §77: bands truncated at the final ceiling (bands above it get width 0)
+                width = t["width"] if cap_x >= top else round(min(max(cap_x - t["lower"], 0.0), t["width"]), 6)
+                rows_t.append({"BR_GROUP": g, "PERIOD": p, "BR_TIER": t["tier"], "br_tier_width": width,
                                "br_tier_adder_per_mw": round(float(t["adder"]) * frac * (0 if np.isnan(capex) else capex), 2)})
     slack_kw = br.get("ceiling_slack_cost")
     grp_rows = [{"BR_GROUP": g, "br_growth": float(nat[nat["group"] == g]["growth"].iat[0]),

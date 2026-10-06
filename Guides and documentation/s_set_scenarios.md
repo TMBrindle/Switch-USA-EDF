@@ -37,6 +37,9 @@ Each case is the S0 v3 defaults plus only the settings below:
   - gas-turbine cap: neither the cap files nor PowerGenome's `MaxCapTag_GasTurbineSupply` rows.
 - **`high_reform`** is a build-rate level (`build_rate/config.yaml`; §74: per region and year the larger of `high`
   and `reform_bp`). L and P follow its definition with no edits to the rows.
+- **Deliverability ceiling (§77):** every build-rate level's national ceiling is also capped by the brief's
+  deliverability path: central for S1 (and S0), high for S2, S4, L and P (`high`, `high_reform`). With "off" (S3, S5,
+  P from 2040) neither layer applies. See `Guides and documentation/build_rate.md`, "Deliverability ceiling".
 
 **Transmission `unconstrained`** (S3, S5; `s0_production.tx_policy.mode: unconstrained`):
 - the same line handling as the S0_tx national cap: interregional lines may be built, and the case's per-line limits
