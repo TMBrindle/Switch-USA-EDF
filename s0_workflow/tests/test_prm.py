@@ -234,7 +234,8 @@ def test_settings_axis_column_and_legacy():
                                     "design": "regional", "reserve_rows": "compact",
                                     "stress_days": {"formulation": "light"}}}},
                                 "legacy": {"s0_production": {"prm": {"design": "legacy"}}}}
-    assert ax["s0_production"]["on_pgdays"]["s0_production"]["prm"] == {"design": "legacy"}
+    # §81: the regression row's prm.design is its prm_design column's (legacy), not on_pgdays'
+    assert "prm" not in ax["s0_production"]["on_pgdays"]["s0_production"]
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
     regional = set(si.loc[(si.prm_design == "regional") & (si.s_set == "none"), "case_id"])   # §75 S-set aside
     assert {c for c in regional if not ("S0_tx" in c or "BILL" in c)} == {"S0prod_A", "S0prod_B", "s4x1_S0prod_2035_prm",
@@ -252,6 +253,7 @@ def test_settings_axis_column_and_legacy():
     assert [c for c in si.columns if a[c] != b[c]] == ["case_id", "prm_design"] and a.year == 2035
     # legacy: no settings change, no extra options; regional: the extreme-day script off, modules swapped
     leg = s0prod.deep_merge(s0, ax["s0_production"]["on_pgdays"]["s0_production"])
+    leg = s0prod.deep_merge(leg, ax["prm_design"]["legacy"]["s0_production"])        # the regression row's column
     s = {"model_adjustment_scripts": {"Add extreme day": {"script": "x"}, "Other": {"script": "y"}}}
     before = copy.deepcopy(s)
     assert prm.apply_settings(s, leg) is False and s == before and prm.scenario_options(leg) == ""

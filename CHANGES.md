@@ -3766,3 +3766,43 @@ CHANGES §80 has the S0prod_A-vs-v3 check and the reuse report):
   reference's head; input-writing code is covered by the input comparison. The default stays §71's rule.
 - **Windows path:** `test_chain_reuse` compares the provenance path in POSIX form.
 - **Results:** pandas 3.0.6: 224 passed; 1.4.4: 223 passed, 1 skipped.
+
+
+## 81. One Column per Setting: Regression Row Builds Again
+
+**Date:** 2026-10-07 · **Branches:** `tom/s0-prod-scripts` and `tom/s0-v3-scenarios`
+
+**Bug (VM):** the committed regression row `s4x1_S0prod_2035` doesn't build at 00b043b. The case build refuses a key
+set by two columns: `s0_production.prm.design` and `s0_production.tx_policy.mode` were set by `on_pgdays` and by the
+row's `prm_design` / `tx_bill` columns (both `legacy`).
+
+**A check of every committed row found three more** (leaf paths set by two columns, or a block and a key inside it):
+
+| Rows | Key | Columns |
+|---|---|---|
+| `s4x1_S0prod_2035` | `prm.design`, `tx_policy.mode` | `s0_production` (on_pgdays) + `prm_design` / `tx_bill` |
+| S3, S5 and their 2035 rows (§75) | `tx_policy.mode` | `tx_bill` (s0_tx) + `s_set` |
+| `s4x1_S0_tx_2035_forcedAB` (§60) | `forced_tx` | `forced_tx` + `tx_sens` (forced_ab) |
+| `BILL_central_siting` (§76; prod branch only) | `levels_by_period.build_rate.2035` | `tx_bill` + `tx_sens` (br_reform_siting) |
+
+**Fix: each key in one column, with the same values.**
+- **`on_pgdays`:** no longer sets `prm.design` or `tx_policy.mode`; the regression row's `prm_design: legacy` and
+  `tx_bill: legacy` do.
+- **New `tx_bill: unconstrained`** (S3, S5): `s0_tx`'s transmission keys with mode unconstrained (the moratorium and
+  cap keys are inert there, kept so the resolution equals §75's). `s_set` S3/S5 no longer set `tx_policy`.
+- **forcedAB row:** `forced_tx = reeds_certain_plus_AB`, `tx_sens = none`. The `tx_sens: forced_ab` value is removed.
+- **New `tx_bill: bill_central_siting`** (prod branch): bill_central with `build_rate {2028: central, 2035:
+  reform_bp_siting}`. The row has `tx_sens = none`, and `tx_sens: br_reform_siting` is removed.
+
+**Same settings as before:**
+- every committed row's resolved settings (s0_production.yml, every column's all-years and year values,
+  `s0_production.settings`, levels by period) are identical before and after, all rows compared;
+- the regression row resolves exactly as it did at 9e2045b (a test);
+- the expected-reuse table is unchanged.
+
+**New check:** `chain_reuse.setting_conflicts(scenario_inputs, management)` lists keys set by two columns (same path,
+or a block and a key inside it; one column's all-years and year values may overlap). A test runs it on every
+committed row and on a synthetic same-key and block-vs-key case.
+
+**Tests:** tests that used `on_pgdays` alone as "the regression case" now add the row's `prm_design` / `tx_bill`
+values. The bill, S-set and forced-tx row tests follow the new columns.

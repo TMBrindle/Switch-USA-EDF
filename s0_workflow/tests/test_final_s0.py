@@ -55,7 +55,8 @@ def test_defaults_and_regression_pins():
     assert s["retirement_friction"]["fraction"] == 0.5 and s["retirement_friction"]["from_period"] == 2030
     assert s["existing_fixed_om"] == "by_period"
     # the regression case: every new piece off / legacy
-    reg = resolved(("s0_production", "on_pgdays"), ("tx_bill", "legacy"), ("retirement_sens", "none"))
+    reg = resolved(("s0_production", "on_pgdays"), ("prm_design", "legacy"), ("tx_bill", "legacy"),
+                   ("retirement_sens", "none"))
     assert reg["tx_policy"]["mode"] == "legacy" and reg["forced_tx"] == "named_projects"
     assert reg["prm"]["design"] == "legacy" and reg["rggi"]["mode"] == "legacy" and reg["ca_wa_carbon"]["mode"] == "legacy"
     assert prm.prm_settings(reg) is None and prm.scenario_options(reg) == ""   # no stress days, light or compact files

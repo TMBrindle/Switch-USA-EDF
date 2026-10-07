@@ -82,10 +82,13 @@ def test_rows_are_s0_plus_the_s_set_settings_only():
     for c in CHAINS:
         x = SI[SI.case_id == c].set_index("year")
         assert list(x.index) == [str(y) for y in YEARS]
+        tx = {"tx_bill"} if c in ("S3", "S5") else set()          # §81: unconstrained transmission is a tx_bill value
         diff = {k for k in SI.columns if k != "year" and (x[k] != a[k]).any()}
-        assert diff <= {"case_id", "s_set", "tax_credits"}, (c, diff)
+        assert diff <= {"case_id", "s_set", "tax_credits"} | tx, (c, diff)
         y = SI[SI.case_id == f"s4x1_{c}_2035"].iloc[0]
-        assert {k for k in SI.columns if y[k] != n[k]} <= {"case_id", "s_set", "tax_credits"}
+        assert {k for k in SI.columns if y[k] != n[k]} <= {"case_id", "s_set", "tax_credits"} | tx
+        if tx:
+            assert (x.tx_bill == "unconstrained").all() and y.tx_bill == "unconstrained"
     rest = SI[~SI.case_id.isin(CHAINS + [f"s4x1_{c}_2035" for c in CHAINS])]
     assert (rest.s_set == "none").all() and SM["all_years"]["s_set"]["none"] is None
     # S0: no overrides, the allowance path and levels of s0_production.yml in every period
@@ -205,12 +208,13 @@ def test_expected_reuse_of_the_s_set():
 
 
 def test_bill_central_siting_sensitivity_row():
-    """§76: BILL_central_siting = BILL_central with tx_sens br_reform_siting: the build rate switches to reform_bp_siting
-    (reform_bp + the old wind siting relief) at 2035; S0 before, so 2028 and 2030 are reusable from S0prod_A."""
+    """§76: BILL_central_siting = BILL_central with the build rate switching to reform_bp_siting (reform_bp + the old
+    wind siting relief) at 2035; S0 before, so 2028 and 2030 are reusable from S0prod_A. §81: a tx_bill value
+    (bill_central_siting), so levels_by_period.build_rate is set by one column."""
     a = SI[SI.case_id == "BILL_central"].set_index("year")
     b = SI[SI.case_id == "BILL_central_siting"].set_index("year")
-    assert {k for k in SI.columns if k != "year" and (a[k] != b[k]).any()} == {"case_id", "tx_sens"}
-    assert (b.tx_sens == "br_reform_siting").all()
+    assert {k for k in SI.columns if k != "year" and (a[k] != b[k]).any()} == {"case_id", "tx_bill"}
+    assert (b.tx_bill == "bill_central_siting").all() and (b.tx_sens == "none").all()
     lv = [resolved("BILL_central_siting", y)[1] for y in YEARS]
     assert lv == ["central", "central"] + ["reform_bp_siting"] * 3
     assert [resolved("BILL_central", y)[1] for y in YEARS] == ["central", "central"] + ["reform_bp"] * 3

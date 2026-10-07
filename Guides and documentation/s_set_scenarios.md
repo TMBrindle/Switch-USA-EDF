@@ -7,7 +7,7 @@ CHANGES §75. Rows in `pg/extra_inputs/scenario_inputs.csv`, settings in `pg/set
 
 Each case is the S0 v3 defaults plus only the settings below:
 - **Mode-A chains 2028–2045:** case ids `S1`, `S2`, `S4`, `L`, `P`, `S3`, `S5`. Each is S0prod_A's rows with only
-  `case_id`, `s_set` and `tax_credits` changed.
+  `case_id`, `s_set` and `tax_credits` changed (S3 and S5 also `tx_bill = unconstrained`, §81).
 - **Single-year 2035 s4x1 versions:** `s4x1_<case>_2035`. Each is `s4x1_S0prod_2035_new`'s row with the same three
   columns changed.
 
@@ -43,7 +43,8 @@ Each case is the S0 v3 defaults plus only the settings below:
 - **Nuclear ceiling (§79, from the 2035 period):** central path for S1 (and S0, the BILL rows), high for S2, S4, L
   and P (`high`, `high_reform`); none with "off" (S3, S5, P from 2040). See `build_rate.md`, "Nuclear".
 
-**Transmission `unconstrained`** (S3, S5; `s0_production.tx_policy.mode: unconstrained`):
+**Transmission `unconstrained`** (S3, S5; `tx_bill = unconstrained`, which sets `s0_production.tx_policy.mode:
+unconstrained`; §81: before, the `s_set` value set the mode on top of `tx_bill = s0_tx`):
 - the same line handling as the S0_tx national cap: interregional lines may be built, and the case's per-line limits
   are replaced;
 - the forced `reeds_certain_plus_A` lines keep their minimum and forced-period cap;
