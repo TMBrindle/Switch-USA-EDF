@@ -1053,6 +1053,9 @@ def gen_info_file(
             #         create_local_recs=("create_local_recs", "any"))   # drop if you don't need "local"
             #     .rename(columns={"base": "RPS_PROGRAM"})
 
+        # the program columns come from PowerGenome's model tags in an order that can change between runs; sort
+        # by program (stable: generators keep gen_info's order) so the file is the same for the same case
+        prog_gens_long = prog_gens_long.sort_values(prog_gens_long.columns[0], kind="stable")
         prog_gens_long.to_csv(out_folder / out_file, index=False)
 
     ########

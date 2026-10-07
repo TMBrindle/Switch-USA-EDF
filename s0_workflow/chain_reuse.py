@@ -7,13 +7,15 @@ runner then starts at the first differing stage (a scenarios file holding only t
 
 A stage matches only if all of these hold:
 - **inputs:** every file of the stage's inputs folder (top level; build logs and scenario files aside, see
-  EXCLUDE) has the same content, under the same name once the case name in `*.chained.<case>.*` is normalised. This
+  EXCLUDE) has the same content (ORDER_INSENSITIVE program files: the same rows in any order), under the same name once the case name in `*.chained.<case>.*` is normalised. This
   includes the chained files the previous stage handed over;
 - **aliases:** the same `--input-alias(es)` pairs (normalised the same way), so the same files are read;
 - **options:** the rest of the scenario line is the same (modules, flags), apart from `--scenario-name`,
   `--inputs-dir` and `--outputs-dir`;
 - **code:** the same git head as the reference's recorded one, or every commit since then leaves CODE_PATHS
-  (Switch modules, module lists, input writing) alone, and the working tree has no changes there;
+  (Switch modules, module lists, input writing) alone, and the working tree has no changes there. Opt-in
+  `code_scope="model"` (`--code-check model`, §80) checks only MODEL_CODE_PATHS (Switch modules, module lists,
+  options): input-writing code is covered by the input comparison;
 - **solver:** the same solver version and solver arguments as the reference's record.
 
 The reference's code head, solver version and arguments come from `chain_provenance.json` in each of its stage
@@ -52,9 +54,21 @@ CODE_PATHS = ("switch/study_modules/", "switch/modules.txt", "switch/options.txt
               "build_rate/", "interconnection_headroom/", "adjust/", "pg/settings/", "pg/extra_inputs/",
               "conversion_functions.py", "utilities.py", "PowerGenome/")
 CODE_EXEMPT = ("*/tests/*", "*.md", "s0_workflow/scripts/*")
+# code_scope="model": only the code that builds and solves the model from the inputs (Switch modules, module lists and
+# options). Input-writing code (pg_to_switch, s0_workflow, build_rate, settings...) can be left out of the check
+# because every input file is compared by content: a change there that alters a stage changes its inputs. Opt-in
+# (§80); the default ("all") is §71's rule
+MODEL_CODE_PATHS = ("switch/study_modules/", "switch/modules.txt", "switch/options.txt")
 PROVENANCE = "chain_provenance.json"
 REUSED = "reuse_provenance.json"
 MODEL_DEPENDENT = ("build_rate_prev_build",)   # chained files prepare_next_stage writes from model values
+# files that are sets of rows (program membership and limits): compared with their data rows sorted, so a different
+# row order from an unordered write (e.g. max_cap_generators.csv before pg_to_switch sorted it) still matches. Files
+# whose row order defines the model (timepoints, timeseries) are compared byte for byte
+ORDER_INSENSITIVE = ("max_cap_generators.csv", "max_cap_requirements.csv", "min_cap_generators.csv",
+                     "min_cap_requirements.csv", "rps_generators.csv", "rps_requirements.csv")
+# solver arguments that name where temporary files go, not how the model is solved: left out of the comparison
+SOLVER_ARGS_IGNORED = ("--tempdir",)
 
 
 # --------------------------------------------------------------------------------------------- scenario lines
@@ -107,13 +121,24 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def content_hash(path: Path) -> str:
+    """sha256 of the file; for ORDER_INSENSITIVE files, of the header and the sorted data rows (line endings
+    normalised)."""
+    if Path(path).name not in ORDER_INSENSITIVE:
+        return sha256(path)
+    lines = Path(path).read_bytes().replace(b"\r\n", b"\n").split(b"\n")
+    lines = [ln for ln in lines if ln.strip()]
+    body = lines[:1] + sorted(lines[1:])
+    return "rows:" + hashlib.sha256(b"\n".join(body)).hexdigest()
+
+
 def fingerprint(stage: dict, chained: bool = True) -> dict:
     """{file: hash} of the stage's inputs (top-level files, names normalised), its alias pairs and other options.
     chained=False leaves out the chained files (they don't exist yet before the previous stage is handed over)."""
     files = {}
     for f in sorted(Path(stage["inputs"]).iterdir()):
         if f.is_file() and not _excluded(f.name) and (chained or ".chained." not in f.name):
-            files[_norm_name(f.name, stage["case"])] = sha256(f)
+            files[_norm_name(f.name, stage["case"])] = content_hash(f)
     aliases = {k: _norm_name(v, stage["case"]) for k, v in stage["aliases"].items()
                if chained or ".chained." not in v}
     return {"files": files, "aliases": aliases, "options": stage["options"]}
@@ -145,16 +170,20 @@ def _git(*args) -> str:
     return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True, check=True).stdout.strip()
 
 
-def is_code(path: str) -> bool:
-    return path.startswith(CODE_PATHS) and not any(fnmatch.fnmatch(path, p) for p in CODE_EXEMPT)
+def is_code(path: str, scope: str = "all") -> bool:
+    paths = MODEL_CODE_PATHS if scope == "model" else CODE_PATHS
+    return path.startswith(paths) and not any(fnmatch.fnmatch(path, p) for p in CODE_EXEMPT)
 
 
-def code_check(ref_head: str) -> tuple[bool, str, list[str]]:
+def code_check(ref_head: str, scope: str = "all") -> tuple[bool, str, list[str]]:
     """(ok, reason, commits since ref_head). OK when HEAD is ref_head, or ref_head is an ancestor and no commit since
-    touches CODE_PATHS; and the working tree has no uncommitted change there."""
+    touches the code paths (scope "all": CODE_PATHS; "model": MODEL_CODE_PATHS); and the working tree has no
+    uncommitted change there."""
+    if scope not in ("all", "model"):
+        raise ValueError(f"code scope must be all or model, not {scope!r}")
     status = subprocess.run(["git", "status", "--porcelain"], cwd=REPO, capture_output=True, text=True,
                             check=True).stdout
-    dirty = [ln[3:] for ln in status.splitlines() if is_code(ln[3:].strip('"'))]
+    dirty = [ln[3:] for ln in status.splitlines() if is_code(ln[3:].strip('"'), scope)]
     if dirty:
         return False, f"uncommitted changes in code paths: {', '.join(dirty[:5])}", []
     head = _git("rev-parse", "HEAD")
@@ -166,10 +195,11 @@ def code_check(ref_head: str) -> tuple[bool, str, list[str]]:
     if subprocess.run(["git", "merge-base", "--is-ancestor", ref_full, head], cwd=REPO).returncode != 0:
         return False, f"the reference's head {ref_head[:9]} is not an ancestor of HEAD {head[:9]}", []
     commits = _git("log", "--format=%h %s", f"{ref_full}..{head}").splitlines()
-    touched = [f for f in _git("diff", "--name-only", ref_full, head).splitlines() if is_code(f)]
+    touched = [f for f in _git("diff", "--name-only", ref_full, head).splitlines() if is_code(f, scope)]
+    what = "model code paths" if scope == "model" else "code paths"
     if touched:
-        return False, f"commits since {ref_head[:9]} change code paths: {', '.join(touched[:5])}", commits
-    return True, f"{len(commits)} commit(s) since {ref_head[:9]}, none in code paths", commits
+        return False, f"commits since {ref_head[:9]} change {what}: {', '.join(touched[:5])}", commits
+    return True, f"{len(commits)} commit(s) since {ref_head[:9]}, none in {what}", commits
 
 
 def detect_solver_version() -> str | None:
@@ -181,7 +211,20 @@ def detect_solver_version() -> str | None:
 
 
 def _norm_args(s: str | None) -> str:
-    return " ".join(shlex.split(s or ""))
+    """Solver arguments as one normalised string, without SOLVER_ARGS_IGNORED (--tempdir X or --tempdir=X: where
+    temporary files go differs between runs and machines)."""
+    tok, out, i = shlex.split(s or ""), [], 0
+    while i < len(tok):
+        t = tok[i]
+        if t in SOLVER_ARGS_IGNORED:
+            i += 2
+            continue
+        if any(t.startswith(a + "=") for a in SOLVER_ARGS_IGNORED):
+            i += 1
+            continue
+        out.append(t)
+        i += 1
+    return " ".join(out)
 
 
 def record(scenarios_file: Path, git_head: str | None = None, solver_version: str | None = None,
@@ -284,7 +327,8 @@ def _append_runs(path: Path, rows: list[dict]) -> None:
 # --------------------------------------------------------------------------------------------- reuse
 def reuse(scenarios_file: Path, reference_file: Path, through: int | None = None, solver_args: str = "",
           solver_version: str | None = None, link: bool = False, dry_run: bool = False,
-          handoff_runs: Path | None = None, switch_dir: Path = SWITCH_DIR, log=print, python: str | None = None) -> dict:
+          handoff_runs: Path | None = None, switch_dir: Path = SWITCH_DIR, log=print, python: str | None = None,
+          code_scope: str = "all") -> dict:
     """Reuse the reference chain's leading stages that match the scenario's exactly (see the module docstring).
     Returns {"reused": [stage, ...], "start": first stage to solve or None, "reason": why reuse stopped,
     "remaining_file": scenarios file with the lines from `start` on}."""
@@ -299,7 +343,7 @@ def reuse(scenarios_file: Path, reference_file: Path, through: int | None = None
     rec = {}
     if ref and (ref[0]["outputs"] / PROVENANCE).exists():
         rec = json.loads((ref[0]["outputs"] / PROVENANCE).read_text())
-    ok, why, commits = code_check(rec.get("git_head", ""))
+    ok, why, commits = code_check(rec.get("git_head", ""), code_scope)
     out["commits_since"] = commits
     version = solver_version or detect_solver_version()
     runs, k = [], 0
@@ -309,7 +353,7 @@ def reuse(scenarios_file: Path, reference_file: Path, through: int | None = None
         stop(f"code: {why}")
     elif (version or "") != (rec.get("solver_version") or ""):
         stop(f"solver version {version} vs the reference's {rec.get('solver_version')}")
-    elif _norm_args(solver_args) != rec.get("solver_args", ""):
+    elif _norm_args(solver_args) != _norm_args(rec.get("solver_args", "")):   # records may hold a --tempdir
         stop(f"solver arguments {_norm_args(solver_args)!r} vs the reference's {rec.get('solver_args')!r}")
     else:
         log(f"code: {why}; solver {version} {_norm_args(solver_args)!r}")
@@ -341,7 +385,8 @@ def reuse(scenarios_file: Path, reference_file: Path, through: int | None = None
                 continue
             _copy_outputs(r["outputs"], s["outputs"], link)
             prov = {"reused_from": str(r["outputs"]), "reference_case": r["case"], "stage": s["stage"],
-                    "input_digest": digest(fs), "files_compared": len(fs["files"]), "git_head": _git("rev-parse", "HEAD"),
+                    "input_digest": digest(fs), "files_compared": len(fs["files"]), "code_scope": code_scope,
+                    "git_head": _git("rev-parse", "HEAD"),
                     "reference_git_head": rec["git_head"], "commits_since": commits, "solver_version": version,
                     "solver_args": _norm_args(solver_args), "linked": link,
                     "time": datetime.now(timezone.utc).isoformat(timespec="seconds")}

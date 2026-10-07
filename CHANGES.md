@@ -3749,3 +3749,20 @@ nothing binds: `MaxCapTag_NuclearGrowth` allows 10 GW/yr from 2035, rising 20% a
 
 **Not changed:** the running S0 chain (its inputs are built), `MaxCapTag_NuclearGrowth` (left in place; looser),
 the `new_build_rule`. **Nothing is run until Tom has reviewed.**
+
+
+## 80. Stage-Reuse Fixes (also on the new `tom/s0-v3-scenarios` branch)
+
+**Date:** 2026-10-07 · **Branch:** `tom/s0-prod-scripts`
+
+The same reuse fixes as on `tom/s0-v3-scenarios` (branched from 9e2045b for Tom's S0 v3 scenario chains; its
+CHANGES §80 has the S0prod_A-vs-v3 check and the reuse report):
+- **Program files sorted:** `pg_to_switch.py` writes `rps_generators.csv`, `min_cap_generators.csv` and
+  `max_cap_generators.csv` sorted by program (stable). SHARED #103.
+- **Program files compared as row sets:** `chain_reuse` compares the program and limit files (`ORDER_INSENSITIVE`) on
+  the header plus sorted rows; every other file byte for byte.
+- **`--tempdir` ignored:** it is left out of the solver-argument comparison, in recorded arguments too.
+- **New: opt-in `--code-check model`:** only Switch modules, module lists and options must be unchanged since the
+  reference's head; input-writing code is covered by the input comparison. The default stays §71's rule.
+- **Windows path:** `test_chain_reuse` compares the provenance path in POSIX form.
+- **Results:** pandas 3.0.6: 224 passed; 1.4.4: 223 passed, 1 skipped.

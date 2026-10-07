@@ -71,7 +71,7 @@ def cost_2040(inp_folder):
 @pytest.fixture
 def code_ok(monkeypatch):
     """The working tree is under development during tests: the code check is tested on its own (below)."""
-    monkeypatch.setattr(cr, "code_check", lambda head: (True, "test", []))
+    monkeypatch.setattr(cr, "code_check", lambda head, scope="all": (True, "test", []))
 
 
 def test_reuse_matches_a_full_run(tmp_path, code_ok):
@@ -97,7 +97,8 @@ def test_reuse_matches_a_full_run(tmp_path, code_ok):
         assert a["files"] == b["files"] and any(".chained." in k for k in a["files"])
     # provenance
     prov = json.loads((run / "out/2030/reuse" / cr.REUSED).read_text())
-    assert prov["reused_from"].endswith("out/2030/ref") and prov["solver_args"] == SOLVER
+    # Path(...).as_posix(): the provenance holds the platform's own separators (backslashes on Windows)
+    assert Path(prov["reused_from"]).as_posix().endswith("out/2030/ref") and prov["solver_args"] == SOLVER
     assert any(f.startswith("gen_build_predetermined.chained.reuse") for f in prov["handed_over"])
     runs = pd.read_csv(run / "out/handoff_runs.csv")
     assert list(runs.action) == ["reused", "reused", "solve"] and list(runs.stage.astype(str)) == ["2020", "2030", "2040"]
@@ -221,3 +222,67 @@ def test_hand_over_copies_the_model_dependent_build_rate_history(tmp_path, monke
     assert (nxt["inputs"] / "build_rate_prev_build.chained.s.csv").read_text() == \
         (rnx["inputs"] / "build_rate_prev_build.chained.r.csv").read_text()
     assert done == ["build_rate_prev_build.chained.s.csv (copied from the reference)"]
+
+
+def test_order_insensitive_files_and_tempdir_args(tmp_path):
+    """Program-membership files match whatever their row order (an unordered write); other files are byte for byte
+    (row order can define the model); --tempdir is left out of the solver comparison."""
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    (a / "max_cap_generators.csv").write_text("MAX_CAP_PROGRAM,MAX_CAP_GEN\nMaxCapTag_A,g1\nMaxCapTag_B,g2\n")
+    (b / "max_cap_generators.csv").write_text("MAX_CAP_PROGRAM,MAX_CAP_GEN\r\nMaxCapTag_B,g2\r\nMaxCapTag_A,g1\r\n")
+    (a / "timepoints.csv").write_text("timepoint_id,timeseries\n1,s\n2,s\n")
+    (b / "timepoints.csv").write_text("timepoint_id,timeseries\n2,s\n1,s\n")
+    fa = cr.fingerprint({"inputs": a, "case": "a", "aliases": {}, "options": []})
+    fb = cr.fingerprint({"inputs": b, "case": "b", "aliases": {}, "options": []})
+    assert fa["files"]["max_cap_generators.csv"] == fb["files"]["max_cap_generators.csv"]
+    assert fa["files"]["timepoints.csv"] != fb["files"]["timepoints.csv"]
+    assert cr.first_difference(fa, fb) == "file timepoints.csv: contents differ"
+    (b / "max_cap_generators.csv").write_text("MAX_CAP_PROGRAM,MAX_CAP_GEN\nMaxCapTag_A,g1\nMaxCapTag_B,g3\n")
+    assert cr.content_hash(a / "max_cap_generators.csv") != cr.content_hash(b / "max_cap_generators.csv")
+    base = "--solver gurobi --solver-options-string 'method=2 crossover=0 Threads=8'"
+    assert cr._norm_args(base + " --tempdir /d/tmp") == cr._norm_args(base)
+    assert cr._norm_args("--tempdir=D:/tmp " + base) == cr._norm_args(base)
+    assert cr._norm_args(base.replace("Threads=8", "Threads=4")) != cr._norm_args(base)
+
+
+def test_program_files_written_sorted():
+    """pg_to_switch sorts the program-membership files by program (stable), so their row order no longer follows the
+    run-dependent order of PowerGenome's tag columns."""
+    src = (REPO / "pg_to_switch.py").read_text()
+    assert 'prog_gens_long.sort_values(prog_gens_long.columns[0], kind="stable")' in src
+
+
+def test_code_check_model_scope(tmp_path, monkeypatch):
+    """§80: code_scope "model" ignores input-writing code (compared through the inputs) and still refuses a change to
+    a Switch module, module list or options; the default keeps §71's rule."""
+    repo = tmp_path / "repo"
+    (repo / "switch/study_modules").mkdir(parents=True)
+    (repo / "s0_workflow").mkdir()
+    git = lambda *a: subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()  # noqa: E731
+    git("init", "-q")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "t")
+    (repo / "switch/study_modules/m.py").write_text("x = 1\n")
+    (repo / "pg_to_switch.py").write_text("a = 1\n")
+    git("add", "-A")
+    git("commit", "-qm", "base")
+    h0 = git("rev-parse", "HEAD")
+    monkeypatch.setattr(cr, "REPO", repo)
+    (repo / "pg_to_switch.py").write_text("a = 2\n")
+    (repo / "s0_workflow/production.py").write_text("b = 1\n")
+    git("add", "-A")
+    git("commit", "-qm", "input writing")
+    ok, why, _ = cr.code_check(h0)
+    assert not ok and "pg_to_switch.py" in why                                     # §71 default
+    ok, why, commits = cr.code_check(h0, "model")
+    assert ok and len(commits) == 1 and "none in model code paths" in why
+    (repo / "switch/modules.txt").write_text("m\n")
+    assert not cr.code_check(h0, "model")[0]                                        # uncommitted module-list change
+    git("add", "-A")
+    git("commit", "-qm", "module list")
+    ok, why, _ = cr.code_check(h0, "model")
+    assert not ok and "switch/modules.txt" in why
+    with pytest.raises(ValueError, match="code scope"):
+        cr.code_check(h0, "none")

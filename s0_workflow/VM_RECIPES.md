@@ -811,8 +811,14 @@ builds its own lines, start it at that stage instead.
    - The scenario's lines must be in the same form as the reference's: same modules and flags, and the same alias
      convention. With fixed forced-transmission aliases (recipe C), use the `.fixed.txt` lines on both sides.
    - Stops at the first stage with any difference and names the first differing file, alias or option. It also stops
-     (reusing nothing) on code changes since the recorded head in Switch modules, module lists or input writing, on
-     uncommitted changes there, or on a different solver version or arguments.
+     (reusing nothing) on code changes since the recorded head in Switch modules, module lists or input writing (with
+     `--code-check model`: Switch modules, module lists and options only), on uncommitted changes there, or on a
+     different solver version or arguments (`--tempdir` aside).
+   - **§80 (S0 v3 scenario chains on `tom/s0-v3-scenarios`):** the S0 v3 reference was solved at 00b043b, and every
+     commit since touches input-writing code (none touches `switch/`), so the default check stops. Add
+     `--code-check model`: it checks only Switch modules, module lists and options, and leaves input writing to the
+     input comparison. `--tempdir` is no longer part of the solver comparison, and the program files
+     (`max_cap_generators.csv` and the other min/max/RPS program files) match whatever their row order.
    - `--reuse-through 2030` reuses no later stage. `--link` hard-links outputs instead of copying.
    - The handover runs `prepare_next_stage` in the Python of the `switch` command on PATH (its shebang), so it writes
      what a solve would. Pandas versions order rows differently, and a mismatch makes the next stage's comparison
