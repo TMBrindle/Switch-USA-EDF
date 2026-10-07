@@ -3328,3 +3328,76 @@ settings), `s0_workflow/specs/credits/credit_spend.yaml`
 - Column-order and row-set checks in six tests updated for `s_set`.
 
 **Results:** pandas 3.0.6: 209 passed with build_rate; 1.4.4: 208 passed and 1 skipped.
+
+
+## 80. S0 v3 Scenario Branch (`tom/s0-v3-scenarios`) and Stage-Reuse Fixes
+
+**Date:** 2026-10-07 · **Branches:** `tom/s0-v3-scenarios` (new, from 9e2045b) and `tom/s0-prod-scripts`
+(the reuse fixes only)
+
+**Tom's plan:** run 2–3 scenario chains on the S0 v3 baseline before settling v3.1.
+- **Base:** `tom/s0-v3-scenarios` is v3 plus the redefined reform (§74) and the S-set rows (§75).
+- **Not on it:** the round-1 growth paths (§76), the deliverability layer (§77–78) and the nuclear ceiling (§79).
+- **Growth:** post-2030 build-rate growth is v3's placeholder (5 / 5 / 8%).
+
+**1. Stage-reuse fixes** (both branches):
+- **Program files sorted:** `pg_to_switch.py` writes `rps_generators.csv`, `min_cap_generators.csv` and
+  `max_cap_generators.csv` sorted by program (stable). Their row order followed PowerGenome's run-dependent tag-column
+  order. SHARED #99a.
+- **Program files compared as row sets:** `chain_reuse` compares the program and limit files (`ORDER_INSENSITIVE`:
+  max/min cap generators and requirements, RPS generators and requirements) on the header plus sorted rows, CRLF
+  normalised. A reference built before the sort still matches. Every other file is compared byte for byte, because
+  row order can define the model (timepoints).
+- **`--tempdir` ignored:** it is left out of the solver-argument comparison, in recorded arguments too.
+- **Windows path:** `test_chain_reuse` compares the provenance path in POSIX form.
+- **New: opt-in `--code-check model`.** The default (§71) refuses any commit since the reference's head in Switch
+  modules or input-writing code. The model scope checks only `switch/study_modules/`, `switch/modules.txt` and
+  `switch/options.txt`. Input-writing code is covered because every input file is compared by content.
+  - **Needed on this branch:** the S0 v3 reference was solved at 00b043b; every commit since touches input-writing
+    code, and none touches `switch/`.
+  - The default stays §71's rule.
+
+**2. S0prod_A at this branch vs the v3 chain at 00b043b** (checked here, without building cases):
+- **Settings:** the resolved settings of S0prod_A (s0_production.yml + its scenario_inputs row, every axis,
+  `s0_production.settings`, levels_by_period) are identical in all five years at both commits. The only new column
+  is `s_set = none`, which sets nothing.
+- **Build-rate tables,** regenerated at both commits from the same EIA-860M / Queued Up files, are byte-identical:
+  - `rates_central`, `rates_high`, `rates_reform`;
+  - `tiers`, `tiers_central`;
+  - base rates, R0, shares, near-term and the floor basis.
+- **New tables, not used by S0:** `rates_reform_bp` (§74) and `rates_high_reform`. The latter didn't exist at
+  00b043b and was redefined in §74.
+- **Code between the two commits leaves S0's path unchanged:**
+  - turbine cap: the "off" branch only;
+  - `gas_turbine_path` returns the central path without level overrides;
+  - `tx_policy` national_cap is unchanged (`capped=True`);
+  - the queue data gains a state column, used only by reform_bp.
+  - No `switch/` file changed.
+- **Expected differences in S0prod_A's input files:** the row order of the three program files (this commit's sort,
+  same rows), and nothing else.
+- **Scenario rows** (resolved settings, every stage; all on v3's placeholder growth):
+  - **BILL_central:** as S0 in 2028–2030; from 2035 build rate `reform_bp`, headroom atts_reform, import allowance
+    0.85, cap 3.0, moratorium 2035.
+  - **S2:** build rate `high` and headroom atts_planned in every stage; reinstated credits (no_wind_solar 2028,
+    full_ira from 2030).
+  - **S5:** build rate off, gas-turbine cap off (`gas_turbine_path` = off in every year, so both the allowance and the
+    old tag are dropped), headroom atts_reform_techmax, transmission unconstrained, current credits (no_wind_solar
+    throughout).
+
+**3. Reuse report** (`reuse_chain_stages.py expected`, reference S0prod_A):
+
+| Cases | Reusable stages |
+|---|---|
+| BILL_central, BILL_low, BILL_central_txonly, BILL_central_bronly | 2028, 2030 |
+| BILL_high, BILL_central_S1, S1 | 2028 |
+| S0_tx | all |
+| S2, S3, S4, S5, L, P, S0prod_B | none |
+
+- At runtime this needs `--code-check model` (item 1) against the reference recorded at 00b043b.
+
+**Tests:**
+- program files match in any row order, while timepoints don't;
+- `--tempdir` / `--tempdir=` are ignored;
+- the model-scope code check (input-writing commits pass, a module-list change is refused);
+- the program-file sort in `pg_to_switch.py`.
+- **Results:** pandas 3.0.6: 212 passed; 1.4.4: 211 passed, 1 skipped (tom/s0-v3-scenarios).

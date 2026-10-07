@@ -43,6 +43,10 @@ def main(argv=None):
     use.add_argument("--link", action="store_true", help="hard-link the reference's outputs instead of copying")
     use.add_argument("--dry-run", action="store_true", help="compare only (inputs other than chained files)")
     use.add_argument("--handoff-runs", type=Path)
+    use.add_argument("--code-check", choices=["all", "model"], default="all",
+                     help="code paths that must be unchanged since the reference's head: all (default: Switch "
+                          "modules and input writing) or model (Switch modules, module lists, options only; inputs "
+                          "are compared by content)")
     use.add_argument("--python", help="Python of the Switch environment for the handover (default: the `switch` "
                                       "command's interpreter)")
     exp = sub.add_parser("expected", help="expected reusable stages from scenario_inputs.csv")
@@ -60,7 +64,7 @@ def main(argv=None):
         return 0
     if a.cmd == "reuse":
         r = cr.reuse(Path(a.scenarios), Path(a.reuse_from), a.reuse_through, a.solver_args, a.solver_version, a.link,
-                     a.dry_run, a.handoff_runs, a.switch_dir, python=a.python)
+                     a.dry_run, a.handoff_runs, a.switch_dir, python=a.python, code_scope=a.code_check)
         print(f"reused: {', '.join(r['reused']) or 'none'}; first stage to solve: {r['start'] or 'none'} ({r['reason']})")
         if r["remaining_file"]:
             print(f"run_chain_A.py: {r['remaining_file']}")
