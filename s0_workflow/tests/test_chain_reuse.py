@@ -98,7 +98,9 @@ def test_reuse_matches_a_full_run(tmp_path, code_ok):
     # provenance
     prov = json.loads((run / "out/2030/reuse" / cr.REUSED).read_text())
     # Path(...).as_posix(): the provenance holds the platform's own separators (backslashes on Windows)
-    assert Path(prov["reused_from"]).as_posix().endswith("out/2030/ref") and prov["solver_args"] == SOLVER
+    assert Path(prov["reused_from"]).as_posix().endswith("out/2030/ref") and prov["solver_args"] == SOLVER.split()
+    rec = json.loads((run / "out/2020/ref" / cr.PROVENANCE).read_text())
+    assert rec["solver_args"] == SOLVER.split()                       # §83: recorded as a token list
     assert any(f.startswith("gen_build_predetermined.chained.reuse") for f in prov["handed_over"])
     runs = pd.read_csv(run / "out/handoff_runs.csv")
     assert list(runs.action) == ["reused", "reused", "solve"] and list(runs.stage.astype(str)) == ["2020", "2030", "2040"]
@@ -144,6 +146,18 @@ def test_reuse_refused(tmp_path, code_ok):
     assert r["reused"] == ["2020"] and r["start"] == "2030" and "--reuse-through 2020" in r["reason"]
     with pytest.raises(FileExistsError):                                            # fresh output folders only
         cr.reuse(same, ref, solver_args=SOLVER, solver_version=VERSION, switch_dir=run, log=quiet)
+    # §83: a record written before (a string, --tempdir unquoted with spaces) matches list arguments with another
+    # tempdir; a real difference behind it still refuses
+    for st in ("2020", "2030", "2040"):
+        f = run / "out" / st / "ref" / cr.PROVENANCE
+        f.write_text(json.dumps(dict(json.loads(f.read_text()), solver_args=SOLVER + " --tempdir /d/my tmp dir")))
+    fresh = make_case(run, stages, "fresh")
+    r = cr.reuse(fresh, ref, solver_args=SOLVER.split() + ["--tempdir", "D:/other tmp"], solver_version=VERSION,
+                 switch_dir=run, log=quiet, dry_run=True)
+    assert r["reused"] == ["2020", "2030", "2040"], r["reason"]
+    r = cr.reuse(fresh, ref, solver_args=SOLVER.split() + ["--threads", "2", "--tempdir", "D:/x y"],
+                 solver_version=VERSION, switch_dir=run, log=quiet, dry_run=True)
+    assert r["reused"] == [] and r["reason"].startswith("solver arguments")
 
 
 def test_line_parsing_and_names():
@@ -245,6 +259,28 @@ def test_order_insensitive_files_and_tempdir_args(tmp_path):
     assert cr._norm_args(base + " --tempdir /d/tmp") == cr._norm_args(base)
     assert cr._norm_args("--tempdir=D:/tmp " + base) == cr._norm_args(base)
     assert cr._norm_args(base.replace("Threads=8", "Threads=4")) != cr._norm_args(base)
+
+
+def test_tempdir_paths_with_spaces_and_list_arguments():
+    """§83: --tempdir is left out whatever its path: quoted with spaces (one token), unquoted with spaces (several
+    tokens, as S0prod_A's record held it), --tempdir=... unquoted with spaces, in the middle or at the end, from a
+    string or a list. Everything else is kept and compared in order."""
+    base = "--solver gurobi --solver-options-string 'method=2 crossover=0 Threads=8'"
+    want = cr._norm_args(base)
+    assert want == ["--solver", "gurobi", "--solver-options-string", "method=2 crossover=0 Threads=8"]
+    for s in (base + ' --tempdir "/d/my tmp dir"',                 # quoted
+              base + " --tempdir /d/my tmp dir",                   # unquoted with spaces, at the end
+              "--tempdir /d/my tmp dir " + base,                   # unquoted with spaces, before the next option
+              "--solver gurobi --tempdir D:/My Temp --solver-options-string 'method=2 crossover=0 Threads=8'",
+              base + " --tempdir=/d/my tmp dir",                   # = form, unquoted with spaces
+              "--tempdir='C:/Program Files/tmp' " + base):         # = form, quoted
+        assert cr._norm_args(s) == want, s
+    lst = ["--solver", "gurobi", "--tempdir", "/d/my tmp dir", "--solver-options-string", "method=2 crossover=0 Threads=8"]
+    assert cr.arg_list(lst) == lst and cr._norm_args(lst) == want     # a list: items as given
+    assert cr._norm_args(None) == [] and cr._norm_args("") == []
+    assert cr.arg_list(base) == want                                   # strings split shell-style (quotes group)
+    # an old string record against new list arguments with another tempdir: equal
+    assert cr._norm_args(base + " --tempdir /d/my tmp dir") == cr._norm_args(lst[:2] + ["--tempdir", "E:/x"] + lst[4:])
 
 
 def test_program_files_written_sorted():

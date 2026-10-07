@@ -3474,3 +3474,29 @@ the next; earlier years take the first), i.e. 0 in every period. The bill tables
   table-into-number case.
 
 **Results (tom/s0-v3-scenarios):** pandas 3.0.6: 215 passed; 1.4.4: 214 passed, 1 skipped. `switch/` unchanged since 00b043b.
+
+
+## 83. Stage Reuse: `--tempdir` Paths with Spaces; Solver Arguments Recorded as a List
+
+**Date:** 2026-10-07 · **Branches:** `tom/s0-prod-scripts` and `tom/s0-v3-scenarios`
+
+**Bug (VM):** S0prod_A's `chain_provenance.json` held the solver arguments as one string with an unquoted
+`--tempdir` path containing spaces. The §80 normaliser dropped `--tempdir` and one token, so the rest of the path stayed
+in the comparison and reuse refused. The VM worked around it by re-recording.
+
+**Fix (`s0_workflow/chain_reuse.py`):**
+- **`_norm_args`:** takes a string or a list. After `--tempdir` (or `--tempdir=...`) it drops every token up to the
+  next option (`--...`), so the path goes whether it was quoted (one token), unquoted with spaces (several tokens),
+  in the middle or at the end. Everything else is compared in order, as a token list.
+- **Recorded as a list:** `record()` and the reuse provenance store the solver arguments as a token list
+  (`arg_list`: a list as given, a string split shell-style). Records written before hold a string and are still read.
+- **Refusal message:** it shows both normalised lists and the recorded value.
+
+**Tests (`test_chain_reuse.py`):**
+- `--tempdir` quoted with spaces, unquoted with spaces (at the end and before the next option), and `=` forms (quoted
+  and unquoted) all normalise to the same list; a list input is taken as given;
+- the toy chain's record holds a list;
+- an old string record with an unquoted spaced tempdir matches list arguments with another tempdir, while a real
+  difference (`--threads 2`) still refuses.
+
+**Results (tom/s0-v3-scenarios):** pandas 3.0.6: 216 passed; 1.4.4: 215 passed, 1 skipped. `switch/` unchanged.

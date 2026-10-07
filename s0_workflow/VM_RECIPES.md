@@ -788,7 +788,9 @@ builds its own lines, start it at that stage instead.
        --solver-args "--solver gurobi --solver-options-string 'method=2 crossover=0 BarConvTol=1e-6 ScaleFlag=2 Threads=8' --tempdir /d/tmp" \
        --solver-version "gurobi <x.y.z>"
    ```
-   Each stage's outputs folder gets `chain_provenance.json`: head, solver version and arguments, input digest. The
+   Each stage's outputs folder gets `chain_provenance.json`: head, solver version and arguments (a token list since
+   §83; older records hold a string and are still read), input digest. `--tempdir` and its path are left out of the
+   comparison, quoted or not, spaces included. The
    solver version defaults to the installed gurobipy's if omitted; give it from the reference's solve log if gurobipy
    has been upgraded since.
 2. **Expected reuse from the case definitions** (no builds needed). On the VM checkout, whose `scenario_inputs.csv`
