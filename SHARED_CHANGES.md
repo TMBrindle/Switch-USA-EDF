@@ -326,6 +326,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 |---|---|---|---|---|
 | 106 | `pg/settings/s0_production.yml` (`prm.imports.new_tx_allowance: {2028: 0.0}`), `s0_workflow/chain_reuse.py` (`merge_errors`) | The allowance default is a period-keyed table (0 in every period). | §82: PowerGenome's update_dictionary can't merge the bill rows' tables into the scalar default. | none: S0 resolves and writes the same inputs; S0 rows only (s0_production is inert elsewhere) |
 
+### Added in §83 (Oct 2026: reuse solver-argument normalisation)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 107 | `s0_workflow/chain_reuse.py` (`arg_list`, `_norm_args`, `record`), `s0_workflow/VM_RECIPES.md` | `--tempdir` dropped with its whole path (quoted or unquoted, spaces included); solver arguments recorded as a token list. | §83: an unquoted spaced tempdir in S0prod_A's record made reuse refuse. | none (reuse tool); old string records still read |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

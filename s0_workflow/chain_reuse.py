@@ -211,35 +211,47 @@ def detect_solver_version() -> str | None:
         return None
 
 
-def _norm_args(s: str | None) -> str:
-    """Solver arguments as one normalised string, without SOLVER_ARGS_IGNORED (--tempdir X or --tempdir=X: where
-    temporary files go differs between runs and machines)."""
-    tok, out, i = shlex.split(s or ""), [], 0
+def arg_list(args) -> list[str]:
+    """Solver arguments as a token list: a list (or tuple) as given; a string split shell-style (quotes group a token);
+    None: []. Records written before §83 hold a string."""
+    if args is None:
+        return []
+    if isinstance(args, (list, tuple)):
+        return [str(t) for t in args]
+    return shlex.split(args)
+
+
+def _norm_args(args) -> list[str]:
+    """Solver arguments (string or list) as a normalised token list, without SOLVER_ARGS_IGNORED (where temporary files
+    go differs between runs and machines). The ignored option's value is every token up to the next option (`--...`):
+    one token when quoted or given as a list item, several when an unquoted path with spaces was split (§83: S0prod_A's
+    record held `--tempdir` with an unquoted path with spaces). Also for `--tempdir=VALUE`."""
+    tok, out, i = arg_list(args), [], 0
     while i < len(tok):
         t = tok[i]
-        if t in SOLVER_ARGS_IGNORED:
-            i += 2
-            continue
-        if any(t.startswith(a + "=") for a in SOLVER_ARGS_IGNORED):
+        if t in SOLVER_ARGS_IGNORED or any(t.startswith(a + "=") for a in SOLVER_ARGS_IGNORED):
             i += 1
+            while i < len(tok) and not tok[i].startswith("--"):
+                i += 1
             continue
         out.append(t)
         i += 1
-    return " ".join(out)
+    return out
 
 
 def record(scenarios_file: Path, git_head: str | None = None, solver_version: str | None = None,
-           solver_args: str = "", switch_dir: Path = SWITCH_DIR) -> list[Path]:
+           solver_args: str | list[str] = "", switch_dir: Path = SWITCH_DIR) -> list[Path]:
     """Write chain_provenance.json in each solved stage's outputs folder of a chain, for later reuse: code head
     (default: the current HEAD; give the head the chain was solved at for an older chain), solver version (default:
-    detected) and solver arguments (the --solver/--solver-options-string the runner adds), and the input digest."""
+    detected) and solver arguments (the --solver/--solver-options-string the runner adds; recorded as a token list,
+    §83), and the input digest."""
     head = _git("rev-parse", git_head or "HEAD")
     version = solver_version or detect_solver_version()
     written = []
     for st in read_chain(scenarios_file, switch_dir):
         if not (st["outputs"] / "total_cost.txt").exists():
             continue
-        rec = {"git_head": head, "solver_version": version, "solver_args": _norm_args(solver_args),
+        rec = {"git_head": head, "solver_version": version, "solver_args": arg_list(solver_args),
                "stage": st["stage"], "case": st["case"], "input_digest": digest(fingerprint(st)),
                "recorded": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         (st["outputs"] / PROVENANCE).write_text(json.dumps(rec, indent=1))
@@ -326,7 +338,7 @@ def _append_runs(path: Path, rows: list[dict]) -> None:
 
 
 # --------------------------------------------------------------------------------------------- reuse
-def reuse(scenarios_file: Path, reference_file: Path, through: int | None = None, solver_args: str = "",
+def reuse(scenarios_file: Path, reference_file: Path, through: int | None = None, solver_args: str | list[str] = "",
           solver_version: str | None = None, link: bool = False, dry_run: bool = False,
           handoff_runs: Path | None = None, switch_dir: Path = SWITCH_DIR, log=print, python: str | None = None,
           code_scope: str = "all") -> dict:
@@ -354,8 +366,9 @@ def reuse(scenarios_file: Path, reference_file: Path, through: int | None = None
         stop(f"code: {why}")
     elif (version or "") != (rec.get("solver_version") or ""):
         stop(f"solver version {version} vs the reference's {rec.get('solver_version')}")
-    elif _norm_args(solver_args) != _norm_args(rec.get("solver_args", "")):   # records may hold a --tempdir
-        stop(f"solver arguments {_norm_args(solver_args)!r} vs the reference's {rec.get('solver_args')!r}")
+    elif _norm_args(solver_args) != _norm_args(rec.get("solver_args")):   # a string (before §83) or a list
+        stop(f"solver arguments {_norm_args(solver_args)} vs the reference's {_norm_args(rec.get('solver_args'))} "
+             f"(recorded: {rec.get('solver_args')!r}; {', '.join(SOLVER_ARGS_IGNORED)} left out)")
     else:
         log(f"code: {why}; solver {version} {_norm_args(solver_args)!r}")
         for k, (s, r) in enumerate(zip(scen, ref)):
@@ -389,7 +402,7 @@ def reuse(scenarios_file: Path, reference_file: Path, through: int | None = None
                     "input_digest": digest(fs), "files_compared": len(fs["files"]), "code_scope": code_scope,
                     "git_head": _git("rev-parse", "HEAD"),
                     "reference_git_head": rec["git_head"], "commits_since": commits, "solver_version": version,
-                    "solver_args": _norm_args(solver_args), "linked": link,
+                    "solver_args": arg_list(solver_args), "linked": link,
                     "time": datetime.now(timezone.utc).isoformat(timespec="seconds")}
             if k + 1 < len(scen) and k + 1 < len(ref):
                 prov["handed_over"] = hand_over(s, scen[k + 1], ref[k + 1], python)
