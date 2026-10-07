@@ -1403,14 +1403,18 @@ settings_management:
             interconnection_headroom: {2028: atts_s0, 2030: atts_reform, 2035: atts_reform_techmax}
             build_rate: {2028: central, 2030: reform_bp}
           prm: {imports: {new_tx_allowance: {2028: 0.0, 2035: 0.85}}}
-      # bill central, transmission pieces only (moratorium, cap, reserve imports); S0 headroom and build rate
+      # Bill decomposition (§85): transmission vs interconnection, each S0 through 2030.
+      # txonly = transmission changes only from 2035: interregional moratorium lifted (ERCOT ties keep 2040, no_bill),
+      # national cap 3.0 TW-mi/yr, reserve import allowance 0.85; headroom atts_s0 and build rate central (S0) in
+      # every period
       bill_central_txonly:
         s0_production:
           tx_policy: {mode: national_cap, moratorium_first_period: 2035,
                       cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4, 2035: 3.0}}
           prm: {imports: {new_tx_allowance: {2028: 0.0, 2035: 0.85}}}
-      # bill central, headroom and build-rate reforms only; S0 transmission (as s0_tx)
-      bill_central_bronly:
+      # iconly = interconnection changes only from 2035: headroom atts_reform and build rate reform_bp; transmission
+      # S0 (s0_tx: 1.4 TW-mi/yr from 2030, moratorium to 2040, no import allowance). Was bill_central_bronly (§85)
+      bill_central_iconly:
         s0_production:
           tx_policy: {mode: national_cap, moratorium_first_period: 2040, cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}}
           levels_by_period:

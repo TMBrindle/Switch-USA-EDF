@@ -3500,3 +3500,28 @@ in the comparison and reuse refused. The VM worked around it by re-recording.
   difference (`--threads 2`) still refuses.
 
 **Results (tom/s0-v3-scenarios):** pandas 3.0.6: 216 passed; 1.4.4: 215 passed, 1 skipped. `switch/` unchanged.
+
+
+## 85. Bill Decomposition: Transmission vs Interconnection
+
+**Date:** 2026-10-07 · **Branches:** `tom/s0-v3-scenarios` and `tom/s0-prod-scripts` (settings and rows only; nothing in
+`switch/`)
+
+Two rows split the bill into its two channels. Both are S0 through 2030 and change one channel from 2035:
+- **BILL_central_txonly** (`tx_bill: bill_central_txonly`, unchanged): transmission only.
+  - The interregional moratorium is lifted from 2035; ERCOT ties keep 2040 (`no_bill`).
+  - National cap 3.0 TW-mi/yr; reserve import allowance 0.85.
+  - Headroom atts_s0 and build rate central (S0) in every period.
+- **BILL_central_iconly** (new `tx_bill: bill_central_iconly`): interconnection only.
+  - Headroom atts_reform and build rate reform_bp.
+  - Transmission as S0 (s0_tx: 1.4 TW-mi/yr from 2030, moratorium to 2040, no allowance).
+  - It replaces `bill_central_bronly`, which had the same settings. The tx_bill value and the case ids
+    (`BILL_central_bronly`, `s4x1_BILL_central_bronly_2035`) are renamed. Nothing else used bronly.
+
+**Checks:**
+- Every row resolves as before, with iconly in place of bronly (290 rows compared).
+- `merge_errors` and `setting_conflicts` find nothing.
+- The reuse report shows 2028 and 2030 reusable from S0prod_A for both rows. The 2035 differences: txonly (allowance,
+  cap, moratorium), iconly (build rate, headroom). The expected-reuse table is unchanged apart from the name.
+
+**Results (tom/s0-v3-scenarios):** pandas 3.0.6: 216 passed; 1.4.4: 215 passed, 1 skipped. `switch/` unchanged.

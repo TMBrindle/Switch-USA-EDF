@@ -245,7 +245,7 @@ EXPECT = {   # tx_bill value: (moratorium, cap by period 2028-2045, headroom by 
     "bill_high": (2035, [0.0, 2.0, 4.0, 4.0, 4.0], ["atts_s0", "atts_reform"] + ["atts_reform_techmax"] * 3,
                   ["central"] + ["reform_bp"] * 4, [0.0] * 2 + [0.85] * 3),
     "bill_central_txonly": (2035, [0.0, 1.4, 3.0, 3.0, 3.0], None, None, [0.0] * 2 + [0.85] * 3),
-    "bill_central_bronly": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], ["atts_s0"] * 2 + ["atts_reform"] * 3,
+    "bill_central_iconly": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], ["atts_s0"] * 2 + ["atts_reform"] * 3,
                             ["central"] * 2 + ["reform_bp"] * 3, [0.0] * 5),
 }
 
@@ -290,7 +290,7 @@ def test_bill_case_rows():
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
     a = si[si.case_id == "S0prod_A"].set_index("year")
     names = {"S0_tx": "s0_tx", "BILL_central": "bill_central", "BILL_low": "bill_low", "BILL_high": "bill_high",
-             "BILL_central_txonly": "bill_central_txonly", "BILL_central_bronly": "bill_central_bronly",
+             "BILL_central_txonly": "bill_central_txonly", "BILL_central_iconly": "bill_central_iconly",
              "BILL_central_S1": "bill_central"}
     for cid, val in names.items():
         c = si[si.case_id == cid].set_index("year")
@@ -449,7 +449,7 @@ def test_multi_project_pair_in_national_cap_and_chain(tmp_path):
 
 # the first period each bill row differs from S0 (§72): every case writer gives S0's files before it
 FIRST_CHANGE = {"bill_central": 2035, "bill_low": 2035, "bill_high": 2030, "bill_central_txonly": 2035,
-                "bill_central_bronly": 2035}
+                "bill_central_iconly": 2035}
 
 
 def test_bill_rows_write_s0_inputs_until_their_change(tmp_path):
@@ -491,7 +491,7 @@ def test_expected_reuse_of_the_bill_rows():
     df = cr.expected_reuse(REPO / "pg/extra_inputs/scenario_inputs.csv", REPO / "pg/settings/scenario_management.yml")
     got = df[df.expected_reuse].groupby("case").stage.apply(list).to_dict()
     assert got["S0_tx"] == [2028, 2030, 2035, 2040, 2045]
-    for c in ("BILL_central", "BILL_low", "BILL_central_txonly", "BILL_central_bronly"):
+    for c in ("BILL_central", "BILL_low", "BILL_central_txonly", "BILL_central_iconly"):
         assert got.get(c) == [2028, 2030], c
     for c in ("BILL_high", "BILL_central_S1"):
         assert got.get(c) == [2028], c
