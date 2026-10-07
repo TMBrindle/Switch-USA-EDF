@@ -269,9 +269,13 @@ def test_bill_axis_values():
     assert not tx_policy.active(s0) and s0["levels_by_period"] == {"interconnection_headroom": {}, "build_rate": {}}
     assert "tx_build_cap" not in s0prod.scenario_options({"s0_production": s0})
     assert float(s0["prm"]["imports"]["new_tx_allowance"]) == 0.0
-    # sensitivity hooks
-    s0, _ = _merged(("tx_bill", "s0_tx"), ("tx_sens", "forced_ab"))
+    # sensitivity hooks (forced A + B is the forced_tx column's value since §81: one column per key)
+    assert "forced_ab" not in ax["tx_sens"] and "br_reform_siting" not in ax["tx_sens"]
+    s0, _ = _merged(("tx_bill", "s0_tx"), ("forced_tx", "reeds_certain_plus_AB"))
     assert s0["forced_tx"] == "reeds_certain_plus_AB"
+    # §81: unconstrained (S3, S5) = s0_tx's transmission keys with mode unconstrained
+    s0, _ = _merged(("tx_bill", "unconstrained"))
+    assert tx_policy.tx_settings(s0)["mode"] == "unconstrained" and not tx_policy.needs_module(s0)
     s0, _ = _merged(("tx_bill", "s0_tx"), ("tx_sens", "tx_capex_x1_5"))
     assert tx_policy.tx_settings(s0)["capex_multiplier"] == 1.5
     s0, _ = _merged(("tx_bill", "s0_tx"), ("tx_sens", "transfer_floor"))
@@ -306,7 +310,7 @@ def test_bill_case_rows():
     assert si[si.case_id == "s4x1_BILL_central_S1_2035"].iloc[0].tax_credits == "full_ira"
     # sensitivity rows on S0_tx 2035
     base = si[si.case_id == "s4x1_S0_tx_2035"].iloc[0]
-    for k, col, v in (("forcedAB", "tx_sens", "forced_ab"), ("floor", "tx_sens", "transfer_floor"),
+    for k, col, v in (("forcedAB", "forced_tx", "reeds_certain_plus_AB"), ("floor", "tx_sens", "transfer_floor"),
                       ("txcapex", "tx_sens", "tx_capex_x1_5"), ("brhigh", "tx_sens", "br_high"),
                       ("osw", "offshore_wind_policy", "capped_2025_released")):
         r = si[si.case_id == f"s4x1_S0_tx_2035_{k}"].iloc[0]
@@ -319,7 +323,9 @@ def test_bill_case_rows():
     # (+ its §69 light/compact variants, which differ only in prm_design)
     final = (si.case_id.isin(["S0prod_A", "S0prod_B"]) | si.case_id.str.startswith("s4x1_S0prod_2035_new")
              | (si.s_set != "none"))                                         # §75: the S-set rows are on S0
-    assert (si[final].tx_bill == "s0_tx").all() and (si[final].forced_tx == "reeds_certain_plus_A").all()
+    unc = si.s_set.isin(["S3", "S5"])                                     # §81: unconstrained transmission (tx_bill)
+    assert (si[final & ~unc].tx_bill == "s0_tx").all() and (si[unc].tx_bill == "unconstrained").all()
+    assert (si[final].forced_tx == "reeds_certain_plus_A").all()
     old = si[~si.case_id.str.contains("S0_tx|BILL") & ~final]
     assert (old.tx_bill == "legacy").all() and (old.tx_sens == "none").all()
 

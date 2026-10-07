@@ -1296,10 +1296,10 @@ settings_management:
           retirements_pre2030: legacy
           forced_tx: named_projects
           forced_tx_expansion_limit: legacy
-          prm: {design: legacy}
+          # prm.design and tx_policy.mode: the regression row's prm_design and tx_bill columns (legacy) set them, so
+          # each key is set in one place only (CHANGES §81)
           rggi: {mode: legacy}
           ca_wa_carbon: {mode: legacy}
-          tx_policy: {mode: legacy}
           lifetime_backstop: {enabled: false}
           retirement_friction: {fraction: 0.0}
           existing_fixed_om: mean
@@ -1416,6 +1416,12 @@ settings_management:
           levels_by_period:
             interconnection_headroom: {2028: atts_s0, 2035: atts_reform}
             build_rate: {2028: central, 2035: reform_bp}
+      # §75 S3 / S5: unconstrained transmission (no interregional moratorium, no national cap). Here rather than in
+      # s_set, so tx_policy.mode is set in one place (§81). The moratorium and cap keys are s0_tx's, kept so the
+      # resolved settings equal §75's; mode unconstrained doesn't read them
+      unconstrained:
+        s0_production:
+          tx_policy: {mode: unconstrained, moratorium_first_period: 2040, cap_tw_mi_per_yr: {2028: 0.0, 2030: 1.4}}
     # California-Washington linked carbon price path for S0 cases (pg/settings/s0_production.yml ca_wa_carbon; CHANGES
     # §65). Inert unless s0_production.enabled. Column `ca_wa_price`: central (sets nothing: the S0 default) everywhere.
     ca_wa_price:
@@ -1428,8 +1434,8 @@ settings_management:
     # Offshore wind approvals restored: the offshore_wind_policy column (capped_2025_released), not this axis.
     tx_sens:
       none: ~
-      forced_ab:                   # named projects of status classes A and B forced (with the ReEDS certain lines)
-        s0_production: {forced_tx: reeds_certain_plus_AB}
+      # (forced_ab removed, §81: s0_production.forced_tx is the forced_tx column's; s4x1_S0_tx_2035_forcedAB sets
+      # forced_tx = reeds_certain_plus_AB there)
       transfer_floor:              # minimum transfer capability by region pair (placeholder file until supplied)
         s0_production: {tx_policy: {transfer_floor: pg/extra_inputs/transmission/tx_transfer_floor_placeholder.csv}}
       tx_capex_x1_5:               # transmission capex x 1.5
@@ -1471,14 +1477,12 @@ settings_management:
             build_rate: {2028: high, 2035: high_reform, 2040: "off"}
             interconnection_headroom: {2028: atts_planned, 2035: atts_reform, 2040: atts_reform_techmax}
             gas_turbine_cap: {2028: central, 2035: high, 2040: "off"}
-      S3:                          # unconstrained transmission: no interregional moratorium, no national cap
+      S3:                          # unconstrained transmission: the tx_bill column (unconstrained), §81
         s0_production:
           level_overrides: {build_rate: "off", interconnection_headroom: atts_reform_techmax, gas_turbine_cap: "off"}
-          tx_policy: {mode: unconstrained}
       S5:                          # = S3 with current credits
         s0_production:
           level_overrides: {build_rate: "off", interconnection_headroom: atts_reform_techmax, gas_turbine_cap: "off"}
-          tx_policy: {mode: unconstrained}
     # Fuel prices for S0 cases (pg/settings/s0_production.yml fuel_prices; CHANGES §67). Inert unless
     # s0_production.enabled. Column `fuel_prices`: steo_aeo (sets nothing: the S0 default; the regression case's
     # s0_production value pins hist5) in every row but the sensitivity rows.

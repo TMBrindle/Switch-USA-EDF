@@ -487,6 +487,43 @@ def _diff_paths(a, b, path="") -> list[str]:
 CHAIN_WIDE = ("forced_tx",)
 
 
+def _leaf_paths(d, path=()):
+    if isinstance(d, dict) and d:
+        for k, v in d.items():
+            yield from _leaf_paths(v, path + (str(k),))
+    else:
+        yield path
+
+
+def setting_conflicts(scenario_inputs: Path, management: Path) -> pd.DataFrame:
+    """Settings set by more than one column of a scenario_inputs row (§81). For each row and its model year, the setting
+    paths each column's value sets (all-years and that year's section) are collected; a path set by two columns, or a
+    path and one of its prefixes (a whole block and a key inside it), is a conflict: the case build refuses it. Returns
+    one row per conflict (case, year, path, columns); empty when every key is set in one place."""
+    import yaml
+    si = pd.read_csv(scenario_inputs)
+    sm = yaml.safe_load(open(management))["settings_management"]
+    cols = [c for c in si.columns if c not in ("case_id", "year")]
+    rows = []
+    for _, row in si.iterrows():
+        y, owner = int(row["year"]), {}
+        for c in cols:
+            v = row[c]
+            key = None if pd.isna(v) else (int(v) if isinstance(v, float) and v.is_integer() else v)
+            for sec in (sm.get("all_years", {}), sm.get(y, {})):
+                opts = sec.get(c)
+                val = (opts.get(key, opts.get(str(key))) if isinstance(opts, dict) else None)
+                if not val:
+                    continue
+                for p in set(_leaf_paths(val)):
+                    for q, oc in owner.items():
+                        if oc != c and (q[:len(p)] == p or p[:len(q)] == q):
+                            rows.append({"case": row["case_id"], "year": y, "path": ".".join(min(p, q, key=len)),
+                                         "columns": f"{oc}, {c}"})
+                    owner.setdefault(p, c)
+    return pd.DataFrame(rows, columns=["case", "year", "path", "columns"]).drop_duplicates(ignore_index=True)
+
+
 def expected_reuse(scenario_inputs: Path, management: Path, reference: str = "S0prod_A",
                    cases: list[str] | None = None, s0_yml: Path = REPO / "pg/settings/s0_production.yml") -> pd.DataFrame:
     """From the case definitions: for each chain case with the reference's years and each stage, whether its settings

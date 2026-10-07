@@ -123,8 +123,9 @@ def test_settings_options_and_legacy():
     bill = (si.case_id.str.contains("S0_tx|BILL") | si.case_id.isin(["S0prod_A", "S0prod_B"])
             | si.case_id.str.startswith("s4x1_S0prod_2035_new")          # incl. the §69 light/compact variants
             | (si.s_set != "none"))                                         # §75 S-set rows (S0 + their settings)
-    # §60: the S0 transmission baseline; §66: the S0 default
-    assert (si[bill].forced_tx == "reeds_certain_plus_A").all()
+    # §60: the S0 transmission baseline; §66: the S0 default; §81: the A + B sensitivity row sets it in this column
+    ab = si.case_id == "s4x1_S0_tx_2035_forcedAB"
+    assert (si[bill & ~ab].forced_tx == "reeds_certain_plus_A").all() and (si[ab].forced_tx == "reeds_certain_plus_AB").all()
     rest = si[~si.case_id.isin(["s4x1_S0prod_2035", "s4x1_S0prod_2035_txnamed"]) & ~bill]
     assert (rest.forced_tx == "reeds_certain").all()                  # inert where s0_production is off
 

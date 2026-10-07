@@ -293,6 +293,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 | 103 | `pg_to_switch.py` (program-membership files) | `rps_generators.csv`, `min_cap_generators.csv` and `max_cap_generators.csv` rows sorted by program (stable; generators keep gen_info's order). | The program columns come from PowerGenome's model tags in a run-dependent order, so the same case could write these files in different row orders (seen in `max_cap_generators.csv` on the VM). | row order only (same rows); every case, fedpol's included |
 | 104 | `s0_workflow/chain_reuse.py`, `s0_workflow/scripts/reuse_chain_stages.py` | Program files compared as row sets; `--tempdir` left out of the solver comparison; opt-in `--code-check model`. | §80: reuse S0 v3's stages on the scenario branch. | none (reuse tool) |
 
+### Added in §81 (Oct 2026: one column per setting)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 105 | `pg/settings/scenario_management.yml` (`on_pgdays`; `tx_bill` unconstrained (and bill_central_siting on tom/s0-prod-scripts); `tx_sens` forced_ab (and br_reform_siting there) removed; `s_set` S3/S5), `pg/extra_inputs/scenario_inputs.csv` (forcedAB, S3/S5 rows; BILL_central_siting on tom/s0-prod-scripts), `s0_workflow/chain_reuse.py` (`setting_conflicts`) | Each setting key set by one column only. | §81: the case build refuses a key set by two columns (the regression row failed at 00b043b). | none: every row resolves to the same settings; on merge with fedpol, any row using `tx_sens = forced_ab` should use `forced_tx = reeds_certain_plus_AB` instead |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

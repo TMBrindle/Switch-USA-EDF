@@ -82,10 +82,13 @@ def test_rows_are_s0_plus_the_s_set_settings_only():
     for c in CHAINS:
         x = SI[SI.case_id == c].set_index("year")
         assert list(x.index) == [str(y) for y in YEARS]
+        tx = {"tx_bill"} if c in ("S3", "S5") else set()          # §81: unconstrained transmission is a tx_bill value
         diff = {k for k in SI.columns if k != "year" and (x[k] != a[k]).any()}
-        assert diff <= {"case_id", "s_set", "tax_credits"}, (c, diff)
+        assert diff <= {"case_id", "s_set", "tax_credits"} | tx, (c, diff)
         y = SI[SI.case_id == f"s4x1_{c}_2035"].iloc[0]
-        assert {k for k in SI.columns if y[k] != n[k]} <= {"case_id", "s_set", "tax_credits"}
+        assert {k for k in SI.columns if y[k] != n[k]} <= {"case_id", "s_set", "tax_credits"} | tx
+        if tx:
+            assert (x.tx_bill == "unconstrained").all() and y.tx_bill == "unconstrained"
     rest = SI[~SI.case_id.isin(CHAINS + [f"s4x1_{c}_2035" for c in CHAINS])]
     assert (rest.s_set == "none").all() and SM["all_years"]["s_set"]["none"] is None
     # S0: no overrides, the allowance path and levels of s0_production.yml in every period

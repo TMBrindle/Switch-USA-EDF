@@ -101,7 +101,15 @@ def _case_settings(year=2035, axis_value="on", first=None):
          "model_first_planning_year": first or {2028: 2026, 2030: 2029, 2035: 2031, 2040: 2036, 2045: 2041}[year],
          "case_id": "c"}
     s = s0prod.deep_merge(s, axis()[axis_value])
+    if axis_value == "on_pgdays":            # the regression row: its prm_design / tx_bill columns set those keys (§81)
+        s = s0prod.deep_merge(s, regression_columns())
     return s
+
+
+def regression_columns() -> dict:
+    """The settings the regression row's other S0 columns add to on_pgdays (§81: prm_design legacy, tx_bill legacy)."""
+    sm = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))["settings_management"]["all_years"]
+    return s0prod.deep_merge(copy.deepcopy(sm["prm_design"]["legacy"]), sm["tx_bill"]["legacy"])
 
 
 def test_apply_settings_merges_and_sets_atb_moderate():
@@ -318,7 +326,7 @@ def test_legacy_settings_build_as_before(tmp_path):
         return s0prod.deep_merge(s, ax)
     old_s = settings(yaml.safe_load(open(old_dir / "s0_old.yml"))["s0_production"],
                      yaml.safe_load(open(old_dir / "sm_old.yml"))["settings_management"]["all_years"]["s0_production"]["on_pgdays"])
-    new_s = settings(s0_yaml(), axis()["on_pgdays"])
+    new_s = settings(s0_yaml(), s0prod.deep_merge(axis()["on_pgdays"], regression_columns()))
     (tmp_path / "old").mkdir()
     (tmp_path / "new").mkdir()
     _case(tmp_path / "old")
@@ -493,3 +501,58 @@ def test_compare_script(tmp_path):
     r = subprocess.run([sys.executable, str(REPO / "s0_workflow/scripts/compare_s0_runs.py"), "inputs",
                         str(tmp_path / "new"), str(tmp_path / "old")], capture_output=True, text=True)
     assert "numeric differences" in r.stdout
+
+
+# ----------------------------------------------------------------------------------- §81 one column per setting
+def test_committed_rows_set_each_setting_in_one_place(tmp_path):
+    """Every committed scenario_inputs row resolves with no setting set by two columns (the case build refuses one:
+    the regression row did, with prm.design / tx_policy.mode in on_pgdays and in its prm_design / tx_bill columns).
+    The checker finds a same-key and a block-vs-key conflict."""
+    from s0_workflow import chain_reuse as cr
+    si, sm = REPO / "pg/extra_inputs/scenario_inputs.csv", REPO / "pg/settings/scenario_management.yml"
+    found = cr.setting_conflicts(si, sm)
+    assert found.empty, found.head(10).to_string()
+    rows = pd.DataFrame([{"case_id": "x", "year": 2035, "a": "v", "b": "w", "c": "u"}])
+    rows.to_csv(tmp_path / "si.csv", index=False)
+    (tmp_path / "sm.yml").write_text(yaml.safe_dump({"settings_management": {"all_years": {
+        "a": {"v": {"s0_production": {"prm": {"design": "legacy"}}}},
+        "b": {"w": {"s0_production": {"prm": {"design": "regional", "reserve_rows": "compact"}}}},
+        "c": {"u": {"s0_production": {"tx_policy": {"mode": "legacy"}}}}},
+        2035: {"c": {"u": {"s0_production": {"tx_policy": {"cap_tw_mi_per_yr": 1.0}}}}}}}))   # same column: fine
+    f = cr.setting_conflicts(tmp_path / "si.csv", tmp_path / "sm.yml")
+    assert list(f.path) == ["s0_production.prm.design"] and f["columns"].iat[0] == "a, b"
+    (tmp_path / "sm.yml").write_text(yaml.safe_dump({"settings_management": {"all_years": {
+        "a": {"v": {"s0_production": {"prm": "legacy"}}}, "b": {"w": {"s0_production": {"prm": {"design": "x"}}}}}}}))
+    assert list(cr.setting_conflicts(tmp_path / "si.csv", tmp_path / "sm.yml").path) == ["s0_production.prm"]
+
+
+def test_regression_row_resolves_as_before_the_one_column_fix():
+    """§81: the regression row (s4x1_S0prod_2035) resolves to exactly the settings it had at 9e2045b (before prm.design
+    and tx_policy.mode moved out of on_pgdays into its prm_design / tx_bill columns, both legacy)."""
+    import subprocess
+    import tempfile
+    from s0_workflow import chain_reuse as cr
+    old = {}
+    with tempfile.TemporaryDirectory() as d:
+        for f in ("pg/extra_inputs/scenario_inputs.csv", "pg/settings/scenario_management.yml",
+                  "pg/settings/s0_production.yml"):
+            p = Path(d) / Path(f).name
+            p.write_text(subprocess.run(["git", "show", f"9e2045b:{f}"], cwd=REPO, capture_output=True, text=True,
+                                        check=True).stdout)
+            old[Path(f).name] = p
+
+        def resolve(si_path, sm_path, s0_path):
+            si = pd.read_csv(si_path)
+            sm = yaml.safe_load(open(sm_path))["settings_management"]
+            base = yaml.safe_load(open(s0_path))["s0_production"]
+            row = si[si.case_id == "s4x1_S0prod_2035"].iloc[0]
+            cols = [c for c in si.columns if c not in ("case_id", "year")]
+            return cr._at_year(cr._merged(sm["all_years"], sm.get(2035, {}), row, cols, base, 2035), 2035)
+        before = resolve(old["scenario_inputs.csv"], old["scenario_management.yml"], old["s0_production.yml"])
+    now = resolve(REPO / "pg/extra_inputs/scenario_inputs.csv", REPO / "pg/settings/scenario_management.yml",
+                  REPO / "pg/settings/s0_production.yml")
+    assert cr._diff_paths(now, before) == []
+    assert now["s0_production"]["prm"]["design"] == "legacy" and now["s0_production"]["tx_policy"]["mode"] == "legacy"
+    on_pgdays = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))[
+        "settings_management"]["all_years"]["s0_production"]["on_pgdays"]["s0_production"]
+    assert "design" not in (on_pgdays.get("prm") or {}) and "mode" not in (on_pgdays.get("tx_policy") or {})

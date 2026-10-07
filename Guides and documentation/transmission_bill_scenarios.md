@@ -7,6 +7,12 @@ yml default is `tx_policy.mode: national_cap`; `tx_bill = legacy` sets `tx_polic
 `forced_tx` axis. All older rows use `tx_bill = legacy` and `tx_sens = none`, which set nothing, so every existing
 case (the regression case `s4x1_S0prod_2035` included) builds as before.
 
+**One column per setting (§81).** The case build refuses a row whose columns set the same key twice (the regression
+row did: `prm.design` and `tx_policy.mode` were in `on_pgdays` and in its `prm_design` / `tx_bill` columns). So each
+key has one home: transmission mode and per-case transmission blocks in `tx_bill` (incl. `unconstrained` for S3/S5),
+forced lines in `forced_tx`, the reserve design in `prm_design`; `tx_sens` keeps only hooks no other column sets.
+`chain_reuse.setting_conflicts()` lists any clash; a test runs it on every committed row.
+
 Code: `s0_workflow/tx_policy.py` (case build), `switch/study_modules/tx_build_cap.py` (Switch), `s0_workflow/production.py`
 (levels by period, forced options), `switch/study_modules/prepare_next_stage.py` (headroom carried across a scenario
 switch), `switch/study_modules/prm_regional.py` (reserve import allowance).
@@ -60,7 +66,8 @@ supplied" until it has class-A rows.
   S1 also differs from its S0 in `policies` (growth caps `S1.csv`) and `trans_expansion` (nerc_growth); those are
   not carried over.
 - **Sensitivity hooks (2035 test rows on `S0_tx`):**
-  - `s4x1_S0_tx_2035_forcedAB`: classes A and B forced (`tx_sens = forced_ab`, `forced_tx = reeds_certain_plus_AB`);
+  - `s4x1_S0_tx_2035_forcedAB`: classes A and B forced (`forced_tx = reeds_certain_plus_AB`; §81: was also
+    `tx_sens = forced_ab`, which set the same key);
   - `_floor`: minimum transfer floor by region pair (`transfer_floor`; placeholder file, so it stops until filled);
   - `_txcapex`: transmission capex ×1.5 (`tx_capex_x1_5`);
   - `_brhigh`: build rate "high" in every period (`br_high`);
