@@ -332,6 +332,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 |---|---|---|---|---|
 | 107 | `s0_workflow/chain_reuse.py` (`arg_list`, `_norm_args`, `record`), `s0_workflow/VM_RECIPES.md` | `--tempdir` dropped with its whole path (quoted or unquoted, spaces included); solver arguments recorded as a token list. | §83: an unquoted spaced tempdir in S0prod_A's record made reuse refuse. | none (reuse tool); old string records still read |
 
+### Added in §84 (Oct 2026: ramp from the deliverability brief) — for Tom's review; Ollie, please look at #108
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 108 | `switch/study_modules/build_rate.py` (optional `br_ramp_factor`, `br_ramp_floor_mw_per_yr` per group and period), `build_rate/brc/switch_case.py`, `build_rate/brc/rates.py` (`ramp_window`), `build_rate/config.yaml` (`ramp`), `build_rate/scripts/ramp_report.py` | Ramp R <= max(floor, factor x base) with the brief's low-path floor and growth for wind, solar and storage. | §84 (v3.1). | cases built from now on with build_rate on (fedpol's included) get the evidence ramp; built cases unchanged (no columns, old form) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

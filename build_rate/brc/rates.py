@@ -236,6 +236,33 @@ def deliverability_path(cfg: dict, path: str | None, group: str) -> dict | None:
     return out
 
 
+def deliverability_rate(cfg: dict, path: str | None, group: str, year: int) -> float | None:
+    """The brief's growth rate for one build year on a deliverability path (years in (previous key, key] take that key's
+    rate; later years the last one); None without a path for the group."""
+    g = (((cfg.get("deliverability") or {}).get("cagr") or {}).get(path) or {}).get(group) if path else None
+    if not g:
+        return None
+    ends = sorted(int(k) for k in g)
+    return float(g[min([e for e in ends if e >= year] or [ends[-1]])])
+
+
+def ramp_window(cfg: dict, level: str, group: str, start: int, end: int) -> dict | None:
+    """§84: the ramp's evidence parameters for one model period's build window [start, end]: factor = product of
+    (1 + g_y) over the window (g on the level's deliverability path), floor_mw = mean of the low path over the window
+    (MW/yr). None when the ramp evidence is off or the group or level has no path (the placeholder form applies)."""
+    r = cfg.get("ramp") or {}
+    if not r.get("evidence"):
+        return None
+    path = level_deliverability(cfg, level)
+    low = deliverability_path(cfg, r.get("floor_path", "low"), group)
+    if not path or not low or deliverability_rate(cfg, path, group, start) is None:
+        return None
+    years = range(int(start), int(end) + 1)
+    factor = float(np.prod([1 + deliverability_rate(cfg, path, group, y) for y in years]))
+    fl = [low[y] for y in years if y in low] or [low[min(low)]]
+    return {"factor": factor, "floor_mw": float(np.mean(fl)), "path": path}
+
+
 def level_deliverability(cfg: dict, level: str) -> str | None:
     """The deliverability path of a level (deliverability.level_path; null = none). No `deliverability` block: none."""
     d = cfg.get("deliverability")

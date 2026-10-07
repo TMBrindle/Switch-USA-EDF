@@ -293,7 +293,8 @@ def _switch_src() -> Path:
 TOY = _switch_src() / "examples" / "3zone_toy"
 
 
-def _toy(tmp_path, wind_rate=0.5, adders=(0.0, 0.15, 0.50), prev=None, slack=None, regions=None, floor=10.0, solar_rate=100.0):
+def _toy(tmp_path, wind_rate=0.5, adders=(0.0, 0.15, 0.50), prev=None, slack=None, regions=None, floor=10.0, solar_rate=100.0,
+         ramp=None):
     if shutil.which("switch") is None or not TOY.exists():
         pytest.skip("switch / 3zone_toy example not available")
     run = tmp_path / "toy"
@@ -322,7 +323,11 @@ def _toy(tmp_path, wind_rate=0.5, adders=(0.0, 0.15, 0.50), prev=None, slack=Non
     rows_p, rows_t = [], []
     for p in (2020, 2030):
         for g, r in (("wind_onshore", wind_rate), ("solar", solar_rate)):
-            rows_p.append({"BR_GROUP": g, "PERIOD": p, "br_rate_data_mw": r})
+            row = {"BR_GROUP": g, "PERIOD": p, "br_rate_data_mw": r}
+            if ramp is not None:          # §84 evidence columns: {(group, period): (factor, floor MW/yr)}; "." absent
+                f = ramp.get((g, p))
+                row.update(br_ramp_factor=f[0] if f else ".", br_ramp_floor_mw_per_yr=f[1] if f else ".")
+            rows_p.append(row)
             for k, (w, a) in enumerate(zip((1.3, 0.45, 0.25), adders)):
                 rows_t.append({"BR_GROUP": g, "PERIOD": p, "BR_TIER": f"t{k + 1}", "br_tier_width": w,
                                "br_tier_adder_per_mw": a * 1.5e6})
@@ -971,3 +976,63 @@ def test_case_writer_nuclear_from_2035_period(tmp_path, monkeypatch):
     assert "nuclear" not in set(pd.read_csv(d2 / "build_rate_groups.csv")["BR_GROUP"])
     assert "n1" not in set(pd.read_csv(d2 / "build_rate_gens.csv")["GENERATION_PROJECT"])
     assert "nuclear" not in set(pd.read_csv(d2 / "build_rate_periods.csv")["BR_GROUP"])
+
+
+
+# ---------------------------------------------------------------------------- §84 ramp from the deliverability brief
+
+def test_ramp_window_from_the_brief():
+    """§84: floor = the window mean of the brief's low path (about 10 / 35 / 25 GW/yr for wind / solar / storage in
+    2030); factor = product of (1 + g_y) over the window on the level's path (central: central rates; high levels:
+    high rates); gas and levels without a path: none (placeholder ramp)."""
+    low = {g: rates.deliverability_path(CFG, "low", g)[2030] / 1e3 for g in ("wind_onshore", "solar", "storage")}
+    assert low == pytest.approx({"wind_onshore": 10.0, "solar": 35.0, "storage": 25.0}, rel=0.01)
+    w = rates.ramp_window(CFG, "central", "wind_onshore", 2029, 2030)
+    lp = rates.deliverability_path(CFG, "low", "wind_onshore")
+    assert w["floor_mw"] == pytest.approx((lp[2029] + lp[2030]) / 2) and w["factor"] == pytest.approx(1.236 ** 2)
+    assert rates.ramp_window(CFG, "high", "wind_onshore", 2029, 2030)["factor"] == pytest.approx(1.309 ** 2)
+    assert rates.ramp_window(CFG, "reform_bp", "solar", 2031, 2035)["factor"] == pytest.approx(1.055 ** 5)
+    assert rates.ramp_window(CFG, "central", "storage", 2036, 2040)["factor"] == pytest.approx(1.037 ** 5)
+    assert rates.ramp_window(CFG, "central", "gas", 2029, 2030) is None
+    assert rates.ramp_window(dict(CFG, ramp={"evidence": False}), "central", "wind_onshore", 2029, 2030) is None
+    assert CFG["ramp"]["floor_path"] == "low"
+
+
+def test_case_writer_writes_the_ramp_evidence(tmp_path, monkeypatch):
+    """§84: build_rate_periods.csv carries br_ramp_factor and br_ramp_floor_mw_per_yr for groups with a path (the
+    window of each period), "." for the others (gas); without the evidence the file is as before."""
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir = _tables(tmp_path)
+    s = {"build_rate": {"enabled": True, "level": "central", "tables_dir": str(tdir), "groups": ["wind_onshore", "solar"]}}
+    d = _case(tmp_path)                                         # one period 2030, window 2026-2030
+    switch_case.write_case_inputs(d, s, CFG)
+    per = pd.read_csv(d / "build_rate_periods.csv", dtype=str).set_index("BR_GROUP")
+    w = rates.ramp_window(CFG, "central", "wind_onshore", 2026, 2030)
+    assert float(per.loc["wind_onshore", "br_ramp_factor"]) == pytest.approx(w["factor"], rel=1e-6)
+    assert float(per.loc["wind_onshore", "br_ramp_floor_mw_per_yr"]) == pytest.approx(w["floor_mw"], rel=1e-6)
+    d2 = _case(tmp_path / "x") if (tmp_path / "x").mkdir() is None else None
+    switch_case.write_case_inputs(d2, dict(s, build_rate=dict(s["build_rate"], groups=["wind_onshore", "gas"])), CFG)
+    per2 = pd.read_csv(d2 / "build_rate_periods.csv", dtype=str).set_index("BR_GROUP")
+    assert per2.loc["gas", "br_ramp_factor"] == "." and per2.loc["gas", "br_ramp_floor_mw_per_yr"] == "."
+    d3 = _case(tmp_path / "y") if (tmp_path / "y").mkdir() is None else None
+    switch_case.write_case_inputs(d3, s, dict(CFG, ramp={"evidence": False}))
+    assert list(pd.read_csv(d3 / "build_rate_periods.csv").columns) == ["BR_GROUP", "PERIOD", "br_rate_data_mw"]
+
+
+def test_toy_ramp_evidence_floor_growth_and_variable_base(tmp_path):
+    """§84 in Switch: with a fixed base (chained previous rate) R <= max(floor, factor x base) + committed term: the
+    floor binds when the history is low, the growth when it is high; with a variable base (the previous period in the
+    same solve, mode B) R <= floor + factor x build / W. Groups without the columns keep the placeholder form."""
+    # low history (0.2 MW/yr): the floor (0.8) binds in 2020; 2030 ramps from 2020's build
+    run = _toy(tmp_path / "a", wind_rate=5.0, prev=0.2, floor=0.0,
+               ramp={("wind_onshore", 2020): (1.5, 0.8), ("wind_onshore", 2030): (1.2, 0.1)})
+    nb = pd.read_csv(run / "outputs/build_rate_new_build.csv").set_index(["group", "period"])
+    assert nb.loc[("wind_onshore", 2020), "rate_mw_per_yr"] == pytest.approx(0.8, abs=1e-5)     # max(0.8, 1.5 x 0.2)
+    b20 = nb.loc[("wind_onshore", 2020), "new_build_mw_per_yr"]
+    assert nb.loc[("wind_onshore", 2030), "rate_mw_per_yr"] <= 0.1 + 1.2 * b20 + 1e-6               # additive, mode B
+    duals = pd.read_csv(run / "outputs/build_rate_duals.csv")
+    assert set(duals[(duals.group == "wind_onshore") & (duals.constraint == "ramp")].period) == {2020, 2030}
+    # high history (1.0 MW/yr): the growth term (1.5 x 1.0) binds over the floor
+    run = _toy(tmp_path / "b", wind_rate=5.0, prev=1.0, floor=0.0, ramp={("wind_onshore", 2020): (1.5, 0.8)})
+    nb = pd.read_csv(run / "outputs/build_rate_new_build.csv").set_index(["group", "period"])
+    assert nb.loc[("wind_onshore", 2020), "rate_mw_per_yr"] == pytest.approx(1.5, abs=1e-5)

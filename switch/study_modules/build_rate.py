@@ -11,6 +11,10 @@ For each group G and investment period p, with build window W_p = period_end - p
   R[G,p]       <= br_rate_data_mw[G,p]                       (window sum of the annual data rates / W_p)
   R[G,p]       <= (1+growth)^W_p x NewBuild[G,p-1]/W_{p-1} + floor + committed[G,p]/(top x W_p)
                   (ramp; first period of a chained myopic stage uses br_prev_rate_mw_per_yr)
+                  With the deliverability evidence (br_ramp_factor / br_ramp_floor_mw_per_yr given for (G,p); §84):
+                  R[G,p] <= max(br_ramp_floor_mw_per_yr, br_ramp_factor x base) + committed[G,p]/(top x W_p) for a fixed
+                  base (br_prev_rate_mw_per_yr); for a base that is a variable (previous period in the same solve)
+                  br_ramp_floor_mw_per_yr + br_ramp_factor x NewBuild[G,p-1]/W_{p-1} + committed term (the max isn't LP)
   sum_k Tier[G,p,k] (+ Slack) = NewBuild[G,p]
   Tier[G,p,k]  <= width_k x R[G,p] x W_p                      (the top band's edge is a hard ceiling)
   regional:    sum of BuildGen in region r's window <= br_region_max_mw_per_yr[G,r,p] x W_p
@@ -29,7 +33,7 @@ Inputs (inputs_dir)
 build_rate_groups.csv   BR_GROUP, br_growth, br_ramp_floor_mw, br_life_years,
                         br_ceiling_slack_cost_per_mw (optional)
 build_rate_gens.csv     GENERATION_PROJECT, br_gen_group
-build_rate_periods.csv  BR_GROUP, PERIOD, br_rate_data_mw
+build_rate_periods.csv  BR_GROUP, PERIOD, br_rate_data_mw, br_ramp_factor, br_ramp_floor_mw_per_yr (optional; §84)
 build_rate_tiers.csv    BR_GROUP, PERIOD, BR_TIER, br_tier_width, br_tier_adder_per_mw
 build_rate_zones.csv    LOAD_ZONE, br_zone_region                                      [optional]
 build_rate_regions.csv  BR_GROUP, BR_REGION, PERIOD, br_region_max_mw_per_yr           [optional]
@@ -80,6 +84,9 @@ def define_components(m):
 
     m.BR_GROUP_PERIODS = Set(dimen=2, within=m.BR_GROUPS * m.PERIODS)
     m.br_rate_data_mw = Param(m.BR_GROUP_PERIODS, within=NonNegativeReals)
+    # §84: the deliverability brief's ramp: growth multiplier over the period's window and floor (MW/yr); -1 = absent
+    m.br_ramp_factor = Param(m.BR_GROUP_PERIODS, within=Any, default=-1)
+    m.br_ramp_floor_mw_per_yr = Param(m.BR_GROUP_PERIODS, within=Any, default=-1)
 
     m.BR_TIERS = Set(dimen=3)   # (group, period, tier)
     m.br_tier_width = Param(m.BR_TIERS, within=NonNegativeReals)
@@ -127,15 +134,20 @@ def define_components(m):
         ps = [q for q in m.PERIODS if (grp, q) in m.BR_GROUP_PERIODS and q < p]
         w = value(m.br_window_years[p])
         top = top_band(m, grp, p)
-        extra = m.br_ramp_floor_mw[grp] + (m.br_committed_mw[grp, p] / (top * w) if top > 0 else 0)
-        g = (1 + m.br_growth[grp]) ** w
+        commit = m.br_committed_mw[grp, p] / (top * w) if top > 0 else 0
+        f, fl = value(m.br_ramp_factor[grp, p]), value(m.br_ramp_floor_mw_per_yr[grp, p])
+        evidence = f is not None and fl is not None and float(f) >= 0 and float(fl) >= 0
+        g = float(f) if evidence else (1 + m.br_growth[grp]) ** w
+        floor = float(fl) if evidence else m.br_ramp_floor_mw[grp]
         if ps:
             q = ps[-1]
-            return m.BRRate[grp, p] <= g * m.BRNewBuild[grp, q] / value(m.br_window_years[q]) + extra
+            return m.BRRate[grp, p] <= g * m.BRNewBuild[grp, q] / value(m.br_window_years[q]) + floor + commit
         prev = value(m.br_prev_rate_mw_per_yr[grp])
         if prev is None or prev < 0:
             return Constraint.Skip   # first period, no chained history: data rate only
-        return m.BRRate[grp, p] <= g * float(prev) + extra
+        if evidence:                 # §84: the brief's form, max(floor, growth x base)
+            return m.BRRate[grp, p] <= max(floor, g * float(prev)) + commit
+        return m.BRRate[grp, p] <= g * float(prev) + floor + commit
     m.BR_Ramp = Constraint(m.BR_GROUP_PERIODS, rule=ramp_rule)
 
     m.BRTier = Var(m.BR_TIERS, within=NonNegativeReals)
@@ -223,7 +235,8 @@ def load_inputs(m, switch_data, inputs_dir):
         param=(m.br_gen_group,))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "build_rate_periods.csv"), optional=True,
-        index=m.BR_GROUP_PERIODS, param=(m.br_rate_data_mw,))
+        index=m.BR_GROUP_PERIODS, optional_params=["br_ramp_factor", "br_ramp_floor_mw_per_yr"],
+        param=(m.br_rate_data_mw, m.br_ramp_factor, m.br_ramp_floor_mw_per_yr))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "build_rate_tiers.csv"), optional=True, index=m.BR_TIERS,
         param=(m.br_tier_width, m.br_tier_adder_per_mw))

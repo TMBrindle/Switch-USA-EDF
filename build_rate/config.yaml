@@ -166,7 +166,24 @@ path_groups:
       central: {2031: 0.8, 2036: 2.5, 2041: 4.0}
       high:    {2031: 2.0, 2036: 6.0, 2041: 10.0}
 
-# Ramp bound between model periods: R_p <= (1+growth)^W x build_{p-1}/W_{p-1} + floor.
+# Ramp from the deliverability brief (§84, Tom's v3.1; FOR TOM'S REVIEW). The brief's form: new build in t <=
+# max(floor, (1+g) x build in t-1), floor at the low-case level, g from its growth table. Per group and model period
+# (window of W build years), for groups with a deliverability path:
+#   R_p <= max(F_p, G_p x base) + committed_p / (top x W_p)
+#   F_p = mean over the window of the brief's LOW path (deliverability.actual_gw x cagr.low, annual)
+#   G_p = product over the window's build years of (1 + g_y), g_y = the brief's growth rate for year y on the level's
+#         deliverability path (deliverability.level_path: central or high)
+#   base = the previous build rate (MW/yr): the chained best rate so far (myopic stages) or, within one solve (mode
+#         B's second period), the previous period's NewBuild / W. With a variable base the max can't be an LP
+#         constraint, so the module uses F_p + G_p x base there (looser by at most F_p)
+# The ramp still bounds the pace R; build can reach the top band (2.0 R) with the adders. Groups without a path (gas;
+# nuclear, a path group with its own ramp floor) keep growth / ramp_floor_mw below. Off: ramp.evidence false.
+ramp:
+  evidence: true
+  floor_path: low                  # deliverability.cagr path for the floor
+
+# Ramp bound between model periods (placeholder form, groups without evidence above): R_p <= (1+growth)^W x
+# build_{p-1}/W_{p-1} + floor.
 # PLACEHOLDER floors (MW/yr, national); ReEDS uses 100-300 MW per state (gbin_min).
 ramp_floor_mw: {wind_onshore: 1000, solar: 1000, storage: 1000, gas: 1000,   # PLACEHOLDER
                 # nuclear (§79): ramp bound off (1e6 MW/yr); the sourced path below is itself the ramp, and 2040s

@@ -3864,3 +3864,53 @@ in the comparison and reuse refused. The VM worked around it by re-recording.
   difference (`--threads 2`) still refuses.
 
 **Results (tom/s0-prod-scripts):** pandas 3.0.6: 228 passed; 1.4.4: 227 passed, 1 skipped.
+
+
+## 84. Build-Rate Ramp from the Deliverability Brief (v3.1) — FOR TOM'S REVIEW
+
+**Date:** 2026-10-07 · **Branch:** `tom/s0-prod-scripts` only (`tom/s0-v3-scenarios` untouched; chains run from it)
+
+**Why:** the ramp binds in relaxed scenarios (S2 2030: ramp dual $6,397/kW; wind pace 9.1 vs data rate 13.8 GW/yr after
+a low 2026–28), and its two parameters were placeholders: floor 1,000 MW/yr, growth = the level's own rate.
+
+**What (the brief's form, new build ≤ max(floor, (1+g) × previous build)):**
+- **Fixed base** (myopic stages): R[G,p] ≤ max(F_p, G_p × base) + committed / (2.0 × W_p).
+  - F_p = the window mean of the brief's **low** path (2025 actuals × low-case rates, annual): wind 6.8 / 9.4 / 10.0
+    / 11.2 / 12.0, solar 30.1 / 34.2 / 38.0 / 43.0 / 45.1, storage 19.0 / 23.9 / 27.9 / 32.9 / 34.9 GW/yr for the
+    2028–2045 periods. The 2030 values are about 10 / 35 / 25.
+  - G_p = the product over the window's years of (1 + g_y) on the level's deliverability path. Central levels use the
+    central rates; high, reform_bp, reform_bp_siting and high_reform use the high rates.
+- **Variable base** (mode B's second period in a window): F_p + G_p × NewBuild[p−1] / W, because the max isn't linear
+  (looser by at most F).
+- **Kept:**
+  - the ratchet (the base is the best rate so far);
+  - mode-B co-optimisation;
+  - the committed (pipeline) term;
+  - no ramp in a chain's first stage.
+- **Gas and nuclear** keep the placeholder ramp.
+- **FLAGGED:** the ramp still bounds the pace R, and build can reach 2.0 R with adders. The literal form would bound
+  build itself.
+
+**Code:**
+- **`build_rate/config.yaml`** (`ramp`): `evidence: true`, `floor_path: low`.
+- **`build_rate/brc/rates.py`:** `deliverability_rate`, `ramp_window`.
+- **Case writer:** writes `br_ramp_factor` and `br_ramp_floor_mw_per_yr` per group and period in
+  `build_rate_periods.csv` (`.` for groups without evidence).
+- **`switch/study_modules/build_rate.py`:** optional per-period parameters. Without them the ramp is unchanged.
+
+**Report** (`build_rate/scripts/ramp_report.py`; table in the build-rate guide):
+- **S0:** the ramp never binds; the deliverability ceiling does.
+- **S2-type (high):** the ramp binds in 2035–45 when the previous stage built only at its pace or less, and never
+  when it built at its ceiling.
+- **S2's 2030 wind:** the bound would have been about **11.5 GW/yr** (max(9.4, 1.713 × 6.69), committed 2029–30 taken
+  as 0) instead of 9.1. With v3.1's deliverability-scaled data rate (8.8), the ramp would not bind there.
+
+**Tests:**
+- the floors match the brief's low path (about 10 / 35 / 25 in 2030), and the factors use the level's path;
+- the case writer writes the columns, with "." for gas, and no columns with the evidence off;
+- toy Switch solves: the floor binds after a low history, the growth after a high one, and a variable base uses the
+  additive form.
+
+**Nothing is run until Tom has reviewed.**
+
+**Results:** pandas 3.0.6: 231 passed; 1.4.4: 230 passed, 1 skipped.

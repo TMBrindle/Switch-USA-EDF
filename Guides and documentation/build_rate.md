@@ -454,6 +454,69 @@ interconnection evidence into both the national cap and the headroom module. Her
 - **Order 2023:** the brief notes Order 2023 reforms could raise queue throughput. That belongs in the pace layer
   (reform_bp), not in D.
 
+## Ramp from the deliverability brief (§84; FOR TOM'S REVIEW)
+
+The ramp binds in relaxed scenarios: in S2's 2030 stage, the wind pace was held to 9.1 GW/yr against a data rate of
+13.8, with a ramp dual of $6,397/kW, after a low 2026–28. Its two parameters were placeholders: a 1,000 MW/yr floor
+and the level's own growth rate. They now come from the brief, which recommends this form: "new build in t ≤
+max(floor, (1+g) × build in t−1)", with the floor at the low-case level and g from its growth table
+(`ramp` in `build_rate/config.yaml`).
+
+```
+R[G,p] ≤ max(F_p, G_p × base) + committed[G,p] / (2.0 × W_p)        (fixed base: myopic stages)
+R[G,p] ≤ F_p + G_p × NewBuild[G,p−1] / W_{p−1} + committed term      (variable base: within one solve, mode B)
+F_p = mean over the window of the brief's LOW path (2025 actuals × low-case growth, annual)
+G_p = ∏ over the window's build years of (1 + g_y), g_y on the level's deliverability path (central or high)
+```
+
+- **Floors (GW/yr, window means):**
+
+  | Period (window) | Wind | Solar | Storage |
+  |---|---|---|---|
+  | 2028 (2026–28) | 6.8 | 30.1 | 19.0 |
+  | 2030 (2029–30) | 9.4 | 34.2 | 23.9 |
+  | 2035 (2031–35) | 10.0 | 38.0 | 27.9 |
+  | 2040 (2036–40) | 11.2 | 43.0 | 32.9 |
+  | 2045 (2041–45) | 12.0 | 45.1 | 34.9 |
+
+  The 2030 values themselves are about 10 / 35 / 25.
+- **Growth (G_p):**
+  - central: wind 1.53 for 2029–30 (23.6%/yr), then 1.20, 1.22, 1.14 per five-year window;
+  - high, reform_bp, reform_bp_siting, high_reform: wind 1.71 (30.9%/yr), then 1.40, 1.25, 1.14.
+- **Kept:**
+  - the ratchet: the base is the best rate reached so far;
+  - mode-B co-optimisation;
+  - pipeline capacity accommodated, through the committed term, as before;
+  - the first stage of a chain has no ramp.
+- **Mode B:** with a variable base, the max can't be a linear constraint, so the module uses floor + growth × base
+  there. That is looser by at most the floor.
+- **What the ramp bounds:** still the pace R. Build can reach 2.0 R with the adders (+15% above 1.3 R, +50% above
+  1.75 R). So the build limit is about twice the brief's ramp, at a cost. FLAGGED: bounding build itself would be the
+  literal form.
+- **Groups without evidence keep the placeholder form:** gas has no deliverability path; nuclear is a path group with
+  its ramp off.
+- **Files:** `build_rate_periods.csv` gains `br_ramp_factor` and `br_ramp_floor_mw_per_yr` (`.` where absent). With
+  neither column, or with `ramp.evidence: false`, the module behaves as before.
+- **Report:** `python scripts/ramp_report.py` (from build_rate/) writes `outputs/ramp_report.csv`.
+
+**Where the ramp would still bind** (v3.1 tables: queue/pace layer plus the deliverability ceiling). The bound on R is
+`max(F, G × base)`; the data rate is the final R. It is shown for three bases: the previous stage at its floor, at its
+pace R, or at its ceiling 2R.
+- **S0 (central):** never binds after 2028 for any base. The deliverability ceiling binds first.
+- **S2-type (high):**
+  - after a stage built only at its pace, it binds from 2035 (solar), 2040 (wind, storage);
+  - after a trough, it binds from 2035 (storage), 2040 (wind, solar);
+  - after a stage built at its ceiling, it never binds.
+- **Example, high wind 2040:** bound 15.4 GW/yr (after pace) against a data rate of 16.1.
+
+**S2's 2030 wind under the new ramp:**
+- **As run (v3):** 9.1 = 1.21 × P + 1.0 + C/4, so P = 6.69 GW/yr if C = 0. Here P is the chained 2028 rate and C the
+  committed 2029–30 MW.
+- **New bound:** max(9.4, 1.713 × 6.69) = **11.5 GW/yr** (11.0–11.5 for C up to 8 GW). That is still below v3's data
+  rate of 13.84, so the ramp would still bind, but about 2.4 GW/yr looser (ceiling 22.9 GW/yr vs 18.2).
+- **With v3.1's tables:** the high level's 2029–30 data rate is 8.8 GW/yr (the deliverability ceiling, 17.6 GW/yr),
+  below the ramp bound. The ramp would not bind; the deliverability ceiling would.
+
 ## Nuclear: national ceiling from the 2035 period (§79; FOR TOM'S REVIEW)
 
 **Why:** the S0 v3 chain built 14.3 GW of new nuclear in 2036–40. Once the "no new nuclear before 2035" rule lifts,

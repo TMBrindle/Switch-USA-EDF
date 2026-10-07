@@ -25,6 +25,7 @@ import pandas as pd
 import yaml
 
 from .groups import switch_group
+from . import rates as rates_mod
 
 logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -206,7 +207,11 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
                 logger.warning("build_rate: committed %s build in period %s (%.0f MW) exceeds the ceiling; "
                                "raising the rate to %.0f MW/yr", g, p, committed, committed / (top * w))
                 r = committed / (top * w)
-            rows_p.append({"BR_GROUP": g, "PERIOD": p, "br_rate_data_mw": round(r, 3)})
+            row = {"BR_GROUP": g, "PERIOD": p, "br_rate_data_mw": round(r, 3)}
+            rw = rates_mod.ramp_window(cfg, level, g, s, e)        # §84: the brief's ramp floor and growth
+            if rw is not None:
+                row.update(br_ramp_factor=round(rw["factor"], 6), br_ramp_floor_mw_per_yr=round(rw["floor_mw"], 3))
+            rows_p.append(row)
             ceil.append({"group": g, "period": p, "ceiling_mw": top * r * w})
             c = costs[costs["GENERATION_PROJECT"].isin(gproj)] if costs is not None else None
             capex = np.nan
@@ -233,8 +238,12 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
     check_min_cap(gens_out, periods, pd.DataFrame(ceil), _read(out_folder, "min_cap_requirements.csv"),
                   _read(out_folder, "min_cap_generators.csv"), predet, slack_kw is not None)
 
+    per = pd.DataFrame(rows_p)
+    if "br_ramp_factor" in per:            # §84: groups without evidence keep the placeholder ramp ("." = missing)
+        cols = ["br_ramp_factor", "br_ramp_floor_mw_per_yr"]
+        per[cols] = per[cols].astype(object).fillna(".")
     files = {"build_rate_groups.csv": pd.DataFrame(grp_rows), "build_rate_gens.csv": gens_out,
-             "build_rate_periods.csv": pd.DataFrame(rows_p), "build_rate_tiers.csv": pd.DataFrame(rows_t)}
+             "build_rate_periods.csv": per, "build_rate_tiers.csv": pd.DataFrame(rows_t)}
     reg_groups = [g for g in groups if g in (br.get("regional_groups") or DEFAULT_REGIONAL_GROUPS)]
     if br.get("regional", True) and reg_groups:
         zones, regions = regional_frames(gens, periods, rates, reg_groups, settings, predet)
