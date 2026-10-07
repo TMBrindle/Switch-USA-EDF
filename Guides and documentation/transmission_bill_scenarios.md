@@ -26,12 +26,21 @@ switch), `switch/study_modules/prm_regional.py` (reserve import allowance).
 | `bill_low` | 2040 | 0 in 2028, 1.4 in 2030, 2.0 from 2035 | atts_s0, atts_reform from 2040 | central, reform from 2040 | 0.85 from 2040 |
 | `bill_high` | 2035 | 0 in 2028, 2.0 in 2030, 4.0 from 2035 | atts_s0 (2028), atts_reform (2030), atts_reform_techmax from 2035 | central (2028), reform from 2030 | 0.85 from 2035 |
 | `bill_central_txonly` | as bill_central | as bill_central | atts_s0 | central | 0.85 from 2035 |
-| `bill_central_bronly` | as s0_tx | as s0_tx | as bill_central | as bill_central | 0 |
+| `bill_central_iconly` | as s0_tx | as s0_tx | as bill_central | as bill_central | 0 |
+
+**Decomposition (§85): transmission vs interconnection.** Both rows are S0 through 2030 and change one channel from
+2035.
+- **BILL_central_txonly:** transmission only. The interregional moratorium is lifted (ERCOT ties keep 2040), the
+  national cap is 3.0 TW-mi/yr and the reserve import allowance 0.85. Headroom atts_s0 and build rate central (S0) in
+  every period.
+- **BILL_central_iconly:** interconnection only. Headroom atts_reform and build rate reform_bp; transmission as S0
+  (s0_tx: 1.4 TW-mi/yr from 2030, moratorium to 2040, no allowance). It replaces `bill_central_bronly` (the same
+  settings, renamed; nothing else used it).
 
 **Every bill row is S0 until each change takes effect** (§72). The import allowance starts in the first period
 new interregional lines may be built (the moratorium's end). Until then a bill row's case inputs are byte-identical to
 S0's, so its early stages can be reused from S0prod_A (`s0_workflow/chain_reuse.py`, VM recipe J):
-- BILL_central, BILL_low, txonly and bronly: 2028 and 2030;
+- BILL_central, BILL_low, txonly and iconly: 2028 and 2030;
 - BILL_high and BILL_central_S1: 2028.
 
 Before §72 the bill rows used headroom atts_planned, a 1.4 cap and the allowance from 2028.
@@ -67,7 +76,7 @@ supplied" until it has class-A rows.
 ## Cases (`pg/extra_inputs/scenario_inputs.csv`)
 
 - **Mode-A chains, 2028-2045:**
-  - `S0_tx`, `BILL_central`, `BILL_low`, `BILL_high`, `BILL_central_txonly`, `BILL_central_bronly`, `BILL_central_S1`.
+  - `S0_tx`, `BILL_central`, `BILL_low`, `BILL_high`, `BILL_central_txonly`, `BILL_central_iconly`, `BILL_central_S1`.
   - Each is `S0prod_A` (S0 defaults, mode A, regional reserve) with `tx_bill` and `forced_tx = reeds_certain_plus_A`.
 - **Single-year 2035 test versions:**
   - `s4x1_<case>_2035`: the 2035 row of the same with `s0_production = on_single` (one stage, fleet-independent days).

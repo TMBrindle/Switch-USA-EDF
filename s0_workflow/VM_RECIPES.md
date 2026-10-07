@@ -646,7 +646,7 @@ class-A rows, every S0_tx / BILL case stops at the build with "placeholder until
 Design: `Guides and documentation/transmission_bill_scenarios.md`.
 
 **Cases:** `s4x1_S0_tx_2035`, `s4x1_BILL_central_2035`, `s4x1_BILL_low_2035`, `s4x1_BILL_high_2035`,
-`s4x1_BILL_central_txonly_2035`, `s4x1_BILL_central_bronly_2035`, `s4x1_BILL_central_S1_2035`.
+`s4x1_BILL_central_txonly_2035`, `s4x1_BILL_central_iconly_2035`, `s4x1_BILL_central_S1_2035`.
 
 1. Build each into a fresh folder (`--year 2035`, single stage), as in recipe D step 1.
 2. **Build log and folder:**
@@ -658,13 +658,13 @@ Design: `Guides and documentation/transmission_bill_scenarios.md`.
      - S0_tx and bill low: 0 for every interregional line except forced ones;
      - bill central and high: 0 only for ERCOT ties.
    - The scenario line includes `study_modules.tx_build_cap`.
-   - Bill cases except bronly: `prm_params.csv` has `prm_import_new_tx_allowance` 0.85.
+   - Bill cases except iconly: `prm_params.csv` has `prm_import_new_tx_allowance` 0.85.
    - Headroom uprates in 2035:
-     - atts_reform: BILL_central, bronly and S1;
+     - atts_reform: BILL_central, iconly and S1;
      - atts_planned: BILL_low;
      - atts_reform_techmax: BILL_high;
      - atts_s0: S0_tx and txonly.
-   - Build rate in 2035: reform for central, bronly, S1 and high; central for low, txonly and S0_tx.
+   - Build rate in 2035: reform for central, iconly, S1 and high; central for low, txonly and S0_tx.
 3. Solve with recipe A's solver options.
    - RGGI: recipe H on the stage folder (3PR floor and CCR for 2035).
 4. **Report** for each case:
@@ -674,7 +674,7 @@ Design: `Guides and documentation/transmission_bill_scenarios.md`.
    - new gas/wind/solar/storage;
    - CO2 and system cost.
 
-   Then run S0_tx against each bill case, and the txonly and bronly decomposition.
+   Then run S0_tx against each bill case, and the txonly and iconly decomposition.
 5. **Mode-A chains** (`S0_tx`, `BILL_*`): as recipe C. In bill central from the 2035 stage (low from 2040; high from
    2030 and again in 2035), the stage folder has `ic_scenario_switch.csv`. The previous stage's
    `prepare_next_stage` writes `ic_uprates.chained.<case>.csv` with the new scenario's caps less what was built.
@@ -799,7 +799,7 @@ builds its own lines, start it at that stage instead.
    python s0_workflow/scripts/reuse_chain_stages.py expected --reference S0prod_A --out chain_reuse_expected.csv
    ```
    **Report** the printed lines (each case: its expected reusable stages, and the first difference). This repo's
-   rows (§72): `S0_tx` all stages; BILL_central, BILL_low, txonly and bronly 2028 and 2030; BILL_high and
+   rows (§72): `S0_tx` all stages; BILL_central, BILL_low, txonly and iconly 2028 and 2030; BILL_high and
    BILL_central_S1 2028 (`s0_workflow/data/chain_reuse_expected.csv`).
 3. **Per scenario chain** (built, not solved; fresh outputs folders):
    ```bash
