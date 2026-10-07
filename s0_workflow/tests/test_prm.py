@@ -597,7 +597,9 @@ def test_import_allowance_setting_in_prm_params(tmp_path):
     assert prm.DEFAULTS["imports"]["new_tx_allowance"] == 0.0
     import yaml
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert float(s0["prm"]["imports"].get("new_tx_allowance", 0.0)) == 0.0          # S0: historical shares only
+    # S0: historical shares only; a period-keyed table since §82 (so the bill tables merge into it), 0 in every stage
+    assert s0["prm"]["imports"]["new_tx_allowance"] == {2028: 0.0}
+    assert all(prm.import_allowance(s0["prm"], [y]) == 0.0 for y in (2024, 2028, 2030, 2035, 2045))
 
 
 def test_toy_shortfall_costs_the_penalty_once_and_price_within_it(tmp_path):

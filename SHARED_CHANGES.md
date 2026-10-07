@@ -299,6 +299,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 |---|---|---|---|---|
 | 105 | `pg/settings/scenario_management.yml` (`on_pgdays`; `tx_bill` unconstrained (and bill_central_siting on tom/s0-prod-scripts); `tx_sens` forced_ab (and br_reform_siting there) removed; `s_set` S3/S5), `pg/extra_inputs/scenario_inputs.csv` (forcedAB, S3/S5 rows; BILL_central_siting on tom/s0-prod-scripts), `s0_workflow/chain_reuse.py` (`setting_conflicts`) | Each setting key set by one column only. | §81: the case build refuses a key set by two columns (the regression row failed at 00b043b). | none: every row resolves to the same settings; on merge with fedpol, any row using `tx_sens = forced_ab` should use `forced_tx = reeds_certain_plus_AB` instead |
 
+### Added in §82 (Oct 2026: bill rows build again)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 106 | `pg/settings/s0_production.yml` (`prm.imports.new_tx_allowance: {2028: 0.0}`), `s0_workflow/chain_reuse.py` (`merge_errors`) | The allowance default is a period-keyed table (0 in every period). | §82: PowerGenome's update_dictionary can't merge the bill rows' tables into the scalar default. | none: S0 resolves and writes the same inputs; S0 rows only (s0_production is inert elsewhere) |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
