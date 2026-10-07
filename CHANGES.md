@@ -3343,7 +3343,7 @@ settings), `s0_workflow/specs/credits/credit_spend.yaml`
 **1. Stage-reuse fixes** (both branches):
 - **Program files sorted:** `pg_to_switch.py` writes `rps_generators.csv`, `min_cap_generators.csv` and
   `max_cap_generators.csv` sorted by program (stable). Their row order followed PowerGenome's run-dependent tag-column
-  order. SHARED #99a.
+  order. SHARED #103.
 - **Program files compared as row sets:** `chain_reuse` compares the program and limit files (`ORDER_INSENSITIVE`:
   max/min cap generators and requirements, RPS generators and requirements) on the header plus sorted rows, CRLF
   normalised. A reference built before the sort still matches. Every other file is compared byte for byte, because
