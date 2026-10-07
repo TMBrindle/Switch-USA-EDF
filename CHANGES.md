@@ -3806,3 +3806,35 @@ committed row and on a synthetic same-key and block-vs-key case.
 
 **Tests:** tests that used `on_pgdays` alone as "the regression case" now add the row's `prm_design` / `tx_bill`
 values. The bill, S-set and forced-tx row tests follow the new columns.
+
+
+## 82. Bill Rows Build Again: Period-Keyed Default for the Reserve-Import Allowance
+
+**Date:** 2026-10-07 · **Branches:** `tom/s0-prod-scripts` and `tom/s0-v3-scenarios`
+
+**Bug (VM, 497d77b):** BILL_central and the other BILL rows don't build. Their §72 period-keyed
+`prm.imports.new_tx_allowance` ({2028: 0.0, 2035: 0.85}) is merged onto the scalar default 0.0 in
+`s0_production.yml`, and PowerGenome's `update_dictionary` refuses to merge a table into a number ("Inputs must be
+dictionaries").
+- **Scope:** a check of every committed row under that rule found 35 failing rows (every BILL chain and 2035 row),
+  all on this key, and no other clash.
+
+**Fix:** the default in `pg/settings/s0_production.yml` is the period-keyed table `{2028: 0.0}` (each key holds until
+the next; earlier years take the first), i.e. 0 in every period. The bill tables merge into it unchanged.
+- **Code:** `prm.import_allowance` already reads both forms, so no code change is needed.
+- **Switch:** nothing in `switch/` changes.
+
+**S0 unchanged:**
+- every committed row resolves to the same settings at each model year (all rows compared before and after);
+- the reserve-import allowance is 0 in every S0 stage, so `prm_params.csv` (no `prm_import_new_tx_allowance`) and
+  every other input are as before;
+- the expected-reuse table is unchanged: BILL_central reuses 2028 and 2030 from S0prod_A.
+
+**New check:**
+- `chain_reuse.merge_errors(scenario_inputs, management)` merges every row's column values onto the `pg/settings`
+  files under PowerGenome's rule and lists the failures.
+- A test runs it on every committed row (S0, BILL, S-set, sensitivities, legacy). It also resolves each row's
+  settings, checks the allowance (S0 0 in every stage; BILL_central 0, 0, 0.85, 0.85, 0.85), and catches a synthetic
+  table-into-number case.
+
+**Results (tom/s0-prod-scripts):** pandas 3.0.6: 227 passed; 1.4.4: 226 passed, 1 skipped.

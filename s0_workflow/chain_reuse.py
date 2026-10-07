@@ -32,6 +32,7 @@ first to solve) in `handoff_runs.csv` (default: the scenario's outputs root, nex
 """
 from __future__ import annotations
 
+import copy
 import fnmatch
 import hashlib
 import json
@@ -522,6 +523,45 @@ def setting_conflicts(scenario_inputs: Path, management: Path) -> pd.DataFrame:
                                          "columns": f"{oc}, {c}"})
                     owner.setdefault(p, c)
     return pd.DataFrame(rows, columns=["case", "year", "path", "columns"]).drop_duplicates(ignore_index=True)
+
+
+def _strict_update(d, u, path=""):
+    """PowerGenome's update_dictionary rule: a mapping merged into a value that isn't one fails ("Inputs must be
+    dictionaries"); anything else replaces."""
+    if not isinstance(d, dict) or not isinstance(u, dict):
+        raise TypeError(f"{path or '<root>'}: a {type(u).__name__} merged into a {type(d).__name__}")
+    for k, v in u.items():
+        d[k] = _strict_update(d.get(k, {}), v, f"{path}.{k}" if path else str(k)) if isinstance(v, dict) else v
+    return d
+
+
+def merge_errors(scenario_inputs: Path, management: Path, settings_dir: Path = REPO / "pg/settings") -> pd.DataFrame:
+    """Rows whose column values can't be merged onto the settings files the way the case build merges them (§82: the
+    bill rows' period-keyed prm.imports.new_tx_allowance onto the scalar default). One row per failing case row
+    (case, year, error); empty when every row merges."""
+    import yaml
+    base = {}
+    for f in sorted(Path(settings_dir).glob("*.yml")):
+        if f.name != Path(management).name:
+            base.update(yaml.safe_load(open(f)) or {})
+    si = pd.read_csv(scenario_inputs)
+    sm = yaml.safe_load(open(management))["settings_management"]
+    cols = [c for c in si.columns if c not in ("case_id", "year")]
+    rows = []
+    for _, row in si.iterrows():
+        y, s = int(row["year"]), copy.deepcopy(base)
+        try:
+            for sec in (sm.get("all_years", {}), sm.get(y, {})):
+                for c in cols:
+                    v = row[c]
+                    key = None if pd.isna(v) else (int(v) if isinstance(v, float) and v.is_integer() else v)
+                    opts = sec.get(c)
+                    val = opts.get(key, opts.get(str(key))) if isinstance(opts, dict) else None
+                    if val:
+                        _strict_update(s, copy.deepcopy(val))
+        except TypeError as e:
+            rows.append({"case": row["case_id"], "year": y, "error": str(e)})
+    return pd.DataFrame(rows, columns=["case", "year", "error"])
 
 
 def expected_reuse(scenario_inputs: Path, management: Path, reference: str = "S0prod_A",

@@ -268,7 +268,7 @@ def test_bill_axis_values():
     s0, ax = _merged(("tx_bill", "legacy"), ("tx_sens", "none"))
     assert not tx_policy.active(s0) and s0["levels_by_period"] == {"interconnection_headroom": {}, "build_rate": {}}
     assert "tx_build_cap" not in s0prod.scenario_options({"s0_production": s0})
-    assert float(s0["prm"]["imports"]["new_tx_allowance"]) == 0.0
+    assert all(prm.import_allowance(s0["prm"], [y]) == 0.0 for y in years)          # §82: a table, 0 in every period
     # sensitivity hooks (forced A + B is the forced_tx column's value since §81: one column per key)
     assert "forced_ab" not in ax["tx_sens"] and "br_reform_siting" not in ax["tx_sens"]
     s0, _ = _merged(("tx_bill", "s0_tx"), ("forced_tx", "reeds_certain_plus_AB"))
