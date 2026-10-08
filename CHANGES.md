@@ -3973,3 +3973,83 @@ unchanged.** Nothing in `switch/` or `build_rate/` changed (build-rate freeze re
 
 **Tests:** `test_import_charge_settings`, `test_import_charge_options_on_real_transmission` (every option on the real
 transmission network; a missing exporter stops the build) and `test_zone_import_factors_script` (hand-built fixture).
+
+## 87. Flow-Based Reserve Credit for New Transmission; Import Allowance Retired (v3.1 candidate) — FOR TOM'S REVIEW
+
+**Date:** 2026-10-08 · **Branch:** `tom/s0-prod-scripts` only (nothing on `tom/s0-v3-scenarios`). Nothing runs until
+Tom reviews. No `build_rate/` changes (freeze respected).
+
+**Problem:**
+- `Prm_Import_Cap` was share × peak + 0.85 × new interregional capacity, per region.
+- The credit counted in full at both ends of a line and ignored direction.
+- It applied only in bill rows.
+
+**New formulation** (from the VM's `allowance_design_review.md`; Tom's decisions: every case, one parameter):
+- **Flow split:** on each line crossing a PRM region boundary, the stress-hour reserve flow is split.
+  - **Existing-capacity part:** per direction ≤ (existing − capacity built in earlier stages) × derating. It is the
+    only part in `PrmNetImport`, so it stays under the historical-share cap.
+  - **New-capacity part:** `PrmFlowNew[a, b, t] + PrmFlowNew[b, a, t] <= (1 − new_tx_derate) × new capacity ×
+    derating` in each stress hour, exempt from the cap. New capacity = BuildTx to date plus `trans_built_to_date_mw`.
+  - The directional (NARIS) cap limits the sum of the two parts.
+  - Lines inside a region are unchanged.
+- **Case writer:** `prm_new_tx_flow_split` = 1 for every regional case. The module default is 0, so folders built
+  before §87 solve as before.
+- **Setting retired:**
+  - `prm.imports.new_tx_allowance` is gone from the defaults, `s0_production.yml` and the five bill rows' `tx_bill`
+    values (`bill_central`, `bill_low`, `bill_high`, `bill_central_txonly`, `bill_central_siting`).
+  - Setting it stops the build. `prm.import_allowance()` is removed.
+- **One parameter:** `new_tx_derate` (0.15) is the deliverability factor.
+
+**Model size** (2035 stage, 360 stress timepoints, the real network of 312 lines):
+- 106 lines cross a PRM region boundary, and all 106 are buildable under `national_cap` (BuildTx exists even where
+  the moratorium limits it to 0).
+- **Added:** 2 × 106 × 360 = 76,320 columns (`PrmFlowNew`) and 106 × 360 = 38,160 rows (`Prm_New_Flow_Limit`):
+  - about +0.5% of the light stage's 15.8M variables;
+  - about +0.2% of its 20.4M constraints.
+- **Nonzeros:** about +7 per line-hour (2 in the new row plus BuildTx, and 2 zone rows per new column). Minus 2 per
+  line-hour, because BuildTx leaves the existing-part rows. Net about +190k.
+- **Import-cap rows:** unchanged in number. In bill rows they no longer carry the allowance's BuildTx terms.
+- Pruning lines with a zero expansion limit was left out (it would need the limit module's parameter at
+  construction time).
+
+**Effect on S0** (`s0_tx`, `forced_tx: reeds_certain_plus_A`):
+- Before, new boundary capacity gave no reserve credit beyond the historical share. Now it does.
+- 9 forced lines cross a PRM boundary, 10,966 MW in all, so up to 9.3 GW of new-part flow per hour:
+  - TransWest Express, 3,000 MW (2035);
+  - six MISO LRTP Tranche 1 lines, 896 MW each (2028–2030);
+  - SWIP-North, 1,920 MW (2028);
+  - Honeyville–Populus, 670 MW (2030).
+- Economic builds on boundary lines also count: from 2030 on the 21 intra-transreg ones, and on all 106 from 2040.
+
+**Effect on BILL_central:**
+- The allowance (0.85 × all new boundary capacity on each end's cap, from 2035) is replaced by the same physics as S0.
+- **Same derate:** 0.85.
+- **Narrower credit:** tied to the line's own flow, one direction per hour. A region can't use it for imports over
+  its existing ties, and a line can't count at both ends in the same hour.
+- **Earlier credit:** from 2028 (forced lines) instead of 2035.
+- **Reuse:**
+  - The expected reuse from S0prod_A is recomputed and unchanged (`chain_reuse_expected.csv`; only the
+    difference text loses the allowance).
+  - Stages solved before §87 fail the model code check, because `prm_regional.py` changed.
+
+**Regression row:** `s4x1_S0prod_2035` uses the legacy reserve design.
+- Its resolved settings differ only by the retired key, which is inert there.
+- Its build is unchanged; the byte-for-byte tests pass.
+
+**Tests:**
+- `test_toy_new_tx_flow_credit_full_value_when_stresses_do_not_coincide`:
+  - North and Central are each short 4 MW at different hours: 0 short with the split, 4 + 4 without it;
+  - built this stage: 4 / 0.85 MW, once, on N-C.
+- `test_toy_new_tx_flow_credit_no_double_counting`:
+  - both ends short at once: 8 MW short with the split; 0 under the retired allowance, which double counted;
+  - partial coincidence: 2 MW short;
+  - allowance + split: stops.
+- `test_toy_new_tx_flow_credit_existing_part_still_capped`: the existing part is still capped (1 MW), the new part
+  isn't (2 MW).
+- `test_import_allowance_retired`; case-writer, bill-axis, chain-reuse and every-row tests updated.
+
+**Not done:**
+- **Transit:** the cap counts existing-part flows only. Reserve wheeled in over B's existing ties and out over a new
+  B→A line counts against B's cap. A transit-friendly variant (new-part outflows offsetting existing-part imports)
+  is a one-line change if the review wants it.
+- The design review file wasn't in this checkout. This follows the request's description.

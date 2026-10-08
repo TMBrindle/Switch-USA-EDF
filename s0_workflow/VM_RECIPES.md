@@ -658,7 +658,8 @@ Design: `Guides and documentation/transmission_bill_scenarios.md`.
      - S0_tx and bill low: 0 for every interregional line except forced ones;
      - bill central and high: 0 only for ERCOT ties.
    - The scenario line includes `study_modules.tx_build_cap`.
-   - Bill cases except iconly: `prm_params.csv` has `prm_import_new_tx_allowance` 0.85.
+   - Every regional case (S0 and bill): `prm_params.csv` has `prm_new_tx_flow_split` 1 and no
+     `prm_import_new_tx_allowance` (§87).
    - Headroom uprates in 2035:
      - atts_reform: BILL_central, iconly and S1;
      - atts_planned: BILL_low;

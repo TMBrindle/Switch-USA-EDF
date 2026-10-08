@@ -552,7 +552,9 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
         before = resolve(old["scenario_inputs.csv"], old["scenario_management.yml"], old["s0_production.yml"])
     now = resolve(REPO / "pg/extra_inputs/scenario_inputs.csv", REPO / "pg/settings/scenario_management.yml",
                   REPO / "pg/settings/s0_production.yml")
-    assert cr._diff_paths(now, before) == []
+    # the one difference: the retired reserve-import allowance (§87), inert here (prm design legacy: no prm_regional
+    # inputs are written, so the case builds as before)
+    assert cr._diff_paths(now, before) == ["s0_production.prm.imports.new_tx_allowance: 0.0 -> None"]
     assert now["s0_production"]["prm"]["design"] == "legacy" and now["s0_production"]["tx_policy"]["mode"] == "legacy"
     on_pgdays = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))[
         "settings_management"]["all_years"]["s0_production"]["on_pgdays"]["s0_production"]
@@ -563,8 +565,8 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
 def test_every_committed_row_merges_and_resolves(tmp_path):
     """§82: every committed row (S0, BILL, S-set, sensitivities, legacy) merges onto the settings files under the case
     build's rule (a table can't be merged into a number: the bill rows' period-keyed new_tx_allowance failed against
-    the scalar default) and resolves; the reserve-import allowance is 0 for S0 in every stage and the bill's from its
-    switch year. The checker catches a table merged into a number."""
+    the scalar default) and resolves; no row sets the retired reserve-import allowance (§87). The checker catches a
+    table merged into a number."""
     from s0_workflow import chain_reuse as cr, prm
     si_path, sm_path = REPO / "pg/extra_inputs/scenario_inputs.csv", REPO / "pg/settings/scenario_management.yml"
     bad = cr.merge_errors(si_path, sm_path)
@@ -573,18 +575,16 @@ def test_every_committed_row_merges_and_resolves(tmp_path):
     sm = yaml.safe_load(open(sm_path))["settings_management"]
     base = s0_yaml()
     cols = [c for c in si.columns if c not in ("case_id", "year")]
-    allow = {}
     for _, row in si.iterrows():
         y = int(row.year)
         s = cr._merged(sm["all_years"], sm.get(y, {}), row, cols, base, y)
         cr._at_year(s, y)
-        allow[(row.case_id, y)] = prm.import_allowance(s["s0_production"]["prm"], [y])
-    assert all(allow[("S0prod_A", y)] == 0.0 for y in (2028, 2030, 2035, 2040, 2045))
-    assert [allow[("BILL_central", y)] for y in (2028, 2030, 2035, 2040, 2045)] == [0.0, 0.0, 0.85, 0.85, 0.85]
-    assert base["prm"]["imports"]["new_tx_allowance"] == {2028: 0.0}      # a table: 0 in every period
+        assert "new_tx_allowance" not in (s["s0_production"]["prm"].get("imports") or {}), (row.case_id, y)
+        prm.prm_settings(s["s0_production"])                                      # raises on the retired key
+    assert "new_tx_allowance" not in base["prm"]["imports"]
     pd.DataFrame([{"case_id": "x", "year": 2035, "a": "v"}]).to_csv(tmp_path / "si.csv", index=False)
-    (tmp_path / "s.yml").write_text(yaml.safe_dump({"s0_production": {"prm": {"imports": {"new_tx_allowance": 0.0}}}}))
+    (tmp_path / "s.yml").write_text(yaml.safe_dump({"s0_production": {"prm": {"imports": {"relax_from": 2031}}}}))
     (tmp_path / "sm.yml").write_text(yaml.safe_dump({"settings_management": {"all_years": {"a": {"v": {
-        "s0_production": {"prm": {"imports": {"new_tx_allowance": {2028: 0.0, 2035: 0.85}}}}}}}}}))
+        "s0_production": {"prm": {"imports": {"relax_from": {2028: 2031, 2035: 2035}}}}}}}}}))
     f = cr.merge_errors(tmp_path / "si.csv", tmp_path / "sm.yml", settings_dir=tmp_path)
-    assert list(f.case) == ["x"] and "s0_production.prm.imports.new_tx_allowance" in f.error.iat[0]
+    assert list(f.case) == ["x"] and "s0_production.prm.imports.relax_from" in f.error.iat[0]

@@ -321,6 +321,8 @@ def test_write_case_inputs(tmp_path):
     assert ("wind", 92035107190017) not in av.index and len(av) == 8      # capacity class only, stress hours only
     pr = pd.read_csv(tmp_path / "prm_params.csv").iloc[0]
     assert pr.prm_new_tx_derate == 0.15 and pr.prm_shortfall_cost_per_mw_yr == pytest.approx(300e3 / 1.025 ** 4, abs=0.01)
+    assert pr.prm_new_tx_flow_split == 1 and "prm_import_new_tx_allowance" not in pr.index        # §87
+    assert "new boundary transmission by flow (derate 0.15)" in lines[0]
     assert "prm regional: 2 regions" in lines[0] and "271.79" in lines[0]
     gc = pd.read_csv(tmp_path / "prm_gen_credit.csv").set_index("GENERATION_PROJECT")
     assert gc.at["bat", "prm_credit"] == "storage" and gc.at["wind", "prm_credit"] == "variable"
@@ -593,13 +595,98 @@ def test_toy_import_allowance_for_new_interregional_capacity(tmp_path):
     assert _read(out2, "prm_shortfall.csv").set_index("PRM_REGION").at["A", "shortfall_mw"] == pytest.approx(0, abs=1e-6)
 
 
-def test_import_allowance_setting_in_prm_params(tmp_path):
-    assert prm.DEFAULTS["imports"]["new_tx_allowance"] == 0.0
+# ---- §87: flow-based reserve credit for new boundary transmission (replaces the import allowance) ----
+SPLIT = dict(PEN, prm_new_tx_flow_split=1)
+REG3 = {"North": "A", "Central": "B", "South": "C"}
+PER3 = [{"PRM_REGION": "A", "PERIOD": 2020, "prm_margin": 0.0, "prm_import_share": 0.0},
+        {"PRM_REGION": "B", "PERIOD": 2020, "prm_margin": 0.0, "prm_import_share": 0.0},
+        {"PRM_REGION": "C", "PERIOD": 2020, "prm_margin": 0.0, "prm_import_share": "."}]
+GENS3 = BACKUP + [("N-th", "North", "thermal", 6), ("C-th", "Central", "thermal", 6), ("S-th", "South", "thermal", 100)]
+# N-C: 10 MW, all of it new (an earlier stage built it: trans_built_to_date), so (1 - 0.15) x 10 = 8.5 MW of new-part
+# reserve flow per hour, shared by the two directions; N-S and C-S: existing ties to a region (C) with a large surplus,
+# under A's and B's import caps (share 0)
+LINES3 = [("N-C", "North", "Central", 10, 1.0), ("N-S", "North", "South", 50, 1.0), ("C-S", "Central", "South", 50, 1.0)]
+APART = {"North": ([5, 5], [10, 10, 2, 2]), "Central": ([5, 5], [2, 2, 10, 10]), "South": ([1, 1], [1, 1, 1, 1])}
+TOGETHER = {"North": ([5, 5], [10, 10, 10, 10]), "Central": ([5, 5], [10, 10, 10, 10]), "South": ([1, 1], [1, 1, 1, 1])}
+
+
+def _short(out):
+    return _read(out, "prm_shortfall.csv").set_index("PRM_REGION").shortfall_mw.to_dict()
+
+
+def test_toy_new_tx_flow_credit_full_value_when_stresses_do_not_coincide(tmp_path):
+    """North (A) is short 4 MW in stress hours 1-2 and Central (B) in hours 3-4; each has 4 MW spare when the other is
+    short. The new N-C capacity carries 4 MW to North in hours 1-2 and to Central in hours 3-4: both ends get the full
+    value, exempt from the import caps (share 0). Before §87 (no split, no allowance) the cap blocked it: 4 MW short
+    in each region."""
+    out = mini_case(tmp_path, "apart", GENS3, APART, LINES3, REG3, PER3, {}, SPLIT, built_before={"N-C": 10})
+    assert _short(out) == pytest.approx({"A": 0.0, "B": 0.0, "C": 0.0}, abs=1e-6)
+    rh = _read(out, "prm_region_hours.csv").set_index(["PRM_REGION", "TIMEPOINT"])
+    assert rh.loc[("A", 901), "new_tx_net_import_mw"] == pytest.approx(4.0, abs=1e-6)
+    assert rh.loc[("B", 903), "new_tx_net_import_mw"] == pytest.approx(4.0, abs=1e-6)
+    assert rh.net_import_mw.max() <= 1e-6                                      # nothing over existing ties (cap 0)
+    assert (rh.new_tx_net_import_mw.abs() <= 8.5 + 1e-6).all()
+    old = mini_case(tmp_path, "apart_old", GENS3, APART, LINES3, REG3, PER3, {}, PEN, built_before={"N-C": 10})
+    assert _short(old) == pytest.approx({"A": 4.0, "B": 4.0, "C": 0.0}, abs=1e-6)
+    # built in this stage: the model builds 4 / 0.85 MW on N-C, once, for both ends
+    lines = [("N-C", "North", "Central", 0, 1.0)] + LINES3[1:]
+    out = mini_case(tmp_path, "apart_build", GENS3, APART, lines, REG3, PER3, {}, SPLIT, new_tx=True)
+    assert _short(out) == pytest.approx({"A": 0.0, "B": 0.0, "C": 0.0}, abs=1e-6)
+    b = _read(out, "BuildTx.csv").groupby("TRANS_BLD_YRS_1").BuildTx.sum()
+    assert b.sum() == pytest.approx(4 / 0.85, rel=1e-5) and b["N-C"] == pytest.approx(4 / 0.85, rel=1e-5)
+
+
+def test_toy_new_tx_flow_credit_no_double_counting(tmp_path):
+    """Both ends short 4 MW in the same hours. The new N-C line can carry reserve one way in an hour, so it can't help
+    two short regions at once: 8 MW short in all (the existing ties to C are capped at share 0; moving capacity from
+    one short end to the other doesn't change the total). The retired
+    allowance (0.85 x 10 MW on each end's cap, location- and direction-blind) credited the line at BOTH ends: each
+    region imported 4 MW over its existing tie to C and neither was short."""
+    out = mini_case(tmp_path, "together", GENS3, TOGETHER, LINES3, REG3, PER3, {}, SPLIT, built_before={"N-C": 10})
+    sf = _short(out)
+    # 8 MW short between the two ends (the LP may move one end's capacity to the other: same total, either split)
+    assert sf["A"] + sf["B"] == pytest.approx(8.0, abs=1e-6) and sf["C"] == pytest.approx(0.0, abs=1e-6)
+    rh = _read(out, "prm_region_hours.csv")
+    assert rh.net_import_mw.max() <= 1e-6                                      # nothing from C over existing ties
+    old = mini_case(tmp_path, "together_allow", GENS3, TOGETHER, LINES3, REG3, PER3, {},
+                    dict(PEN, prm_import_new_tx_allowance=0.85), built_before={"N-C": 10})
+    assert _short(old) == pytest.approx({"A": 0.0, "B": 0.0, "C": 0.0}, abs=1e-6)          # double counted
+    # partial coincidence: Central has 2 MW spare while North is short 4 (hours 1-2): N-C carries 2, North is short 2
+    part = {"North": ([5, 5], [10, 10, 2, 2]), "Central": ([5, 5], [4, 4, 10, 10]), "South": ([1, 1], [1, 1, 1, 1])}
+    out = mini_case(tmp_path, "partial", GENS3, part, LINES3, REG3, PER3, {}, SPLIT, built_before={"N-C": 10})
+    assert _short(out) == pytest.approx({"A": 2.0, "B": 0.0, "C": 0.0}, abs=1e-6)
+    # the retired allowance can't be combined with the split
+    with pytest.raises(AssertionError, match="retired"):
+        mini_case(tmp_path, "both", GENS3, TOGETHER, LINES3, REG3, PER3, {},
+                  dict(SPLIT, prm_import_new_tx_allowance=0.85), built_before={"N-C": 10})
+
+
+def test_toy_new_tx_flow_credit_existing_part_still_capped(tmp_path):
+    """A line with both existing and new capacity: the existing part stays under the import cap, the new part doesn't.
+    N-S: 6 MW existing + 2 / 0.85 MW new (built in an earlier stage). North needs 4 MW of imports: 1 MW over the
+    existing part (cap 0.1 x peak 10) and 2 MW over the new part (0.85 x 2 / 0.85), so 1 MW short."""
+    gens = BACKUP + [("N-th", "North", "thermal", 6), ("S-th", "South", "thermal", 100)]
+    loads = {"North": ([5, 5], [10, 10, 10, 10]), "Central": ([1, 1], [0, 0, 0, 0]), "South": ([1, 1], [1, 1, 1, 1])}
+    per = [{"PRM_REGION": "A", "PERIOD": 2020, "prm_margin": 0.0, "prm_import_share": 0.1},
+           {"PRM_REGION": "C", "PERIOD": 2020, "prm_margin": 0.0, "prm_import_share": "."}]
+    reg = {"North": "A", "South": "C"}
+    lines = [("N-S", "North", "South", 6 + 2 / 0.85, 1.0), ("C-S", "Central", "South", 0, 1.0)]
+    out = mini_case(tmp_path, "mixed", gens, loads, lines, reg, per, {}, SPLIT, built_before={"N-S": 2 / 0.85})
+    assert _short(out)["A"] == pytest.approx(1.0, abs=1e-6)
+    rh = _read(out, "prm_region_hours.csv")
+    a = rh[rh.PRM_REGION == "A"]
+    assert a.net_import_mw.max() == pytest.approx(1.0, abs=1e-6) and a.new_tx_net_import_mw.max() == pytest.approx(2.0, abs=1e-6)
+
+
+def test_import_allowance_retired(tmp_path):
+    """§87: the allowance setting is gone (setting it is an error); every regional case gets the flow split."""
     import yaml
+    assert "new_tx_allowance" not in prm.DEFAULTS["imports"]
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    # S0: historical shares only; a period-keyed table since §82 (so the bill tables merge into it), 0 in every stage
-    assert s0["prm"]["imports"]["new_tx_allowance"] == {2028: 0.0}
-    assert all(prm.import_allowance(s0["prm"], [y]) == 0.0 for y in (2024, 2028, 2030, 2035, 2045))
+    assert "new_tx_allowance" not in s0["prm"]["imports"] and s0["prm"]["new_tx_derate"] == 0.15
+    with pytest.raises(ValueError, match="retired"):
+        prm.prm_settings({"prm": {"design": "regional", "imports": {"new_tx_allowance": 0.0}}})
+    assert not hasattr(prm, "import_allowance")
 
 
 def test_toy_shortfall_costs_the_penalty_once_and_price_within_it(tmp_path):
