@@ -3939,3 +3939,37 @@ Two rows split the bill into its two channels. Both are S0 through 2030 and chan
   cap, moratorium), iconly (build rate, headroom). The expected-reuse table is unchanged apart from the name.
 
 **Results (tom/s0-prod-scripts):** pandas 3.0.6: 231 passed; 1.4.4: 230 passed, 1 skipped. No `switch/` or `build_rate/` changes (build-rate freeze respected).
+
+## 86. CA/WA Import Charge Options (v3.1 candidate) — FOR TOM'S REVIEW
+
+**Date:** 2026-10-08 · **Branch:** `tom/s0-prod-scripts` only (nothing on `tom/s0-v3-scenarios`). **Defaults are
+unchanged.** Nothing in `switch/` or `build_rate/` changed (build-rate freeze respected).
+
+**Why:**
+- The §65 charge puts price × 0.428 tCO2/MWh (WA 0.437) on every MWh imported into CA/WA zones.
+- Under CARB's rules only unspecified imports pay the default. Specified imports carry their source's factor.
+- Attribution run A8 showed this raises CA/WA in-state emissions by about 20 Mt in 2035.
+
+**New setting:** `s0_production.ca_wa_carbon.import_charge` (`s0_workflow/production.py`):
+- `all_default`: the default, the §65 behaviour. The file is byte-identical (tested).
+- `unspecified_share`: share × default + (1 − share) × `specified_factor`.
+  - The share is a number or a `{year: share}` path per state. The default is 0.136, from CEC 2023: unspecified
+    10,373 of 76,400 GWh imports.
+  - `specified_factor` is 0, a number, or `source_table`.
+- `source_table`: the exporting zone's factor from a CSV (`zone, tco2_per_mwh[, period]`).
+- New script `s0_workflow/scripts/zone_import_factors.py` derives the table from a solved case: average or
+  emitting-fleet rate by zone and period. The table is lagged, not computed in the solve.
+- `pg/settings/s0_production.yml` documents the options as comments only, so the resolved S0 settings don't change.
+
+**Data:** CEC Total System Electric Generation:
+- 2022: about 24% unspecified. Imports are derived by subtraction.
+- 2023: 13.6%.
+- 2024: 4,051 GWh unspecified. Total imports not found.
+- CEC's categories are not CARB MRR's. **The MRR specified/unspecified MWh files could not be fetched**
+  (ww2.arb.ca.gov is blocked from here), so the calibration needs checking against them.
+- WA uses CA's share, **an assumption**.
+
+**Trade-offs and recommendation:** see the guide, "Import charge options".
+
+**Tests:** `test_import_charge_settings`, `test_import_charge_options_on_real_transmission` (every option on the real
+transmission network; a missing exporter stops the build) and `test_zone_import_factors_script` (hand-built fixture).

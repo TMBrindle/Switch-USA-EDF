@@ -333,6 +333,14 @@ s0_production:
     # ACS factor could be cited (CARB's ACS page was not reachable; Powerex reports 0.0233 t/MWh for data year 2019,
     # about $1.2/MWh at the 2030 price: a candidate value once confirmed against CARB's table).
     import_gens: {p11: 0.428, p1: 0.0, p3: 0.0}
+    # import charge options (CHANGES §86, v3.1 candidates for Tom's review; Guides and documentation/s0_production.md
+    # "Import charge options"). Not set here, so the default applies: all_default (every delivered MWh pays the state's
+    # default factor, as §65). To try one, set on a case or axis:
+    #   import_charge: unspecified_share      # default factor x share, specified_factor on the rest
+    #   unspecified_share: {CA: 0.136, WA: 0.136}    # or {CA: {2028: .., 2035: ..}}; CEC 2023 (10,373 / 76,400 GWh)
+    #   specified_factor: 0.0                 # or source_table (the exporting zone's factor)
+    #   import_charge: source_table           # the exporting zone's factor on every MWh
+    #   source_table: <csv: zone, tco2_per_mwh[, period]>   # s0_workflow/scripts/zone_import_factors.py
 
   # fuel prices (CHANGES §67; s0_workflow/fuel_prices.py; Guides and documentation/s0_production.md "Fuel prices"; axis and
   # column fuel_prices): natural gas and coal delivered to the electric power sector, 2024 $/MMBtu

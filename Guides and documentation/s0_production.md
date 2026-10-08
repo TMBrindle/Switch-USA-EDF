@@ -502,6 +502,74 @@ One linked-market carbon price for California (`ETS 2`) and Washington (`ETS 3`)
   not transmission flows, so they don't pay the import cost.
 - **`legacy`:** the presets' $33.43 and no import cost. That is the regression case, which stays byte-identical. Non-S0
   cases are unchanged.
+- **Other import factors:** see "Import charge options" below (§86; the default is unchanged).
+
+### Import charge options (§86, v3.1 candidate; the default is unchanged)
+
+`ca_wa_carbon.import_charge` sets the factor on transmission imports into CA and WA zones. The S0 default stays
+`all_default`. The other options are for Tom's v3.1 review.
+
+| Option | Factor per delivered MWh (tCO2/MWh) | 2035 central into CA |
+|---|---|---|
+| `all_default` (default, §65) | the state default (CA 0.428, WA 0.437) | $29.02 |
+| `unspecified_share` | share × default + (1 − share) × `specified_factor` (a number, default 0, or `source_table`) | $3.95 (share 0.136, specified 0) |
+| `source_table` | the exporting zone's factor, from a table | depends on the exporter |
+
+- **Why:** under CARB's rules only unspecified imports pay the 0.428 default. Specified imports (owned or contracted,
+  directly delivered) carry their source's factor: hydro, nuclear and renewables ≈ 0, coal and gas their own rates.
+  The §65 charge puts 0.428 on every MWh. Attribution run A8 showed this raises CA/WA in-state emissions by about
+  20 Mt in 2035, because imports cost more than in-state gas.
+- **Unspecified share data** (CEC Total System Electric Generation; CEC power-mix categories, **not** CARB MRR's).
+  CARB's MRR files on specified versus unspecified MWh could not be fetched (ww2.arb.ca.gov is blocked from here), so
+  this calibration needs checking against them.
+
+  | Year | Unspecified imports, GWh | Total imports, GWh | Share | Note |
+  |---|---|---|---|---|
+  | 2022 | 20,428 | ≈ 83,963 | ≈ 0.243 | Imports derived: total system 287,220 − in-state 203,257 (secondary source) |
+  | 2023 | 10,373 | 76,400 | 0.136 | Default: the latest year with both figures |
+  | 2024 | 4,051 | n/a | n/a | Total imports not found; the share is still falling |
+
+  - CARB inventory 2020: specified-import emissions ≈ 9.8 MMTCO2e, unspecified ≈ 8.8. That is about half of import
+    emissions, from far fewer MWh.
+  - WA: no Washington figure was found, so CA's share is used. **This is an assumption.**
+  - `unspecified_share` takes a number or a `{year: share}` path per state (linear between keys).
+- **Exporting-zone factors:** `source_table` is a CSV with columns `zone`, `tco2_per_mwh` and an optional `period`.
+  A row with a period wins over a row without one. Every exporting zone needs a row, or the build stops.
+  - `s0_workflow/scripts/zone_import_factors.py` derives the table from a solved reference case's
+    `dispatch_zonal_annual_summary.csv`:
+    - `average`: emissions ÷ generation;
+    - `fossil`: the rate of the emitting fleet, a proxy for the marginal rate.
+  - Factors from a solve are model output for that case, not observed data.
+  - **Limitation:** the exporting zone is the adjacent zone, so flows that pass through it take its rate.
+- **Not changed:**
+  - `import_gens` (Mexico into p11, Canada into p1/p3) keep their own factors.
+  - Exports and CA↔WA flows pay nothing.
+  - `legacy` writes no import cost.
+  - `study_modules/trans_hurdle_cost.py` is unchanged: every option is a different number in the same
+    `trans_import_cost.csv`.
+
+**Trade-offs:**
+
+- **Linearity:** all three options give a fixed $/MWh per import direction and period. The objective stays linear and
+  the model size doesn't change.
+- **Circularity of endogenous intensities:**
+  - **Average rate:** charging imports at the exporter's in-solve average rate (emissions ÷ generation, both
+    variables) multiplies the flow by a ratio of variables. That is bilinear and non-convex, and outside an LP.
+  - **Marginal rate:** the marginal rate is a dual of the same solve, so it can't enter its own primal.
+  - **What works instead:** a lagged or iterated table. Solve, derive factors, rebuild, re-solve, and repeat until
+    they settle. Each round is a full solve (80–100 GB at production size), and convergence isn't guaranteed.
+    Charging the exporter's rate also lowers imports from dirty zones, which changes those zones' rates.
+- **Policy fidelity:**
+  - `unspecified_share` follows CARB's rule (default factor on the unspecified part, regardless of source) on
+    average.
+  - `source_table` models every import as specified. That lets the model pick clean exporters, which is resource
+    shuffling: CARB counts it as specified only with a contract and direct delivery.
+- **Margins:**
+  - A flat share treats each marginal import MWh as historically mixed. In reality, extra imports beyond contracted
+    volumes are unspecified unless new contracts are signed.
+  - A marginal-correct form would cap the specified volume (an annual specified-MWh allowance per state at the
+    specified factor, the rest at 0.428). It needs a new variable and constraint in `trans_hurdle_cost.py`, so it is
+    **not implemented**.
 
 ## Forced transmission (§54)
 
