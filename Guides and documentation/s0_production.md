@@ -571,6 +571,12 @@ One linked-market carbon price for California (`ETS 2`) and Washington (`ETS 3`)
     specified factor, the rest at 0.428). It needs a new variable and constraint in `trans_hurdle_cost.py`, so it is
     **not implemented**.
 
+**Recommendation (for the v3.1 review, not applied):**
+- Use `unspecified_share` with `specified_factor: 0` as the central case. It follows CARB's rule, stays linear and has
+  no circularity. Its single number can be traced to a source.
+- Run sensitivities at the 2022 share (0.243) and at `all_default`, which is the upper bound.
+- Use `source_table` (lagged from S0prod_A) only as a sensitivity.
+
 ## Forced transmission (§54)
 
 - **Source:** `s0_production.forced_tx: reeds_certain` (S0 default). The forced lines are ReEDS 2026.09.21's certain
