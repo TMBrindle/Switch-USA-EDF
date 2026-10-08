@@ -235,25 +235,26 @@ def _merged(*axis_values):
     return s["s0_production"], ax
 
 
-EXPECT = {   # tx_bill value: (moratorium, cap by period 2028-2045, headroom by period, build rate by period,
-             # import allowance by period); §72: S0 (0 / 1.4, atts_s0, central, 0) until each change takes effect
-    "s0_tx": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], None, None, [0.0] * 5),
+EXPECT = {   # tx_bill value: (moratorium, cap by period 2028-2045, headroom by period, build rate by period);
+             # §72: S0 (0 / 1.4, atts_s0, central) until each change takes effect. No reserve import allowance (§87:
+             # retired; new boundary lines get reserve credit by flow in every case)
+    "s0_tx": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], None, None),
     "bill_central": (2035, [0.0, 1.4, 3.0, 3.0, 3.0], ["atts_s0"] * 2 + ["atts_reform"] * 3,
-                     ["central"] * 2 + ["reform_bp"] * 3, [0.0] * 2 + [0.85] * 3),
+                     ["central"] * 2 + ["reform_bp"] * 3),
     "bill_low": (2040, [0.0, 1.4, 2.0, 2.0, 2.0], ["atts_s0"] * 3 + ["atts_reform"] * 2,
-                 ["central"] * 3 + ["reform_bp"] * 2, [0.0] * 3 + [0.85] * 2),
+                 ["central"] * 3 + ["reform_bp"] * 2),
     "bill_high": (2035, [0.0, 2.0, 4.0, 4.0, 4.0], ["atts_s0", "atts_reform"] + ["atts_reform_techmax"] * 3,
-                  ["central"] + ["reform_bp"] * 4, [0.0] * 2 + [0.85] * 3),
-    "bill_central_txonly": (2035, [0.0, 1.4, 3.0, 3.0, 3.0], None, None, [0.0] * 2 + [0.85] * 3),
+                  ["central"] + ["reform_bp"] * 4),
+    "bill_central_txonly": (2035, [0.0, 1.4, 3.0, 3.0, 3.0], None, None),
     "bill_central_iconly": (2040, [0.0, 1.4, 1.4, 1.4, 1.4], ["atts_s0"] * 2 + ["atts_reform"] * 3,
-                            ["central"] * 2 + ["reform_bp"] * 3, [0.0] * 5),
+                            ["central"] * 2 + ["reform_bp"] * 3),
 }
 
 
 def test_bill_axis_values():
     from s0_workflow import production as s0prod
     years = [2028, 2030, 2035, 2040, 2045]
-    for val, (mor, cap, hr, br, allow) in EXPECT.items():
+    for val, (mor, cap, hr, br) in EXPECT.items():
         s0, ax = _merged(("tx_bill", val))
         t = tx_policy.tx_settings(s0)
         assert t["mode"] == "national_cap" and t["moratorium_first_period"] == mor, val
@@ -262,13 +263,15 @@ def test_bill_axis_values():
                                 "cap_tw_mi_per_yr": {2028: 0.0, 2030: 1.4}}, val          # ERCOT: no-bill values
         assert [s0prod.level_for(s0, "interconnection_headroom", y) for y in years] == (hr or [None] * 5), val
         assert [s0prod.level_for(s0, "build_rate", y) for y in years] == (br or [None] * 5), val
-        assert [prm.import_allowance(s0["prm"], [y]) for y in years] == allow, val
+        assert "new_tx_allowance" not in (s0.get("prm") or {}).get("imports", {}), val      # §87: retired
+        assert prm.prm_settings({**s0, "prm": {**s0.get("prm", {}), "design": "regional"}}) is not None, val
         assert "--include-module study_modules.tx_build_cap" in s0prod.scenario_options({"s0_production": s0})
     # legacy (every older row, the regression case): nothing changes
     s0, ax = _merged(("tx_bill", "legacy"), ("tx_sens", "none"))
     assert not tx_policy.active(s0) and s0["levels_by_period"] == {"interconnection_headroom": {}, "build_rate": {}}
     assert "tx_build_cap" not in s0prod.scenario_options({"s0_production": s0})
-    assert all(prm.import_allowance(s0["prm"], [y]) == 0.0 for y in years)          # §82: a table, 0 in every period
+    with pytest.raises(ValueError, match="retired"):                              # §87: setting it is an error
+        prm.prm_settings({"prm": {"design": "regional", "imports": {"new_tx_allowance": {2028: 0.0, 2035: 0.85}}}})
     # sensitivity hooks (forced A + B is the forced_tx column's value since §81: one column per key)
     assert "forced_ab" not in ax["tx_sens"] and "br_reform_siting" not in ax["tx_sens"]
     s0, _ = _merged(("tx_bill", "s0_tx"), ("forced_tx", "reeds_certain_plus_AB"))
@@ -454,7 +457,7 @@ FIRST_CHANGE = {"bill_central": 2035, "bill_low": 2035, "bill_high": 2030, "bill
 
 def test_bill_rows_write_s0_inputs_until_their_change(tmp_path):
     """§72: before its first change a bill row writes byte-identical transmission-policy files (moratorium rows, cap
-    by period, line classes), no reserve import allowance, the same headroom scenario and build-rate level, and no
+    by period, line classes), the same headroom scenario and build-rate level, and no
     headroom switch marker, so its early stages can be reused from S0prod_A (s0_workflow/chain_reuse.py)."""
     from s0_workflow import production as s0prod
     chain = [2028, 2030, 2035, 2040, 2045]
@@ -472,16 +475,13 @@ def test_bill_rows_write_s0_inputs_until_their_change(tmp_path):
             (tmp_path / f"{val}{y}").mkdir()
             (tmp_path / f"ref{val}{y}").mkdir()
             assert build(s0, y, f"{val}{y}") == build(s0_ref, y, f"ref{val}{y}"), (val, y)
-            assert prm.import_allowance(s0["prm"], [y]) == 0.0
             for what in ("interconnection_headroom", "build_rate"):
                 assert s0prod.level_for(s0, what, y) in (None, {"interconnection_headroom": "atts_s0",
                                                                "build_rate": "central"}[what]), (val, y, what)
         y = first                                      # and the first change shows in that period
         s0_vals = (tx_policy.step_value(tx_policy.tx_settings(s0)["cap_tw_mi_per_yr"], y),
-                   s0prod.level_for(s0, "interconnection_headroom", y), prm.import_allowance(s0["prm"], [y]))
-        assert s0_vals != (1.4, None, 0.0) and s0_vals != (1.4, "atts_s0", 0.0), val
-    with pytest.raises(ValueError, match="single-period stages"):
-        prm.import_allowance({"imports": {"new_tx_allowance": {2028: 0.0, 2035: 0.85}}}, [2030, 2035])
+                   s0prod.level_for(s0, "interconnection_headroom", y))
+        assert s0_vals != (1.4, None) and s0_vals != (1.4, "atts_s0"), val
 
 
 def test_expected_reuse_of_the_bill_rows():

@@ -41,6 +41,20 @@ Region-level import cap, in EVERY stress timepoint (also hours when storage char
 prm_region_peak_mw: the region's highest coincident zone_demand_mw in the period's timepoints (the
 stress days include each region's peak days). A blank share means no cap.
 
+Flow-based credit for new transmission (prm_new_tx_flow_split = 1; CHANGES §87, the S0 case writer's setting for every
+regional case): on each line crossing a region boundary, the reserve flow is split in two.
+  * PrmFlow[a, b, t], the existing-capacity part: limited by (existing - built in earlier stages) x
+    trans_derating_factor per direction, and the only part in PrmNetImport, so the only part under the import cap.
+  * PrmFlowNew[a, b, t], the new-capacity part: one limit per line and hour across BOTH directions,
+        PrmFlowNew[a, b, t] + PrmFlowNew[b, a, t] <= (1 - prm_new_tx_derate) x new capacity x trans_derating_factor
+    (new = this stage's BuildTx to date plus earlier stages' trans_built_to_date_mw), exempt from the import cap.
+New capacity then counts by physics: in an hour it carries reserve one way, to one end, once. When both ends are
+stressed in the same hour it can't serve both; when their stresses don't coincide each end gets the full amount in its
+own hours. The trans_asymmetric_capacity directional cap limits the sum of the two parts. Lines inside a region keep
+the single PrmFlow. prm_new_tx_flow_split = 0 (the module default, so case folders built before §87 solve as they did):
+one PrmFlow per direction up to existing + (1 - derate) x new, all of it under the import cap (+ the retired
+prm_import_new_tx_allowance; it can't be combined with the split).
+
 Shortfall: PrmZoneShortfall[z, p] (MW, applies to every stress timepoint of the period) at
 prm_shortfall_cost_per_mw_yr in each year of the period; PrmShortfall[r, p] sums a region's zones.
 
@@ -58,7 +72,9 @@ Inputs:
     prm_gen_credit.csv*         GENERATION_PROJECT, prm_credit*, prm_class*
     prm_gen_availability.csv*   GENERATION_PROJECT, TIMEPOINT, prm_avail_frac
     prm_params.csv*             prm_new_tx_derate, prm_shortfall_cost_per_mw_yr, prm_import_cap_all_hours,
-                                prm_import_new_tx_allowance* (bill cases: + allowance x new boundary capacity),
+                                prm_new_tx_flow_split* (1: flow-based credit for new boundary capacity, above),
+                                prm_import_new_tx_allowance* (retired by §87; folders built before it: + allowance x
+                                new boundary capacity on the cap),
                                 prm_compact_capacity* (1: compact reserve rows, below)
 
 Compact reserve rows (prm_compact_capacity = 1; CHANGES §69). The hourly rows above put every capacity-credit unit's
@@ -145,8 +161,11 @@ def define_components(m):
     # 1 (default): import cap in every stress timepoint; 0: only at each region's peak-load stress
     # timepoint (diagnostic only: shows the storage "laundering" loophole the default closes)
     m.prm_import_cap_all_hours = Param(within=NonNegativeReals, default=1)
-    # bill cases: reserve imports may also use this share of new interregional capacity built into the region
+    # retired (§87): bill cases' reserve imports could also use this share of new interregional capacity built into
+    # the region. Kept so folders built before §87 load; the case writer no longer writes it
     m.prm_import_new_tx_allowance = Param(within=NonNegativeReals, default=0.0)
+    # 1: flow-based credit for new capacity on region-boundary lines (§87; module docstring); 0 (default): as before
+    m.prm_new_tx_flow_split = Param(within=NonNegativeReals, default=0)
     # 1: compact reserve rows (CHANGES §69): capacity-credit units enter through one accredited-capacity variable per
     # zone, period and derate group, and the shortfall through one variable per group; 0 (default): hourly terms
     m.prm_compact_capacity = Param(within=NonNegativeReals, default=0)
@@ -202,17 +221,68 @@ def define_components(m):
         ) * m.trans_derating_factor[tx]
 
     m.PrmTxCapacity = Expression(m.TRANSMISSION_LINES, m.PERIODS, rule=tx_cap)
-    m.Prm_Flow_Limit = Constraint(
-        m.PRM_TX_TPS,
-        rule=lambda m, zf, zt, t: m.PrmFlow[zf, zt, t]
-        <= m.PrmTxCapacity[m.trans_d_line[zf, zt], m.tp_period[t]],
+
+    # flow-based credit for new capacity on region-boundary lines (prm_new_tx_flow_split; §87)
+    def split(m):
+        return value(m.prm_new_tx_flow_split) >= 1
+
+    def is_boundary(m, tx):
+        r1, r2 = m.prm_region_of_zone[m.trans_lz1[tx]], m.prm_region_of_zone[m.trans_lz2[tx]]
+        return r1 != "" and r2 != "" and r1 != r2
+
+    m.PRM_SPLIT_LINES = Set(
+        dimen=1, initialize=lambda m: [tx for tx in m.TRANSMISSION_LINES if split(m) and is_boundary(m, tx)]
     )
+
+    def can_have_new(m, tx, p):
+        return value(m.trans_built_to_date_mw[tx]) > 0 or any(
+            (tx, b) in m.TRANS_BLD_YRS for b in m.PERIODS if b <= p)
+
+    # (line, stress timepoint) pairs where the line may carry new capacity: the new-part rows and columns
+    m.PRM_NEW_TX_LINE_TPS = Set(
+        dimen=2,
+        initialize=lambda m: [(tx, t) for tx in m.PRM_SPLIT_LINES for t in m.PRM_TPS
+                              if can_have_new(m, tx, m.tp_period[t])],
+    )
+    m.PRM_NEW_TX_TPS = Set(
+        dimen=3,
+        initialize=lambda m: [(zf, zt, t) for (tx, t) in m.PRM_NEW_TX_LINE_TPS
+                              for (zf, zt) in ((m.trans_lz1[tx], m.trans_lz2[tx]), (m.trans_lz2[tx], m.trans_lz1[tx]))],
+    )
+    m.PrmFlowNew = Var(m.PRM_NEW_TX_TPS, within=NonNegativeReals)
+
+    def tx_cap_existing(m, tx):
+        before = min(value(m.trans_built_to_date_mw[tx]), value(m.existing_trans_cap[tx]))
+        return (m.existing_trans_cap[tx] - before) * m.trans_derating_factor[tx]
+
+    def tx_cap_new(m, tx, p):
+        new = sum(m.BuildTx[tx, b] for b in m.PERIODS if b <= p and (tx, b) in m.TRANS_BLD_YRS)
+        before = min(value(m.trans_built_to_date_mw[tx]), value(m.existing_trans_cap[tx]))
+        return (1 - m.prm_new_tx_derate) * (before + new) * m.trans_derating_factor[tx]
+
+    def flow_limit(m, zf, zt, t):
+        tx = m.trans_d_line[zf, zt]
+        if tx in m.PRM_SPLIT_LINES:                    # boundary line, split: the existing-capacity part
+            return m.PrmFlow[zf, zt, t] <= tx_cap_existing(m, tx)
+        return m.PrmFlow[zf, zt, t] <= m.PrmTxCapacity[tx, m.tp_period[t]]
+
+    m.Prm_Flow_Limit = Constraint(m.PRM_TX_TPS, rule=flow_limit)
+    # the new-capacity part: both directions share the line's new capacity in each hour
+    m.Prm_New_Flow_Limit = Constraint(
+        m.PRM_NEW_TX_LINE_TPS,
+        rule=lambda m, tx, t: m.PrmFlowNew[m.trans_lz1[tx], m.trans_lz2[tx], t]
+        + m.PrmFlowNew[m.trans_lz2[tx], m.trans_lz1[tx], t]
+        <= tx_cap_new(m, tx, m.tp_period[t]),
+    )
+
+    def new_flow(m, zf, zt, t):
+        return m.PrmFlowNew[zf, zt, t] if (zf, zt, t) in m.PRM_NEW_TX_TPS else 0.0
 
     def directional_rule(m, zf, zt, t):
         cap = m.trans_directional_cap_mw[zf, zt, m.tp_period[t]]
         if cap == float("inf"):
             return Constraint.Skip
-        return m.PrmFlow[zf, zt, t] <= cap
+        return m.PrmFlow[zf, zt, t] + new_flow(m, zf, zt, t) <= cap
 
     if hasattr(m, "trans_directional_cap_mw"):
         m.Prm_Flow_Directional_Limit = Constraint(m.PRM_TX_TPS, rule=directional_rule)
@@ -221,11 +291,12 @@ def define_components(m):
         m.LOAD_ZONES,
         m.PRM_TPS,
         rule=lambda m, z, t: sum(
-            m.PrmFlow[zf, z, t] * m.trans_efficiency[m.trans_d_line[zf, z]]
+            (m.PrmFlow[zf, z, t] + new_flow(m, zf, z, t)) * m.trans_efficiency[m.trans_d_line[zf, z]]
             for zf in m.TX_CONNECTIONS_TO_ZONE[z]
             if (zf, z, t) in m.PRM_TX_TPS
         )
-        - sum(m.PrmFlow[z, zt, t] for zt in m.TX_CONNECTIONS_TO_ZONE[z] if (z, zt, t) in m.PRM_TX_TPS),
+        - sum(m.PrmFlow[z, zt, t] + new_flow(m, z, zt, t)
+              for zt in m.TX_CONNECTIONS_TO_ZONE[z] if (z, zt, t) in m.PRM_TX_TPS),
     )
 
     def net_import(m, r, t):
@@ -242,7 +313,25 @@ def define_components(m):
         )
         return inflow - outflow
 
+    # the import cap's quantity: with the split, PrmFlow on boundary lines is the existing-capacity part only
     m.PrmNetImport = Expression(m.PRM_REGIONS, m.PRM_TPS, rule=net_import)
+
+    def new_import(m, r, t):
+        zones = set(m.ZONES_IN_PRM_REGION[r])
+        inflow = sum(
+            m.PrmFlowNew[zf, zt, t] * m.trans_efficiency[m.trans_d_line[zf, zt]]
+            for (zf, zt) in m.DIRECTIONAL_TX
+            if zt in zones and zf not in zones and (zf, zt, t) in m.PRM_NEW_TX_TPS
+        )
+        outflow = sum(
+            m.PrmFlowNew[zf, zt, t]
+            for (zf, zt) in m.DIRECTIONAL_TX
+            if zf in zones and zt not in zones and (zf, zt, t) in m.PRM_NEW_TX_TPS
+        )
+        return inflow - outflow
+
+    # net reserve import over new boundary capacity (exempt from the cap; 0 without the split)
+    m.PrmNewImport = Expression(m.PRM_REGIONS, m.PRM_TPS, rule=new_import)
 
     m.prm_region_peak_mw = Param(
         m.PRM_REGION_PERIODS,
@@ -433,6 +522,9 @@ def define_dynamic_components(m):
     def import_cap_rule(m, r, t):
         p = m.tp_period[t]
         cap = m.prm_import_share[r, p] * m.prm_region_peak_mw[r, p]
+        if value(m.prm_import_new_tx_allowance) > 0 and value(m.prm_new_tx_flow_split) >= 1:
+            raise ValueError("prm_params.csv: prm_import_new_tx_allowance (retired, §87) can't be combined with "
+                             "prm_new_tx_flow_split = 1 (new capacity is credited by flow)")
         if value(m.prm_import_new_tx_allowance) > 0:
             cap = cap + m.prm_import_new_tx_allowance * m.PrmNewInterCapacity[r, p]
         return m.PrmNetImport[r, t] <= cap
@@ -477,7 +569,7 @@ def load_inputs(m, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, "prm_params.csv"),
         optional=True,
         param=(m.prm_new_tx_derate, m.prm_shortfall_cost_per_mw_yr, m.prm_import_cap_all_hours,
-               m.prm_import_new_tx_allowance, m.prm_compact_capacity),
+               m.prm_import_new_tx_allowance, m.prm_compact_capacity, m.prm_new_tx_flow_split),
     )
 
 
@@ -574,6 +666,7 @@ def post_solve(m, outputs_dir):
             load = sum(value(m.PrmServedLoad[z, t]) for z in zones)
             local = sum(value(m.PrmLocalCredit[z, t]) for z in zones)
             imp = value(m.PrmNetImport[r, t])
+            new_imp = value(m.PrmNewImport[r, t])
             share = value(m.prm_import_share[r, p])
             cap = share * value(m.prm_region_peak_mw[r, p]) if share != float("inf") else float("inf")
             idual = (
@@ -591,7 +684,9 @@ def post_solve(m, outputs_dir):
                     "net_import_mw": imp,
                     "import_cap_mw": cap,
                     "import_use": imp / cap if cap not in (0, float("inf")) else float("nan"),
-                    "margin_achieved": (local + imp) / load - 1 if load > 0 else float("nan"),
+                    # §87: net reserve import over new boundary capacity (exempt from the cap; 0 without the split)
+                    "new_tx_net_import_mw": new_imp,
+                    "margin_achieved": (local + imp + new_imp) / load - 1 if load > 0 else float("nan"),
                     "reserve_dual_sum": zh.loc[(zh.PRM_REGION == r) & (zh.TIMEPOINT == t), "dual"].abs().sum()
                     if len(zh)
                     else float("nan"),
@@ -617,6 +712,7 @@ def post_solve(m, outputs_dir):
                 "min_margin_achieved": worst.margin_achieved,
                 "at_timepoint": worst.TIMEPOINT,
                 "max_net_import_mw": x.net_import_mw.max(),
+                "max_new_tx_net_import_mw": x.new_tx_net_import_mw.max(),
                 "import_cap_mw": x.import_cap_mw.iloc[0],
                 "max_import_use": x.import_use.max(),
                 "peak_mw": value(m.prm_region_peak_mw[r, p]),

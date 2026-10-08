@@ -271,13 +271,12 @@ s0_production:
       summer_months: [5, 6, 7, 8, 9]   # other months (Apr, Oct): normal-weather (static) rates
     imports:
       mode: flat                   # flat (S0) | relaxed (ReEDS 2031_hist/2050_100) | none
-      # bill cases (§60): the import cap also allows this share of the new interregional capacity built into the
-      # region to date (nameplate MW on lines crossing the region boundary); S0: 0 (historical shares only).
-      # A period-keyed table (each key holds until the next; earlier years take the first), so the bill rows'
-      # tables ({2028: 0.0, 2035: 0.85}) merge into it: PowerGenome's update_dictionary can't merge a table into a
-      # number (CHANGES §82). {2028: 0.0} = 0 in every period
-      new_tx_allowance: {2028: 0.0}
-    new_tx_derate: 0.15            # new transmission, reserve purposes (ReEDS GSw_TransInvPRMderate)
+      # The import cap (historical share x peak) applies to reserve flows over EXISTING capacity only. New capacity on
+      # lines crossing a region boundary carries reserve by flow (CHANGES §87, every case, S0 included): in each
+      # stress hour new(a->b) + new(b->a) <= (1 - new_tx_derate) x new capacity, exempt from the cap, so it serves one
+      # end at a time. This replaces the bill cases' new_tx_allowance (retired: setting it is an error)
+    new_tx_derate: 0.15            # new transmission, reserve purposes (ReEDS GSw_TransInvPRMderate); the one
+                                   # deliverability factor for new lines (§87)
     # reserve_rows (CHANGES §69; compact the S0 default from §70) hourly | compact. compact: one
     # accredited-capacity variable per zone, period and derate group (stress hours with the same seasonal derates),
     # defined once from capacity x (1 - seasonal FOR), used in that group's hourly reserve rows in place of every

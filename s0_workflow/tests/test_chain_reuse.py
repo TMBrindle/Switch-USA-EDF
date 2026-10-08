@@ -203,17 +203,18 @@ def test_code_check(tmp_path, monkeypatch):
 
 def test_expected_reuse_from_case_definitions():
     """From this repo's case definitions (§72: the bill rows are S0 until each change): S0_tx is S0prod_A in every
-    stage; BILL_central from 2035 differs in headroom, build rate, cap, moratorium and import allowance; BILL_high
+    stage; BILL_central from 2035 differs in headroom, build rate, cap and moratorium; BILL_high
     from 2030 (headroom, build rate, cap); BILL_central_S1 from 2030 (tax credits); S0prod_B (mode B) everywhere."""
     df = cr.expected_reuse(REPO / "pg/extra_inputs/scenario_inputs.csv", REPO / "pg/settings/scenario_management.yml")
     exp = df[df.expected_reuse].groupby("case").stage.apply(list).to_dict()
     assert exp.get("S0_tx") == [2028, 2030, 2035, 2040, 2045] and "S0prod_B" not in exp
     c35 = df[(df.case == "BILL_central") & (df.stage == 2035)].differences.iat[0]
     for k in ("build_rate.level", "interconnection_headroom.scenario: 'atts_s0' -> 'atts_reform'",
-              "new_tx_allowance: 0.0 -> 0.85", "cap_tw_mi_per_yr: 1.4 -> 3.0", "moratorium_first_period"):
+              "cap_tw_mi_per_yr: 1.4 -> 3.0", "moratorium_first_period"):
         assert k in c35, k
     h30 = df[(df.case == "BILL_high") & (df.stage == 2030)].differences.iat[0]
-    assert "cap_tw_mi_per_yr: 1.4 -> 2.0" in h30 and "atts_reform" in h30 and "new_tx_allowance" not in h30
+    assert "cap_tw_mi_per_yr: 1.4 -> 2.0" in h30 and "atts_reform" in h30
+    assert "new_tx_allowance" not in df.differences.str.cat(sep=" ")                  # §87: retired
     assert "tax_credit" in df[(df.case == "BILL_central_S1") & (df.stage == 2030)].differences.iat[0]
     # period-keyed values and start years taken at the stage's year
     assert cr._at_year({"2028": 0.0, "2030": 1.4}, 2029) == 0.0 and cr._at_year({"2028": 0.0, "2030": 1.4}, 2045) == 1.4

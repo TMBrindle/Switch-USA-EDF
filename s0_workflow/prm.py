@@ -51,7 +51,7 @@ DEFAULTS = {
                     "diag_dir": "prm"},
     "thermal_derate": {"method": "seasonal", "temperature_h5": None, "temperature_tz": "Etc/GMT+6",
                        "cold_c": -15, "hot_c": 35, "winter_months": [11, 12, 1, 2, 3], "summer_months": [5, 6, 7, 8, 9]},
-    "imports": {"mode": "flat", "relax_from": 2031, "relax_to": 2050, "new_tx_allowance": 0.0},
+    "imports": {"mode": "flat", "relax_from": 2031, "relax_to": 2050},
     "new_tx_derate": 0.15,
     "reserve_rows": "hourly",
     "penalty": "central",
@@ -76,6 +76,8 @@ def prm_settings(s0: dict | None) -> dict | None:
     if not s0:
         return None
     p = _merge(DEFAULTS, s0.get("prm") or {})
+    if "new_tx_allowance" in (p.get("imports") or {}):
+        raise ValueError(RETIRED_ALLOWANCE)
     if p["design"] not in DESIGNS:
         raise ValueError(f"s0_production.prm.design must be one of {DESIGNS}, not {p['design']!r}")
     return p if p["design"] == "regional" else None
@@ -556,17 +558,10 @@ def stress_formulation(p: dict) -> str:
     return f
 
 
-def import_allowance(p: dict, periods) -> float:
-    """prm.imports.new_tx_allowance in a stage: a number, or a period-keyed table ({2028: 0.0, 2035: 0.85}, each key
-    holding until the next; CHANGES §72) so a bill case writes S0's inputs until new interregional lines are allowed.
-    A stage spanning periods with different values is an error (prm_import_new_tx_allowance is one value)."""
-    from s0_workflow.tx_policy import step_value
-    a = (p.get("imports") or {}).get("new_tx_allowance") or 0.0
-    vals = {float(step_value(a, int(y)) if isinstance(a, dict) else a) for y in periods}
-    if len(vals) > 1:
-        raise ValueError(f"s0_production.prm.imports.new_tx_allowance {a} differs between this stage's periods "
-                         f"{sorted(periods)}; use single-period stages (mode A)")
-    return vals.pop() if vals else 0.0
+RETIRED_ALLOWANCE = (
+    "s0_production.prm.imports.new_tx_allowance is retired (CHANGES §87): new transmission on lines crossing a reserve "
+    "region boundary is credited by flow in every case (prm_new_tx_flow_split; the deliverability factor is "
+    "prm.new_tx_derate). Remove the key.")
 
 
 RESERVE_ROWS = ("hourly", "compact")
@@ -799,9 +794,9 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     pen, how = penalty_per_mw_yr(p, dollar_year)
     params = {"prm_new_tx_derate": [float(p["new_tx_derate"])], "prm_shortfall_cost_per_mw_yr": [round(pen, 2)],
               "prm_import_cap_all_hours": [1]}
-    allowance = import_allowance(p, periods)
-    if allowance > 0:          # bill cases (§60): imports may also use this share of new interregional capacity
-        params["prm_import_new_tx_allowance"] = [allowance]
+    # §87: new capacity on region-boundary lines carries reserve by flow, exempt from the import cap, shared between
+    # the two directions in each hour, derated by new_tx_derate (replaces the bill cases' import allowance)
+    params["prm_new_tx_flow_split"] = [1]
     if rrows == "compact":
         params["prm_compact_capacity"] = [1]
     pd.DataFrame(params).to_csv(folder / "prm_params.csv", index=False)
@@ -809,7 +804,8 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
     log(f"prm regional: {len(set(regions.values()))} regions; margins "
         + "; ".join(f"{r.PRM_REGION} {r.PERIOD} {r.prm_margin:.4f} (RML {r.rml:.4f}, FOR_w {r.for_w:.4f})"
                     for r in m.itertuples())
-        + f"; imports {p['imports']['mode']}; {len(stress)} stress timeseries ({len(stp)} timepoints, thermal derate "
+        + f"; imports {p['imports']['mode']}, new boundary transmission by flow (derate {float(p['new_tx_derate']):g})"
+        + f"; {len(stress)} stress timeseries ({len(stp)} timepoints, thermal derate "
           f"{td['method']}); shortfall penalty {how}; stress-day formulation {form}; reserve rows {rrows}"
         + (" (stress_light_timeseries.csv: dispatch, storage, transmission and the reserve test only)"
            if form == "light" else ""))

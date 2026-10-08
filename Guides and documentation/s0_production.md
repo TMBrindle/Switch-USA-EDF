@@ -685,10 +685,19 @@ Today's `planning_reserves.py` (the legacy design, unchanged):
    - **Limits:** (existing + 0.85 × new builds) × derating factor, and the NARIS directional limits where set.
      In a chain, lines built by earlier stages arrive as existing capacity; `trans_built_to_date.csv` (written by
      `prepare_next_stage`, §57) keeps them at 0.85 too.
+   - **New lines across a region boundary (§87, every case):** the flow splits in two.
+     - **Existing-capacity part:** per direction, under the import cap.
+     - **New-capacity part:** new(a→b) + new(b→a) ≤ (1 − `new_tx_derate`) × new capacity in each stress hour,
+       exempt from the cap.
+     - **So:** new capacity serves one end at a time, and both ends in turn when their stresses don't coincide.
+     - **Replaces:** the bill cases' import allowance, retired with its setting (`transmission_bill_scenarios.md`
+       section 4).
+     - **Outputs:** `prm_region_hours.csv` reports `new_tx_net_import_mw`, and the margin achieved includes it.
+       `prm_summary.csv` reports `max_new_tx_net_import_mw`.
    - **Zone check:** each zone's requirement is met by local credit plus net inflows over its lines, and the margin
      applies to each zone's load.
-   - **Import cap:** net imports from other regions ≤ share × the region's peak load in the period, in **every**
-     stress hour. Shares are ReEDS's 99.9th percentile from the config; WECC_NW's 0.140 is used for all four of its
+   - **Import cap:** net imports from other regions over existing capacity ≤ share × the region's peak load in the
+     period, in **every** stress hour. Shares are ReEDS's 99.9th percentile from the config; WECC_NW's 0.140 is used for all four of its
      parts.
    - **Relax setting:** `imports.mode: flat` (S0) | `relaxed` (ReEDS's 2031_hist/2050_100) | `none`.
    - **CAISO workaround:** the 1e-6 isn't needed; a blank share means no cap, and any share, including 0, is

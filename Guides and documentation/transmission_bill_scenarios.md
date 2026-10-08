@@ -15,31 +15,33 @@ forced lines in `forced_tx`, the reserve design in `prm_design`; `tx_sens` keeps
 
 Code: `s0_workflow/tx_policy.py` (case build), `switch/study_modules/tx_build_cap.py` (Switch), `s0_workflow/production.py`
 (levels by period, forced options), `switch/study_modules/prepare_next_stage.py` (headroom carried across a scenario
-switch), `switch/study_modules/prm_regional.py` (reserve import allowance).
+switch), `switch/study_modules/prm_regional.py` (reserve credit for new boundary lines, §87).
 
 ## Scenarios
 
-| `tx_bill` value | Moratorium (first period interregional lines can be built) | National cap on discretionary additions (TW-mi/yr) | Headroom (`interconnection_headroom.scenario`) | Generator build rate | Reserve import allowance |
-|---|---|---|---|---|---|
-| `s0_tx` (S0, no bill) | 2040 | 0 in 2028, 1.4 from 2030 | atts_s0 | central | 0 (historical shares) |
-| `bill_central` | 2035 | 0 in 2028, 1.4 in 2030, 3.0 from 2035 | atts_s0, atts_reform from 2035 | central, reform from 2035 | 0.85 from 2035 |
-| `bill_low` | 2040 | 0 in 2028, 1.4 in 2030, 2.0 from 2035 | atts_s0, atts_reform from 2040 | central, reform from 2040 | 0.85 from 2040 |
-| `bill_high` | 2035 | 0 in 2028, 2.0 in 2030, 4.0 from 2035 | atts_s0 (2028), atts_reform (2030), atts_reform_techmax from 2035 | central (2028), reform from 2030 | 0.85 from 2035 |
-| `bill_central_txonly` | as bill_central | as bill_central | atts_s0 | central | 0.85 from 2035 |
-| `bill_central_iconly` | as s0_tx | as s0_tx | as bill_central | as bill_central | 0 |
+| `tx_bill` value | Moratorium (first period interregional lines can be built) | National cap on discretionary additions (TW-mi/yr) | Headroom (`interconnection_headroom.scenario`) | Generator build rate |
+|---|---|---|---|---|
+| `s0_tx` (S0, no bill) | 2040 | 0 in 2028, 1.4 from 2030 | atts_s0 | central |
+| `bill_central` | 2035 | 0 in 2028, 1.4 in 2030, 3.0 from 2035 | atts_s0, atts_reform from 2035 | central, reform from 2035 |
+| `bill_low` | 2040 | 0 in 2028, 1.4 in 2030, 2.0 from 2035 | atts_s0, atts_reform from 2040 | central, reform from 2040 |
+| `bill_high` | 2035 | 0 in 2028, 2.0 in 2030, 4.0 from 2035 | atts_s0 (2028), atts_reform (2030), atts_reform_techmax from 2035 | central (2028), reform from 2030 |
+| `bill_central_txonly` | as bill_central | as bill_central | atts_s0 | central |
+| `bill_central_iconly` | as s0_tx | as s0_tx | as bill_central | as bill_central |
+
+**Reserve credit for new lines is the same in every row** (§87, section 4): it is physics, not a bill lever. The bill
+raises reserve imports only by letting more new boundary lines be built. Before §87 the bill rows had a reserve import
+allowance (0.85 from their switch year) that S0 didn't.
 
 **Decomposition (§85): transmission vs interconnection.** Both rows are S0 through 2030 and change one channel from
 2035.
 - **BILL_central_txonly:** transmission only. The interregional moratorium is lifted (ERCOT ties keep 2040), the
-  national cap is 3.0 TW-mi/yr and the reserve import allowance 0.85. Headroom atts_s0 and build rate central (S0) in
-  every period.
+  national cap is 3.0 TW-mi/yr. Headroom atts_s0 and build rate central (S0) in every period.
 - **BILL_central_iconly:** interconnection only. Headroom atts_reform and build rate reform_bp; transmission as S0
-  (s0_tx: 1.4 TW-mi/yr from 2030, moratorium to 2040, no allowance). It replaces `bill_central_bronly` (the same
+  (s0_tx: 1.4 TW-mi/yr from 2030, moratorium to 2040). It replaces `bill_central_bronly` (the same
   settings, renamed; nothing else used it).
 
-**Every bill row is S0 until each change takes effect** (§72). The import allowance starts in the first period
-new interregional lines may be built (the moratorium's end). Until then a bill row's case inputs are byte-identical to
-S0's, so its early stages can be reused from S0prod_A (`s0_workflow/chain_reuse.py`, VM recipe J):
+**Every bill row is S0 until each change takes effect** (§72). Until then a bill row's case inputs are
+byte-identical to S0's, so its early stages can be reused from S0prod_A (`s0_workflow/chain_reuse.py`, VM recipe J):
 - BILL_central, BILL_low, txonly and iconly: 2028 and 2030;
 - BILL_high and BILL_central_S1: 2028.
 
@@ -151,19 +153,59 @@ supplied" until it has class-A rows.
   - build rate: per-period supply-curve parameters.
 
   At the window handoff, the switch logic above applies to the committed period. The moratorium and the cap are
-  already per period and work in windows as written. The reserve allowance uses the window's BuildTx by period.
+  already per period and work in windows as written. The reserve credit for new lines uses the window's BuildTx by
+  period.
 
-## 4. Reserve import allowance (bill cases)
+## 4. Reserve credit for new boundary lines (§87; replaces the reserve import allowance)
 
-- **Cap:** for each PRM region and stress hour, net reserve imports ≤ historical share × peak + 0.85 × the new
-  capacity built into the region to date.
-- **New capacity:** nameplate MW on lines crossing the PRM region's boundary: this stage's BuildTx up to the period,
-  plus earlier stages' `trans_built_to_date`.
-- **Setting:** `prm.imports.new_tx_allowance`, a number or a period-keyed table (`{2028: 0.0, 2035: 0.85}`; each key
-  holds until the next). S0 is 0, so historical shares only. `prm_params.csv` gets the column only when the stage's
-  value is above 0. A stage spanning periods with different values is an error (mode A stages have one period).
-- **Region:** this uses the PRM regions (NERC regions, WECC_NW split), the regions the import cap is defined on, not
-  transreg.
+**What changed:**
+- **Before (§60–§86):** bill rows raised each PRM region's import cap by 0.85 × the new capacity on lines crossing
+  its boundary.
+  - The credit counted in full at both ends of a line in the same hour.
+  - It didn't depend on direction, or on which line the imports used.
+  - S0 had no allowance, so new lines gave no reserve credit beyond the historical share.
+- **Now (every case, S0 included; Tom's decision):**
+  - On each line crossing a PRM region boundary, the stress-hour reserve flow has two parts:
+    - **Existing-capacity part:** per direction ≤ (existing − capacity built in earlier stages) × derating factor.
+      It counts in the region's net import, so it stays under the historical-share cap (share × peak).
+    - **New-capacity part:** in each stress hour, new(a→b) + new(b→a) ≤ (1 − `new_tx_derate`) × new capacity ×
+      derating factor. It is exempt from the cap.
+  - **New capacity** = this stage's BuildTx up to the period plus earlier stages' `trans_built_to_date`, nameplate.
+  - **Deliverability factor:** `prm.new_tx_derate` (0.15) is the one parameter (ReEDS GSw_TransInvPRMderate).
+  - **Effect:** new capacity carries reserve one way in an hour, to one end, once.
+    - If both ends are stressed in the same hour, it can't serve both.
+    - If their stresses don't coincide, each end gets the full (1 − derate) × capacity in its own hours.
+  - Lines inside a region are unchanged: one flow up to existing + 0.85 × new.
+
+**Setting:**
+- `prm.imports.new_tx_allowance` is retired. Setting it stops the build with a message.
+- The bill rows' allowance tables are removed.
+- The case writer puts `prm_new_tx_flow_split` = 1 in `prm_params.csv` for every regional case.
+- The module default (0) keeps folders built before §87 solving as they did. The retired
+  `prm_import_new_tx_allowance` still loads there, but can't be combined with the split.
+
+**Region:** the PRM regions (NERC regions, WECC_NW split), the regions the import cap is defined on, not transreg.
+
+**Effect on S0's reserve settings (`s0_tx`, `forced_tx: reeds_certain_plus_A`):**
+- **New credit:** new capacity on boundary lines now earns reserve credit in S0. Before, it raised the flow limits,
+  but imports stayed under the historical-share cap.
+- **Forced lines crossing a PRM boundary:** 9 lines, 10,966 MW, up to 9.3 GW of new-part flow per hour:
+  - TransWest Express, 3,000 MW (in service 2032, so the 2035 period);
+  - six MISO LRTP Tranche 1 lines, 896 MW each: SPP / PJM ↔ MISO, 2028–2030;
+  - SWIP-North, 1,920 MW (2028);
+  - Honeyville–Populus reconductor, 670 MW (2030).
+- **Economic builds:** within the national cap, from 2030 on the 21 boundary lines that are intra-transreg; on all
+  106 boundary lines from 2040, after the moratorium.
+
+**Effect on BILL_central's reserve settings:**
+- **Same derate:** 0.85 of new capacity.
+- **Narrower credit:** it now depends on the line and direction. When a line's two end regions are stressed in the
+  same hour, its new capacity can't count for both. A region can't use another line's new capacity to import over
+  its existing ties.
+- **Earlier credit:** from 2028 (forced lines) instead of 2035, as in S0.
+- **Reuse:** the bill rows' 2028 and 2030 stages are still identical to S0's, so the expected reuse from S0prod_A is
+  unchanged (recomputed). Stages solved with code before §87 don't pass the model code check, because
+  `prm_regional.py` changed.
 
 ## 5. Forced transmission: `reeds_certain_plus_A` / `_AB`
 
@@ -207,6 +249,6 @@ supplied" until it has class-A rows.
 3. **bill_high in 2028:** S0's headroom (atts_s0), cap (0) and build rate (central). The bill's reforms start in 2030.
 4. **The cap counts nameplate transfer capability** (BuildTx) × length. It uses 1.609344e6 MW-km per TW-mi; the
    request gave 1.609e6.
-5. **"Interregional":** for the moratorium and the cap it means transreg. For the reserve allowance it means the PRM
-   region boundary.
+5. **"Interregional":** for the moratorium and the cap it means transreg. For reserve credit on new lines (§87) it
+   means the PRM region boundary.
 6. **Offshore wind approvals restored** = `offshore_wind_policy: capped_2025_released`.

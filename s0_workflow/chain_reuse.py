@@ -550,7 +550,7 @@ def _strict_update(d, u, path=""):
 
 def merge_errors(scenario_inputs: Path, management: Path, settings_dir: Path = REPO / "pg/settings") -> pd.DataFrame:
     """Rows whose column values can't be merged onto the settings files the way the case build merges them (§82: the
-    bill rows' period-keyed prm.imports.new_tx_allowance onto the scalar default). One row per failing case row
+    bill rows' period-keyed prm.imports.new_tx_allowance onto the scalar default; that setting is retired, §87). One row per failing case row
     (case, year, error); empty when every row merges."""
     import yaml
     base = {}

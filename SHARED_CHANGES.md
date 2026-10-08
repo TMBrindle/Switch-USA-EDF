@@ -398,3 +398,14 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     reserve rows in `prm_regional.py` (#86): grouping stress hours by derate vector, and the per-group shortfall link.
     #88 (`gen_annual_availability_limits`) is the same pattern, found by the VM; the toy test now loads every module in
     `switch/modules.txt` with light stress days.
+21. (§87, v3.1 candidate) **`switch/study_modules/prm_regional.py`: flow-based reserve credit for new boundary lines.**
+    New optional parameter `prm_new_tx_flow_split` in `prm_params.csv` (default 0: the model is as before). At 1, each
+    line crossing a reserve-region boundary gets a second reserve-flow variable for its new capacity (`PrmFlowNew`).
+    The two directions share (1 − `prm_new_tx_derate`) × new capacity in each stress hour, and that flow is exempt
+    from the import cap. The existing part stays per direction and under the cap.
+    - **Outputs:** `prm_region_hours.csv` gains `new_tx_net_import_mw` (its margin achieved includes it), and
+      `prm_summary.csv` gains `max_new_tx_net_import_mw`.
+    - **Retired:** `prm_import_new_tx_allowance` is retired. It still loads for old folders, and the module stops if
+      it is combined with the split.
+    - **Who is affected:** only cases using `prm_regional` (S0 regional design); no fedpol case loads it. The S0 case
+      writer sets the split for every regional case.
