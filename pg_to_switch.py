@@ -1204,6 +1204,16 @@ def gen_tax_credits_file(
             )
             gens.loc[mask, "gen_ptc_value_per_mwh"] += dollar_per_mwh
 
+    # statutory credit terms (tax_credit_terms; CHANGES §90, s0_workflow/tax_credits.py): each period's credits
+    # levelised over the generator's capital-recovery life at the capital annualisation rate, added to the
+    # hand-entered tax_credit_values above (a project-period credited both ways must agree, or the build stops)
+    from s0_workflow import tax_credits as s0_tax_credits
+
+    gens["_hand_value"] = gens["gen_ptc_value_per_mwh"]
+    first_settings = next(iter(scen_settings_dict.values()), None) or {}
+    if s0_tax_credits.apply_terms(gens, scen_settings_dict, out_folder, first_settings):
+        any_credits_defined = True
+
     if not any_credits_defined:
         # nothing to write; study_modules.gen_tax_credits treats a missing/
         # empty file as "no credits" (all defaults to 0)

@@ -347,7 +347,36 @@ settings_management:
     # inflation adjustment or against a levelized $/MWh translation for 45Q/
     # 45V; treat as a starting point pending review.
     tax_credits:
-      full_ira: # Jan 2025 policy: all credits in effect (Biden-era baseline)
+      # §90: statutory credit terms (tax_credit_terms; s0_workflow/tax_credits.py). The case build levelises each
+      # credit over the generator's capital-recovery life at the capital annualisation rate:
+      #   in-model $/MWh = value x AF(r, duration) / AF(r, life)
+      # with r = interest_rate and life = gen_amortization_period (S0 cases) or gen_max_age, the fields Switch
+      # annualises that generator's capital with; credit_levelisation_report.csv lists the result by technology.
+      # Wind and solar in S0/S-set: r 0.05, life 30 -> 27.5 x AF(0.05, 10) / AF(0.05, 30) = 27.5 x 0.5023 = $13.81/MWh
+      # on every MWh of the plant's in-model life (the same present value at r as $27.5 for 10 years).
+      full_ira: # Jan 2025 policy: all credits in effect (Biden-era baseline), statutory terms, levelised
+        tax_credit_terms:
+          ptc_45y:                    # 45Y clean electricity PTC (elected over the 48E ITC)
+            value_per_mwh: 27.5       # 2024 statutory base rate with prevailing wage, before inflation adjustment
+                                      # and bonus adders
+            dollar_year: 2024
+            duration_years: 10        # the first 10 years of service
+            techs: [LandbasedWind, OffShoreWind, UtilityPV]
+            build_years: [2025, null] # placed in service from 2025; the statutory emissions-based phase-out
+                                      # (2032 at the earliest) is not modelled: PLACEHOLDER (as before)
+          new_nuclear_ptc_placeholder:
+            value_per_mwh: 15         # new-nuclear tech-neutral PTC placeholder (v3.1 relabel); already an
+            techs: [Nuclear]          # in-model value: not levelised (flagged in the report)
+            prelevelised: true
+        atb_modifiers:
+          batteries:
+            capex_mw: [mul, 0.7] # 48E storage ITC (30%) -- same as default
+            capex_mwh: [mul, 0.7]
+      # the v3 full_ira: $27.5/MWh on every MWh of a credited plant's in-model life (not levelised). Only for
+      # reproducing S1_v3 / S2_v3, and for the fedpol rows (s4x1_fedpol_biden*, _reinstate*), which keep their
+      # inputs: they don't load gen_amortization_period, so their capital life is gen_max_age (500 years) and
+      # levelising would scale the credit by about 0.15
+      full_ira_unlev_v3:
         tax_credit_values:
           LandbasedWind: 27.5 # 45Y/48E
           OffShoreWind: 27.5 # 45Y/48E
@@ -363,7 +392,10 @@ settings_management:
             capex_mw: [mul, 0.7] # 48E storage ITC (30%) -- same as default
             capex_mwh: [mul, 0.7]
       no_wind_solar: # current-policy scenario: 45Y/48E dropped for wind/solar,
-        # storage ITC and the new-nuclear PTC placeholder retained
+        # storage ITC and the new-nuclear PTC placeholder retained. §90: S0's setting, kept exactly as in v3 so S0
+        # (and the regression row) resolve and build unchanged. tax_credit_values are hand-entered in-model $/MWh,
+        # i.e. prelevelised: this $15 is the same placeholder as full_ira's new_nuclear_ptc_placeholder
+        # (prelevelised: true), not computed from statutory terms
         tax_credit_values:
           Nuclear: 15 # new-nuclear tech-neutral PTC placeholder retained (value unchanged)
         atb_modifiers:

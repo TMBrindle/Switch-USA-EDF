@@ -433,3 +433,13 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     - **`build_rate.py` (`post_solve` only):** `build_rate_duals.csv` and `gas_turbine_cap_results.csv` gain a
       `dual_units` column.
     - Existing columns are unchanged and the models are unchanged.
+24. (§90, tom/s0-v3.1-credits) **Tax credits from statutory terms, levelised.**
+    - **Writer:** `pg_to_switch.gen_tax_credits_file` also reads `tax_credit_terms` (`s0_workflow/tax_credits.py`)
+      and adds each credit levelised over the generator's capital-recovery life. Hand-entered `tax_credit_values`
+      work as before; a project-period credited both ways must agree, or the build stops.
+    - **Settings:** the `tax_credits` axis's `full_ira` is now statutory terms. The v3 version is kept as
+      `full_ira_unlev_v3`.
+    - **Fedpol rows:** `s4x1_fedpol_biden*` and `s4x1_fedpol_reinstate*` now use `full_ira_unlev_v3`, so their inputs
+      are unchanged. They don't load `gen_amortization_period`, so levelising over `gen_max_age` (500 years) would
+      cut their credit to about 15%. **For Ollie:** decide whether fedpol should move to levelised credits (and
+      with which life).

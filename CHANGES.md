@@ -3685,3 +3685,49 @@ purchases above 0.001 t. This was wrong in two ways:
 - **CA/WA import charge:** v3 behaviour kept, with a note of the known bias (guide, "Known bias in v3.1"). The tested
   options are on `tom/s0-prod-scripts` (§86).
 - **Credit work** (`full_ira_lev`, the 10-year tally): held until D7 is settled. It doesn't affect S0.
+
+## 90. Tax Credits as Statutory Terms, Levelised (S-set; S0 Unchanged)
+
+**Date:** 2026-10-09 · **Branch:** `tom/s0-v3.1-credits` (from the v3.1 handover 9d68751; built after it).
+
+**What:**
+- **a. Settings:** `tax_credit_terms` hold each credit's statutory terms ($/MWh, dollar year, duration, techs,
+  build-year window, optional phase-down, `prelevelised`).
+- **b. Levelisation:** the case build computes each generator's in-model credit = value × phase ×
+  AF(r_g, duration) / AF(r_g, life_g), with no scaling when duration ≥ life. r_g and life_g are the fields Switch
+  annualises that generator's capital with:
+  - **r_g:** `interest_rate` (`financials.csv`). This is Switch's own rate, not a PowerGenome per-tech WACC: Switch
+    annualises overnight capex with `crf(interest_rate, n)`.
+  - **life_g:** `gen_amortization_period` when `study_modules.gen_amortization_period` is loaded (S0 and the S-set),
+    else `gen_max_age`.
+- **c. Report and checks:** `credit_levelisation_report.csv` per credit, technology and period.
+  - The build stops on a conflicting hand-entered value, a double specification with a different value, or a
+    dollar year ≠ `target_usd_year`.
+  - It warns on a rate ≠ `interest_rate`, and on the levelisation rate ≠ the period discount rate.
+- **d. Run mode:** perfect foresight / myopic / rolling, recorded in the report. The treatment is the same in all
+  modes. Hook for vintage-indexed credits: `gen_tax_credits_by_vintage.csv`, which nothing reads yet.
+- **e. New nuclear's $15:**
+  - `prelevelised: true` in `full_ira`, flagged in the report.
+  - S0's `no_wind_solar` is unchanged (the hand-entered $15).
+  - S0 and the regression row resolve and build exactly as before, with no new files.
+- **f. Statutory tally:** `s0_workflow/credit_tally.py` (script `credit_tally.py`) gives energy × statutory $ for each
+  vintage's first duration years, for model and predetermined builds, plus PV at the model's discount rate.
+- **g. Settings values:**
+  - `full_ira` = 45Y $27.5 for 10 years (from 2025, no phase-out modelled: PLACEHOLDER) plus the nuclear placeholder,
+    levelised automatically.
+  - `full_ira_unlev_v3` = the v3 version (S1_v3/S2_v3 reproduction, and the fedpol rows, which now point to it).
+
+**Numbers** (wind and solar, S0/S-set):
+- r = 0.05, life = 30 (`atb_cap_recovery_years`; `gen_max_age` is 500).
+- AF(0.05, 10) = 7.7217 and AF(0.05, 30) = 15.3725, so the factor is **0.5023**: **$13.81/MWh** on every MWh of the
+  plant's in-model life, against $27.5 before.
+
+**Tests:** `s0_workflow/tests/test_tax_credits.py` covers:
+- the factors;
+- that r and life are the capital-annualisation fields;
+- levelised full_ira, with the report and vintage hook;
+- the window and phase-down, and the life without amortisation;
+- the conflicts that stop the build, and the warnings;
+- S0 unchanged;
+- each row on its setting;
+- the tally.
