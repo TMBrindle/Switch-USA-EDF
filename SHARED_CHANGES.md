@@ -424,3 +424,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
       module lists `Enforce_Regional_Carbon_Cap`, whose bound is 0, so its dual was dropped before.
     - **Effect on fedpol cases with CCR:** the reported price changes where a residual or both-exhausted tiers
       occurred. The model is unchanged (output only).
+23. (§89, tom/s0-v3.1) **Output-only additions to shared modules.**
+    - **`prm_regional.py`:** new `prm_tx_reserve_value.csv` gives the reserve value of 1 MW more new capacity on
+      every buildable line ($/kW-yr), including lines with nothing built yet; `dual_costs.csv` drops their rows
+      because dual × bound = 0.
+    - **`interconnection_headroom.py`:** `ic_headroom.csv` gains `headroom_dual_units` and
+      `headroom_value_usd_per_kw_yr`.
+    - **`build_rate.py` (`post_solve` only):** `build_rate_duals.csv` and `gas_turbine_cap_results.csv` gain a
+      `dual_units` column.
+    - Existing columns are unchanged and the models are unchanged.

@@ -141,6 +141,7 @@ def test_toy_same_solution_as_maxcaptag(tmp_path):
     assert cap[2020] == pytest.approx(9.0) and cap[2030] == pytest.approx(7.0)
     res = pd.read_csv(n / "gas_turbine_cap_results.csv").set_index("period")
     assert res.at[2030, "covered_mw"] == pytest.approx(7.0, abs=1e-6)         # binds
+    assert (res.dual_units == "NPV $ (base year) per MW (raw constraint dual)").all()      # v3.1: units column
     assert res.at[2020, "covered_mw"] == pytest.approx(9.0, abs=1e-6)
     assert total_cost(o) == pytest.approx(total_cost(n), rel=1e-7)
     assert total_cost(n) > total_cost(free)

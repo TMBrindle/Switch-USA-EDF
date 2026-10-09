@@ -3644,3 +3644,44 @@ purchases above 0.001 t. This was wrong in two ways:
     price − tier 1's trigger, and the cap rows are in `dual_costs.csv`;
   - tier 1 partly used: its trigger, equal to the cap dual;
   - no CCR drawn: the cap dual.
+
+## 89. S0 v3.1 (`tom/s0-v3.1`, from v3 79f4064)
+
+**Date:** 2026-10-09 · **Branch:** `tom/s0-v3.1` (new, from 79f4064).
+
+**In:**
+1. **Flow-based reserve split** (§87, from 5ae337a): `prm_new_tx_flow_split` = 1 for every regional case, the
+   allowance retired, `new_tx_derate` 0.15.
+   - Only 5ae337a's own changes came across. That commit has no build-rate table or transmission-limit file changes,
+     and this branch differs from v3 in none of those paths.
+   - `bill_central_siting` (prod only) is not added.
+   - Expected reuse is recomputed and unchanged (75 rows).
+2. **Build rates exactly at v3:**
+   - `test_build_rate_v3_pinned.py` pins every input of the rate tables to its 79f4064 content
+     (`s0_workflow/data/build_rate_v3_manifest.csv`): the `build_rate/` code, config and reference data,
+     `pg/settings/build_rate.yml`, the case writer `write_build_rate_files`, and the model part of
+     `switch/study_modules/build_rate.py` (everything but `post_solve`).
+   - The tables themselves (`build_rate/outputs`) are generated on the VM and not tracked.
+3. **RGGI price from duals** (§88, from 71d659d): tier-1 trigger + pool rent, the cap dual when no CCR is drawn,
+   relative "used" test, the cap dual in `dual_costs.csv`, and tests for both tiers exhausted and a tier-2 residual.
+4. **Reserve value of new transmission:** `prm_tx_reserve_value.csv`.
+   - One row per buildable line and period, including lines with nothing built.
+   - Value = (1 − derate) × derating × Σ |dual| of the flow limits a new MW relaxes, in $/kW-yr.
+   - Toy test: a priced-out line with nothing built is worth 2 × 0.85 × the penalty.
+5. **Units on the dual outputs:**
+   - `ic_headroom.csv`: `headroom_dual_units`, `headroom_value_usd_per_kw_yr`;
+   - `build_rate_duals.csv` and `gas_turbine_cap_results.csv`: `dual_units`.
+6. **Nuclear credit relabelled** (comments only; the parsed settings are identical): `Nuclear: 15` is a placeholder
+   for the technology-neutral PTC on new nuclear. It was labelled 45U (existing nuclear). The writer applies credits
+   to new builds only.
+
+**Not in:**
+- **Transit netting** (new-line exports offsetting existing-tie imports in the cap): implemented and tested, then
+  removed. The toy showed it reopens double counting.
+  - With both ends short, opposite flows on the same new line in one hour let the transit region keep part of what it
+    "passes on": 1.75 MW short in total, against 4 MW for one line serving one end.
+  - Netting on net new exports instead needs max(0, ·) on the wrong side of the cap, which is non-convex.
+  - Reserve passing through a region over an existing tie still counts against that region's cap.
+- **CA/WA import charge:** v3 behaviour kept, with a note of the known bias (guide, "Known bias in v3.1"). The tested
+  options are on `tom/s0-prod-scripts` (§86).
+- **Credit work** (`full_ira_lev`, the 10-year tally): held until D7 is settled. It doesn't affect S0.

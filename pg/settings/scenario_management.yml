@@ -309,7 +309,8 @@ settings_management:
     #     the configs below only need to override it when a credit is
     #     removed.
     #   - 45Y/48E (technology-neutral clean electricity PTC/ITC, elected as
-    #     a PTC here), 45U (existing nuclear PTC), 45Q (carbon capture,
+    #     a PTC here; the `Nuclear` entry is labelled as new nuclear's 45Y
+    #     credit, see below), 45Q (carbon capture,
     #     translated to $/MWh), and 45V (clean hydrogen, translated to an
     #     effective $/MWh) are all per-MWh production credits -> modeled as
     #     a dispatch-based opex credit via the new `tax_credit_values`
@@ -325,13 +326,15 @@ settings_management:
     # rates (before any inflation adjustment, domestic-content/energy-
     # community bonus adders, or prevailing-wage multipliers), used here as
     # clearly-labeled holding values, not as a precise levelized estimate:
-    #   - 45Y/48E base rate: $0.0275/kWh = $27.5/MWh (26 USC 45Y; same base
-    #     rate as the 45U nuclear PTC).
-    #   - 45U existing nuclear PTC: $15/MWh base rate, phasing down as
-    #     merchant power price rises above $25/MWh and phasing out entirely
-    #     for periods after 2032 (26 USC 45U) -- phase-down/expiration is
-    #     NOT modeled here (flat rate in all periods); revisit if results
-    #     are sensitive to this.
+    #   - 45Y/48E base rate: $0.0275/kWh = $27.5/MWh (26 USC 45Y).
+    #   - `Nuclear: 15` (v3.1 relabel; VALUE UNCHANGED): a PLACEHOLDER for the
+    #     technology-neutral PTC (45Y) on NEW nuclear (pg_to_switch applies
+    #     tax_credit_values to new builds only). It was labelled "45U existing nuclear
+    #     PTC" before; 45U ($15/MWh base, phasing down above $25/MWh merchant
+    #     prices, ending after 2032) is for existing plants and is not what
+    #     this entry is meant to represent. The $15 is a holding value, not a
+    #     45Y rate or a levelised estimate; phase-down/expiration is NOT
+    #     modeled (flat rate in all periods). Pending review (credit work, D7).
     #   - 45Q: $85/tonne CO2 captured and stored (power sector, prevailing
     #     wage) -- not yet wired to a technology because no CCS resource is
     #     currently in atb_new_gen/modified_atb_new_gen (see commented-out
@@ -353,28 +356,28 @@ settings_management:
           # base atb_modifiers in resources.yml (not moved into this axis;
           # only storage was in scope for the split-out per project
           # instructions). Revisit if geothermal needs to vary too.
-          Nuclear: 15 # 45U (existing nuclear PTC)
+          Nuclear: 15 # new-nuclear tech-neutral PTC (45Y) placeholder; value unchanged (v3.1 relabel)
           # 45Q, 45V: scaffolded, no matching technology in atb_new_gen today
         atb_modifiers:
           batteries:
             capex_mw: [mul, 0.7] # 48E storage ITC (30%) -- same as default
             capex_mwh: [mul, 0.7]
       no_wind_solar: # current-policy scenario: 45Y/48E dropped for wind/solar,
-        # storage ITC and nuclear PTC retained
+        # storage ITC and the new-nuclear PTC placeholder retained
         tax_credit_values:
-          Nuclear: 15 # 45U retained
+          Nuclear: 15 # new-nuclear tech-neutral PTC placeholder retained (value unchanged)
         atb_modifiers:
           batteries:
             capex_mw: [mul, 0.7] # storage ITC retained
             capex_mwh: [mul, 0.7]
       no_wind_solar_storage: # same as no_wind_solar (45Y/48E dropped for
-        # wind/solar, nuclear PTC retained), but storage ITC (48E) also
+        # wind/solar, new-nuclear PTC placeholder retained), but storage ITC (48E) also
         # dropped -- used to test sensitivity to the storage ITC's flat,
         # non-expiring 0.7x capex multiplier in longer (e.g. 3-period,
         # through 2040) runs, where the real-world credit would likely have
         # expired partway through the horizon.
         tax_credit_values:
-          Nuclear: 15 # 45U retained
+          Nuclear: 15 # new-nuclear tech-neutral PTC placeholder retained (value unchanged)
         atb_modifiers:
           batteries:
             capex_mw: [mul, 1.0] # storage ITC repealed

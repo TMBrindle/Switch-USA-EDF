@@ -678,6 +678,33 @@ def test_toy_new_tx_flow_credit_existing_part_still_capped(tmp_path):
     assert a.net_import_mw.max() == pytest.approx(1.0, abs=1e-6) and a.new_tx_net_import_mw.max() == pytest.approx(2.0, abs=1e-6)
 
 
+def test_toy_new_tx_reserve_value_output(tmp_path):
+    """v3.1: prm_tx_reserve_value.csv gives the reserve value of 1 MW more new capacity on each buildable line,
+    including lines with nothing built (dual_costs.csv drops those rows: dual x bound is 0). Building is allowed but
+    priced out, so nothing is built; North and Central are each 4 MW short in their own hours, and one more MW of N-C
+    would relieve 0.85 MW of each region's shortfall: 2 x 0.85 x the penalty, in $/kW-yr."""
+    gens = GENS3
+    lines = [("N-C", "North", "Central", 0, 1.0), ("N-S", "North", "South", 0, 1.0), ("C-S", "Central", "South", 50, 1.0)]
+
+    def dear(inp, tps):
+        tp = pd.read_csv(inp / "trans_params.csv")
+        tp["trans_capital_cost_per_mw_km"] = 1e9
+        tp.to_csv(inp / "trans_params.csv", index=False)
+    out = mini_case(tmp_path, "value", gens, APART, lines, REG3, PER3, {}, SPLIT, new_tx=True, extra=dear)
+    b = _read(out, "BuildTx.csv")
+    assert b.BuildTx.abs().sum() == pytest.approx(0, abs=1e-6)
+    v = _read(out, "prm_tx_reserve_value.csv").set_index("TRANSMISSION_LINE")
+    assert {"N-C", "N-S", "C-S"} <= set(v.index) and (v.formulation == "split_new_part").all()
+    assert v.at["N-C", "new_capacity_mw_to_date"] == 0 and v.at["N-C", "binding_stress_hours"] > 0
+    pen_kw = PEN["prm_shortfall_cost_per_mw_yr"] / 1000
+    # North and Central are each short in two of the four hours; one more MW of N-C relieves 0.85 MW of each
+    # region's worst-hour shortfall, so the line is worth 2 x 0.85 x the penalty
+    assert v.at["N-C", "reserve_value_usd_per_kw_yr"] == pytest.approx(2 * 0.85 * pen_kw, rel=1e-4)
+    dc = _read(out, "dual_costs.csv") if (out / "dual_costs.csv").exists() else None
+    if dc is not None:
+        assert not ((dc.constraint == "Prm_New_Flow_Limit") & dc["index"].str.contains("N-C")).any()
+
+
 def test_import_allowance_retired(tmp_path):
     """§87: the allowance setting is gone (setting it is an error); every regional case gets the flow split."""
     import yaml

@@ -500,6 +500,8 @@ def test_switch_module_on_toy(tmp_path):
     assert r.returncode == 0, r.stderr[-2000:]
     hr = pd.read_csv(run / "outputs/ic_headroom.csv")
     assert (hr.new_capacity_mw_weighted <= hr.headroom_bought_mw + hr.freed_headroom_mw + 1e-6).all()
+    assert {"headroom_dual_units", "headroom_value_usd_per_kw_yr"} <= set(hr.columns)           # v3.1: units
+    assert (hr.headroom_dual_units == "NPV $ (base year) per weighted MW (raw constraint dual)").all()
     net = pd.read_csv(run / "outputs/ic_network.csv").set_index(["ic_zone", "period"])
     spend = pd.read_csv(run / "outputs/ic_spend.csv")
     zones = pd.read_csv(ROOT / "tests/switch_toy/ic_zones.csv").set_index("IC_ZONE")

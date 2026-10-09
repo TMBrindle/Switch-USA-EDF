@@ -54,6 +54,10 @@ own hours. The trans_asymmetric_capacity directional cap limits the sum of the t
 the single PrmFlow. prm_new_tx_flow_split = 0 (the module default, so case folders built before §87 solve as they did):
 one PrmFlow per direction up to existing + (1 - derate) x new, all of it under the import cap (+ the retired
 prm_import_new_tx_allowance; it can't be combined with the split).
+No transit netting (v3.1 review): letting new-line exports offset existing-tie imports in the cap reopens double
+counting through opposite flows on the same new line in one hour (CHANGES §89), and netting on net new exports
+instead needs max(0, .) on the wrong side of the cap (non-convex). Reserve passing through a region over an existing
+tie counts against that region's cap.
 
 Shortfall: PrmZoneShortfall[z, p] (MW, applies to every stress timepoint of the period) at
 prm_shortfall_cost_per_mw_yr in each year of the period; PrmShortfall[r, p] sums a region's zones.
@@ -61,7 +65,9 @@ prm_shortfall_cost_per_mw_yr in each year of the period; PrmShortfall[r, p] sums
 Outputs (post_solve): prm_shortfall.csv, prm_zone_hours.csv (with hourly duals), prm_zone_prices.csv
 (reserve price by zone: the sum of its stress-hour duals, $/kW-yr, <= the penalty), prm_region_hours.csv
 (margin achieved, import use, import-cap duals), prm_summary.csv and prm_capacity_credit.csv
-(implied capacity credit by class and region against the benchmarks in prm_benchmarks.csv). Duals
+(implied capacity credit by class and region against the benchmarks in prm_benchmarks.csv), prm_tx_reserve_value.csv
+(v3.1: the reserve value of 1 MW more new capacity on each buildable line, $/kW-yr, including lines with none built
+yet). Duals
 need the `dual` suffix (switch/modules.txt's write_dual_costs declares it for every run) and an LP solution with duals (Gurobi barrier
 gives them with or without crossover; a MIP gives none, and the files then say so).
 
@@ -724,6 +730,45 @@ def post_solve(m, outputs_dir):
             }
         )
     pd.DataFrame(srows).to_csv(os.path.join(outputs_dir, "prm_summary.csv"), index=False)
+
+    # reserve value of new transmission (v3.1): for every line that can carry new capacity in a period, the value of
+    # 1 MW more of it to the reserve requirement, from the duals of the flow limits it relaxes. Lines with no new
+    # capacity yet are included (dual_costs.csv drops their rows: dual x bound is 0 there).
+    #   split boundary lines: (1 - derate) x derating x sum over stress hours of |dual of Prm_New_Flow_Limit|
+    #   other lines: (1 - derate) x derating x sum over stress hours and both directions of |dual of Prm_Flow_Limit|
+    # in $/kW-yr (NPV duals / bring_annual_costs_to_base_year / 1000), the units of prm_zone_prices.csv
+    vrows = []
+    for tx in m.TRANSMISSION_LINES:
+        for p in m.PERIODS:
+            if not (any((tx, b) in m.TRANS_BLD_YRS for b in m.PERIODS if b <= p)
+                    or value(m.trans_built_to_date_mw[tx]) > 0):
+                continue
+            tps = [t for t in m.PRM_TPS if m.tp_period[t] == p]
+            a, b = m.trans_lz1[tx], m.trans_lz2[tx]
+            per_mw = (1 - value(m.prm_new_tx_derate)) * value(m.trans_derating_factor[tx])
+            if tx in m.PRM_SPLIT_LINES:
+                form = "split_new_part"
+                duals = [_dual(m, m.Prm_New_Flow_Limit, (tx, t)) for t in tps if (tx, t) in m.PRM_NEW_TX_LINE_TPS]
+            else:
+                form = "per_direction"
+                duals = [_dual(m, m.Prm_Flow_Limit, (zf, zt, t)) for t in tps for (zf, zt) in ((a, b), (b, a))
+                         if (zf, zt, t) in m.PRM_TX_TPS]
+            if not duals:
+                continue
+            tot = sum(abs(x) for x in duals)
+            new_mw = sum(value(m.BuildTx[tx, bb]) for bb in m.PERIODS if bb <= p and (tx, bb) in m.TRANS_BLD_YRS) \
+                + min(value(m.trans_built_to_date_mw[tx]), value(m.existing_trans_cap[tx]))
+            vrows.append({"TRANSMISSION_LINE": tx, "trans_lz1": a, "trans_lz2": b,
+                          "region1": m.prm_region_of_zone[a], "region2": m.prm_region_of_zone[b], "PERIOD": p,
+                          "boundary": m.prm_region_of_zone[a] != m.prm_region_of_zone[b], "formulation": form,
+                          "new_capacity_mw_to_date": new_mw,
+                          "binding_stress_hours": sum(1 for x in duals if abs(x) > 1e-9),
+                          "reserve_value_usd_per_kw_yr": tot * per_mw / value(m.bring_annual_costs_to_base_year[p])
+                          / 1000.0 if tot == tot else float("nan")})
+    pd.DataFrame(vrows, columns=["TRANSMISSION_LINE", "trans_lz1", "trans_lz2", "region1", "region2", "PERIOD",
+                                 "boundary", "formulation", "new_capacity_mw_to_date", "binding_stress_hours",
+                                 "reserve_value_usd_per_kw_yr"]).to_csv(
+        os.path.join(outputs_dir, "prm_tx_reserve_value.csv"), index=False)
 
     # implied capacity credit: dual-weighted credited MW / capacity, by class and region
     crows = []

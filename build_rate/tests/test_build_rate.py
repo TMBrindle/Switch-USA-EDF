@@ -348,6 +348,7 @@ def test_toy_tiers_fill_in_order_ceiling_binds_costs_in_objective(tmp_path):
     duals = pd.read_csv(run / "outputs/build_rate_duals.csv")
     top = duals[(duals.group == "wind_onshore") & (duals.period == 2030) & (duals.constraint == "band_t3")]
     assert top["dual_overnight_per_kw"].iat[0] > 0                                 # the ceiling has a price
+    assert (duals.dual_units == "$/kW overnight-equivalent (model dollars)").all()  # v3.1: units column
     # adders reach the objective: BuildRateCosts = sum(tier x adder) annualised over active periods
     costs = pd.read_csv(run / "outputs/costs_itemized.csv")
     br = costs[costs["Component"] == "BuildRateCosts"].set_index("PERIOD")["AnnualCost_Real"]

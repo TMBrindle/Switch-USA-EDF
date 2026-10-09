@@ -409,6 +409,12 @@ def post_solve(m, outdir):
                 "initial_headroom_mw": value(m.ic_initial_headroom_mw[z]),
                 "headroom_slack_mw": value(m.ICHeadroomSlack[z, p]),
                 "headroom_dual": m.dual[c] if hasattr(m, "dual") and c in m.dual else None,
+                # v3.1: units. headroom_dual is the raw dual (objective NPV $, base year, per weighted MW); the value
+                # is |dual| / bring_annual_costs_to_base_year / 1000: $/kW-yr in each year of the period
+                "headroom_dual_units": "NPV $ (base year) per weighted MW (raw constraint dual)",
+                "headroom_value_usd_per_kw_yr": (
+                    abs(m.dual[c]) / value(m.bring_annual_costs_to_base_year[p]) / 1000.0
+                    if hasattr(m, "dual") and c in m.dual else None),
             })
     hr = pd.DataFrame(rows)
     hr.to_csv(os.path.join(outdir, "ic_headroom.csv"), index=False)

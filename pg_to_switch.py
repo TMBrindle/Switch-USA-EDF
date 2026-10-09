@@ -1142,7 +1142,7 @@ def gen_tax_credits_file(
           LandbasedWind: 27.5   # 45Y clean electricity PTC placeholder
           OffShoreWind: 27.5
           UtilityPV: 27.5
-          Nuclear: 15           # 45U existing nuclear PTC placeholder
+          Nuclear: 15           # new-nuclear tech-neutral PTC (45Y) placeholder (v3.1 relabel; value unchanged)
           NaturalGas CCS100: 20 # 45Q, translated to $/MWh -- placeholder
 
     Technology names are matched case-insensitively against the `technology`

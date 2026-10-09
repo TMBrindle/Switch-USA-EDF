@@ -256,7 +256,9 @@ def post_solve(m, outdir):
     if len(m.GTC_PERIODS) and len(m.GTC_GENS):
         pd.DataFrame([{"period": p, "form": value(m.gtc_form), "covered_mw": value(m.GTCCoveredMW[p]),
                        "cap_mw": value(m.gtc_max_mw[p]),
-                       "dual": d(m.GTC_Cap[p]) if p in m.GTC_Cap else None} for p in m.GTC_PERIODS]).to_csv(
+                       "dual": d(m.GTC_Cap[p]) if p in m.GTC_Cap else None,
+                       # v3.1: units of the raw dual (the objective's NPV dollars, model base year, per MW of the cap)
+                       "dual_units": "NPV $ (base year) per MW (raw constraint dual)"} for p in m.GTC_PERIODS]).to_csv(
             os.path.join(outdir, "gas_turbine_cap_results.csv"), index=False)
     if not len(m.BR_GROUP_PERIODS):
         return
@@ -296,7 +298,12 @@ def post_solve(m, outdir):
             drows.append({"group": grp, "period": p, "constraint": "regional", "region": r,
                           "dual_overnight_per_kw": None if x is None or pv == 0 else -x / pv / 1000})
     pd.DataFrame(rows).to_csv(os.path.join(outdir, "build_rate_tiers_built.csv"), index=False)
-    pd.DataFrame(drows).to_csv(os.path.join(outdir, "build_rate_duals.csv"), index=False)
+    # v3.1: units column (dual_overnight_per_kw = -dual / the PV of the group's annualised capital per $ overnight /
+    # 1000: the overnight-cost equivalent of the constraint, $/kW in model dollars)
+    dd = pd.DataFrame(drows)
+    if len(dd):
+        dd["dual_units"] = "$/kW overnight-equivalent (model dollars)"
+    dd.to_csv(os.path.join(outdir, "build_rate_duals.csv"), index=False)
     pd.DataFrame(nrows).to_csv(os.path.join(outdir, "build_rate_new_build.csv"), index=False)
     pd.DataFrame([{"period": p, "BuildRateCosts": value(m.BuildRateCosts[p])} for p in m.PERIODS]).to_csv(
         os.path.join(outdir, "build_rate_costs.csv"), index=False)

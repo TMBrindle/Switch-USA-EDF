@@ -529,6 +529,20 @@ One linked-market carbon price for California (`ETS 2`) and Washington (`ETS 3`)
 - **`legacy`:** the presets' $33.43 and no import cost. That is the regression case, which stays byte-identical. Non-S0
   cases are unchanged.
 
+### Known bias in v3.1: the import charge (§89)
+
+v3.1 keeps the v3 (§65) charge: price × 0.428 (CA) / 0.437 (WA) tCO2 on EVERY MWh imported over lines into CA/WA
+zones.
+- **CARB's rule:** only unspecified imports pay the default factor. Specified imports (hydro, nuclear, contracted
+  renewables) carry their own factors, mostly near 0.
+- **Bias:** the charge overstates the carbon cost of imports, so it biases the model toward in-state gas. Attribution
+  run A8 put the effect at about +20 Mt of CA/WA in-state emissions in 2035.
+- **Data:** CEC's power mix puts the unspecified share of CA imports at about 24% (2022) and 14% (2023). These are
+  CEC categories, not CARB MRR's.
+- **Fix:** tested options (`ca_wa_carbon.import_charge`: `unspecified_share`, `source_table`; CHANGES §86) exist on
+  `tom/s0-prod-scripts` (1eab5cd, 1038ab8) with the default unchanged. They are not on this branch: the calibration
+  (the MRR specified/unspecified MWh) hasn't been checked, and the choice is Tom's.
+
 ## Forced transmission (§54)
 
 - **Source:** `s0_production.forced_tx: reeds_certain` (S0 default). The forced lines are ReEDS 2026.09.21's certain
