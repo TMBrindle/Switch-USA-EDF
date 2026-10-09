@@ -1,0 +1,56 @@
+{
+ "years": [
+  2024,
+  2028,
+  2030,
+  2035,
+  2040,
+  2045
+ ],
+ "zones": 134,
+ "hubs": 52,
+ "basins": [
+  "appalachia",
+  "haynesville",
+  "permian",
+  "eagle_ford",
+  "barnett_other_tx",
+  "midcon_anadarko",
+  "san_juan",
+  "rockies_other",
+  "bakken",
+  "fed_gom",
+  "w_canada",
+  "e_canada",
+  "lng_imports",
+  "other"
+ ],
+ "aeo_datekey": "d021826b",
+ "flags": 95,
+ "texas": {
+  "2024": {
+   "disposition_scale": 0.8654,
+   "capacity_slack_mmcf": 72790.3
+  },
+  "2028": {
+   "disposition_scale": 0.9099,
+   "capacity_slack_mmcf": 477204.6
+  },
+  "2030": {
+   "disposition_scale": 0.9243,
+   "capacity_slack_mmcf": 813892.0
+  },
+  "2035": {
+   "disposition_scale": 0.8639,
+   "capacity_slack_mmcf": 692048.0
+  },
+  "2040": {
+   "disposition_scale": 0.8209,
+   "capacity_slack_mmcf": 783109.7
+  },
+  "2045": {
+   "disposition_scale": 0.7999,
+   "capacity_slack_mmcf": 1345625.7
+  }
+ }
+}

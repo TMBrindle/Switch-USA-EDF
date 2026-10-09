@@ -26,7 +26,6 @@ s0_workflow/data/raw/
 !gas_network/
 !gas_network/**
 gas_network/data/raw/
-gas_network/outputs/
 
 # include growth_rates/*.csv
 !growth_rates/

@@ -1,0 +1,35 @@
+area,state,hub,basin,arr_subdivision,note
+PA,PA,PA,appalachia,,
+WV,WV,WV,appalachia,,
+OH,OH,OH,appalachia,,
+NY,NY,NY,appalachia,,
+VA,VA,VA,appalachia,,
+KY,KY,KY,appalachia,,ASSUMPTION: Kentucky includes some Illinois-basin gas; labelled Appalachia
+TN,TN,TN,appalachia,,
+MD,MD,MD,appalachia,,
+LA_N,LA,LA,haynesville,North,North Louisiana = Haynesville/Cotton Valley (East Texas-North Louisiana salt basin)
+LA_S,LA,LA,other,South Onshore;State Offshore,Gulf Coast conventional; not Haynesville
+TX_D1,TX,TX_E,eagle_ford,RRC District 1,ASSUMPTION: whole district labelled Eagle Ford (Western Gulf basin)
+TX_D2,TX,TX_E,eagle_ford,RRC District 2 Onshore,ASSUMPTION: whole district labelled Eagle Ford
+TX_D3,TX,TX_E,barnett_other_tx,RRC District 3 Onshore,Upper Gulf Coast conventional
+TX_D4,TX,TX_E,eagle_ford,RRC District 4 Onshore,ASSUMPTION: whole district labelled Eagle Ford (incl. conventional South Texas gas)
+TX_D5,TX,TX_N,haynesville,RRC District 5,East-central Texas Bossier/Cotton Valley; NGMM puts it in TX_N
+TX_D6,TX,TX_E,haynesville,RRC District 6,East Texas Haynesville
+TX_D7B,TX,TX_N,barnett_other_tx,RRC District 7B,Fort Worth basin west flank
+TX_D7C,TX,TX_W,permian,RRC District 7C,
+TX_D8,TX,TX_W,permian,RRC District 8,
+TX_D8A,TX,TX_W,permian,RRC District 8A,
+TX_D9,TX,TX_N,barnett_other_tx,RRC District 9,Barnett core
+TX_D10,TX,TX_W,midcon_anadarko,RRC District 10,Panhandle = Anadarko basin; NGMM puts it in TX_W
+TX_SO,TX,TX_E,barnett_other_tx,State Offshore,
+NM_E,NM,NM,permian,East,
+NM_W,NM,NM,san_juan,West,
+OK,OK,OK,midcon_anadarko,,
+KS,KS,KS,midcon_anadarko,,
+AR,AR,AR,midcon_anadarko,,Arkoma basin (Fayetteville)
+CO,CO,CO,rockies_other,,ASSUMPTION: Colorado's San Juan-basin share (La Plata/Archuleta) not split out; labelled Rockies (other)
+WY,WY,WY,rockies_other,,
+UT,UT,UT,rockies_other,,
+ND,ND,ND,bakken,,
+MT,MT,MT,bakken,,ASSUMPTION: all Montana gas labelled Bakken
+GOM,GOM,GOM,fed_gom,,Federal Offshore Gulf of America

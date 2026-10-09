@@ -1,0 +1,91 @@
+# gas_network Stage 1 (basin attribution) settings. Mappings live in data/reference/*.csv; sources in
+# data/SOURCES.yml. Every assumption below is marked ASSUMPTION and explained in
+# "Guides and documentation/gas_network.md".
+
+base_year: 2024            # EIA Natural Gas Annual state-to-state movements (latest year published)
+model_years: [2028, 2030, 2035, 2040, 2045]
+aeo_index_base_year: 2025  # ASSUMPTION: AEO2026 growth from its first table year (2025) is applied to the 2024 base
+
+# Natural-gas fuels in the S0 v3.1 inputs (pg/settings/fuels.yml tech_fuel_map + ccs_fuel_map). report.py fails if
+# a fuel with "gas" in its name appears in GenFuelUseRate.csv and is not listed here.
+gas_fuels: [naturalgas, naturalgas_ccs90, naturalgas_ccs100]
+
+basins:   # id: label (Tom's list, CHANGES §93)
+  appalachia: Appalachia
+  haynesville: Haynesville
+  permian: Permian
+  eagle_ford: Eagle Ford
+  barnett_other_tx: Barnett/other TX
+  midcon_anadarko: Mid-Continent/Anadarko
+  san_juan: San Juan
+  rockies_other: Rockies (other)
+  bakken: Bakken
+  fed_gom: Fed. GOM
+  w_canada: W. Canada
+  e_canada: E. Canada
+  lng_imports: LNG imports
+  other: other
+
+# AEO2026 series that move each basin's production after the base year (index = AEO(y) / AEO(aeo_index_base_year)).
+# ASSUMPTION: the closest published series; see the guide for the mismatches (e.g. Appalachia includes conventional gas
+# but moves with Marcellus/Utica shale).
+basin_aeo_index:
+  appalachia: [suptab_60, "SGTO000:select_appalachia"]
+  haynesville: [suptab_60, "SGTO000:select_haynes"]
+  permian: [suptab_60, "SGTO000:select_permian"]
+  eagle_ford: [suptab_60, "SGTO000:select_eagleford"]
+  barnett_other_tx: [suptab_60, "SGTO000:select_barnett"]
+  midcon_anadarko: [suptab_59, "L48000:ca_Midcontinent"]
+  san_juan: [suptab_59, "L48000:ca_RockyMountain"]
+  rockies_other: [suptab_59, "L48000:ca_RockyMountain"]
+  bakken: [suptab_60, "SGTO000:select_bakken"]
+  fed_gom: [suptab_59, "L48000:da_Gulf"]
+  lng_imports: [suptab_61, "NGI000:ca_LiquefiedNatu"]
+  other: [suptab_59, "L48000:ca_Low48Onshore"]
+  # w_canada / e_canada follow the Canada rows of AEO Table 64 directly (absolute flows), not an index.
+
+texas:
+  # NGMM (EIAgov/NEMS models/ngas/input/ngtexas.txt): Texas interstate arcs belong to these sub-hubs.
+  # ASSUMPTION for the few tiny pairs NGMM does not list: by geography.
+  border_hub:
+    LA: TX_E
+    AR: TX_E
+    AL: TX_E
+    MS: TX_E
+    FL: TX_E
+    NC: TX_E
+    GOM: TX_E
+    NM: TX_W
+    NV: TX_W
+    KS: TX_N
+  # Oklahoma pairs split by NGMM's 2023 HistoricalFlowAnnual (ngtexas.txt): OK->TX_N 392.518, OK->TX_W 411.268;
+  # TX->OK only from TX_W (653.124).
+  ok_receipts_split: {TX_N: 392.518, TX_W: 411.268}
+  ok_deliveries_split: {TX_W: 1.0}
+  # Mexico pipeline exports by sub-hub: NGMM 2024 HistoricalFlowAnnual TX_E->TX_E-MX_NE 1474.23, TX_W->TX_W-MX_NE 647.208
+  mexico_export_split: {TX_E: 1474.23, TX_W: 647.208}
+  lng_export_hub: TX_E      # all Texas LNG terminals (Freeport, Corpus Christi, Golden Pass, Port Arthur, Rio Grande)
+  # NGMM TexasConsShares (ngtexas.txt, SYK 7/19/23 update)
+  consumption_shares:
+    residential: {TX_W: 0.153358, TX_N: 0.41801, TX_E: 0.428205}
+    commercial: {TX_W: 0.167184, TX_N: 0.487569, TX_E: 0.344993}
+    electric: {TX_W: 0.085280, TX_N: 0.225618, TX_E: 0.689101}
+    industrial: {TX_W: 0.0421, TX_N: 0.0666, TX_E: 0.8913}
+  # intra-Texas capacity, MMcf/d, NGMM texas_capacity.txt (2023 rows)
+  capacity_mmcfd:
+    TX_E->TX_N: 700
+    TX_E->TX_W: 750
+    TX_N->TX_E: 6893
+    TX_N->TX_W: 700
+    TX_W->TX_E: 8380
+    TX_W->TX_N: 1560
+  # ASSUMPTION: intra-Texas flows are the least total flow that balances each sub-hub (direct arcs before two hops),
+  # within the capacities above; tie-break weights below favour direct transfers.
+  arc_cost: {TX_W->TX_E: 1.0, TX_N->TX_E: 1.0, TX_W->TX_N: 1.0, TX_E->TX_N: 1.0, TX_N->TX_W: 1.0, TX_E->TX_W: 1.0}
+
+paths:
+  raw: data/raw
+  reference: data/reference
+  outputs: outputs
+  hierarchy: ../hierarchy.csv
+  county2zone: ../interconnection_headroom/data/reference/county2zone.csv   # ReEDS 2f583ff (REEDS_COMMIT.txt there)

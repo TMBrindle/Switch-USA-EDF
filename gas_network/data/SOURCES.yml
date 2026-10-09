@@ -1,0 +1,471 @@
+note: Raw files live in gas_network/data/raw/ (git-ignored); `python -m gasnet.cli fetch` re-downloads them and checks these
+  sha256 pins.
+files:
+- id: eia_dry_production_state
+  path: eia/NG_PROD_SUM_A_EPG0_FPD_MMCF_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_PROD_SUM_A_EPG0_FPD_MMCF_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): dry natural gas production by state, annual MMcf'
+  release: '2026-09-30'
+  sha256: 82167ab42c109aa3ac3c0d54f711ffe03b1a515c5a9ec1b0fc59ef91aef6cae1
+  retrieved: '2026-10-09'
+- id: eia_consumption_tx
+  path: eia/NG_CONS_SUM_DCU_STX_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_STX_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): Texas consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 86f1d311d105fde33676f3206eb904ce8e0e432d4aabfc542ea9ccc5a5adf976
+  retrieved: '2026-10-09'
+- id: eia_arr_2024
+  path: eia/ARR_2024_TABLES_ALL.xlsx
+  url: https://www.eia.gov/naturalgas/crudeoilreserves/excel/ARR_2024_TABLES_ALL.xlsx
+  release: '2026-04-07'
+  publisher: 'EIA, U.S. Crude Oil and Natural Gas Proved Reserves, Year-end 2024 (Table 8: estimated 2024 production by state
+    and subdivision incl. Texas RRC districts, NM East/West, LA North/South)'
+  sha256: eac6d2c65194888be8a20ef94c3df6cb0683499ede22208698544d7a9307c257
+  retrieved: '2026-10-09'
+- id: eia860m_aug2026
+  path: eia/august_generator2026.xlsx
+  url: https://www.eia.gov/electricity/data/eia860m/xls/august_generator2026.xlsx
+  release: '2026-09-24'
+  publisher: EIA-860M, Inventory of Operating Generators as of August 2026
+  sha256: b4b70abb4c217e8e2658c3bde7608a3d530e86a81279ccc572ced82a200e9f1c
+  retrieved: '2026-10-09'
+- id: eia_movements_AL
+  path: eia/movements/NG_MOVE_IST_A2DCU_SAL_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SAL_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): AL international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 13fb76f9db3b54141b43bdcc6e147630d7743e7308eb726e533eabe3c150d0a2
+  retrieved: '2026-10-09'
+- id: eia_movements_AZ
+  path: eia/movements/NG_MOVE_IST_A2DCU_SAZ_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SAZ_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): AZ international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 8ebed46279262d07a3d3fbf688e8a95324b1aa11dd69dada43ad6ee77906b124
+  retrieved: '2026-10-09'
+- id: eia_movements_AR
+  path: eia/movements/NG_MOVE_IST_A2DCU_SAR_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SAR_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): AR international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 77f60a18bd50fe3bb081591fd7f4e24a9efbb36d1c2f81238faeb81c7a5444f6
+  retrieved: '2026-10-09'
+- id: eia_movements_CA
+  path: eia/movements/NG_MOVE_IST_A2DCU_SCA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SCA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): CA international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: e48fa201ee882571a801b6a279106caaf102981aac3372bf6f44e91446d08349
+  retrieved: '2026-10-09'
+- id: eia_movements_CO
+  path: eia/movements/NG_MOVE_IST_A2DCU_SCO_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SCO_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): CO international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 080afd9fae55c07f79caa24dab745c635ecc16312a99f88e56b256a6a6b23984
+  retrieved: '2026-10-09'
+- id: eia_movements_CT
+  path: eia/movements/NG_MOVE_IST_A2DCU_SCT_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SCT_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): CT international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: df77a703e43c9d0669e3463488ba9be587aa4b01b918a3a2711a2b606d1b8fb4
+  retrieved: '2026-10-09'
+- id: eia_movements_DE
+  path: eia/movements/NG_MOVE_IST_A2DCU_SDE_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SDE_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): DE international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: c79929760f384d413a2c9b4caab56e335bc72d6f6a7dc82aad794c4f197ba087
+  retrieved: '2026-10-09'
+- id: eia_movements_DC
+  path: eia/movements/NG_MOVE_IST_A2DCU_SDC_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SDC_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): DC international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: e46473cf032c5846441b1a6384ad8832a3093615d7125410e04c2d16b3670cd3
+  retrieved: '2026-10-09'
+- id: eia_movements_FL
+  path: eia/movements/NG_MOVE_IST_A2DCU_SFL_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SFL_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): FL international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: e26efd1f898f7d3c6a3d07d26290e387a295ca1f5b98c98a8dec9fee0ef0d105
+  retrieved: '2026-10-09'
+- id: eia_movements_GA
+  path: eia/movements/NG_MOVE_IST_A2DCU_SGA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SGA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): GA international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 970e0821a5f3d193c1c8dac92b489ca1ea6efd96a0c51b4ea3f5fe15ec54c941
+  retrieved: '2026-10-09'
+- id: eia_movements_ID
+  path: eia/movements/NG_MOVE_IST_A2DCU_SID_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SID_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): ID international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 946e8cacb6a6709e4a22c44715ebec4ea8ff4055d7f1060f5e76556f9f02509b
+  retrieved: '2026-10-09'
+- id: eia_movements_IL
+  path: eia/movements/NG_MOVE_IST_A2DCU_SIL_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SIL_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): IL international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 99cc7cd327e7d523c9eb94901a79e4013bd1d6f150c43caed9c5a0fae56c6941
+  retrieved: '2026-10-09'
+- id: eia_movements_IN
+  path: eia/movements/NG_MOVE_IST_A2DCU_SIN_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SIN_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): IN international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: b95edab3af6443eb36cdff1a079baa18cec12466edae63c9f5da286bb9aaae37
+  retrieved: '2026-10-09'
+- id: eia_movements_IA
+  path: eia/movements/NG_MOVE_IST_A2DCU_SIA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SIA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): IA international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 34b5b2031cf22c7a85100dd6ad8d607aac7dabeaaa635466168a41274316d5b8
+  retrieved: '2026-10-09'
+- id: eia_movements_KS
+  path: eia/movements/NG_MOVE_IST_A2DCU_SKS_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SKS_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): KS international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 7b1e630c12c7e8e5fcc4d819666a1494d69018247f8e8b58ccb8b0d7b93ef92d
+  retrieved: '2026-10-09'
+- id: eia_movements_KY
+  path: eia/movements/NG_MOVE_IST_A2DCU_SKY_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SKY_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): KY international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 54d39b77b85e15440645e52cf548543fb6864e99be5f64b1fa77a0e224bb6318
+  retrieved: '2026-10-09'
+- id: eia_movements_LA
+  path: eia/movements/NG_MOVE_IST_A2DCU_SLA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SLA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): LA international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: d5a55421a15bf79bd847aa507c53f14bbf0b4ca3c686130b123f474317515e84
+  retrieved: '2026-10-09'
+- id: eia_movements_ME
+  path: eia/movements/NG_MOVE_IST_A2DCU_SME_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SME_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): ME international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 931fe0fc2c2f293cc9c299e2f89bd29468e03ac9e9df32954de735215e4c68d4
+  retrieved: '2026-10-09'
+- id: eia_movements_MD
+  path: eia/movements/NG_MOVE_IST_A2DCU_SMD_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SMD_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MD international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 5b860e1e19584a7d5ca189ec227ae9245ab066ef97df594487ea975c43263410
+  retrieved: '2026-10-09'
+- id: eia_movements_MA
+  path: eia/movements/NG_MOVE_IST_A2DCU_SMA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SMA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MA international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 5548a25225cbee812d8a16c51f800e85ed762293c41386c0e97dd1c177a57f13
+  retrieved: '2026-10-09'
+- id: eia_movements_MI
+  path: eia/movements/NG_MOVE_IST_A2DCU_SMI_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SMI_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MI international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 26b6621bf92b670d6cd799e403e0061286f44c9d6a9bb6ce92064f5fcef455f7
+  retrieved: '2026-10-09'
+- id: eia_movements_MN
+  path: eia/movements/NG_MOVE_IST_A2DCU_SMN_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SMN_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MN international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: d9cf076bd776d4c8a5007fbb6370438e73c37cb9052da64f41ce2e34e7123e7c
+  retrieved: '2026-10-09'
+- id: eia_movements_MS
+  path: eia/movements/NG_MOVE_IST_A2DCU_SMS_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SMS_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MS international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 19e8ac7d7d3af45b18e5b2792ee5541c64481f153a59269d5933112c7a0edcaf
+  retrieved: '2026-10-09'
+- id: eia_movements_MO
+  path: eia/movements/NG_MOVE_IST_A2DCU_SMO_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SMO_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MO international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 15bc3e2d381ee638a6bbbf76db4a4527ea33305eb9138105c2cf1fe0080bd0a6
+  retrieved: '2026-10-09'
+- id: eia_movements_MT
+  path: eia/movements/NG_MOVE_IST_A2DCU_SMT_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SMT_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MT international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 7811e07fc23e5220b870c65bc7daf3931d48f05c6cdf97bebe46d8240b1987ba
+  retrieved: '2026-10-09'
+- id: eia_movements_NE
+  path: eia/movements/NG_MOVE_IST_A2DCU_SNE_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SNE_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NE international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: a259f64cd59e57b69d7f548711554ca80e2e64323d19a36dd20f6aa1f5ebb22c
+  retrieved: '2026-10-09'
+- id: eia_movements_NV
+  path: eia/movements/NG_MOVE_IST_A2DCU_SNV_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SNV_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NV international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 072e8e9f939331bf222fac33d9576de164479b3e9c5868875921e3395f526695
+  retrieved: '2026-10-09'
+- id: eia_movements_NH
+  path: eia/movements/NG_MOVE_IST_A2DCU_SNH_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SNH_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NH international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: f6d5c34296c353a8c117b3587f80fa325b58bbefbe0c22e6b45510b79021d6b9
+  retrieved: '2026-10-09'
+- id: eia_movements_NJ
+  path: eia/movements/NG_MOVE_IST_A2DCU_SNJ_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SNJ_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NJ international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 5650225a9028580e95a59591b65d8473e4ba6b563d845007bb94f23142fdb516
+  retrieved: '2026-10-09'
+- id: eia_movements_NM
+  path: eia/movements/NG_MOVE_IST_A2DCU_SNM_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SNM_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NM international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 3b24b9d734f2662ab63c2e5ce5f47b7cbe3c848bda36f7a3f40230f5d6117271
+  retrieved: '2026-10-09'
+- id: eia_movements_NY
+  path: eia/movements/NG_MOVE_IST_A2DCU_SNY_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SNY_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NY international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: ca969f2195d9afff7ac2f2cad61c8a2b67209fda9c21acd1a39d2b1aba3493f3
+  retrieved: '2026-10-09'
+- id: eia_movements_NC
+  path: eia/movements/NG_MOVE_IST_A2DCU_SNC_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SNC_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NC international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 1055a924a0db5a8deb35db6decbbfbdb12a16dda6f38bceedf7b67c7c2dc2a4e
+  retrieved: '2026-10-09'
+- id: eia_movements_ND
+  path: eia/movements/NG_MOVE_IST_A2DCU_SND_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SND_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): ND international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: b0eac8707f0ba4780c5bb2deb6bd86de45d30ec8c0e57535940275dc8108db70
+  retrieved: '2026-10-09'
+- id: eia_movements_OH
+  path: eia/movements/NG_MOVE_IST_A2DCU_SOH_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SOH_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): OH international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: e62de89aae373187ee6cdda248165634a2e6ba1c9b07cde2d72ce2999ecdfcaa
+  retrieved: '2026-10-09'
+- id: eia_movements_OK
+  path: eia/movements/NG_MOVE_IST_A2DCU_SOK_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SOK_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): OK international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: d67433295075e1668e6cb38c16478dcf8807894fe9e51e428653a187a7706b36
+  retrieved: '2026-10-09'
+- id: eia_movements_OR
+  path: eia/movements/NG_MOVE_IST_A2DCU_SOR_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SOR_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): OR international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: e251ffa218ff7e73f9fc7e751f9a977c66975bb2d1364f62269f3e049187dcb5
+  retrieved: '2026-10-09'
+- id: eia_movements_PA
+  path: eia/movements/NG_MOVE_IST_A2DCU_SPA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SPA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): PA international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 483499aa0fe40915d4cbbcf411aee678ba1677c2fbfc7aaf7b7293dac8cfd40b
+  retrieved: '2026-10-09'
+- id: eia_movements_RI
+  path: eia/movements/NG_MOVE_IST_A2DCU_SRI_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SRI_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): RI international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: a0bf3531be002eb277215319b8cbf3b152e1b7a0f80023b2535178c3235494cc
+  retrieved: '2026-10-09'
+- id: eia_movements_SC
+  path: eia/movements/NG_MOVE_IST_A2DCU_SSC_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SSC_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): SC international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 1461b2322f796d4ee22e331b177fc1d4b7cb11dba1689e739b9029f8f40c1a2b
+  retrieved: '2026-10-09'
+- id: eia_movements_SD
+  path: eia/movements/NG_MOVE_IST_A2DCU_SSD_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SSD_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): SD international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: ce899a5f6803fd42e4e6f140ed51bdd951a42f5024b3c9fe0f98ea6d6cac3a38
+  retrieved: '2026-10-09'
+- id: eia_movements_TN
+  path: eia/movements/NG_MOVE_IST_A2DCU_STN_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_STN_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): TN international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 3b8c192a679e4bfa3a153aa6fdc01a712ac38c875c1dbd2af83073f9a309ef7e
+  retrieved: '2026-10-09'
+- id: eia_movements_TX
+  path: eia/movements/NG_MOVE_IST_A2DCU_STX_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_STX_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): TX international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 446a796c92401875ee1d77f041d2943e895989b774973477da825ecdbc6e3878
+  retrieved: '2026-10-09'
+- id: eia_movements_UT
+  path: eia/movements/NG_MOVE_IST_A2DCU_SUT_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SUT_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): UT international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 88ad874412d4abb93058bea9f7277c2623b88839974ef8a2cc7b493e1f5b196b
+  retrieved: '2026-10-09'
+- id: eia_movements_VT
+  path: eia/movements/NG_MOVE_IST_A2DCU_SVT_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SVT_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): VT international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: e5c5dfd3c586f37d38f61c0a46ff664775b85a1d535d8b152f0911650f14b342
+  retrieved: '2026-10-09'
+- id: eia_movements_VA
+  path: eia/movements/NG_MOVE_IST_A2DCU_SVA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SVA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): VA international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 54b78efefff6ea0058da847f086334036b118074da5f57f9b874107d64883f51
+  retrieved: '2026-10-09'
+- id: eia_movements_WA
+  path: eia/movements/NG_MOVE_IST_A2DCU_SWA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SWA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): WA international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: abedd5d92b9b0f6003ef5a50577e0f70fd67a99d467f66ea1f68fd5ec4b57099
+  retrieved: '2026-10-09'
+- id: eia_movements_WV
+  path: eia/movements/NG_MOVE_IST_A2DCU_SWV_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SWV_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): WV international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: a2a19889ef834b3679914f4c9d7414ef778536785941ef33a0e058e163546631
+  retrieved: '2026-10-09'
+- id: eia_movements_WI
+  path: eia/movements/NG_MOVE_IST_A2DCU_SWI_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SWI_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): WI international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: ee739e631e2823b7b6c5c289df3e926f5c30b4a8e5b8dedd812eb33e237247a4
+  retrieved: '2026-10-09'
+- id: eia_movements_WY
+  path: eia/movements/NG_MOVE_IST_A2DCU_SWY_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SWY_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): WY international and interstate movements, annual MMcf'
+  release: '2026-09-30'
+  sha256: 3a637042a0fe6c833cd7500a330c68996f4d140acba6d0e3bfc9de28d2978732
+  retrieved: '2026-10-09'
+- id: aeo2026_suptab_59
+  path: aeo2026/suptab_59.xlsx
+  url: https://www.eia.gov/outlooks/aeo/supplement/excel/suptab_59.xlsx
+  release: April 2026 (AEO2026, run cb2026.d021826b)
+  publisher: 'EIA AEO2026 supplemental Table 59: Lower 48 Natural Gas Production and Supply Prices by Supply Region'
+  sha256: 0f3950de5cc24f8112743cef1906b52e2eb94468ed4faaedb2913a1248e9e217
+  retrieved: '2026-10-09'
+- id: aeo2026_suptab_60
+  path: aeo2026/suptab_60.xlsx
+  url: https://www.eia.gov/outlooks/aeo/supplement/excel/suptab_60.xlsx
+  release: April 2026 (AEO2026, run cb2026.d021826b)
+  publisher: 'EIA AEO2026 supplemental Table 60: Shale Gas & Tight Oil Production by Play'
+  sha256: 22414e2d598e18c55527ee08e0f7397a68e26603ca873412da1cb407b8263e0e
+  retrieved: '2026-10-09'
+- id: aeo2026_suptab_61
+  path: aeo2026/suptab_61.xlsx
+  url: https://www.eia.gov/outlooks/aeo/supplement/excel/suptab_61.xlsx
+  release: April 2026 (AEO2026, run cb2026.d021826b)
+  publisher: 'EIA AEO2026 supplemental Table 61: Natural Gas Imports and Exports'
+  sha256: a860094d402d00854af4b60c4b6743621efb21711e71b9b702c6403d3d5bab1b
+  retrieved: '2026-10-09'
+- id: aeo2026_suptab_62
+  path: aeo2026/suptab_62.xlsx
+  url: https://www.eia.gov/outlooks/aeo/supplement/excel/suptab_62.xlsx
+  release: April 2026 (AEO2026, run cb2026.d021826b)
+  publisher: 'EIA AEO2026 supplemental Table 62: Natural Gas Consumption by End-Use Sector and Census Division'
+  sha256: 69379739ef6560e650823db8eaa796809467d78887859313465f4f3fcd2b2d6d
+  retrieved: '2026-10-09'
+- id: aeo2026_suptab_64
+  path: aeo2026/suptab_64.xlsx
+  url: https://www.eia.gov/outlooks/aeo/supplement/excel/suptab_64.xlsx
+  release: April 2026 (AEO2026, run cb2026.d021826b)
+  publisher: 'EIA AEO2026 supplemental Table 64: Primary Natural Gas Flows Entering NGMM Region from Neighboring Regions'
+  sha256: 68bad09caced2a6671fa9135981557744a8a6011ac708c2e22911d38719b1985
+  retrieved: '2026-10-09'
+- id: nems_ngtexas
+  path: nems/ngtexas.txt
+  url: https://raw.githubusercontent.com/EIAgov/NEMS/1bfbb2af4c3eb6e884227630ae67eb0e0e3c72ba/models/ngas/input/ngtexas.txt
+  release: EIAgov/NEMS commit 1bfbb2a (2026-06-26)
+  publisher: 'EIA NEMS (AEO2026): NGMM Texas inputs (consumption shares, Texas arc history)'
+  sha256: d1b90458d6f809b2b06453f68441447d3facc3ae43eadc03730b97670882f7e5
+  retrieved: '2026-10-09'
+- id: nems_texas_capacity
+  path: nems/texas_capacity.txt
+  url: https://raw.githubusercontent.com/EIAgov/NEMS/1bfbb2af4c3eb6e884227630ae67eb0e0e3c72ba/models/ngas/input/texas_capacity.txt
+  release: EIAgov/NEMS commit 1bfbb2a (2026-06-26)
+  publisher: 'EIA NEMS (AEO2026): NGMM intra-Texas and border capacity, MMcf/d'
+  sha256: 25c337ac545e35620fa185026fbd8b70741baa3f941940081a81440d3c9d9e20
+  retrieved: '2026-10-09'
+- id: nems_ngsetmap
+  path: nems/ngsetmap.txt
+  url: https://raw.githubusercontent.com/EIAgov/NEMS/1bfbb2af4c3eb6e884227630ae67eb0e0e3c72ba/models/ngas/input/ngsetmap.txt
+  release: EIAgov/NEMS commit 1bfbb2a (2026-06-26)
+  publisher: 'EIA NEMS (AEO2026): NGMM sets and maps (state -> flow region, border crossings)'
+  sha256: a3f578f7f757b372be7b7f878c08ad06fd94d6665cbfe4c76f30b04d244af256
+  retrieved: '2026-10-09'
+- id: nems_on_projects_producing_gas
+  path: nems/on_projects_producing_gas.csv
+  url: https://raw.githubusercontent.com/EIAgov/NEMS/1bfbb2af4c3eb6e884227630ae67eb0e0e3c72ba/models/hsm/input/onshore/projects/on_projects_producing_gas.csv
+  release: EIAgov/NEMS commit 1bfbb2a (2026-06-26)
+  publisher: 'EIA NEMS (AEO2026): HSM onshore project file (state, county FIPS, RRC district) - used only for Texas county
+    -> RRC district'
+  sha256: f12743f3d7d238794b0c01b41c734611450fda8ee7d2890962163ac03161199f
+  retrieved: '2026-10-09'
+- id: nems_on_projects_producing_oil
+  path: nems/on_projects_producing_oil.csv
+  url: https://raw.githubusercontent.com/EIAgov/NEMS/1bfbb2af4c3eb6e884227630ae67eb0e0e3c72ba/models/hsm/input/onshore/projects/on_projects_producing_oil.csv
+  release: EIAgov/NEMS commit 1bfbb2a (2026-06-26)
+  publisher: 'EIA NEMS (AEO2026): HSM onshore project file (state, county FIPS, RRC district) - used only for Texas county
+    -> RRC district'
+  sha256: fa793d5c3df590657bc731d511a38c71a57a64bb8e284d44d20976de3712c7f2
+  retrieved: '2026-10-09'
+- id: nems_on_projects_continuous
+  path: nems/on_projects_continuous.csv
+  url: https://raw.githubusercontent.com/EIAgov/NEMS/1bfbb2af4c3eb6e884227630ae67eb0e0e3c72ba/models/hsm/input/onshore/projects/on_projects_continuous.csv
+  release: EIAgov/NEMS commit 1bfbb2a (2026-06-26)
+  publisher: 'EIA NEMS (AEO2026): HSM onshore project file (state, county FIPS, RRC district) - used only for Texas county
+    -> RRC district'
+  sha256: b9c1f17b786000caa62e921784d93e2b7de7ce80d6a592470cf912bdf7629905
+  retrieved: '2026-10-09'
+- id: nems_on_projects_undiscovered
+  path: nems/on_projects_undiscovered.csv
+  url: https://raw.githubusercontent.com/EIAgov/NEMS/1bfbb2af4c3eb6e884227630ae67eb0e0e3c72ba/models/hsm/input/onshore/projects/on_projects_undiscovered.csv
+  release: EIAgov/NEMS commit 1bfbb2a (2026-06-26)
+  publisher: 'EIA NEMS (AEO2026): HSM onshore project file (state, county FIPS, RRC district) - used only for Texas county
+    -> RRC district'
+  sha256: dcd56c3a46d058c7a5e940265732fa069770ccb21769382c18bb2ba73689a557
+  retrieved: '2026-10-09'
+- id: nems_on_projects_co2_eor
+  path: nems/on_projects_co2_eor.csv
+  url: https://raw.githubusercontent.com/EIAgov/NEMS/1bfbb2af4c3eb6e884227630ae67eb0e0e3c72ba/models/hsm/input/onshore/projects/on_projects_co2_eor.csv
+  release: EIAgov/NEMS commit 1bfbb2a (2026-06-26)
+  publisher: 'EIA NEMS (AEO2026): HSM onshore project file (state, county FIPS, RRC district) - used only for Texas county
+    -> RRC district'
+  sha256: 86a7374e09f930bc227c5f3b4e2fc0de60bfa9c8d32a7fb93712313592297ccb
+  retrieved: '2026-10-09'

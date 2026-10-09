@@ -3685,3 +3685,56 @@ purchases above 0.001 t. This was wrong in two ways:
 - **CA/WA import charge:** v3 behaviour kept, with a note of the known bias (guide, "Known bias in v3.1"). The tested
   options are on `tom/s0-prod-scripts` (§86).
 - **Credit work** (`full_ira_lev`, the 10-year tally): held until D7 is settled. It doesn't affect S0.
+
+## 93. Gas Network Stage 1: Basin Attribution of Delivered Gas by Zone (`gas_network/`, no model change)
+
+**Date:** 2026-10-09 · **Branch:** `tom/gas-network` (from `tom/s0-v3.1` 9d68751; §90–92 live on later commits of other
+branches). New self-contained package `gas_network/`; no existing file's behaviour changes, and no Switch module or
+case input is touched. The only shared edit is `.gitignore`, which now tracks `gas_network/` but not its `data/raw/`.
+Guide: "Guides and documentation/gas_network.md". Design and later stages: `gas_network/docs/design_note_step1.md`.
+
+**What it does.** For every zone (134) and year (2024; 2028, 2030, 2035, 2040, 2045) it gives the share of delivered
+gas from each of 14 basins (Tom's list: Appalachia, Haynesville, Permian, Eagle Ford, Barnett/other TX,
+Mid-Continent/Anadarko, San Juan, Rockies (other), Bakken, Fed. GOM, W. Canada, E. Canada, LNG imports, other).
+Output: `gas_network/outputs/zone_basin_shares.csv`, plus a region cross-check, Texas routing and flags.
+`python -m gasnet.cli report <outputs>` turns a Switch run's `GenFuelUseRate.csv` into `basin_gas_mmbtu.csv`.
+`data/basin_intensity.csv` is an empty template for the methane research task.
+
+**Method:**
+- Proportional sharing (full mixing at each hub) on EIA's 2024 state-to-state movements.
+- Texas is NGMM's three hubs; Texas RRC districts, NM East/West and LA North/South are split by EIA's proved-reserves
+  report (YE2024) Table 8.
+- Texas zones are weighted over hubs by gas MW per county (EIA-860M; county → district from the AEO2026 HSM files).
+- Projections index every 2024 quantity to AEO2026 growth from 2025: production by basin (Tables 59/60), region-pair
+  flows (Table 64), Canada and LNG imports (Tables 61/64), Texas consumption and exports (Tables 61/62).
+- Routing and every ASSUMPTION are listed in the guide.
+
+**Decisions (Tom, Step 1 approval):**
+- the basin list above, with San Juan separate;
+- the restart run d011626a for shapes only, labelled (not used in Stage 1);
+- Stage 2 calibrates to the S0 price at AEO burn via markups;
+- Stage 2 includes non-power gas in the objective, reported separately, with a net-of-baseline objective;
+- the ReEDS-style fallback is a later option;
+- p13 (Las Vegas) → NV hub.
+
+**Did not reconcile** (guide, "Things that did not reconcile"):
+- AEO2026 Table 64's Rockies → OR/WA row equals Canada → WA in every year. This is a question for EIA.
+- Five region pairs differ from EIA by more than 3×.
+- Texas dispositions are scaled by 0.865 (2024); intra-Texas flow exceeds NGMM's 2023 capacity.
+- The Step 1 scratch numbers missed GOM → MS (134 Bcf) and AZ's Mexican imports. Florida 2024 Appalachian is 34.1%,
+  not 34.6%.
+
+**Data:**
+- 66 files are pinned in `gas_network/data/SOURCES.yml` (URL, release date, sha256): EIA dnav, proved reserves
+  YE2024, EIA-860M August 2026, AEO2026 Tables 59–62/64, and EIAgov/NEMS 1bfbb2a NGMM/HSM inputs.
+- `fetch` re-downloads them; `run` refuses on a sha256 mismatch.
+- rrc.texas.gov is blocked from the cloud; EIA's district figures are used instead.
+
+**Tests:** 18 (`gas_network/tests/`), passing on pandas 3.0.6 (Python 3.12) and 1.4.4 (Python 3.10):
+- the tracing solver on a chain and a loop with known answers;
+- shares summing to 1;
+- Texas routing (direct transfers, disposition scale, capacity slack) and the Oklahoma split;
+- the reporting function on a toy outputs folder (from `dispatch.csv`, from inputs, an unlisted gas fuel, share-year
+  fallback);
+- reproduction of the Step 1 scratch numbers and of the corrected ones;
+- the Texas/NM splits, the Table 64 parse and anomaly, sha256 pins, and a fresh run matching the committed outputs.

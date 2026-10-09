@@ -1,0 +1,96 @@
+year,flag,what,mmcf,note
+2024,texas_intra_capacity_exceeded,intra-Texas,72790.33610372525,flow above NGMM 2023 capacity (slack arcs)
+2028,canada_import_held,CA,117.0,no Table 64 Canada arc into CA in 2025
+2028,mexico_import_held,,2443.0,AEO2026 Table 61 has no pipeline imports from Mexico
+2028,arc_level_mismatch_indexed,AZ_NM->SouthCentral,234294.684710354,EIA 2024 220 Bcf vs Table 64 2025 1015 Bcf (>3x apart); indexed to 234 Bcf (Table 64 2028: 1082)
+2028,arc_not_in_table64_held,CA->AZ_NM,81121.0,held at 2024
+2028,arc_not_in_table64_held,CA->RockiesPlains,48413.0,held at 2024
+2028,arc_level_mismatch_indexed,EasternMidwest->MidAtlantic_OH,97178.29843023847,EIA 2024 377 Bcf vs Table 64 2025 6 Bcf (>3x apart); indexed to 97 Bcf (Table 64 2028: 1)
+2028,arc_zero_in_table64_held,EasternMidwest->NorthernGreatPlains,19060.0,Table 64 shows 0 in 2025 (0 MMcf in 2028); held at 2024
+2028,arc_level_mismatch_indexed,EasternMidwest->Southeast,2405.665203291765,EIA 2024 2 Bcf vs Table 64 2025 44 Bcf (>3x apart); indexed to 2 Bcf (Table 64 2028: 66)
+2028,arc_not_in_table64_held,MidAtlantic_OH->SouthCentral,223766.0,held at 2024
+2028,arc_not_in_table64_held,NewEngland->MidAtlantic_OH,123013.0,held at 2024
+2028,arc_zero_in_table64_held,OR_WA->RockiesPlains,61280.0,Table 64 shows 0 in 2025 (0 MMcf in 2028); held at 2024
+2028,arc_level_mismatch_indexed,RockiesPlains->AZ_NM,100240.0784474199,EIA 2024 289 Bcf vs Table 64 2025 71 Bcf (>3x apart); indexed to 100 Bcf (Table 64 2028: 25)
+2028,arc_zero_in_table64_held,RockiesPlains->NorthernGreatPlains,53238.0,Table 64 shows 0 in 2025 (77 MMcf in 2028); held at 2024
+2028,arc_zero_in_table64_held,SouthCentral->AZ_NM,390293.0,Table 64 shows 0 in 2025 (0 MMcf in 2028); held at 2024
+2028,arc_level_mismatch_indexed,SouthCentral->RockiesPlains,732771.3772851996,EIA 2024 644 Bcf vs Table 64 2025 213 Bcf (>3x apart); indexed to 733 Bcf (Table 64 2028: 243)
+2028,arc_not_in_table64_held,Southeast->EasternMidwest,6518.0,held at 2024
+2028,arc_zero_in_table64_held,Southeast->SouthCentral,13.0,Table 64 shows 0 in 2025 (0 MMcf in 2028); held at 2024
+2028,texas_intra_capacity_exceeded,intra-Texas,477204.64606072777,flow above NGMM 2023 capacity (slack arcs)
+2030,canada_import_held,CA,117.0,no Table 64 Canada arc into CA in 2025
+2030,mexico_import_held,,2443.0,AEO2026 Table 61 has no pipeline imports from Mexico
+2030,arc_level_mismatch_indexed,AZ_NM->SouthCentral,250763.81582663197,EIA 2024 220 Bcf vs Table 64 2025 1015 Bcf (>3x apart); indexed to 251 Bcf (Table 64 2030: 1158)
+2030,arc_not_in_table64_held,CA->AZ_NM,81121.0,held at 2024
+2030,arc_not_in_table64_held,CA->RockiesPlains,48413.0,held at 2024
+2030,arc_level_mismatch_indexed,EasternMidwest->MidAtlantic_OH,42728.3758624962,EIA 2024 377 Bcf vs Table 64 2025 6 Bcf (>3x apart); indexed to 43 Bcf (Table 64 2030: 1)
+2030,arc_zero_in_table64_held,EasternMidwest->NorthernGreatPlains,19060.0,Table 64 shows 0 in 2025 (0 MMcf in 2030); held at 2024
+2030,arc_level_mismatch_indexed,EasternMidwest->Southeast,3549.600067922684,EIA 2024 2 Bcf vs Table 64 2025 44 Bcf (>3x apart); indexed to 4 Bcf (Table 64 2030: 98)
+2030,arc_not_in_table64_held,MidAtlantic_OH->SouthCentral,223766.0,held at 2024
+2030,arc_not_in_table64_held,NewEngland->MidAtlantic_OH,123013.0,held at 2024
+2030,arc_zero_in_table64_held,OR_WA->RockiesPlains,61280.0,Table 64 shows 0 in 2025 (0 MMcf in 2030); held at 2024
+2030,arc_level_mismatch_indexed,RockiesPlains->AZ_NM,107754.79462742868,EIA 2024 289 Bcf vs Table 64 2025 71 Bcf (>3x apart); indexed to 108 Bcf (Table 64 2030: 27)
+2030,arc_zero_in_table64_held,RockiesPlains->NorthernGreatPlains,53238.0,Table 64 shows 0 in 2025 (1 MMcf in 2030); held at 2024
+2030,arc_zero_in_table64_held,SouthCentral->AZ_NM,390293.0,Table 64 shows 0 in 2025 (0 MMcf in 2030); held at 2024
+2030,arc_level_mismatch_indexed,SouthCentral->RockiesPlains,373681.5437652102,EIA 2024 644 Bcf vs Table 64 2025 213 Bcf (>3x apart); indexed to 374 Bcf (Table 64 2030: 124)
+2030,arc_not_in_table64_held,Southeast->EasternMidwest,6518.0,held at 2024
+2030,arc_zero_in_table64_held,Southeast->SouthCentral,13.0,Table 64 shows 0 in 2025 (0 MMcf in 2030); held at 2024
+2030,texas_intra_capacity_exceeded,intra-Texas,813892.008212327,flow above NGMM 2023 capacity (slack arcs)
+2035,canada_import_held,CA,117.0,no Table 64 Canada arc into CA in 2025
+2035,mexico_import_held,,2443.0,AEO2026 Table 61 has no pipeline imports from Mexico
+2035,arc_level_mismatch_indexed,AZ_NM->SouthCentral,181814.9668452209,EIA 2024 220 Bcf vs Table 64 2025 1015 Bcf (>3x apart); indexed to 182 Bcf (Table 64 2035: 840)
+2035,arc_not_in_table64_held,CA->AZ_NM,81121.0,held at 2024
+2035,arc_not_in_table64_held,CA->RockiesPlains,48413.0,held at 2024
+2035,arc_level_mismatch_indexed,EasternMidwest->MidAtlantic_OH,181137.60384745622,EIA 2024 377 Bcf vs Table 64 2025 6 Bcf (>3x apart); indexed to 181 Bcf (Table 64 2035: 3)
+2035,arc_zero_in_table64_held,EasternMidwest->NorthernGreatPlains,19060.0,Table 64 shows 0 in 2025 (0 MMcf in 2035); held at 2024
+2035,arc_level_mismatch_indexed,EasternMidwest->Southeast,5741.943649021956,EIA 2024 2 Bcf vs Table 64 2025 44 Bcf (>3x apart); indexed to 6 Bcf (Table 64 2035: 158)
+2035,arc_not_in_table64_held,MidAtlantic_OH->SouthCentral,223766.0,held at 2024
+2035,arc_not_in_table64_held,NewEngland->MidAtlantic_OH,123013.0,held at 2024
+2035,arc_zero_in_table64_held,OR_WA->RockiesPlains,61280.0,Table 64 shows 0 in 2025 (0 MMcf in 2035); held at 2024
+2035,arc_level_mismatch_indexed,RockiesPlains->AZ_NM,57276.24461706756,EIA 2024 289 Bcf vs Table 64 2025 71 Bcf (>3x apart); indexed to 57 Bcf (Table 64 2035: 14)
+2035,arc_zero_in_table64_held,RockiesPlains->NorthernGreatPlains,53238.0,Table 64 shows 0 in 2025 (1930 MMcf in 2035); held at 2024
+2035,arc_zero_in_table64_held,SouthCentral->AZ_NM,390293.0,Table 64 shows 0 in 2025 (0 MMcf in 2035); held at 2024
+2035,arc_level_mismatch_indexed,SouthCentral->RockiesPlains,851376.6519330255,EIA 2024 644 Bcf vs Table 64 2025 213 Bcf (>3x apart); indexed to 851 Bcf (Table 64 2035: 282)
+2035,arc_not_in_table64_held,Southeast->EasternMidwest,6518.0,held at 2024
+2035,arc_zero_in_table64_held,Southeast->SouthCentral,13.0,Table 64 shows 0 in 2025 (0 MMcf in 2035); held at 2024
+2035,texas_intra_capacity_exceeded,intra-Texas,692048.0099978107,flow above NGMM 2023 capacity (slack arcs)
+2040,canada_import_held,CA,117.0,no Table 64 Canada arc into CA in 2025
+2040,mexico_import_held,,2443.0,AEO2026 Table 61 has no pipeline imports from Mexico
+2040,arc_level_mismatch_indexed,AZ_NM->SouthCentral,161268.09455432283,EIA 2024 220 Bcf vs Table 64 2025 1015 Bcf (>3x apart); indexed to 161 Bcf (Table 64 2040: 745)
+2040,arc_not_in_table64_held,CA->AZ_NM,81121.0,held at 2024
+2040,arc_not_in_table64_held,CA->RockiesPlains,48413.0,held at 2024
+2040,arc_level_mismatch_indexed,EasternMidwest->MidAtlantic_OH,121159.20058708635,EIA 2024 377 Bcf vs Table 64 2025 6 Bcf (>3x apart); indexed to 121 Bcf (Table 64 2040: 2)
+2040,arc_zero_in_table64_held,EasternMidwest->NorthernGreatPlains,19060.0,Table 64 shows 0 in 2025 (174 MMcf in 2040); held at 2024
+2040,arc_level_mismatch_indexed,EasternMidwest->Southeast,8148.186306952551,EIA 2024 2 Bcf vs Table 64 2025 44 Bcf (>3x apart); indexed to 8 Bcf (Table 64 2040: 224)
+2040,arc_not_in_table64_held,MidAtlantic_OH->SouthCentral,223766.0,held at 2024
+2040,arc_not_in_table64_held,NewEngland->MidAtlantic_OH,123013.0,held at 2024
+2040,arc_zero_in_table64_held,OR_WA->RockiesPlains,61280.0,Table 64 shows 0 in 2025 (0 MMcf in 2040); held at 2024
+2040,arc_level_mismatch_indexed,RockiesPlains->AZ_NM,741405.9836310762,EIA 2024 289 Bcf vs Table 64 2025 71 Bcf (>3x apart); indexed to 741 Bcf (Table 64 2040: 183)
+2040,arc_zero_in_table64_held,RockiesPlains->NorthernGreatPlains,53238.0,Table 64 shows 0 in 2025 (3642 MMcf in 2040); held at 2024
+2040,arc_zero_in_table64_held,SouthCentral->AZ_NM,390293.0,Table 64 shows 0 in 2025 (0 MMcf in 2040); held at 2024
+2040,arc_level_mismatch_indexed,SouthCentral->RockiesPlains,609568.9118844817,EIA 2024 644 Bcf vs Table 64 2025 213 Bcf (>3x apart); indexed to 610 Bcf (Table 64 2040: 202)
+2040,arc_not_in_table64_held,Southeast->EasternMidwest,6518.0,held at 2024
+2040,arc_zero_in_table64_held,Southeast->SouthCentral,13.0,Table 64 shows 0 in 2025 (0 MMcf in 2040); held at 2024
+2040,texas_intra_capacity_exceeded,intra-Texas,783109.665802264,flow above NGMM 2023 capacity (slack arcs)
+2045,canada_import_held,CA,117.0,no Table 64 Canada arc into CA in 2025
+2045,mexico_import_held,,2443.0,AEO2026 Table 61 has no pipeline imports from Mexico
+2045,arc_level_mismatch_indexed,AZ_NM->SouthCentral,221285.16645208295,EIA 2024 220 Bcf vs Table 64 2025 1015 Bcf (>3x apart); indexed to 221 Bcf (Table 64 2045: 1022)
+2045,arc_not_in_table64_held,CA->AZ_NM,81121.0,held at 2024
+2045,arc_not_in_table64_held,CA->RockiesPlains,48413.0,held at 2024
+2045,arc_level_mismatch_indexed,EasternMidwest->MidAtlantic_OH,431456.316997138,EIA 2024 377 Bcf vs Table 64 2025 6 Bcf (>3x apart); indexed to 431 Bcf (Table 64 2045: 6)
+2045,arc_zero_in_table64_held,EasternMidwest->NorthernGreatPlains,19060.0,Table 64 shows 0 in 2025 (2900 MMcf in 2045); held at 2024
+2045,arc_level_mismatch_indexed,EasternMidwest->Southeast,7267.592124281944,EIA 2024 2 Bcf vs Table 64 2025 44 Bcf (>3x apart); indexed to 7 Bcf (Table 64 2045: 200)
+2045,arc_not_in_table64_held,MidAtlantic_OH->SouthCentral,223766.0,held at 2024
+2045,arc_not_in_table64_held,NewEngland->MidAtlantic_OH,123013.0,held at 2024
+2045,arc_zero_in_table64_held,OR_WA->RockiesPlains,61280.0,Table 64 shows 0 in 2025 (0 MMcf in 2045); held at 2024
+2045,arc_level_mismatch_indexed,RockiesPlains->AZ_NM,1237115.5137722383,EIA 2024 289 Bcf vs Table 64 2025 71 Bcf (>3x apart); indexed to 1237 Bcf (Table 64 2045: 305)
+2045,arc_zero_in_table64_held,RockiesPlains->NorthernGreatPlains,53238.0,Table 64 shows 0 in 2025 (19731 MMcf in 2045); held at 2024
+2045,arc_zero_in_table64_held,SouthCentral->AZ_NM,390293.0,Table 64 shows 0 in 2025 (0 MMcf in 2045); held at 2024
+2045,arc_level_mismatch_indexed,SouthCentral->RockiesPlains,992794.7680356606,EIA 2024 644 Bcf vs Table 64 2025 213 Bcf (>3x apart); indexed to 993 Bcf (Table 64 2045: 329)
+2045,arc_not_in_table64_held,Southeast->EasternMidwest,6518.0,held at 2024
+2045,arc_zero_in_table64_held,Southeast->SouthCentral,13.0,Table 64 shows 0 in 2025 (0 MMcf in 2045); held at 2024
+2045,texas_intra_capacity_exceeded,intra-Texas,1345625.7402994705,flow above NGMM 2023 capacity (slack arcs)
+,tx_county_hub_by_nearest_plant,el paso,,"1747.7 MW gas; TX_W (nearest mapped plant in Culberson county, 166 km)"
+,tx_county_hub_by_nearest_plant,lamar,,"1378.2 MW gas; TX_E (nearest mapped plant in Red River county, 34 km)"
+,tx_county_hub_by_nearest_plant,llano,,"574.6 MW gas; TX_E (nearest mapped plant in Burnet county, 3 km)"
+,tx_county_hub_by_nearest_plant,cameron,,"137.2 MW gas; TX_E (nearest mapped plant in Willacy county, 43 km)"

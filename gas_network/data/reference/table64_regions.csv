@@ -1,0 +1,15 @@
+label,flow_region
+New England,NewEngland
+Mid-Atlantic and Ohio,MidAtlantic_OH
+Eastern Midwest,EasternMidwest
+Southeast,Southeast
+Florida,FL
+South Central,SouthCentral
+Rocky Mountains-Great Plains,RockiesPlains
+Northern Great Plains,NorthernGreatPlains
+Arizona and New Mexico,AZ_NM
+California,CA
+Oregon and Washington,OR_WA
+Canada,Canada
+Canada (into Washington),Canada@WA
+Canada (through Idaho),Canada@ID
