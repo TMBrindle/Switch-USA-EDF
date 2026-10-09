@@ -23,6 +23,9 @@ build_rate/outputs/
 !s0_workflow/
 !s0_workflow/**
 s0_workflow/data/raw/
+!tracked_demands/
+!tracked_demands/**
+tracked_demands/outputs/
 
 # include growth_rates/*.csv
 !growth_rates/

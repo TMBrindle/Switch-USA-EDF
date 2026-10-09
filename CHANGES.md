@@ -3685,3 +3685,54 @@ purchases above 0.001 t. This was wrong in two ways:
 - **CA/WA import charge:** v3 behaviour kept, with a note of the known bias (guide, "Known bias in v3.1"). The tested
   options are on `tom/s0-prod-scripts` (§86).
 - **Credit work** (`full_ira_lev`, the 10-year tally): held until D7 is settled. It doesn't affect S0.
+
+## 94. Tracked Demands on the S0 v3.1 Line: Port and Audit (Step 1)
+
+**Date:** 2026-10-09 · **Branch:** `tom/tracked-demands-v2` (new, from `tom/s0-v3.1` at 9d68751)
+**See also:** `Guides and documentation/tracked_demands.md` (sections 11–14), `tracked_demands/README.md`,
+`SHARED_CHANGES.md` #109–#110
+
+**Why:** bring the tracked-demands module (May 2026, `tom/tracked-demands` e60d215/d18fef1) onto the current line,
+opt-in, and audit it against today's model before a first real case. §90–§93 are on other branches.
+
+**Port:**
+1. `switch/study_modules/tracked_demands.py` from e60d215 (identical at d18fef1). **Not** added to
+   `switch/modules.txt`: a case loads it with `--include-module study_modules.tracked_demands` or the S0 case's
+   `s0_production.extra_modules`.
+2. One fix: `_compute_grid_metrics` assumed `dispatch.csv` has `is_storage`, which Switch writes only when a storage
+   module is loaded (post-solve `KeyError` on cases without one).
+3. The user guide moved to `Guides and documentation/tracked_demands.md` and was updated (opt-in loading, audit,
+   interfaces, tests). Section 9's May results are kept as history.
+4. New folder `tracked_demands/`: the data-centre study scripts (`scripts/`, `scripts/plots/`), the PowerShell
+   runners for reference (`scripts/legacy/`), the scenario design docx (`docs/`), and tests. The study's outputs
+   (CSV, PNG, logs) and the unrelated files of e60d215 stay on the old branch (list in the README). The
+   cherry-pick conflicts noted on 5 Oct (`make_study_loads.py`, `switch/modules.txt`, PowerGenome pointer) don't
+   arise: those changes were not brought across, and the current versions are kept.
+
+**Audit** (guide section 12, with file:line): the module solves on Switch 2.0.9 / Pyomo 6.9.1. Open gaps:
+- the TD's load is not in the prm_regional requirement, and a flexible TD drops to its minimum (default 0) on
+  zero-weight stress days;
+- on-site generation is a private variable: not in carbon caps (the `td_onsite_emissions_in_system_cap` flag is
+  loaded and never used), not in tax credits, build rate, headroom or PRM, and not in Switch's fuel accounting (so a
+  gas network can't see it);
+- gen_zone_ratio counts generation serving the TD but not its load;
+- nothing carries forward between chain stages (on-site plant, storage, H₂ tank and siting are re-decided each
+  stage);
+- adding the module under `switch/study_modules/` fails stage reuse's code check against references recorded
+  before it;
+- hourly matching credits on-site clean output twice when it passes through the battery (toy: 114% of
+  consumption), the computed clean fraction is keyed by timestamp rather than timepoint id, and stress-hour CO₂
+  intensity reads 0;
+- 45V is a post-solve assessment with combustion-only intensity, outside the objective.
+
+Smallest change for the gas interface (proposed, not made): fuel-burning on-site techs become ordinary generators
+linked to their TD (guide 12.5).
+
+**Tests** (`tracked_demands/tests`, toy solves with HiGHS, int64 guard on): the May suite's groups A–F ported to
+the toy plus five features it didn't cover (18); a data centre solving with hourly matching on, annual and off;
+zero-weight hours outside CFE blocks; the opt-in proof (only new files and notes change against the base, nothing
+loads the module, unloaded outputs byte-identical, loaded without TDs the same plan). Four strict xfails pin gaps
+above. Results: 24 passed, 4 xfailed on pandas 3.0.6 (Python 3.11, numpy 2.4.6) and on pandas 1.4.4 (Python 3.10,
+numpy 1.23.5), Pyomo 6.9.1 both.
+
+**Not changed:** every existing module, module list, option file, setting, scenario row and case-build script.

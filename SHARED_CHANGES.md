@@ -311,6 +311,13 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 |---|---|---|---|---|
 | 107 | `s0_workflow/chain_reuse.py` (`arg_list`, `_norm_args`, `record`), `s0_workflow/VM_RECIPES.md` | `--tempdir` dropped with its whole path (quoted or unquoted, spaces included); solver arguments recorded as a token list. | §83: an unquoted spaced tempdir in S0prod_A's record made reuse refuse. | none (reuse tool); old string records still read |
 
+### Added in §94 (Oct 2026: tracked demands ported, `tom/tracked-demands-v2`)
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 109 | `.gitignore` | Three lines: `!tracked_demands/`, `!tracked_demands/**`, `tracked_demands/outputs/`. | The file ignores every top-level folder not listed; the new folder holds the tests and scripts. | none |
+| 110 | `switch/study_modules/tracked_demands.py` (new file; not in `switch/modules.txt`) | The tracked-demands module, opt-in per scenario line. | §94. | None for the model: no case loads it (`tracked_demands/tests/test_td_unloaded.py`). **Stage reuse:** a new file under `switch/study_modules/` fails `chain_reuse`'s code check (both scopes) against a reference recorded at a head before it, even for lines that don't load the module. Re-record references on a branch that has the file, or narrow the check to the modules a line loads (not changed here). |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;
