@@ -3548,7 +3548,7 @@ Tom reviews. No `build_rate/` changes (freeze respected).
   before §87 solve as before.
 - **Setting retired:**
   - `prm.imports.new_tx_allowance` is gone from the defaults, `s0_production.yml` and the five bill rows' `tx_bill`
-    values (`bill_central`, `bill_low`, `bill_high`, `bill_central_txonly`, `bill_central_siting`).
+    values (`bill_central`, `bill_low`, `bill_high`, `bill_central_txonly`; `bill_central_siting` is on tom/s0-prod-scripts only).
   - Setting it stops the build. `prm.import_allowance()` is removed.
 - **One parameter:** `new_tx_derate` (0.15) is the deliverability factor.
 
