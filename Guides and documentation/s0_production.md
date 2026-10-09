@@ -463,6 +463,32 @@ Values ($ and tonnes per metric tonne; RGGI10, no Virginia):
 
 The `current` preset's own 2028 tier-1 trigger is 23.00 (rounded); the S0 cases use the file's 23.01.
 
+### Reported allowance price (§88)
+
+`carbon_program_clearing_prices.csv` (`study_modules/carbon_policies_regional.py`) takes a hard-cap program's price
+from the LP duals:
+- **No CCR tier used:** the cap's dual (scarcity price, or the floor).
+- **Tier 1 partly used:** tier 1's trigger.
+- **Tier 1 exhausted:** tier 1's trigger + its pool rent (the reduced cost of its purchases). This equals tier 2's
+  trigger when tier 2 is partly used, and lies above it when both tiers are exhausted.
+
+**When a tier counts as used:**
+- **Used:** purchases above 1e-4 × its pool. Barrier solutions without crossover leave small residuals, which don't
+  count.
+- **Exhausted:** purchases within 1e-4 × the pool of the full pool.
+
+**New columns:**
+- `price_source`;
+- `cap_dual_price_dollar_per_tco2`, the check (in an exact LP solution the two prices agree);
+- `ccr_tierN_rent_dollar_per_tco2`.
+
+**Dual export:** the cap's dual (`Enforce_Regional_Carbon_Cap`) is always written to `dual_costs.csv`. Before, it was
+skipped because its bound is 0.
+
+**Before §88:** the price was the trigger of the highest tier with purchases above 0.001 t. A barrier residual on
+tier 2 therefore reported tier 2's trigger, and both tiers exhausted reported tier 2's trigger, understating the
+price.
+
 ## California-Washington carbon (§65)
 
 One linked-market carbon price for California (`ETS 2`) and Washington (`ETS 3`) from 2028. Setting:

@@ -409,3 +409,18 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
       it is combined with the split.
     - **Who is affected:** only cases using `prm_regional` (S0 regional design); no fedpol case loads it. The S0 case
       writer sets the split for every regional case.
+22. (§88, v3.1) **Carbon price reporting: `switch/study_modules/carbon_policies_regional.py` and `write_dual_costs.py`.**
+    - **The bug** (lines 363–372, on every branch): the price was the trigger of the highest CCR tier with purchases
+      above 0.001 t. A barrier residual with crossover off reported tier 2's trigger, and both tiers exhausted
+      understated the price.
+    - **The fix:** `ccr_clearing_price()` takes the price from the duals.
+      - No tier used: the cap dual.
+      - Tier 1 partly used: tier 1's trigger.
+      - Tier 1 exhausted: tier 1's trigger + its pool rent (reduced cost).
+      - "Used" and "exhausted" are tested relative to the pool (1e-4).
+    - **New output columns:** `price_source`, `cap_dual_price_dollar_per_tco2` and `ccr_tierN_rent_dollar_per_tco2`.
+    - **New suffix:** the module declares `rc` if absent.
+    - **Dual export:** `write_dual_costs` always writes constraints listed in `m.always_report_duals`; the carbon
+      module lists `Enforce_Regional_Carbon_Cap`, whose bound is 0, so its dual was dropped before.
+    - **Effect on fedpol cases with CCR:** the reported price changes where a residual or both-exhausted tiers
+      occurred. The model is unchanged (output only).
