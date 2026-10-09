@@ -57,6 +57,10 @@ def write_dual_costs(m):
     start_time = time.time()
     print(f"Writing {outfile} ... ", end=" ")
 
+    # constraints whose duals are always written, even when dual x bound is 0 (modules add their names to
+    # m.always_report_duals; e.g. carbon_policies_regional's Enforce_Regional_Carbon_Cap, whose bound is 0, §88)
+    always = set(getattr(m, "always_report_duals", ()))
+
     def add_dual(const, lbound, ubound, duals, prefix="", offset=0.0):
         if const in duals:
             dual = duals[const]
@@ -66,6 +70,8 @@ def write_dual_costs(m):
             else:
                 direction = "<="
                 bound = ubound
+            if bound is None and const.parent_component().name in always:
+                bound = ubound if lbound is None else lbound      # a zero dual on a listed constraint: still write it
             if bound is None:
                 # Variable is unbounded; dual should be 0.0 or possibly a tiny non-zero value.
                 if not (-1e-5 < dual < 1e-5):
@@ -86,7 +92,8 @@ def write_dual_costs(m):
                     )
             else:
                 total_cost = dual * (bound + offset)
-                if total_cost != 0.0 or m.options.write_all_duals:
+                if (total_cost != 0.0 or m.options.write_all_duals
+                        or const.parent_component().name in always):
                     dual_data.append(
                         (
                             prefix + const.parent_component().name,

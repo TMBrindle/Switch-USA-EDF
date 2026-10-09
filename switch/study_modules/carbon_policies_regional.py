@@ -38,6 +38,38 @@ from pyomo.environ import (
 from switch_model.utilities import apply_input_aliases, unique_list
 import switch_model.reporting as reporting
 
+# a CCR tier counts as used when its purchases exceed this share of its pool, and as exhausted when they reach
+# (1 - this share) of it: barrier solutions without crossover leave small residuals on tiers the LP doesn't use
+# (CHANGES §88; the old test was an absolute 0.001 t, so a residual on tier 2 reported tier 2's trigger)
+CCR_USED_REL_TOL = 1e-4
+
+
+def ccr_clearing_price(cap_dual_price, tiers):
+    """The allowance clearing price ($/t) of a hard-cap program with CCR tiers, and where it came from.
+
+    cap_dual_price: -dual x 0.001 / bring_annual_costs_to_base_year of Enforce_Regional_Carbon_Cap (None if no dual).
+    tiers: [{"trigger", "pool", "purchases", "rent"}] in tier order; rent = the tier's pool rent, -rc / npv weight of
+    CCRPurchases ($/t; None if no reduced cost).
+      * no tier used (relative test): the cap dual (the scarcity price, or the floor);
+      * tier 1 used, not exhausted: tier 1's trigger (complementary slackness: the price can't differ from it);
+      * tier 1 exhausted: tier 1's trigger + its pool rent. This is the price in every CCR case: with tier 2 partly
+        used the rent is tier 2's trigger - tier 1's, with both exhausted it is the price above tier 2's trigger,
+        which the old rule (the highest used tier's trigger) understated. Without a reduced cost, the cap dual.
+    Returns (price or None, source)."""
+    def used(t):
+        return t["purchases"] > CCR_USED_REL_TOL * max(t["pool"], 1.0)
+
+    if not tiers or not any(used(t) for t in tiers):
+        return cap_dual_price, "cap_dual"
+    t1 = tiers[0]
+    if not used(t1):                              # a later tier "used" with tier 1 untouched: residuals only
+        return cap_dual_price, "cap_dual"
+    if t1["purchases"] < (1 - CCR_USED_REL_TOL) * t1["pool"]:
+        return t1["trigger"], "ccr_tier1_trigger"
+    if t1["rent"] is not None:
+        return t1["trigger"] + max(t1["rent"], 0.0), "ccr_tier1_trigger_plus_rent"
+    return cap_dual_price, "cap_dual"
+
 
 def define_components(m):
 
@@ -45,6 +77,12 @@ def define_components(m):
     # Declare only if not already present (another module may declare it first).
     if not hasattr(m, "dual"):
         m.dual = Suffix(direction=Suffix.IMPORT)
+    # CCR pool rents come from the reduced costs of CCRPurchases (write_dual_costs declares rc too)
+    if not hasattr(m, "rc"):
+        m.rc = Suffix(direction=Suffix.IMPORT)
+    # dual_costs.csv (study_modules.write_dual_costs) skips rows whose dual x bound is 0, which this constraint always
+    # is (everything sits in the body, bound 0): list it so the dual is exported (§88)
+    m.always_report_duals = list(getattr(m, "always_report_duals", [])) + ["Enforce_Regional_Carbon_Cap"]
 
     # ══════════════════════════════════════════════════════════════════════════
     # BASE CAP (carbon_policies_regional.csv)
@@ -311,8 +349,9 @@ def post_solve(m, outputs_dir):
     we negate and divide by the 0.001 scaling factor to get $/tCO2.
     For soft-cap programs the clearing price equals the escape-valve price when
     AnnualCapViolation > 0, otherwise 0.
-    For CCR: when Tier 1 purchases < pool, price = Tier 1 trigger; when Tier 1
-    is exhausted and Tier 2 > 0, price = Tier 2 trigger.
+    For CCR (§88): ccr_clearing_price() — the cap dual when no tier is used (relative test), tier 1's trigger
+    when tier 1 is partly used, tier 1's trigger + its pool rent (reduced cost) when tier 1 is exhausted. The
+    cap-dual price is also written (cap_dual_price_dollar_per_tco2) as a check: in an exact LP solution they agree.
     """
     rows = []
     for pr, pe in m.CO2_PROGRAM_PERIODS:
@@ -360,23 +399,23 @@ def post_solve(m, outputs_dir):
             # Annualised $/tCO2 = -dual * 0.001 / bring_annual_costs_to_base_year.
             # Note: barrier solver without crossover gives unreliable duals;
             # with crossover=1 these are true LP duals (see I-19).
-            if ccr_usage:
-                tiers = sorted(ccr_usage.keys())
-                price = 0.0
-                for tier in tiers:
-                    if ccr_usage[tier] > 1e-3:
-                        price = value(m.ccr_price_dollar_per_tco2[pr, pe, tier])
-                if price == 0.0:
-                    dual = m.dual.get(constr)
-                    npv_weight = value(m.bring_annual_costs_to_base_year[pe])
-                    price = (-dual * 0.001 / npv_weight) if dual is not None else ""
-            else:
-                dual = m.dual.get(constr)
-                npv_weight = value(m.bring_annual_costs_to_base_year[pe])
-                price = (-dual * 0.001 / npv_weight) if dual is not None else ""
+            npv_weight = value(m.bring_annual_costs_to_base_year[pe])
+            dual = m.dual.get(constr) if hasattr(m, "dual") else None
+            cap_dual_price = (-dual * 0.001 / npv_weight) if dual is not None else None
+            tiers = []
+            for tier in sorted(ccr_usage.keys()):
+                rc = m.rc.get(m.CCRPurchases[pr, pe, tier]) if hasattr(m, "rc") else None
+                tiers.append({"trigger": value(m.ccr_price_dollar_per_tco2[pr, pe, tier]),
+                              "pool": value(m.ccr_pool_tco2_per_yr[pr, pe, tier]),
+                              "purchases": ccr_usage[tier],
+                              "rent": (-rc / npv_weight) if rc is not None else None})
+            price, price_source = ccr_clearing_price(cap_dual_price, tiers)
+            if price is None:
+                price = ""
         else:
             # soft cap: price = escape-valve cost if constraint is binding
             price = escape_cost if violation > 1e-3 else floor_price
+            price_source, cap_dual_price, tiers = "soft_cap", None, []
 
         row = {
             "CO2_PROGRAM": pr,
@@ -392,6 +431,11 @@ def post_solve(m, outputs_dir):
             "auction_revenue_dollar_per_yr": (
                 round(price * emissions, 0) if isinstance(price, float) else ""
             ),
+            # §88: how the price was found, and the cap-dual price as a check (equal in an exact LP solution)
+            "price_source": price_source,
+            "cap_dual_price_dollar_per_tco2": (
+                round(cap_dual_price, 4) if cap_dual_price is not None else ""
+            ),
         }
         # CCR tier columns
         for tier in sorted(ccr_usage.keys()):
@@ -401,6 +445,10 @@ def post_solve(m, outputs_dir):
             )
             row[f"ccr_tier{tier}_price_dollar_per_tco2"] = value(
                 m.ccr_price_dollar_per_tco2[pr, pe, tier]
+            )
+        for i, t in enumerate(tiers):
+            row[f"ccr_tier{sorted(ccr_usage)[i]}_rent_dollar_per_tco2"] = (
+                round(t["rent"], 4) if t["rent"] is not None else ""
             )
         rows.append(row)
 

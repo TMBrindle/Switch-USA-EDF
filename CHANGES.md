@@ -4053,3 +4053,42 @@ Tom reviews. No `build_rate/` changes (freeze respected).
   B→A line counts against B's cap. A transit-friendly variant (new-part outflows offsetting existing-part imports)
   is a one-line change if the review wants it.
 - The design review file wasn't in this checkout. This follows the request's description.
+
+## 88. Carbon Clearing Price from Duals; Cap Dual in dual_costs.csv (v3.1)
+
+**Date:** 2026-10-09 · **Branch:** `tom/s0-prod-scripts`. Output only: the model and its solution are unchanged.
+Shared modules, so the change is logged in SHARED_CHANGES #22.
+
+**Bug:** `carbon_policies_regional.post_solve` reported a CCR program's price as the trigger of the highest tier with
+purchases above 0.001 t. This was wrong in two ways:
+- A barrier solution without crossover leaves residuals on unused tiers. A few tonnes on tier 2 reported tier 2's
+  trigger.
+- With both tiers exhausted, the price is above tier 2's trigger, and the rule understated it.
+
+**Fix** (`ccr_clearing_price()`):
+- **Price rule:**
+  - no tier used: the cap dual;
+  - tier 1 partly used: tier 1's trigger (complementary slackness);
+  - tier 1 exhausted: tier 1's trigger + its pool rent (−rc / NPV weight of `CCRPurchases`). This is the clearing
+    price in every CCR case. Without a reduced cost, the cap dual.
+- **"Used"** means purchases above 1e-4 × the pool (`CCR_USED_REL_TOL`); **"exhausted"** means within 1e-4 × the pool
+  of the full pool.
+- **New columns** in `carbon_program_clearing_prices.csv`: `price_source`, `cap_dual_price_dollar_per_tco2` (the
+  check) and `ccr_tierN_rent_dollar_per_tco2`.
+- **Dual export:**
+  - `Enforce_Regional_Carbon_Cap` is now in `dual_costs.csv` (raw dual, NPV units of the 0.001-scaled row).
+  - It was skipped before because dual × bound = 0.
+  - `write_dual_costs` writes every constraint named in `m.always_report_duals`.
+
+**Tests** (`s0_workflow/tests/test_carbon_price.py`):
+- **Rule cases:**
+  - a tier-2 residual of 50 t with tier 1 partly used → tier 1's trigger (the old rule gave tier 2's);
+  - a tier-1 residual alone → the cap dual;
+  - tier 1 exhausted with tier 2 partly used → tier 2's trigger;
+  - both exhausted → trigger + rent, above tier 2;
+  - no reduced cost → the cap dual.
+- **Switch toy** (3zone_toy, one program):
+  - both tiers exhausted: the price is above tier 2's trigger and equals the cap-dual price, the rent equals the
+    price − tier 1's trigger, and the cap rows are in `dual_costs.csv`;
+  - tier 1 partly used: its trigger, equal to the cap dual;
+  - no CCR drawn: the cap dual.
