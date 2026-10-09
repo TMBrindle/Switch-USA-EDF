@@ -636,6 +636,34 @@ charge.
 **Back to v3:** `import_charge: all_default`.
 
 
+### Two-tranche CA import charge (§92, option; not the S0 default)
+
+`import_charge: two_tranche`, on branch `tom/s0-v3.1-two-tranche` only; v3.1 launches on 96b4780 with
+`unspecified_share`.
+
+**How it works:**
+- In each period, CA's delivered imports over all links into CA zones (from zones outside CA and WA; annual MWh, by
+  timepoint weights) are free up to a free tranche.
+- Every MWh above the tranche pays price × 0.428:
+
+  ExcessImportsCA[p] ≥ Σ_t w_t × imports_t − FreeTranche, ExcessImportsCA ≥ 0,
+  cost = price × 0.428 × ExcessImportsCA
+
+- This is linear and convex, and the marginal import above the tranche pays the full rate.
+- **Files:** `study_modules.trans_hurdle_cost` (`trans_import_tranche.csv`, `trans_import_tranche_dirs.csv`); the
+  cost component is `TxImportTrancheCost`.
+- **Run outputs:** `trans_import_tranche_results.csv` (delivered, free, excess, rate, cost) and
+  `trans_import_tranche_info.csv` (mode, tranche size, source).
+- **Unchanged:** WA keeps v3's per-MWh charge, and the Mexico generator is as before.
+
+**Free tranche: a PLACEHOLDER, 49.4 TWh/yr, held flat.**
+- **Source:** CEC 2023 Total System Electric Generation, specified non-emitting imports (hydro, nuclear, wind,
+  solar): 76,400 GWh total, less 23,679 thermal and unspecified, 2,569 geothermal and 753 biomass, gives 49,399 GWh
+  (64.7%).
+- **On CEC's basis, not the model's.** v3.2 will calibrate the basis against the model's CA border imports (S0prod_A
+  2028), the MRR or CEC source, and the treatment of geothermal (counting it raises the tranche to 52.0 TWh).
+- **Later refinement:** contract expiries (v4).
+
 ## Forced transmission (§54)
 
 - **Source:** `s0_production.forced_tx: reeds_certain` (S0 default). The forced lines are ReEDS 2026.09.21's certain

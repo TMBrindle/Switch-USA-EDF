@@ -3758,3 +3758,37 @@ fix and document the remaining bias.
   inside the hurdle component. Imports rise from 10,246 to 49,440 MWh/yr against v3's charge, and the total cost is
   no higher.
 - The legacy (regression) case writes no import cost.
+
+## 92. Two-Tranche CA Import Charge (Option, v3.2 Candidate)
+
+**Date:** 2026-10-09 · **Branch:** `tom/s0-v3.1-two-tranche` (from 96b4780). `tom/s0-v3.1` stays at 96b4780, which
+is the launch commit.
+
+**Why a separate branch:**
+- S0 input files and the regression row are unchanged: the writer's default path is the same, and the settings
+  resolve as before.
+- The mechanism needs a new variable and constraint in `switch/study_modules/trans_hurdle_cost.py`. Stage reuse with
+  `--code-check model` treats any change under `switch/` as new model code, so on `tom/s0-v3.1` it would block reuse
+  of stages solved at 96b4780.
+
+**What:**
+- **Setting:** `ca_wa_carbon.import_charge: two_tranche`. CA imports over all links into CA zones are free up to
+  `two_tranche.free_mwh_per_yr` per period, and each MWh above pays price × 0.428.
+- **Unchanged:** WA keeps v3's per-MWh charge; the Mexico generator is as before; `unspecified_share` (the S0
+  default) and `all_default` remain.
+- **Run outputs:** mode, size and source in `trans_import_tranche_info.csv` (inputs, copied to the outputs), and
+  `trans_import_tranche_results.csv`.
+- **Free tranche:** a 49.4 TWh/yr PLACEHOLDER (CEC 2023 specified non-emitting imports, CEC basis, held flat).
+  Calibration (model basis, MRR or CEC source, geothermal) is for v3.2.
+
+**Tests** (`test_ca_wa_carbon.py`):
+- **Writer, real network:** CA directions go to the tranche; WA is as v3; the info file is written; the default and
+  legacy cases write no tranche files.
+- **Switch toy:**
+  - zero charge with a large tranche;
+  - the full rate on every MWh with a zero tranche;
+  - rate × (imports − tranche) above it;
+  - no charge at the kink, with the same total cost as a non-binding tranche;
+  - total cost continuous just below the kink, and monotone in the tranche.
+- **Not done (v3.2):** the real-network check of the tranche against the model's 2028 CA imports. That needs
+  S0prod_A's 2028 outputs from the VM.
