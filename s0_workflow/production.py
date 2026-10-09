@@ -404,6 +404,21 @@ CA_WA_DEFAULTS = {
     "programs": {"CA": "ETS 2", "WA": "ETS 3"},
     # unspecified-import emission factors, tCO2/MWh: CA = CARB default (reaffirmed Jan 2026); WA = 0.437 (unverified)
     "import_tco2_per_mwh": {"CA": 0.428, "WA": 0.437},
+    # how transmission imports into CA / WA zones are charged (CHANGES §86, §91; Guides and documentation/
+    # s0_production.md "The import charge in v3.1"). unspecified_share (S0 default from v3.1, Tom's D4): share x
+    # default + (1 - share) x specified_factor. all_default (v3, §65): every delivered MWh pays the state's default
+    # factor. source_table: the exporting zone's factor from an exogenous table (source_table;
+    # s0_workflow/scripts/zone_import_factors.py derives one from a solved case).
+    "import_charge": "unspecified_share",
+    # unspecified share of imports by state: a number, or {year: share} (linear between keys, held outside).
+    # CA 0.136 PLACEHOLDER = CEC 2023 Total System Electric Generation: unspecified 10,373 of 76,400 GWh imports (CEC
+    # power-mix categories, not CARB MRR's: MRR couldn't be reached; replace with MRR's latest year when checked).
+    # WA 1.0 = v3's charge on every MWh (no Ecology data on WA's specified / unspecified imports found)
+    "unspecified_share": {"CA": 0.136, "WA": 1.0},
+    # factor on the specified part (unspecified_share only): a number (tCO2/MWh; 0 = hydro / nuclear / renewables) or
+    # "source_table" (the exporting zone's factor)
+    "specified_factor": 0.0,
+    "source_table": None,       # csv: zone, tco2_per_mwh[, period]; relative to the repo
     # 2024$ per metric tCO2 by model year (between keys: linear; after the last: held)
     "prices": {
         "central": {2028: 48.6, 2030: 53.4, 2035: 67.8, 2040: 86.0, 2045: 109.2},   # CARB ISOR Jan 2026, Table 21
@@ -415,22 +430,35 @@ CA_WA_DEFAULTS = {
 
 def ca_wa_settings(s0: dict) -> dict:
     over = (s0 or {}).get("ca_wa_carbon") or {}
-    r = {**CA_WA_DEFAULTS, **{k: v for k, v in over.items() if k not in ("programs", "import_tco2_per_mwh", "prices")}}
-    for k in ("programs", "import_tco2_per_mwh", "prices"):
+    deep = ("programs", "import_tco2_per_mwh", "prices", "unspecified_share")
+    r = {**CA_WA_DEFAULTS, **{k: v for k, v in over.items() if k not in deep}}
+    for k in deep:
         r[k] = {**CA_WA_DEFAULTS[k], **(over.get(k) or {})}
     if r["mode"] not in ("linked", "legacy"):
         raise ValueError(f"s0_production.ca_wa_carbon.mode must be linked or legacy, not {r['mode']!r}")
     if r["path"] not in r["prices"]:
         raise ValueError(f"s0_production.ca_wa_carbon.path must be one of {sorted(r['prices'])}, not {r['path']!r}")
+    if r["import_charge"] not in IMPORT_CHARGES:
+        raise ValueError(f"s0_production.ca_wa_carbon.import_charge must be one of {IMPORT_CHARGES}, "
+                         f"not {r['import_charge']!r}")
+    uses_table = r["import_charge"] == "source_table" or (
+        r["import_charge"] == "unspecified_share" and r["specified_factor"] == "source_table")
+    if uses_table and not r["source_table"]:
+        raise ValueError("s0_production.ca_wa_carbon: import_charge "
+                         f"{r['import_charge']} with the exporting zone's factor needs source_table (a csv)")
+    if r["import_charge"] == "unspecified_share" and r["specified_factor"] != "source_table":
+        f = float(r["specified_factor"])
+        if f < 0:
+            raise ValueError(f"s0_production.ca_wa_carbon.specified_factor must be >= 0, not {f}")
     return r
 
 
-def ca_wa_price(year: int, r: dict | None = None) -> float | None:
-    """The linked CA-WA price for a model year (model dollars, $/metric tCO2), or None before first_year."""
-    r = r or CA_WA_DEFAULTS
-    if int(year) < int(r["first_year"]):
-        return None
-    t = {int(k): float(v) for k, v in r["prices"][r["path"]].items()}
+IMPORT_CHARGES = ("all_default", "unspecified_share", "source_table")
+
+
+def _interp(t: dict, year: int) -> float:
+    """{year: value}: linear between keys, held outside them."""
+    t = {int(k): float(v) for k, v in t.items()}
     ks = sorted(t)
     y = int(year)
     if y <= ks[0]:
@@ -440,6 +468,61 @@ def ca_wa_price(year: int, r: dict | None = None) -> float | None:
     lo = max(k for k in ks if k <= y)
     hi = min(k for k in ks if k >= y)
     return t[lo] if lo == hi else round(t[lo] + (t[hi] - t[lo]) * (y - lo) / (hi - lo), 4)
+
+
+def ca_wa_unspecified_share(r: dict, state: str, year: int) -> float:
+    v = r["unspecified_share"][state]
+    s = _interp(v, year) if isinstance(v, dict) else float(v)
+    if not 0 <= s <= 1:
+        raise ValueError(f"s0_production.ca_wa_carbon.unspecified_share for {state} in {year} must be in [0, 1], not {s}")
+    return s
+
+
+def ca_wa_source_table(r: dict) -> pd.DataFrame | None:
+    """The exporting-zone factor table (zone, tco2_per_mwh[, period]), or None when the option doesn't use one."""
+    uses = r["import_charge"] == "source_table" or (
+        r["import_charge"] == "unspecified_share" and r["specified_factor"] == "source_table")
+    if not uses:
+        return None
+    path = Path(r["source_table"])
+    t = pd.read_csv(path if path.is_absolute() else REPO / path)
+    missing = {"zone", "tco2_per_mwh"} - set(t.columns)
+    if missing:
+        raise ValueError(f"ca_wa_carbon source_table {path}: missing columns {sorted(missing)}")
+    if (pd.to_numeric(t.tco2_per_mwh) < 0).any() or t.tco2_per_mwh.isna().any():
+        raise ValueError(f"ca_wa_carbon source_table {path}: tco2_per_mwh must be a number >= 0 in every row")
+    return t
+
+
+def _source_factor(t: pd.DataFrame, zone: str, year: int) -> float:
+    """A zone's factor for a model year: the row with that period, else a row without a period (all periods)."""
+    z = t[t.zone.astype(str) == str(zone)]
+    if "period" in t.columns:
+        exact = z[pd.to_numeric(z.period, errors="coerce") == int(year)]
+        z = exact if len(exact) else z[z.period.isna()]
+    if len(z) != 1:
+        raise ValueError(f"ca_wa_carbon source_table: {len(z)} rows for exporting zone {zone} in {year} (need one)")
+    return float(z.tco2_per_mwh.iloc[0])
+
+
+def ca_wa_import_factor(r: dict, state: str, src: str, year: int, table: pd.DataFrame | None = None) -> float:
+    """tCO2 charged per MWh delivered into a zone of `state` from `src` (outside CA and WA) in `year`."""
+    d = float(r["import_tco2_per_mwh"][state])
+    if r["import_charge"] == "all_default":
+        return d
+    if r["import_charge"] == "source_table":
+        return _source_factor(table, src, year)
+    s = ca_wa_unspecified_share(r, state, year)
+    spec = _source_factor(table, src, year) if r["specified_factor"] == "source_table" else float(r["specified_factor"])
+    return s * d + (1 - s) * spec
+
+
+def ca_wa_price(year: int, r: dict | None = None) -> float | None:
+    """The linked CA-WA price for a model year (model dollars, $/metric tCO2), or None before first_year."""
+    r = r or CA_WA_DEFAULTS
+    if int(year) < int(r["first_year"]):
+        return None
+    return _interp(r["prices"][r["path"]], year)
 
 
 def apply_ca_wa_carbon(s: dict, s0: dict, case=None, year=None) -> None:
@@ -463,10 +546,12 @@ def apply_ca_wa_carbon(s: dict, s0: dict, case=None, year=None) -> None:
 
 
 def write_ca_wa_import_cost(folder: Path, s0: dict, scen_settings_dict: dict, log) -> None:
-    """trans_import_cost.csv (study_modules.trans_hurdle_cost): unspecified imports into CA / WA zones from zones
-    outside both pay price x the state's import emission factor per delivered MWh, in the import direction only;
-    CA<->WA flows and exports pay nothing. CA and WA zones = the zones of the ETS 2 / ETS 3 programs in
-    carbon_policies_regional.csv (the zones whose emissions are priced), checked against hierarchy.csv states."""
+    """trans_import_cost.csv (study_modules.trans_hurdle_cost): imports into CA / WA zones from zones outside both pay
+    price x a factor per delivered MWh, in the import direction only; CA<->WA flows and exports pay nothing. The
+    factor follows import_charge (§86): all_default (§65) the state's default (unspecified) factor on every MWh;
+    unspecified_share the default on that share and specified_factor on the rest; source_table the exporting zone's
+    factor. CA and WA zones = the zones of the ETS 2 / ETS 3 programs in carbon_policies_regional.csv (the zones
+    whose emissions are priced), checked against hierarchy.csv states."""
     r = ca_wa_settings(s0)
     folder = Path(folder)
     if r["mode"] != "linked" or not (folder / "carbon_policies_regional.csv").exists():
@@ -474,6 +559,7 @@ def write_ca_wa_import_cost(folder: Path, s0: dict, scen_settings_dict: dict, lo
     c = pd.read_csv(folder / "carbon_policies_regional.csv")
     tl = pd.read_csv(folder / "transmission_lines.csv")
     st = dict(pd.read_csv(REPO / "hierarchy.csv")[["ba", "st"]].values)
+    table = ca_wa_source_table(r)
     rows = []
     for year in sorted(int(y) for y in scen_settings_dict):
         price = ca_wa_price(year, r)
@@ -489,10 +575,12 @@ def write_ca_wa_import_cost(folder: Path, s0: dict, scen_settings_dict: dict, lo
             for src, dst in ((a, b), (b, a)):
                 if dst in state_of and src not in state_of:
                     rows.append({"trans_lz_from": src, "trans_lz_to": dst, "PERIOD": year,
-                                 "trans_import_cost_per_mwh": round(price * float(r["import_tco2_per_mwh"][state_of[dst]]), 4)})
+                                 "trans_import_cost_per_mwh": round(
+                                     price * ca_wa_import_factor(r, state_of[dst], src, year, table), 4)})
     if rows:
         pd.DataFrame(rows).to_csv(folder / "trans_import_cost.csv", index=False)
-        log(f"ca_wa_carbon: {len(rows)} import directions into CA/WA zones "
+        mode = "" if r["import_charge"] == "all_default" else f" ({r['import_charge']})"
+        log(f"ca_wa_carbon{mode}: {len(rows)} import directions into CA/WA zones "
             f"({', '.join(sorted({x['trans_lz_to'] for x in rows}))}); $/MWh by period "
             + ", ".join(f"{y}: {sorted({x['trans_import_cost_per_mwh'] for x in rows if x['PERIOD'] == y})}"
                         for y in sorted({x["PERIOD"] for x in rows})))

@@ -96,8 +96,8 @@ def test_import_cost_file_on_real_transmission(tmp_path):
                   for prog, zs in (("ETS 2", CA), ("ETS 3", WA)) for z in zs]).to_csv(out / "carbon_policies_regional.csv",
                                                                                     index=False)
     logs = []
-    s0prod.write_ca_wa_import_cost(out, {}, {2035: {}}, logs.append)
-    ic = pd.read_csv(out / "trans_import_cost.csv")
+    s0prod.write_ca_wa_import_cost(out, {"ca_wa_carbon": {"import_charge": "all_default"}}, {2035: {}}, logs.append)
+    ic = pd.read_csv(out / "trans_import_cost.csv")                  # v3's charge (§65): every MWh at the default
     inside = set(CA) | set(WA)
     assert len(ic) > 0 and set(ic.trans_lz_to) <= inside and not (set(ic.trans_lz_from) & inside)  # into CA/WA only
     tl = pd.read_csv(out / "transmission_lines.csv")
@@ -142,3 +142,171 @@ def test_toy_import_cost_charges_delivered_imports_one_way(tmp_path):
                        cwd=run2, capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(run2)})
     assert r.returncode == 0, r.stderr[-2000:]
     assert not (run2 / "outputs/trans_import_cost_results.csv").exists()
+
+
+# ---- import charge options (CHANGES §86; §91: unspecified_share is the S0 default from v3.1, Tom's D4) ----
+SHARE = {"CA": 0.136, "WA": 1.0}                                         # CA: CEC 2023 PLACEHOLDER; WA: as v3
+
+
+def test_import_charge_settings():
+    r = s0prod.ca_wa_settings({})
+    assert r["import_charge"] == "unspecified_share" and r["unspecified_share"] == SHARE and r["specified_factor"] == 0
+    s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
+    assert "import_charge" not in s0["ca_wa_carbon"]       # set in code, so the resolved settings stay as in v3
+    assert s0prod.ca_wa_settings(s0)["import_charge"] == "unspecified_share"
+    assert s0prod.ca_wa_import_factor(s0prod.ca_wa_settings(s0), "CA", "p5", 2035) == pytest.approx(0.136 * 0.428)
+    assert s0prod.ca_wa_import_factor(s0prod.ca_wa_settings(s0), "WA", "p5", 2035) == 0.437          # WA as v3
+    r = s0prod.ca_wa_settings({"ca_wa_carbon": {"import_charge": "unspecified_share", "unspecified_share": {"WA": 0.5}}})
+    assert r["unspecified_share"] == {"CA": 0.136, "WA": 0.5}             # merged per state
+    assert s0prod.ca_wa_import_factor(r, "CA", "p5", 2035) == pytest.approx(0.136 * 0.428)
+    assert s0prod.ca_wa_import_factor(r, "WA", "p5", 2035) == pytest.approx(0.5 * 0.437)
+    r = s0prod.ca_wa_settings({"ca_wa_carbon": {"import_charge": "unspecified_share", "specified_factor": 0.05,
+                                                "unspecified_share": {"CA": {2028: 0.2, 2038: 0.1}}}})
+    assert s0prod.ca_wa_unspecified_share(r, "CA", 2033) == pytest.approx(0.15)       # linear between keys
+    assert s0prod.ca_wa_unspecified_share(r, "CA", 2045) == 0.1                       # held after the last
+    assert s0prod.ca_wa_import_factor(r, "CA", "p5", 2033) == pytest.approx(0.15 * 0.428 + 0.85 * 0.05)
+    assert s0prod.ca_wa_import_factor(s0prod.ca_wa_settings({"ca_wa_carbon": {"import_charge": "all_default"}}),
+                                      "CA", "p5", 2035) == 0.428
+    for bad, msg in (({"import_charge": "marginal"}, "import_charge"),
+                     ({"import_charge": "source_table"}, "source_table"),
+                     ({"import_charge": "unspecified_share", "specified_factor": "source_table"}, "source_table"),
+                     ({"import_charge": "unspecified_share", "specified_factor": -0.1}, "specified_factor")):
+        with pytest.raises(ValueError, match=msg):
+            s0prod.ca_wa_settings({"ca_wa_carbon": bad})
+    r = s0prod.ca_wa_settings({"ca_wa_carbon": {"import_charge": "unspecified_share", "unspecified_share": {"CA": 1.2}}})
+    with pytest.raises(ValueError, match="unspecified_share"):
+        s0prod.ca_wa_import_factor(r, "CA", "p5", 2035)
+
+
+@pytest.fixture(scope="module")
+def built(tmp_path_factory):
+    from test_forced_tx import build
+    tmp = tmp_path_factory.mktemp("icopt")
+    (tmp / "b").mkdir()
+    out = build(tmp / "b", years=[2035], source=REPO / "pg_to_switch.py")
+    pd.DataFrame([{"CO2_PROGRAM": prog, "PERIOD": 2035, "LOAD_ZONE": z, "carbon_cap_tco2_per_yr": 0.0,
+                   "carbon_cost_dollar_per_tco2": 67.8, "carbon_floor_price_dollar_per_tco2": 0.0}
+                  for prog, zs in (("ETS 2", CA), ("ETS 3", WA)) for z in zs]).to_csv(out / "carbon_policies_regional.csv",
+                                                                                    index=False)
+    return out
+
+
+def _write(out, s0, name):
+    d = out.parent / name
+    d.mkdir()
+    for f in ("carbon_policies_regional.csv", "transmission_lines.csv"):
+        (d / f).write_bytes((out / f).read_bytes())
+    logs = []
+    s0prod.write_ca_wa_import_cost(d, s0, {2035: {}}, logs.append)
+    return d / "trans_import_cost.csv", logs
+
+
+def test_import_charge_options_on_real_transmission(built):
+    base, _ = _write(built, {"ca_wa_carbon": {"import_charge": "all_default"}}, "v3")
+    b = pd.read_csv(base)
+    f = lambda z: 0.428 if z in CA else 0.437                              # noqa: E731
+    sh = lambda z: SHARE["CA"] if z in CA else SHARE["WA"]                # noqa: E731
+    for r in b.itertuples():                                               # v3: every MWh at the default factor
+        assert r.trans_import_cost_per_mwh == pytest.approx(67.8 * f(r.trans_lz_to), abs=1e-4)
+    # the S0 default (v3.1): unspecified share; same directions, CA at 0.136 of v3's, WA as v3
+    dflt, logs = _write(built, {}, "default")
+    expl, _ = _write(built, {"ca_wa_carbon": {"import_charge": "unspecified_share"}}, "share")
+    assert dflt.read_bytes() == expl.read_bytes()
+    u = pd.read_csv(dflt)
+    assert u[["trans_lz_from", "trans_lz_to", "PERIOD"]].equals(b[["trans_lz_from", "trans_lz_to", "PERIOD"]])
+    for r in u.itertuples():
+        assert r.trans_import_cost_per_mwh == pytest.approx(67.8 * sh(r.trans_lz_to) * f(r.trans_lz_to), abs=1e-4)
+    assert (u[u.trans_lz_to.isin(WA)].trans_import_cost_per_mwh.values
+            == b[b.trans_lz_to.isin(WA)].trans_import_cost_per_mwh.values).all()                 # WA: as v3
+    ca = u[u.trans_lz_to.isin(CA)].trans_import_cost_per_mwh
+    assert len(ca) and ca.iloc[0] == pytest.approx(3.9465, abs=1e-4)                              # $3.95/MWh in 2035
+    assert any("(unspecified_share)" in x for x in logs)
+    p, _ = _write(built, {"ca_wa_carbon": {"import_charge": "unspecified_share", "specified_factor": 0.02}}, "share2")
+    for r in pd.read_csv(p).itertuples():
+        want = sh(r.trans_lz_to) * f(r.trans_lz_to) + (1 - sh(r.trans_lz_to)) * 0.02
+        assert r.trans_import_cost_per_mwh == pytest.approx(67.8 * want, abs=1e-4)
+    # source table: the exporting zone's factor (hand-built fixture factors, not results); a period row beats a
+    # period-less one
+    srcs = sorted(set(b.trans_lz_from))
+    fac = {z: round(0.05 * (i + 1), 3) for i, z in enumerate(srcs)}
+    rows = [{"zone": z, "tco2_per_mwh": v, "period": None} for z, v in fac.items()]
+    rows.append({"zone": srcs[0], "tco2_per_mwh": 0.9, "period": 2035})
+    tab = built.parent / "factors.csv"
+    pd.DataFrame(rows).to_csv(tab, index=False)
+    fac[srcs[0]] = 0.9
+    p, _ = _write(built, {"ca_wa_carbon": {"import_charge": "source_table", "source_table": str(tab)}}, "table")
+    for r in pd.read_csv(p).itertuples():
+        assert r.trans_import_cost_per_mwh == pytest.approx(67.8 * fac[r.trans_lz_from], abs=1e-4)
+    p, _ = _write(built, {"ca_wa_carbon": {"import_charge": "unspecified_share", "specified_factor": "source_table",
+                                           "source_table": str(tab)}}, "hybrid")
+    for r in pd.read_csv(p).itertuples():
+        want = sh(r.trans_lz_to) * f(r.trans_lz_to) + (1 - sh(r.trans_lz_to)) * fac[r.trans_lz_from]
+        assert r.trans_import_cost_per_mwh == pytest.approx(67.8 * want, abs=1e-4)
+    # a missing exporting zone stops the build
+    pd.DataFrame(rows[1:-1]).to_csv(tab, index=False)
+    with pytest.raises(ValueError, match=f"zone {srcs[0]}"):
+        _write(built, {"ca_wa_carbon": {"import_charge": "source_table", "source_table": str(tab)}}, "missing")
+
+
+def test_zone_import_factors_script(tmp_path):
+    """Hand-built dispatch summary (a fixture, not results): average and fossil rates, storage left out, a zone with
+    no generation filled with the system value."""
+    from s0_workflow.scripts import zone_import_factors as zif
+    s = pd.DataFrame([
+        ("gas", "z1", "gas", 2035, 100.0, 40_000.0, 0.0), ("solar", "z1", "sun", 2035, 300.0, 0.0, 0.0),
+        ("battery", "z1", "elec", 2035, -5.0, 0.0, 25.0), ("hydro", "z2", "water", 2035, 50.0, 0.0, 0.0),
+        ("coal", "z3", "coal", 2035, 10.0, 10_000.0, 0.0), ("gas", "z4", "gas", 2035, 0.0, 0.0, 0.0)],
+        columns=["gen_tech", "gen_load_zone", "gen_energy_source", "period", "Energy_GWh_typical_yr",
+                 "DispatchEmissions_tCO2_per_typical_yr", "Store_GWh_typical_yr"])
+    a = zif.factors(s, "average").set_index("zone")
+    assert a.tco2_per_mwh.to_dict() == pytest.approx({"z1": 0.1, "z2": 0.0, "z3": 1.0, "z4": 50_000 / 460e3})
+    assert a.loc["z4", "filled"] == "system" and a.loc["z1", "filled"] == ""
+    fo = zif.factors(s, "fossil").set_index("zone")
+    assert fo.loc["z1", "tco2_per_mwh"] == pytest.approx(0.4) and fo.loc["z2", "filled"] == "system"
+    d = tmp_path / "out"
+    d.mkdir()
+    s.to_csv(d / "dispatch_zonal_annual_summary.csv", index=False)
+    zif.main([str(d), "--out", str(tmp_path / "f.csv")])
+    t = pd.read_csv(tmp_path / "f.csv")
+    assert set(t.columns) >= {"zone", "period", "tco2_per_mwh"} and len(t) == 4
+    r = s0prod.ca_wa_settings({"ca_wa_carbon": {"import_charge": "source_table", "source_table": str(tmp_path / "f.csv")}})
+    assert s0prod.ca_wa_import_factor(r, "CA", "z3", 2035, s0prod.ca_wa_source_table(r)) == pytest.approx(1.0)
+
+
+def test_toy_unspecified_share_charge(tmp_path):
+    """§91 on a Switch toy: South (the toy zone that imports most) stands in for a CA zone (ETS 2). The case writer's charge (the S0 default: CA share
+    0.136, specified 0) puts 53.4 x 0.428 x 0.136 $/MWh on power delivered into South in 2030 (no charge before 2028),
+    in the existing hurdle component. Imports into South are at least as large as under v3's charge on every MWh,
+    and the total cost is no higher."""
+    from toyutil import toy_inputs
+
+    def run(name, s0):
+        def edit(inp):
+            pd.DataFrame([{"CO2_PROGRAM": "ETS 2", "PERIOD": p, "LOAD_ZONE": "South", "carbon_cap_tco2_per_yr": 0.0,
+                           "carbon_cost_dollar_per_tco2": 53.4, "carbon_floor_price_dollar_per_tco2": 0.0}
+                          for p in (2020, 2030)]).to_csv(inp / "carbon_policies_regional.csv", index=False)
+            s0prod.write_ca_wa_import_cost(inp, s0, {2020: {}, 2030: {}}, lambda x: None)
+        r = toy_inputs(tmp_path, name, ["trans_hurdle_cost"], edit)
+        res = subprocess.run(["switch", "solve", "--solver", "appsi_highs", "--include-module", "mods.trans_hurdle_cost"],
+                             cwd=r, capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(r)})
+        assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
+        return r
+
+    new = run("share", {})
+    ic = pd.read_csv(new / "inputs/trans_import_cost.csv")
+    assert set(ic.trans_lz_to) == {"South"} and set(ic.PERIOD) == {2030}
+    assert ic.trans_import_cost_per_mwh.unique().tolist() == [pytest.approx(53.4 * 0.428 * 0.136, abs=1e-4)]
+    res = pd.read_csv(new / "outputs/trans_import_cost_results.csv")
+    assert res.annual_cost.tolist() == pytest.approx((res.delivered_mwh_per_yr * 53.4 * 0.428 * 0.136).tolist(), rel=1e-5)
+    ci = pd.read_csv(new / "outputs/costs_itemized.csv")
+    assert ci[(ci.Component == "TxHurdleCostPerTP") & (ci.PERIOD == 2030)].AnnualCost_Real.iat[0] == \
+        pytest.approx(res.annual_cost.sum(), rel=1e-6)
+    old = run("v3", {"ca_wa_carbon": {"import_charge": "all_default"}})
+    assert pd.read_csv(old / "inputs/trans_import_cost.csv").trans_import_cost_per_mwh.unique().tolist() == \
+        [pytest.approx(53.4 * 0.428, abs=1e-4)]
+    r_old = pd.read_csv(old / "outputs/trans_import_cost_results.csv")
+    assert res.delivered_mwh_per_yr.sum() > 0
+    assert res.delivered_mwh_per_yr.sum() > r_old.delivered_mwh_per_yr.sum()      # cheaper imports: more of them
+    tot = lambda r: float(open(r / "outputs/total_cost.txt").read())              # noqa: E731
+    assert tot(new) <= tot(old) + 1e-6
+    print("delivered into South 2030, MWh/yr: share", res.delivered_mwh_per_yr.sum(), "v3", r_old.delivered_mwh_per_yr.sum())
