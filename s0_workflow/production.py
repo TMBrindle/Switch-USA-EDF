@@ -405,11 +405,12 @@ CA_WA_DEFAULTS = {
     # unspecified-import emission factors, tCO2/MWh: CA = CARB default (reaffirmed Jan 2026); WA = 0.437 (unverified)
     "import_tco2_per_mwh": {"CA": 0.428, "WA": 0.437},
     # how transmission imports into CA / WA zones are charged (CHANGES §86, §91; Guides and documentation/
-    # s0_production.md "The import charge in v3.1"). unspecified_share (S0 default from v3.1, Tom's D4): share x
-    # default + (1 - share) x specified_factor. all_default (v3, §65): every delivered MWh pays the state's default
-    # factor. source_table: the exporting zone's factor from an exogenous table (source_table;
-    # s0_workflow/scripts/zone_import_factors.py derives one from a solved case).
-    "import_charge": "unspecified_share",
+    # s0_production.md "Two-tranche CA import charge"). two_tranche (S0 default from §93, Tom: the S0 v3.1 launch
+    # setting): CA imports up to the free tranche pay nothing, every MWh above pays price x the CA factor; WA as v3.
+    # unspecified_share (§91, 96b4780's default): share x default + (1 - share) x specified_factor. all_default (v3,
+    # §65): every delivered MWh pays the state's default factor. source_table: the exporting zone's factor from an
+    # exogenous table (source_table; s0_workflow/scripts/zone_import_factors.py derives one from a solved case).
+    "import_charge": "two_tranche",
     # unspecified share of imports by state: a number, or {year: share} (linear between keys, held outside).
     # CA 0.136 PLACEHOLDER = CEC 2023 Total System Electric Generation: unspecified 10,373 of 76,400 GWh imports (CEC
     # power-mix categories, not CARB MRR's: MRR couldn't be reached; replace with MRR's latest year when checked).
@@ -419,6 +420,15 @@ CA_WA_DEFAULTS = {
     # "source_table" (the exporting zone's factor)
     "specified_factor": 0.0,
     "source_table": None,       # csv: zone, tco2_per_mwh[, period]; relative to the repo
+    # two_tranche (§92; the S0 default from §93): CA imports up to free_mwh_per_yr per period are free, every MWh
+    # above pays price x the CA default factor (study_modules.trans_hurdle_cost trans_import_tranche*.csv); WA as v3.
+    # free_mwh_per_yr PLACEHOLDER: CEC 2023 Total System Electric Generation, specified non-emitting imports (hydro,
+    # nuclear, wind, solar) = 76,400 total - 23,679 thermal and unspecified - 2,569 geothermal - 753 biomass =
+    # 49,399 GWh (64.7% of imports), held flat; on CEC's basis, not the model's (v3.2: model basis, MRR source,
+    # geothermal treatment)
+    "two_tranche": {"free_mwh_per_yr": 49.399e6,
+                    "source": "PLACEHOLDER: CEC 2023 TSEG specified non-emitting imports (hydro, nuclear, wind, "
+                              "solar), 49,399 of 76,400 GWh, CEC basis, held flat; calibration in v3.2"},
     # 2024$ per metric tCO2 by model year (between keys: linear; after the last: held)
     "prices": {
         "central": {2028: 48.6, 2030: 53.4, 2035: 67.8, 2040: 86.0, 2045: 109.2},   # CARB ISOR Jan 2026, Table 21
@@ -430,7 +440,7 @@ CA_WA_DEFAULTS = {
 
 def ca_wa_settings(s0: dict) -> dict:
     over = (s0 or {}).get("ca_wa_carbon") or {}
-    deep = ("programs", "import_tco2_per_mwh", "prices", "unspecified_share")
+    deep = ("programs", "import_tco2_per_mwh", "prices", "unspecified_share", "two_tranche")
     r = {**CA_WA_DEFAULTS, **{k: v for k, v in over.items() if k not in deep}}
     for k in deep:
         r[k] = {**CA_WA_DEFAULTS[k], **(over.get(k) or {})}
@@ -450,10 +460,12 @@ def ca_wa_settings(s0: dict) -> dict:
         f = float(r["specified_factor"])
         if f < 0:
             raise ValueError(f"s0_production.ca_wa_carbon.specified_factor must be >= 0, not {f}")
+    if r["import_charge"] == "two_tranche" and float(r["two_tranche"]["free_mwh_per_yr"]) < 0:
+        raise ValueError("s0_production.ca_wa_carbon.two_tranche.free_mwh_per_yr must be >= 0")
     return r
 
 
-IMPORT_CHARGES = ("all_default", "unspecified_share", "source_table")
+IMPORT_CHARGES = ("all_default", "unspecified_share", "source_table", "two_tranche")
 
 
 def _interp(t: dict, year: int) -> float:
@@ -508,7 +520,7 @@ def _source_factor(t: pd.DataFrame, zone: str, year: int) -> float:
 def ca_wa_import_factor(r: dict, state: str, src: str, year: int, table: pd.DataFrame | None = None) -> float:
     """tCO2 charged per MWh delivered into a zone of `state` from `src` (outside CA and WA) in `year`."""
     d = float(r["import_tco2_per_mwh"][state])
-    if r["import_charge"] == "all_default":
+    if r["import_charge"] in ("all_default", "two_tranche"):       # two_tranche: per-MWh charge for WA only (as v3)
         return d
     if r["import_charge"] == "source_table":
         return _source_factor(table, src, year)
@@ -560,7 +572,8 @@ def write_ca_wa_import_cost(folder: Path, s0: dict, scen_settings_dict: dict, lo
     tl = pd.read_csv(folder / "transmission_lines.csv")
     st = dict(pd.read_csv(REPO / "hierarchy.csv")[["ba", "st"]].values)
     table = ca_wa_source_table(r)
-    rows = []
+    rows, tranche, tdirs = [], [], set()
+    two = r["import_charge"] == "two_tranche"
     for year in sorted(int(y) for y in scen_settings_dict):
         price = ca_wa_price(year, r)
         if price is None:
@@ -573,10 +586,29 @@ def write_ca_wa_import_cost(folder: Path, s0: dict, scen_settings_dict: dict, lo
                 state_of[z] = state
         for a, b in zip(tl.trans_lz1, tl.trans_lz2):
             for src, dst in ((a, b), (b, a)):
+                if two and dst in state_of and src not in state_of and state_of[dst] == "CA":
+                    tdirs.add((src, dst))          # two_tranche: CA imports go to the tranche, aggregated
+                    continue
                 if dst in state_of and src not in state_of:
                     rows.append({"trans_lz_from": src, "trans_lz_to": dst, "PERIOD": year,
                                  "trans_import_cost_per_mwh": round(
                                      price * ca_wa_import_factor(r, state_of[dst], src, year, table), 4)})
+        if two and any(v == "CA" for v in state_of.values()):
+            tranche.append({"PERIOD": year, "tranche_free_mwh_per_yr": float(r["two_tranche"]["free_mwh_per_yr"]),
+                            "tranche_cost_per_mwh": round(price * float(r["import_tco2_per_mwh"]["CA"]), 4)})
+    if two and tranche:
+        pd.DataFrame(tranche).to_csv(folder / "trans_import_tranche.csv", index=False)
+        pd.DataFrame(sorted(tdirs), columns=["trans_lz_from", "trans_lz_to"]).to_csv(
+            folder / "trans_import_tranche_dirs.csv", index=False)
+        pd.DataFrame([{"mode": "two_tranche", "state": "CA", "PERIOD": t["PERIOD"],
+                       "free_mwh_per_yr": t["tranche_free_mwh_per_yr"], "cost_per_mwh": t["tranche_cost_per_mwh"],
+                       "factor_tco2_per_mwh": float(r["import_tco2_per_mwh"]["CA"]), "directions": len(tdirs),
+                       "source": r["two_tranche"]["source"], "wa": "per-MWh charge as v3"} for t in tranche]).to_csv(
+            folder / "trans_import_tranche_info.csv", index=False)
+        log(f"ca_wa_carbon (two_tranche): CA imports over {len(tdirs)} directions, free "
+            f"{float(r['two_tranche']['free_mwh_per_yr']) / 1e6:.3f} TWh/yr, then $/MWh by period "
+            + ", ".join(f"{t['PERIOD']}: {t['tranche_cost_per_mwh']}" for t in tranche)
+            + f" ({r['two_tranche']['source']})")
     if rows:
         pd.DataFrame(rows).to_csv(folder / "trans_import_cost.csv", index=False)
         mode = "" if r["import_charge"] == "all_default" else f" ({r['import_charge']})"

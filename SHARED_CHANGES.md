@@ -443,3 +443,10 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
       are unchanged. They don't load `gen_amortization_period`, so levelising over `gen_max_age` (500 years) would
       cut their credit to about 15%. **For Ollie:** decide whether fedpol should move to levelised credits (and
       with which life).
+25. (§92, tom/s0-v3.1-two-tranche) **`switch/study_modules/trans_hurdle_cost.py`: optional two-tranche import charge.**
+    - **Inputs:** new optional `trans_import_tranche.csv` and `trans_import_tranche_dirs.csv`.
+    - **Model:** a free tranche of delivered imports per period, then a per-MWh rate on the excess (a new Var and
+      constraint per period).
+    - **New cost component:** `TxImportTrancheCost`, 0 without the files. It adds one row to `costs_itemized.csv` for
+      every case that loads the module; the model is otherwise unchanged.
+    - Any change under `switch/` also fails stage reuse under `--code-check model` against earlier solves.
