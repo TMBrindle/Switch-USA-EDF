@@ -3966,3 +3966,27 @@ period, the same as S0.
 - The post-run tally (`credit_tally.py`) and `credit_spend.py` cover the same technologies only.
 - No writer change was needed.
 - Separate issue (v3.2): the ×0.7 doesn't follow the OBBBA phase-down.
+
+## 98. S0 v3.1 Locked (Tag `s0-v3.1`)
+
+**Date:** 2026-10-10. **S0 v3.1 is locked.**
+
+**The tag:** `s0-v3.1` is an annotated tag by the runner on commit 3160be1 (`tom/s0-v3.1-two-tranche`); checked by
+fetching it in the build session. Its message records:
+- the run on cdd0491 plus the local yml edit (`import_charge: two_tranche`), with 3160be1 input-equivalent;
+- `load_adjustments_edf_epri_med.csv.zip` sha256 2e85711f2e942ef76a39d7a81fd47fe6d7367387cfb8b2d9ff58be68375c0769;
+- `edf_epri_med_targets.csv` sha256 d48971892be2713bca70a25233daf188ebe4b37f1af8de6cbc7d8f4e787675e2 (CRLF; LF
+  44fcb473…), the upstream source, not read at build time;
+- the archive `D:\SWITCH\ReEDS version\Q1 2026 - Strategy runs\archive\s0-v3.1` (read-only, with `SHA256SUMS.txt`
+  and the splice README);
+- the binding 49.4 TWh placeholder tranche;
+- WA's v3 charge;
+- the battery storage-credit limitation.
+
+**Correction to the tag's heading:** it lists "levelised credits machinery", but 3160be1 doesn't contain it. The
+statutory-terms credit code (`s0_workflow/tax_credits.py`, `credit_tally.py`, `tax_credit_terms`) is only on
+`tom/s0-v3.1-credits` (§90). The S0 run used the hand-entered credit values (`no_wind_solar`), as v3 did. The tag
+itself is left as the runner pushed it.
+
+**Reproducing S0 v3.1:** check out `s0-v3.1` and use the archived load file. The S-set runs from
+`tom/s0-v3.1-credits` (S1 launched at f8f12bc), which keeps S0's 2028 inputs identical for stage reuse.

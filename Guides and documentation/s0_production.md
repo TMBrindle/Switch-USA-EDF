@@ -7,6 +7,21 @@ settings file, `pg/settings/s0_production.yml`, holds everything; the `s0_produc
 `switch/study_modules/build_rules.py`.
 Changes to shared code are listed in `SHARED_CHANGES.md`; history in CHANGES §44-46.
 
+**S0 v3.1 is LOCKED: tag `s0-v3.1` (annotated, commit 3160be1 on `tom/s0-v3.1-two-tranche`; CHANGES §98).**
+- **The run:** on cdd0491 plus `import_charge: two_tranche` in the yml; 3160be1 is input-equivalent.
+- **Settings:** the two-tranche CA import charge (49.4 TWh placeholder tranche, binding in all stages), the
+  flow-based reserve split, and RGGI prices from duals.
+- **Loads:** `load_adjustments_edf_epri_med.csv.zip`, sha256 2e85711f…0769, archived by the runner with the targets
+  file at `D:\SWITCH\ReEDS version\Q1 2026 - Strategy runs\archive\s0-v3.1`.
+- **Reproducing it:** check out the tag; don't rebuild S0 from a later commit. Later branches (the S-set on
+  `tom/s0-v3.1-credits`) keep S0's 2028 inputs identical so its stages can be reused.
+- **Known limitations, for v3.2:**
+  - the free-tranche calibration;
+  - WA's all-imports charge;
+  - the battery storage credit in every period;
+  - the p1 solar profiles;
+  - the reV capacity-factor basis.
+
 | `s0_production` | What it builds |
 |---|---|
 | `off` | the case as before (every row that predates this) |
