@@ -3942,3 +3942,27 @@ on Windows (CRLF, the hash the run recorded). The LF content in git hashes to 44
   compares the built `loads.csv`.
 
 Guide: `Guides and documentation/load_growth.md`.
+
+## 97. S0 v3.1 Archived Inputs; Storage Credit Not Double-Counted in the S-Set
+
+**Archived build inputs** (read-only, kept by the runner with `SHA256SUMS.txt` and a README recording the splice
+method and the inner CSV hash; archive path not yet recorded here):
+
+| File | sha256 |
+|---|---|
+| `load_adjustments_edf_epri_med.csv.zip` (hourly load adjustments; read by the build) | 2e85711f2e942ef76a39d7a81fd47fe6d7367387cfb8b2d9ff58be68375c0769 |
+| `edf_epri_med_targets.csv` (upstream source; not read by the build; CRLF checkout) | d48971892be2713bca70a25233daf188ebe4b37f1af8de6cbc7d8f4e787675e2 |
+
+The tag `s0-v3.1` (3160be1) carries the same record. The base load file the build also reads
+(`reeds_2023_loads.csv.zip`) isn't in the archive list.
+
+**Storage credit in the S-set (S1 on tom/s0-v3.1-credits): counted once.** Batteries get the storage credit only as
+a capex multiplier: `atb_modifiers.batteries` ×0.7, with the Section 232 tariff ×1.20 on top = 0.84 × ATB in every
+period, the same as S0.
+- `full_ira` sets the same `batteries` key as the base `resources.yml`, so it replaces the base 0.7; it doesn't
+  multiply it.
+- The statutory production-credit terms (`ptc_45y`: LandbasedWind, OffShoreWind, UtilityPV; the new-nuclear
+  placeholder) don't match the battery technology, so `gen_tax_credits.csv` has no battery rows.
+- The post-run tally (`credit_tally.py`) and `credit_spend.py` cover the same technologies only.
+- No writer change was needed.
+- Separate issue (v3.2): the ×0.7 doesn't follow the OBBBA phase-down.
