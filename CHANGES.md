@@ -3891,3 +3891,29 @@ cdd0491; all stages are optimal.
 - **The `s0-v3.1` tag.** It needs the full sha256 of the hourly load file (2e85711f…), the targets hash the run used,
   and the runner's yml diff. Proposed: tag the commit that also carries the canonical targets file, so the tag
   reproduces the run.
+
+## 95. S0 v3.1 Targets; Credits Branch Ready for the S-Set; v3.2 List
+
+**Date:** 2026-10-10 · **Branches:** `tom/s0-v3.1-two-tranche` fast-forwarded to 3160be1 (the runner's canonical
+targets commit); `tom/s0-v3.1-credits` merges it.
+
+**Targets file:** the committed `switch/Growth_Profiles/edf_epri_med_targets.csv` has sha256 d4897189… as checked out
+on Windows (CRLF, the hash the run recorded). The LF content in git hashes to 44fcb473…; it is the same file.
+
+**2028 inputs, credits head against S0 v3.1 (3160be1):**
+- **Resolved settings:** S0prod_A and S1 resolve to identical 2028 settings, and every `pg/settings/*.yml` file is
+  identical. S2 differs by design in 2028 (high build rate, atts_planned).
+- **Input writer:** `pg_to_switch.py` differs only in `gen_tax_credits_file`. For 2028 (`no_wind_solar`), both
+  commits' writers give the same `gen_tax_credits.csv` byte for byte, and no extra files.
+- **Model code:** nothing under `switch/` differs, so `--code-check model` passes.
+- The other differences are the fedpol rows of `scenario_inputs.csv`, the credit code, docs and diagnostics.
+- **Expected reuse:** recomputed. The flags are unchanged and only the difference text follows the statutory credit
+  terms.
+- **Not checked here:** a full PowerGenome build (no PowerGenome data in this environment). The hourly load file is
+  the runner's local corrected file and isn't in the repo.
+
+**v3.2 list** (guide, "Import charge: v3.2 items"):
+- the WA two-tranche (or a specified/unspecified split);
+- the battery storage credit ×0.7 in every period against the OBBBA phase-down;
+- the p1 WA solar profiles;
+- the reV capacity-factor basis.

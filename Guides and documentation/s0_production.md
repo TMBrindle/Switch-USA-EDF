@@ -699,8 +699,27 @@ from cdd0491 with the setting explicit; the default writes the same files byte f
    about $4–5/MWh) and the charge level above the tranche (price × 0.428) against observed flows, and whether the
    binding tranche plus the full charge leave no room for the historical unspecified volume.
 3. **WA emissions rise from 1.3 to 2.9 Mt by 2045.** WA keeps v3's per-MWh import charge (0.437 on every MWh,
-   unverified factor), which pushes WA towards in-state gas, the same mechanism as CA before the fix. Review the WA
-   charge (an Ecology data source, a two-tranche form) and check the WA results.
+   unverified factor), which pushes WA towards in-state gas, the same mechanism as CA before the fix.
+4. **WA two-tranche, or an equivalent specified/unspecified split, to replace WA's all-imports charge.** It needs a
+   free tranche for WA's specified non-emitting imports (Ecology data; BPA hydro dominates) and a checked WA factor.
+   The mechanism (`trans_hurdle_cost` tranche files) is per state in principle; the writer handles CA only.
+5. **Battery capex storage credit (×0.7) in every period.** `atb_modifiers.batteries` `[mul, 0.7]` (resources.yml,
+   and the `tax_credits` axis: `full_ira` / `no_wind_solar`) applies to every model year, with the tariff ×1.20 on
+   top (net 0.84 × ATB, the same in S0 and the S-set). The OBBBA storage credit phases down (full for construction
+   starting through 2033, then 75%, 50%, zero), so 2040 and 2045 builds should pay ×1.20 (no credit) and 2035
+   builds roughly 0.70–0.75. Battery capex is understated by about 30% from 2036. Needs a per-period value
+   (year-specific `tax_credits` settings) and the S-set credit cases kept consistent (the storage credit is only in
+   capex, not in the statutory production-credit terms, so there is no double count today).
+6. **WA (p1) new-build solar profiles.** On the sample days of the committed fedpol case, the p1 UtilityPV clusters
+   have the right timing (sunrise, sunset and peak hours match p3 and p8; no time-zone shift) and no missing
+   daylight hours, but they run at 0.18–0.73 of the other zones on the same hours (cluster 2 peaks at only 10–20% on
+   clear days), while existing p1 solar is normal. Five of seven weather years average 0.10 against 0.23 in the
+   metadata. Run `s0_workflow/scripts/check_vre_profiles.py` on a full-year build with the metadata CFs, and check
+   the cluster cell locations and normalisation, to tell a resource-quality effect from a scaling error.
+7. **reV capacity-factor basis** (118 zone-technology pairs, from the results session). Wind: S0's profiles are
+   multiplied by 0.881 (ATB losses), so about 12% below the supply curve is expected; the observed 8% leaves about
+   +4% before the adjustment. PV: 7–9% below the supply curve is not an AC/DC effect (that would be about 25%, in
+   the other direction); test for a weather-year mismatch or capacity weighting per pair.
 
 ## Forced transmission (§54)
 
