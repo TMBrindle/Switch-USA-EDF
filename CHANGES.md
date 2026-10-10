@@ -3971,8 +3971,14 @@ period, the same as S0.
 
 **Date:** 2026-10-10. **S0 v3.1 is locked.**
 
-**The tag:** `s0-v3.1` is an annotated tag by the runner on commit 3160be1 (`tom/s0-v3.1-two-tranche`); checked by
-fetching it in the build session. Its message records:
+**The tag:** `s0-v3.1` is the runner's annotated tag, tag object
+98bf33c1d8e8d7f3682c39bfb38a528af9316236, on commit 3160be11a19fad8346d6ea07d79bc99dce3b39bf
+(`tom/s0-v3.1-two-tranche`).
+- The runner force-pushed it, replacing the first tag object 4f15870f… on the same commit.
+- Fetched and checked in the build session (`git fetch --force origin refs/tags/s0-v3.1:refs/tags/s0-v3.1`).
+
+Its message is titled "S0 v3.1 baseline (two-tranche CA import charge, flow-based reserve split, corrected SRCA
+loads)" and records:
 - the run on cdd0491 plus the local yml edit (`import_charge: two_tranche`), with 3160be1 input-equivalent;
 - `load_adjustments_edf_epri_med.csv.zip` sha256 2e85711f2e942ef76a39d7a81fd47fe6d7367387cfb8b2d9ff58be68375c0769;
 - `edf_epri_med_targets.csv` sha256 d48971892be2713bca70a25233daf188ebe4b37f1af8de6cbc7d8f4e787675e2 (CRLF; LF
@@ -3981,12 +3987,12 @@ fetching it in the build session. Its message records:
   and the splice README);
 - the binding 49.4 TWh placeholder tranche;
 - WA's v3 charge;
-- the battery storage-credit limitation.
+- the battery storage-credit limitation;
+- as its last line, "Levelised tax-credit machinery is on tom/s0-v3.1-credits (S-set), not in this baseline."
 
-**Correction to the tag's heading:** it lists "levelised credits machinery", but 3160be1 doesn't contain it. The
-statutory-terms credit code (`s0_workflow/tax_credits.py`, `credit_tally.py`, `tax_credit_terms`) is only on
-`tom/s0-v3.1-credits` (§90). The S0 run used the hand-entered credit values (`no_wind_solar`), as v3 did. The tag
-itself is left as the runner pushed it.
+The first tag's title listed the credit machinery, which 3160be1 doesn't contain; the re-tag corrected it. The S0
+run used the hand-entered credit values (`no_wind_solar`), as v3 did. The statutory-terms credit code
+(`s0_workflow/tax_credits.py`, `credit_tally.py`, `tax_credit_terms`; §90) is only on `tom/s0-v3.1-credits`.
 
 **Reproducing S0 v3.1:** check out `s0-v3.1` and use the archived load file. The S-set runs from
 `tom/s0-v3.1-credits` (S1 launched at f8f12bc), which keeps S0's 2028 inputs identical for stage reuse.

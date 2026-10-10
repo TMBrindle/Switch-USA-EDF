@@ -7,7 +7,8 @@ settings file, `pg/settings/s0_production.yml`, holds everything; the `s0_produc
 `switch/study_modules/build_rules.py`.
 Changes to shared code are listed in `SHARED_CHANGES.md`; history in CHANGES §44-46.
 
-**S0 v3.1 is LOCKED: tag `s0-v3.1` (annotated, commit 3160be1 on `tom/s0-v3.1-two-tranche`; CHANGES §98).**
+**S0 v3.1 is LOCKED: tag `s0-v3.1` (annotated tag object 98bf33c → commit 3160be1 on `tom/s0-v3.1-two-tranche`;
+CHANGES §98).**
 - **The run:** on cdd0491 plus `import_charge: two_tranche` in the yml; 3160be1 is input-equivalent.
 - **Settings:** the two-tranche CA import charge (49.4 TWh placeholder tranche, binding in all stages), the
   flow-based reserve split, and RGGI prices from duals.
