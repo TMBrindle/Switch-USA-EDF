@@ -688,6 +688,20 @@ from cdd0491 with the setting explicit; the default writes the same files byte f
 5. **WA keeps v3's per-MWh charge** (0.437 on every MWh, unverified factor), so WA imports stay overstated.
 6. **The Mexico imports generator** (p11) pays 0.428 on every MWh, outside the tranche.
 
+### Import charge: v3.2 items (from the S0 v3.1 run)
+
+1. **Free tranche calibration.** The 49.4 TWh/yr tranche bound in every stage of the S0 v3.1 run. Still to settle:
+   - the source: CARB MRR (specified vs unspecified MWh) versus CEC's power mix, and whether geothermal counts
+     (+2.6 TWh);
+   - a trajectory over time instead of flat (contract expiries and new contracts);
+   - whether the tranche should scale with WECC clean supply.
+2. **Unspecified imports are zero, against about 27 TWh historically.** Check the hurdle level (cost_hurdle_intra,
+   about $4–5/MWh) and the charge level above the tranche (price × 0.428) against observed flows, and whether the
+   binding tranche plus the full charge leave no room for the historical unspecified volume.
+3. **WA emissions rise from 1.3 to 2.9 Mt by 2045.** WA keeps v3's per-MWh import charge (0.437 on every MWh,
+   unverified factor), which pushes WA towards in-state gas, the same mechanism as CA before the fix. Review the WA
+   charge (an Ecology data source, a two-tranche form) and check the WA results.
+
 ## Forced transmission (§54)
 
 - **Source:** `s0_production.forced_tx: reeds_certain` (S0 default). The forced lines are ReEDS 2026.09.21's certain

@@ -50,7 +50,8 @@ def test_defaults_and_regression_pins():
     assert s["tx_policy"]["mode"] == "national_cap" and s["tx_policy"]["moratorium_first_period"] == 2040
     assert s["tx_policy"]["cap_tw_mi_per_yr"] == {2028: 0.0, 2030: 1.4} and s["forced_tx"] == "reeds_certain_plus_A"
     assert s["rggi"]["mode"] == "3pr" and s["rggi"]["virginia"]["enabled"] is True
-    assert s["ca_wa_carbon"] == {"mode": "linked", "path": "central", "import_gens": {"p11": 0.428, "p1": 0.0, "p3": 0.0}}
+    assert s["ca_wa_carbon"] == {"mode": "linked", "path": "central", "import_charge": "two_tranche",   # §94: explicit
+                                 "import_gens": {"p11": 0.428, "p1": 0.0, "p3": 0.0}}
     assert s["lifetime_backstop"] == {"enabled": True, "coal_years": 65, "gas_years": 55, "floor_year": 2026}
     assert s["retirement_friction"]["fraction"] == 0.5 and s["retirement_friction"]["from_period"] == 2030
     assert s["existing_fixed_om"] == "by_period"

@@ -154,7 +154,8 @@ def test_import_charge_settings():
     assert r["import_charge"] == "two_tranche" and r["two_tranche"]["free_mwh_per_yr"] == 49.399e6
     assert r["unspecified_share"] == SHARE and r["specified_factor"] == 0                   # the option's values
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert "import_charge" not in s0["ca_wa_carbon"]       # set in code, so the resolved settings stay as in v3
+    assert s0["ca_wa_carbon"]["import_charge"] == "two_tranche"    # explicit in the yml (S0 v3.1 launch setting)
+    assert s0prod.CA_WA_DEFAULTS["import_charge"] == "two_tranche"     # and the code default
     assert s0prod.ca_wa_settings(s0)["import_charge"] == "two_tranche"
     sh = s0prod.ca_wa_settings({"ca_wa_carbon": {"import_charge": "unspecified_share"}})
     assert s0prod.ca_wa_import_factor(sh, "CA", "p5", 2035) == pytest.approx(0.136 * 0.428)

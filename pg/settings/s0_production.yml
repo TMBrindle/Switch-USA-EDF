@@ -324,6 +324,9 @@ s0_production:
   ca_wa_carbon:
     mode: linked
     path: central                  # central (CARB ISOR Jan 2026 Table 21) | low (floor) | high (Bushnell, Feb 2026)
+    # S0 v3.1 (tag s0-v3.1): explicit, as the launch run set it (the code default is the same, §93). Free tranche
+    # 49.4 TWh/yr, PLACEHOLDER on CEC's basis; it bound in every stage of the S0 v3.1 run. Calibration in v3.2
+    import_charge: two_tranche
     # imports generators inside CA / WA zones (CHANGES §66): output pays price x factor (tCO2/MWh) per MWh
     # (gen_om_by_period.csv). Mexico into p11 (CA): unspecified import, 0.428. Canada into p1 and p3 (WA): specified
     # low-emission hydro, largely BC Hydro (Powerex, an asset-controlling supplier): 0, an assumption. No primary-source

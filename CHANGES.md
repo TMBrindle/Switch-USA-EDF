@@ -3815,3 +3815,33 @@ changed.
   is unaffected.
 - **Guide:** the option table, the two-tranche section (the reason for adoption and the remaining bias) and the
   average-share section are updated.
+
+## 94. S0 v3.1 Lock: Reproducibility, CRLF-Safe Pin Test, v3.2 Items
+
+**Date:** 2026-10-10 · **Branch:** `tom/s0-v3.1-two-tranche` (then merged into `tom/s0-v3.1-credits`). S0 v3.1 ran on
+cdd0491; all stages are optimal.
+
+**Done:**
+- **`ca_wa_carbon.import_charge: two_tranche` is explicit in `pg/settings/s0_production.yml`,** as the launch run set
+  it; the code default is the same (§93).
+  - `test_import_charge_settings` checks both.
+  - The regression row's resolved settings gain this key. It is inert there: `ca_wa_carbon.mode` is legacy, so no
+    import cost is written, and the row builds as before.
+  - The runner's copy (`ic_test_fedpol_work\s0_production.two_tranche.yml`) wasn't available here. **Diff it against
+    this file before tagging.**
+- **`test_build_rate_v3_pinned.py` hashes git blob content.** Ids are LF-normalised git blob ids (equal to
+  `git rev-parse 79f4064:<path>` for whole files), so a CRLF (Windows autocrlf) checkout passes. A simulated CRLF
+  checkout passes, and the manifest is regenerated (`file,git_blob_id_lf`).
+- **v3.2 items** (guide, "Import charge: v3.2 items"):
+  - free-tranche calibration (source, trajectory, scaling with WECC clean supply);
+  - unspecified imports at zero against about 27 TWh historically (hurdle and charge levels);
+  - WA emissions rising from 1.3 to 2.9 Mt in 2045.
+
+**Pending, waiting on files from the runner:**
+- **Corrected targets file.** The corrected `switch/Growth_Profiles/edf_epri_med_targets.csv` isn't in the repo.
+  Neither d4897189… nor 92ef5b26… matches any committed version: those are 699839494d15… (4d696df, the version on
+  every S0 branch) and 8df5f0b3913e… (older), checked as sha256 and git blob, LF and CRLF. Whichever of the two the
+  run used is canonical; that file is needed to commit it.
+- **The `s0-v3.1` tag.** It needs the full sha256 of the hourly load file (2e85711f…), the targets hash the run used,
+  and the runner's yml diff. Proposed: tag the commit that also carries the canonical targets file, so the tag
+  reproduces the run.
