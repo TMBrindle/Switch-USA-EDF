@@ -331,9 +331,10 @@ s0_production:
     # about $1.2/MWh at the 2030 price: a candidate value once confirmed against CARB's table).
     import_gens: {p11: 0.428, p1: 0.0, p3: 0.0}
     # import charge (CHANGES §86, §91; Guides and documentation/s0_production.md "The import charge in v3.1"). Not set
-    # here, so the code default applies (s0_workflow/production.py CA_WA_DEFAULTS): from v3.1 unspecified_share with
-    # CA 0.136 (PLACEHOLDER: CEC 2023, not CARB MRR) and WA 1.0 (as v3), specified_factor 0. v3's charge on every
-    # MWh: import_charge: all_default. Options, set on a case or axis:
+    # here, so the code default applies (s0_workflow/production.py CA_WA_DEFAULTS): two_tranche (§93; CA imports free
+    # up to 49.4 TWh/yr, PLACEHOLDER on CEC's basis, then price x 0.428; WA as v3). 96b4780's average share:
+    # import_charge: unspecified_share (CA 0.136, WA 1.0). v3's charge on every MWh: import_charge: all_default.
+    # Options, set on a case or axis:
     #   import_charge: unspecified_share      # default factor x share, specified_factor on the rest
     #   unspecified_share: {CA: 0.136, WA: 1.0}      # or {CA: {2028: .., 2035: ..}}; CEC 2023 (10,373 / 76,400 GWh)
     #   specified_factor: 0.0                 # or source_table (the exporting zone's factor)

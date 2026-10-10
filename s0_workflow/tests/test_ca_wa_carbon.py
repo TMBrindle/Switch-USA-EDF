@@ -144,18 +144,22 @@ def test_toy_import_cost_charges_delivered_imports_one_way(tmp_path):
     assert not (run2 / "outputs/trans_import_cost_results.csv").exists()
 
 
-# ---- import charge options (CHANGES §86; §91: unspecified_share is the S0 default from v3.1, Tom's D4) ----
+# ---- import charge options (CHANGES §86; §91 unspecified_share was 96b4780's default; §93: two_tranche is the S0
+# default, Tom's S0 v3.1 launch setting) ----
 SHARE = {"CA": 0.136, "WA": 1.0}                                         # CA: CEC 2023 PLACEHOLDER; WA: as v3
 
 
 def test_import_charge_settings():
     r = s0prod.ca_wa_settings({})
-    assert r["import_charge"] == "unspecified_share" and r["unspecified_share"] == SHARE and r["specified_factor"] == 0
+    assert r["import_charge"] == "two_tranche" and r["two_tranche"]["free_mwh_per_yr"] == 49.399e6
+    assert r["unspecified_share"] == SHARE and r["specified_factor"] == 0                   # the option's values
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
     assert "import_charge" not in s0["ca_wa_carbon"]       # set in code, so the resolved settings stay as in v3
-    assert s0prod.ca_wa_settings(s0)["import_charge"] == "unspecified_share"
-    assert s0prod.ca_wa_import_factor(s0prod.ca_wa_settings(s0), "CA", "p5", 2035) == pytest.approx(0.136 * 0.428)
-    assert s0prod.ca_wa_import_factor(s0prod.ca_wa_settings(s0), "WA", "p5", 2035) == 0.437          # WA as v3
+    assert s0prod.ca_wa_settings(s0)["import_charge"] == "two_tranche"
+    sh = s0prod.ca_wa_settings({"ca_wa_carbon": {"import_charge": "unspecified_share"}})
+    assert s0prod.ca_wa_import_factor(sh, "CA", "p5", 2035) == pytest.approx(0.136 * 0.428)
+    assert s0prod.ca_wa_import_factor(sh, "WA", "p5", 2035) == 0.437                        # WA as v3
+    assert s0prod.ca_wa_import_factor(s0prod.ca_wa_settings(s0), "WA", "p5", 2035) == 0.437  # two_tranche: WA as v3
     r = s0prod.ca_wa_settings({"ca_wa_carbon": {"import_charge": "unspecified_share", "unspecified_share": {"WA": 0.5}}})
     assert r["unspecified_share"] == {"CA": 0.136, "WA": 0.5}             # merged per state
     assert s0prod.ca_wa_import_factor(r, "CA", "p5", 2035) == pytest.approx(0.136 * 0.428)
@@ -208,10 +212,8 @@ def test_import_charge_options_on_real_transmission(built):
     sh = lambda z: SHARE["CA"] if z in CA else SHARE["WA"]                # noqa: E731
     for r in b.itertuples():                                               # v3: every MWh at the default factor
         assert r.trans_import_cost_per_mwh == pytest.approx(67.8 * f(r.trans_lz_to), abs=1e-4)
-    # the S0 default (v3.1): unspecified share; same directions, CA at 0.136 of v3's, WA as v3
-    dflt, logs = _write(built, {}, "default")
-    expl, _ = _write(built, {"ca_wa_carbon": {"import_charge": "unspecified_share"}}, "share")
-    assert dflt.read_bytes() == expl.read_bytes()
+    # unspecified share (96b4780's default): same directions, CA at 0.136 of v3's, WA as v3
+    dflt, logs = _write(built, {"ca_wa_carbon": {"import_charge": "unspecified_share"}}, "share")
     u = pd.read_csv(dflt)
     assert u[["trans_lz_from", "trans_lz_to", "PERIOD"]].equals(b[["trans_lz_from", "trans_lz_to", "PERIOD"]])
     for r in u.itertuples():
@@ -292,7 +294,7 @@ def test_toy_unspecified_share_charge(tmp_path):
         assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
         return r
 
-    new = run("share", {})
+    new = run("share", {"ca_wa_carbon": {"import_charge": "unspecified_share"}})
     ic = pd.read_csv(new / "inputs/trans_import_cost.csv")
     assert set(ic.trans_lz_to) == {"South"} and set(ic.PERIOD) == {2030}
     assert ic.trans_import_cost_per_mwh.unique().tolist() == [pytest.approx(53.4 * 0.428 * 0.136, abs=1e-4)]
@@ -317,7 +319,8 @@ def test_toy_unspecified_share_charge(tmp_path):
 def test_two_tranche_writer_on_real_transmission(built):
     """two_tranche: CA border imports leave trans_import_cost.csv and go into one tranche per period (free 49.4 TWh
     PLACEHOLDER, then price x 0.428); WA directions keep v3's per-MWh charge; the info file records mode, size and
-    source. The S0 default and the legacy (regression) case write no tranche files."""
+    source. It is the S0 default (§93): the default writes the same files byte for byte; the legacy (regression)
+    case and the other options write no tranche files."""
     v3, _ = _write(built, {"ca_wa_carbon": {"import_charge": "all_default"}}, "tt_v3")
     p, logs = _write(built, {"ca_wa_carbon": {"import_charge": "two_tranche"}}, "tt")
     d = p.parent
@@ -333,10 +336,15 @@ def test_two_tranche_writer_on_real_transmission(built):
     info = pd.read_csv(d / "trans_import_tranche_info.csv").iloc[0]
     assert info["mode"] == "two_tranche" and "PLACEHOLDER" in info.source and info.free_mwh_per_yr == 49.399e6
     assert any("(two_tranche)" in x for x in logs)
-    for name, s0 in (("tt_default", {}), ("tt_legacy", {"ca_wa_carbon": {"mode": "legacy"}})):
+    q, _ = _write(built, {}, "tt_default")                                               # the S0 default
+    for f in ("trans_import_cost.csv", "trans_import_tranche.csv", "trans_import_tranche_dirs.csv",
+              "trans_import_tranche_info.csv"):
+        assert (q.parent / f).read_bytes() == (d / f).read_bytes(), f
+    for name, s0 in (("tt_legacy", {"ca_wa_carbon": {"mode": "legacy"}}),
+                     ("tt_share", {"ca_wa_carbon": {"import_charge": "unspecified_share"}})):
         q, _ = _write(built, s0, name)
         assert not (q.parent / "trans_import_tranche.csv").exists() and not (q.parent / "trans_import_tranche_dirs.csv").exists()
-    assert s0prod.ca_wa_settings({})["import_charge"] == "unspecified_share"           # the S0 default is unchanged
+    assert s0prod.ca_wa_settings({})["import_charge"] == "two_tranche"
     with pytest.raises(ValueError, match="free_mwh_per_yr"):
         s0prod.ca_wa_settings({"ca_wa_carbon": {"import_charge": "two_tranche", "two_tranche": {"free_mwh_per_yr": -1}}})
 

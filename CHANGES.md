@@ -3792,3 +3792,26 @@ is the launch commit.
   - total cost continuous just below the kink, and monotone in the tranche.
 - **Not done (v3.2):** the real-network check of the tranche against the model's 2028 CA imports. That needs
   S0prod_A's 2028 outputs from the VM.
+
+## 93. Two-Tranche CA Import Charge Is the S0 v3.1 Default
+
+**Date:** 2026-10-10 · **Branches:** `tom/s0-v3.1-two-tranche` (a new commit after cdd0491, which the runner launched
+from with the setting explicit), merged into `tom/s0-v3.1-credits` for the S-set. `tom/s0-v3.1` (96b4780) is not
+changed.
+
+**Decision (Tom):** two_tranche is the S0 v3.1 default.
+- Under the average share (96b4780) the model imported 117 TWh into CA in 2028; v3 imported 21 TWh, and CEC 2023
+  reports 76 TWh.
+- So the model's import basis is comparable to CEC's, and v3's figure was suppressed by the charge.
+- The 49.4 TWh tranche on CEC's basis stays a PLACEHOLDER (source, geothermal and the border review are for v3.2).
+
+**What:**
+- `CA_WA_DEFAULTS.import_charge` is `two_tranche`, set in code. The resolved settings and the regression row are
+  unchanged (legacy writes no import cost). `unspecified_share` and `all_default` remain options.
+- **Byte-identical inputs:** the explicit setting writes the same four import files as at cdd0491, and the default
+  writes them too (checked on the real network for 2028–2045, and in `test_two_tranche_writer_on_real_transmission`).
+  The tranche's source string is unchanged, so the info file is identical too.
+- Nothing under `switch/` changed since cdd0491, so stage reuse with `--code-check model` against the runner's stages
+  is unaffected.
+- **Guide:** the option table, the two-tranche section (the reason for adoption and the remaining bias) and the
+  average-share section are updated.

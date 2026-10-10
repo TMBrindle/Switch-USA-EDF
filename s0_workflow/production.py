@@ -405,11 +405,12 @@ CA_WA_DEFAULTS = {
     # unspecified-import emission factors, tCO2/MWh: CA = CARB default (reaffirmed Jan 2026); WA = 0.437 (unverified)
     "import_tco2_per_mwh": {"CA": 0.428, "WA": 0.437},
     # how transmission imports into CA / WA zones are charged (CHANGES §86, §91; Guides and documentation/
-    # s0_production.md "The import charge in v3.1"). unspecified_share (S0 default from v3.1, Tom's D4): share x
-    # default + (1 - share) x specified_factor. all_default (v3, §65): every delivered MWh pays the state's default
-    # factor. source_table: the exporting zone's factor from an exogenous table (source_table;
-    # s0_workflow/scripts/zone_import_factors.py derives one from a solved case).
-    "import_charge": "unspecified_share",
+    # s0_production.md "Two-tranche CA import charge"). two_tranche (S0 default from §93, Tom: the S0 v3.1 launch
+    # setting): CA imports up to the free tranche pay nothing, every MWh above pays price x the CA factor; WA as v3.
+    # unspecified_share (§91, 96b4780's default): share x default + (1 - share) x specified_factor. all_default (v3,
+    # §65): every delivered MWh pays the state's default factor. source_table: the exporting zone's factor from an
+    # exogenous table (source_table; s0_workflow/scripts/zone_import_factors.py derives one from a solved case).
+    "import_charge": "two_tranche",
     # unspecified share of imports by state: a number, or {year: share} (linear between keys, held outside).
     # CA 0.136 PLACEHOLDER = CEC 2023 Total System Electric Generation: unspecified 10,373 of 76,400 GWh imports (CEC
     # power-mix categories, not CARB MRR's: MRR couldn't be reached; replace with MRR's latest year when checked).
@@ -419,7 +420,7 @@ CA_WA_DEFAULTS = {
     # "source_table" (the exporting zone's factor)
     "specified_factor": 0.0,
     "source_table": None,       # csv: zone, tco2_per_mwh[, period]; relative to the repo
-    # two_tranche (§92, option, not the S0 default): CA imports up to free_mwh_per_yr per period are free, every MWh
+    # two_tranche (§92; the S0 default from §93): CA imports up to free_mwh_per_yr per period are free, every MWh
     # above pays price x the CA default factor (study_modules.trans_hurdle_cost trans_import_tranche*.csv); WA as v3.
     # free_mwh_per_yr PLACEHOLDER: CEC 2023 Total System Electric Generation, specified non-emitting imports (hydro,
     # nuclear, wind, solar) = 76,400 total - 23,679 thermal and unspecified - 2,569 geothermal - 753 biomass =

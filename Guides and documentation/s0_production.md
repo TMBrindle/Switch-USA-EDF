@@ -528,19 +528,23 @@ One linked-market carbon price for California (`ETS 2`) and Washington (`ETS 3`)
   not transmission flows, so they don't pay the import cost.
 - **`legacy`:** the presets' $33.43 and no import cost. That is the regression case, which stays byte-identical. Non-S0
   cases are unchanged.
-- **v3.1 (§91):** only the unspecified share of CA imports pays; see "The import charge in v3.1" below. The text
-  above describes v3's charge (`import_charge: all_default`).
+- **S0 v3.1 (§93):** the two-tranche CA charge. CA imports are free up to 49.4 TWh/yr and every MWh above pays the
+  full rate; see "Two-tranche CA import charge" below. The text above describes v3's charge
+  (`import_charge: all_default`).
 
 ### Import charge options (§86)
 
-`ca_wa_carbon.import_charge` sets the factor on transmission imports into CA and WA zones. From v3.1 the S0 default
-is `unspecified_share` (CA 0.136, WA 1.0, specified 0; §91, Tom's D4). It was `all_default` in v3.
+`ca_wa_carbon.import_charge` sets the charge on transmission imports into CA and WA zones. The S0 v3.1 default is
+`two_tranche` (§93, Tom's decision). It was `all_default` in v3 and `unspecified_share` at 96b4780.
 
-| Option | Factor per delivered MWh (tCO2/MWh) | 2035 central into CA |
+| Option | Charge into CA | 2035 central into CA |
 |---|---|---|
-| `all_default` (v3, §65) | the state default (CA 0.428, WA 0.437) | $29.02 |
-| `unspecified_share` (S0 from v3.1) | share × default + (1 − share) × `specified_factor` (a number, default 0, or `source_table`) | $3.95 (share 0.136, specified 0) |
+| `two_tranche` (S0 v3.1, §92–§93) | free up to 49.4 TWh/yr of CA imports per period; price × 0.428 on every MWh above | $0 below the tranche, $29.02/MWh above |
+| `all_default` (v3, §65) | the state default factor on every MWh (CA 0.428, WA 0.437) | $29.02/MWh |
+| `unspecified_share` (96b4780, §91) | share × default + (1 − share) × `specified_factor` per MWh (a number, default 0, or `source_table`) | $3.95/MWh (share 0.136, specified 0) |
 | `source_table` | the exporting zone's factor, from a table | depends on the exporter |
+
+WA has v3's per-MWh charge (0.437) under every option except `unspecified_share` with a WA share below 1.
 
 - **Why:** under CARB's rules only unspecified imports pay the 0.428 default. Specified imports (owned or contracted,
   directly delivered) carry their source's factor: hydro, nuclear and renewables ≈ 0, coal and gas their own rates.
@@ -598,10 +602,10 @@ is `unspecified_share` (CA 0.136, WA 1.0, specified 0; §91, Tom's D4). It was `
     specified factor, the rest at 0.428). It needs a new variable and constraint in `trans_hurdle_cost.py`, so it is
     **not implemented**.
 
-### The import charge in v3.1 (D4: unspecified imports only)
+### Average-share import charge (§91; 96b4780's default, now an option)
 
-**S0 default from v3.1:** `import_charge: unspecified_share` with `specified_factor: 0`. In CA, only the
-unspecified share of transmission imports pays the default factor:
+**`import_charge: unspecified_share`** with `specified_factor: 0`. In CA, only the unspecified share of transmission
+imports pays the default factor:
 - each delivered MWh pays price × 0.428 × **0.136** tCO2;
 - at the 2035 central price: $67.8 × 0.428 × 0.136 = **$3.95/MWh**, against $29.02/MWh in v3.
 
@@ -636,10 +640,18 @@ charge.
 **Back to v3:** `import_charge: all_default`.
 
 
-### Two-tranche CA import charge (§92, option; not the S0 default)
+### Two-tranche CA import charge (§92; the S0 v3.1 default, §93)
 
-`import_charge: two_tranche`, on branch `tom/s0-v3.1-two-tranche` only; v3.1 launches on 96b4780 with
-`unspecified_share`.
+**`import_charge: two_tranche`.** The S0 v3.1 default from §93, on `tom/s0-v3.1-two-tranche` (the runner launched
+from cdd0491 with the setting explicit; the default writes the same files byte for byte) and
+`tom/s0-v3.1-credits`. It is not on `tom/s0-v3.1` (96b4780).
+
+**Why it was adopted (Tom):**
+- CA imports into the model in 2028 were 21 TWh under v3's charge (0.428 on every MWh) and 117 TWh under the average
+  share (96b4780). CEC's 2023 figure is 76 TWh.
+- The model's import basis is therefore comparable to CEC's, and v3's 21 TWh was suppressed by the charge.
+- A tranche on CEC's basis is consistent with the model's flows, and the marginal import pays the full rate, as
+  under CARB's rule for imports beyond contracted (specified) volumes.
 
 **How it works:**
 - In each period, CA's delivered imports over all links into CA zones (from zones outside CA and WA; annual MWh, by
@@ -660,9 +672,21 @@ charge.
 - **Source:** CEC 2023 Total System Electric Generation, specified non-emitting imports (hydro, nuclear, wind,
   solar): 76,400 GWh total, less 23,679 thermal and unspecified, 2,569 geothermal and 753 biomass, gives 49,399 GWh
   (64.7%).
-- **On CEC's basis, not the model's.** v3.2 will calibrate the basis against the model's CA border imports (S0prod_A
-  2028), the MRR or CEC source, and the treatment of geothermal (counting it raises the tranche to 52.0 TWh).
+- **On CEC's basis.** The model's import basis is comparable (above). Still to do (v3.2): the MRR or CEC source, the
+  treatment of geothermal (counting it raises the tranche to 52.0 TWh), and explaining the remaining zone-border
+  differences.
 - **Later refinement:** contract expiries (v4).
+
+**Remaining bias (two-tranche):**
+1. **The tranche is a placeholder.** It is CEC 2023's specified non-emitting imports on CEC's basis, derived by
+   subtraction, not checked against CARB's MRR data; counting geothermal would add 2.6 TWh.
+2. **Held flat.** Contracts expire and new ones are signed; this is a v4 refinement.
+3. **All CA imports count toward the tranche,** whatever the exporting zone. A clean import from a zone with no CA
+   contracts uses the free tranche as a contracted one would.
+4. **Specified emitting imports** (coal and gas, about 14 TWh in 2022) are not separately charged; above the tranche
+   every MWh pays the unspecified 0.428.
+5. **WA keeps v3's per-MWh charge** (0.437 on every MWh, unverified factor), so WA imports stay overstated.
+6. **The Mexico imports generator** (p11) pays 0.428 on every MWh, outside the tranche.
 
 ## Forced transmission (§54)
 
