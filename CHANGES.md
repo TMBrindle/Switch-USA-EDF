@@ -3996,3 +3996,48 @@ run used the hand-entered credit values (`no_wind_solar`), as v3 did. The statut
 
 **Reproducing S0 v3.1:** check out `s0-v3.1` and use the archived load file. The S-set runs from
 `tom/s0-v3.1-credits` (S1 launched at f8f12bc), which keeps S0's 2028 inputs identical for stage reuse.
+
+## 99. Interconnection Headroom: Wind's Charge Against the Data (Analysis Only)
+
+**Date:** 2026-10-10. Analysis only: no defaults, inputs or Switch code change.
+
+**What was checked:** Switch prices every headroom step at the reference solar curve, and wind uses 0.25 MW of
+room per MW. New wind therefore pays 0.25× solar's price per MW of nameplate, while the cost fit's wind effect
+implies about 1.4×.
+
+**Inputs:**
+- The s0-v3.1 headroom inputs (the code and config are the same at the tag and on `tom/s0-v3.1-credits`).
+- A fresh run (scenario atts_s0): n_estimation 2,787, R² 0.341, BA match 0.990.
+
+**Analysis:**
+- New script `interconnection_headroom/scripts/wind_price_check.py`.
+- Compares wind and solar by LBNL regime: observed $/kW (completed and active; all queue years and 2018+), the
+  model's first-step charge, and the fit's prediction. It also refits with the wind effect split by status, and
+  on SPP + MISO + PJM only.
+- Write-up: `interconnection_headroom/docs/wind_price_check.md`.
+
+**Findings:**
+- **The wind effect at the tag** is +0.357 (×1.43, CI 1.03–1.97), not +0.41.
+- **Split by status:**
+  - Completed wind: ×1.99 (CI 1.31–3.04).
+  - Active wind: ×1.28 (CI 0.85–1.93).
+  - SPP + MISO + PJM: ×1.48 pooled, ×1.73 completed, ×1.37 active.
+  - The premium therefore comes mainly from completed wind. Completed wind is old (mean queue year 2011, range
+    2001–2018) and sits in near-empty zones (mean fullness 0.03). Its premium is a trend extrapolation; its raw
+    completed ratios are below 1 (pooled mean 0.61).
+- **Recent active wind/solar mean ratios:**
+
+  | Regime | Ratio |
+  |---|---|
+  | PJM | 0.89 |
+  | MISO | 0.93 |
+  | SPP | 2.97 (tail-driven; median 0.97) |
+  | non-ISO pool | 0.71 |
+  | Pooled | 0.80 |
+
+**Recommendation:** option (ii), not adopted here.
+- Wind pays about 1.0× solar's step price per MW of nameplate. Sensitivities are 0.8 and 1.3.
+- The 0.25 room weight is unchanged, and one national factor is used. The regional wind samples are too thin
+  (NYISO 3, ISO-NE 1) to support regional factors.
+- Not (iii): the solar reference level is consistent with the data, and recalibrating it would leave wind at 0.25×
+  solar.
