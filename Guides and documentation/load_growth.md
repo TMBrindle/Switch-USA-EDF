@@ -16,6 +16,18 @@ Notes moved here from `scenario_management.yml` (Oct 2026):
   "growth_rates/epri_med"`. `switch/Growth_Profiles/edf_epri_med_targets.csv` has the growth targets through
   2050 for every region. The source data (`growth_rates/epri_med/`) and the load file are local to the VM
   (gitignored), not in the repository.
+- **What the build reads (S0 v3.1, tag `s0-v3.1`):** builds take loads from the hourly files; the targets file is
+  the upstream source, not read at build time. The hourly files are chosen by settings, with fixed names under
+  `input_folder` (`pg/extra_inputs`, gitignored):
+  - `regional_load_fn: reeds_2023_loads.csv.zip` (`demand.yml`);
+  - `demand_response_fn: load_adjustments_edf_epri_med.csv.zip` (`flexible_load.yml`; the growth added as flexible
+    demand).
+
+  `edf_epri_med_targets.csv` is what `make_study_loads.py` checks the growth against. Keep it consistent with the
+  hourly files, but a build doesn't read it.
+- **Future change:** put the hourly files' sha256 into the provenance check. Stage reuse compares the built case
+  inputs (`loads.csv` included), so different loads are caught, but `chain_provenance.json` doesn't record which
+  hourly source files a stage was built from.
 - **High-demand file not generated yet:** `load_adjustments_epri_high.csv.zip` doesn't exist. Generate it with
   `make_study_loads.py` (`growth_case = "epri_high"`, `growth_path = "growth_rates/epri_high"`) on the VM before
   running an `epri_high` case. No growth numbers were written in the settings.

@@ -3917,3 +3917,28 @@ on Windows (CRLF, the hash the run recorded). The LF content in git hashes to 44
 - the battery storage credit ×0.7 in every period against the OBBBA phase-down;
 - the p1 WA solar profiles;
 - the reV capacity-factor basis.
+
+## 96. S0 v3.1 Tag; Load-File Provenance Note
+
+**Date:** 2026-10-10.
+
+**Tag `s0-v3.1`:**
+- An annotated tag on 3160be1 (`tom/s0-v3.1-two-tranche`). Its message records:
+  - the run (cdd0491 plus a local yml edit; this commit is input-equivalent);
+  - the hourly load file's sha256 (2e85711f2e942ef76a39d7a81fd47fe6d7367387cfb8b2d9ff58be68375c0769, archived by the
+    runner);
+  - the targets file's sha256 (d4897189…, CRLF checkout);
+  - the binding 49.4 TWh placeholder tranche;
+  - WA's v3 charge.
+- Created in the build session. Its push was refused there (HTTP 403 on `refs/tags`), so it is pushed from a local
+  checkout.
+
+**Loads:**
+- Builds take loads from the hourly files; the targets file is the upstream source, not read at build time.
+- The hourly files are `regional_load_fn: reeds_2023_loads.csv.zip` (`demand.yml`) and
+  `demand_response_fn: load_adjustments_edf_epri_med.csv.zip` (`flexible_load.yml`). Both are fixed names under
+  `pg/extra_inputs` (gitignored), and both settings are identical at the tag and on `tom/s0-v3.1-credits`.
+- **Future change:** put the hourly files' sha256 into the provenance check (`chain_provenance.json`). Reuse already
+  compares the built `loads.csv`.
+
+Guide: `Guides and documentation/load_growth.md`.
