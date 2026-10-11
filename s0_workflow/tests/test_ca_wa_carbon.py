@@ -392,3 +392,88 @@ def test_toy_two_tranche_charge(tmp_path):
     below, _, tot_below = run("free_below", d_free - eps)                                 # continuity across the kink
     assert 0 <= tot_below - tot_at <= rate * eps * 30 + 1e-6                             # (x discounting over the period)
     assert tot_big <= tot_half <= tot0                                                   # monotone in the tranche
+
+
+# ---- v3.2 flag (c): WA two-tranche import charge, the CA LP form as a named tranche (CHANGES §100) ----
+
+def test_wa_two_tranche_writer_on_real_transmission(built):
+    """wa_import_charge: two_tranche moves WA border imports out of trans_import_cost.csv into a named tranche "WA"
+    (trans_import_tranches*.csv: free MWh, then price x 0.437); CA's tranche files are unchanged. The default (per_mwh)
+    writes exactly the v3.1 files and no named-tranche files."""
+    dflt, _ = _write(built, {}, "wa_default")
+    expl, _ = _write(built, {"ca_wa_carbon": {"wa_import_charge": "per_mwh"}}, "wa_explicit")
+    for f in ("trans_import_cost.csv", "trans_import_tranche.csv", "trans_import_tranche_dirs.csv",
+              "trans_import_tranche_info.csv"):
+        assert (dflt.parent / f).read_bytes() == (expl.parent / f).read_bytes(), f
+    assert not (dflt.parent / "trans_import_tranches.csv").exists()
+    assert s0prod.ca_wa_settings({})["wa_import_charge"] == "per_mwh"                  # v3.1 until approved
+    p, logs = _write(built, {"ca_wa_carbon": {"wa_import_charge": "two_tranche",
+                                              "wa_two_tranche": {"free_mwh_per_yr": 5e6}}}, "wa_tt")
+    d, b = p.parent, pd.read_csv(dflt)
+    assert not p.exists() or not set(pd.read_csv(p).trans_lz_to) & set(WA)            # WA left the per-MWh file
+    t = pd.read_csv(d / "trans_import_tranches.csv")
+    assert t.TRANCHE.tolist() == ["WA"] and t.PERIOD.tolist() == [2035]
+    assert t.named_tranche_free_mwh_per_yr.iat[0] == 5e6
+    assert t.named_tranche_cost_per_mwh.iat[0] == pytest.approx(67.8 * 0.437, abs=1e-4)
+    dirs = pd.read_csv(d / "trans_import_tranches_dirs.csv")
+    wa_v31 = b[b.trans_lz_to.isin(WA)]
+    assert len(wa_v31) and set(zip(dirs.trans_lz_from, dirs.trans_lz_to)) == set(zip(wa_v31.trans_lz_from, wa_v31.trans_lz_to))
+    assert (dirs.TRANCHE == "WA").all()
+    for f in ("trans_import_tranche.csv", "trans_import_tranche_dirs.csv"):              # CA as v3.1
+        assert (d / f).read_bytes() == (dflt.parent / f).read_bytes(), f
+    info = pd.read_csv(d / "trans_import_tranche_info.csv").set_index("state")
+    assert info.at["WA", "free_mwh_per_yr"] == 5e6 and info.at["CA", "free_mwh_per_yr"] == 49.399e6
+    assert any("WA two_tranche" in x for x in logs)
+    with pytest.raises(ValueError, match="wa_import_charge"):
+        s0prod.ca_wa_settings({"ca_wa_carbon": {"wa_import_charge": "share"}})
+    with pytest.raises(ValueError, match="wa_two_tranche"):
+        s0prod.ca_wa_settings({"ca_wa_carbon": {"wa_import_charge": "two_tranche",
+                                                "wa_two_tranche": {"free_mwh_per_yr": -1}}})
+
+
+def test_toy_wa_two_tranche_charge(tmp_path):
+    """Switch toy: South = a WA zone (ETS 3), North = a CA zone (ETS 2). WA two-tranche with free 0 is v3.1's per-MWh
+    charge (same delivered MWh, same total cost); a free tranche larger than the imports makes WA imports free; the CA
+    single tranche and the WA named tranche sit in one cost component, which is their sum."""
+    from toyutil import toy_inputs
+    rate_wa = round(53.4 * 0.437, 4)
+
+    def run(name, s0, ca=False):
+        def edit(inp):
+            rows = [{"CO2_PROGRAM": "ETS 3", "PERIOD": p, "LOAD_ZONE": "South", "carbon_cap_tco2_per_yr": 0.0,
+                     "carbon_cost_dollar_per_tco2": 53.4, "carbon_floor_price_dollar_per_tco2": 0.0} for p in (2020, 2030)]
+            if ca:
+                rows += [{**r, "CO2_PROGRAM": "ETS 2", "LOAD_ZONE": "North"} for r in rows]
+            pd.DataFrame(rows).to_csv(inp / "carbon_policies_regional.csv", index=False)
+            s0prod.write_ca_wa_import_cost(inp, s0, {2020: {}, 2030: {}}, lambda x: None)
+        r = toy_inputs(tmp_path, name, ["trans_hurdle_cost"], edit)
+        # the toy's zones aren't in hierarchy.csv's WA / CA, so the state check passes them as given
+        res = subprocess.run(["switch", "solve", "--solver", "appsi_highs", "--include-module", "mods.trans_hurdle_cost"],
+                             cwd=r, capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(r)})
+        assert res.returncode == 0, res.stdout[-2000:] + res.stderr[-2000:]
+        return r
+
+    tot = lambda r: float(open(r / "outputs/total_cost.txt").read())                    # noqa: E731
+    v31 = run("wa_v31", {"ca_wa_carbon": {"import_charge": "all_default"}})
+    old = pd.read_csv(v31 / "outputs/trans_import_cost_results.csv")
+    zero = run("wa_free0", {"ca_wa_carbon": {"import_charge": "all_default", "wa_import_charge": "two_tranche"}})
+    assert not (zero / "inputs/trans_import_cost.csv").exists()
+    w = pd.read_csv(zero / "outputs/trans_import_tranches_results.csv").set_index(["TRANCHE", "PERIOD"]).loc[("WA", 2030)]
+    assert w.cost_per_mwh == pytest.approx(rate_wa)
+    assert w.delivered_mwh_per_yr == pytest.approx(old[old.PERIOD == 2030].delivered_mwh_per_yr.sum(), rel=1e-6)
+    assert w.annual_cost == pytest.approx(old[old.PERIOD == 2030].annual_cost.sum(), rel=1e-6)
+    assert tot(zero) == pytest.approx(tot(v31), rel=1e-9)                                # free 0 = v3.1's charge
+    big = run("wa_big", {"ca_wa_carbon": {"import_charge": "all_default", "wa_import_charge": "two_tranche",
+                                          "wa_two_tranche": {"free_mwh_per_yr": 1e12}}})
+    wb = pd.read_csv(big / "outputs/trans_import_tranches_results.csv").set_index(["TRANCHE", "PERIOD"]).loc[("WA", 2030)]
+    assert wb.annual_cost == pytest.approx(0, abs=1e-6) and wb.delivered_mwh_per_yr >= w.delivered_mwh_per_yr - 1e-6
+    assert tot(big) <= tot(zero) + 1e-6
+    both = run("ca_wa", {"ca_wa_carbon": {"import_charge": "two_tranche", "two_tranche": {"free_mwh_per_yr": 0.0},
+                                          "wa_import_charge": "two_tranche"}}, ca=True)
+    ca_r = pd.read_csv(both / "outputs/trans_import_tranche_results.csv").set_index("PERIOD").loc[2030]
+    wa_r = pd.read_csv(both / "outputs/trans_import_tranches_results.csv").set_index(["TRANCHE", "PERIOD"]).loc[("WA", 2030)]
+    ci = pd.read_csv(both / "outputs/costs_itemized.csv")
+    comp = ci[(ci.Component == "TxImportTrancheCost") & (ci.PERIOD == 2030)].AnnualCost_Real.iat[0]
+    assert comp == pytest.approx(ca_r.annual_cost + wa_r.annual_cost, rel=1e-6)
+    info = pd.read_csv(both / "outputs/trans_import_tranche_info.csv")
+    assert set(info.state) == {"CA", "WA"}

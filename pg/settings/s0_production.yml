@@ -337,6 +337,8 @@ s0_production:
     # S0 v3.1 (tag s0-v3.1): explicit, as the launch run set it (the code default is the same, §93). Free tranche
     # 49.4 TWh/yr, PLACEHOLDER on CEC's basis; it bound in every stage of the S0 v3.1 run. Calibration in v3.2
     import_charge: two_tranche
+    # v3.2 flag (CHANGES §100): wa_import_charge: per_mwh (v3.1, the code default) | two_tranche (WA imports as a
+    # named tranche in the CA LP form: wa_two_tranche.free_mwh_per_yr free, then price x 0.437 per MWh)
     # imports generators inside CA / WA zones (CHANGES §66): output pays price x factor (tCO2/MWh) per MWh
     # (gen_om_by_period.csv). Mexico into p11 (CA): unspecified import, 0.428. Canada into p1 and p3 (WA): specified
     # low-emission hydro, largely BC Hydro (Powerex, an asset-controlling supplier): 0, an assumption. No primary-source

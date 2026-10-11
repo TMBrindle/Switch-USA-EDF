@@ -28,6 +28,12 @@ unchanged).
     trans_import_tranche.csv        PERIOD, tranche_free_mwh_per_yr, tranche_cost_per_mwh
     trans_import_tranche_dirs.csv   trans_lz_from, trans_lz_to
     trans_import_tranche_info.csv   (optional; any columns: mode, tranche size, source) copied to the outputs
+
+Named tranches (v3.2, CHANGES §100; S0 ca_wa_carbon.wa_import_charge: two_tranche): further tranches in the same LP
+form, one per name (e.g. WA), each with its own directions, free MWh and rate, alongside the single tranche above:
+    trans_import_tranches.csv       TRANCHE, PERIOD, named_tranche_free_mwh_per_yr, named_tranche_cost_per_mwh
+    trans_import_tranches_dirs.csv  TRANCHE, trans_lz_from, trans_lz_to
+Their cost goes into the same component (TxImportTrancheCost); results in trans_import_tranches_results.csv.
 """
 
 import os
@@ -101,9 +107,33 @@ def define_components(m):
         m.TRANCHE_PERIODS,
         rule=lambda m, p: m.TrancheExcessImports[p] >= m.TrancheImports[p] - m.tranche_free_mwh_per_yr[p],
     )
+    # named tranches (trans_import_tranches*.csv; empty for every case without them)
+    m.NAMED_TRANCHE_PERIODS = Set(dimen=2)                       # (tranche, period)
+    m.named_tranche_free_mwh_per_yr = Param(m.NAMED_TRANCHE_PERIODS, within=NonNegativeReals)
+    m.named_tranche_cost_per_mwh = Param(m.NAMED_TRANCHE_PERIODS, within=NonNegativeReals)
+    m.NAMED_TRANCHE_DIRS = Set(dimen=3)                          # (tranche, from, to)
+
+    def named_tranche_imports(m, k, p):
+        return sum(
+            m.DispatchTx[a, b, t] * m.trans_efficiency[m.trans_d_line[a, b]] * m.tp_weight_in_year[t]
+            for t in m.TPS_IN_PERIOD[p]
+            if t not in getattr(m, "LIGHT_TPS", ())
+            for (kk, a, b) in m.NAMED_TRANCHE_DIRS if kk == k
+        )
+
+    m.NamedTrancheImports = Expression(m.NAMED_TRANCHE_PERIODS, rule=named_tranche_imports)
+    m.NamedTrancheExcessImports = Var(m.NAMED_TRANCHE_PERIODS, within=NonNegativeReals)
+    m.Named_Tranche_Excess_Def = Constraint(
+        m.NAMED_TRANCHE_PERIODS,
+        rule=lambda m, k, p: m.NamedTrancheExcessImports[k, p]
+        >= m.NamedTrancheImports[k, p] - m.named_tranche_free_mwh_per_yr[k, p],
+    )
+
     m.TxImportTrancheCost = Expression(
         m.PERIODS,
-        rule=lambda m, p: m.tranche_cost_per_mwh[p] * m.TrancheExcessImports[p] if p in m.TRANCHE_PERIODS else 0.0,
+        rule=lambda m, p: (m.tranche_cost_per_mwh[p] * m.TrancheExcessImports[p] if p in m.TRANCHE_PERIODS else 0.0)
+        + sum(m.named_tranche_cost_per_mwh[k, pp] * m.NamedTrancheExcessImports[k, pp]
+              for (k, pp) in m.NAMED_TRANCHE_PERIODS if pp == p),
     )
     m.Cost_Components_Per_Period.append("TxImportTrancheCost")
 
@@ -137,6 +167,17 @@ def load_inputs(m, switch_data, inputs_dir):
         optional=True,
         set=m.TRANCHE_DIRS,
     )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "trans_import_tranches.csv"),
+        optional=True,
+        index=m.NAMED_TRANCHE_PERIODS,
+        param=(m.named_tranche_free_mwh_per_yr, m.named_tranche_cost_per_mwh),
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "trans_import_tranches_dirs.csv"),
+        optional=True,
+        set=m.NAMED_TRANCHE_DIRS,
+    )
 
 
 def post_solve(m, outdir):
@@ -152,8 +193,18 @@ def post_solve(m, outdir):
                        "free_mwh_per_yr": value(m.tranche_free_mwh_per_yr[p]),
                        "excess_mwh_per_yr": value(m.TrancheExcessImports[p]),
                        "cost_per_mwh": value(m.tranche_cost_per_mwh[p]),
-                       "annual_cost": value(m.TxImportTrancheCost[p])} for p in m.TRANCHE_PERIODS]).to_csv(
+                       "annual_cost": value(m.tranche_cost_per_mwh[p] * m.TrancheExcessImports[p])}
+                      for p in m.TRANCHE_PERIODS]).to_csv(
             os.path.join(outdir, "trans_import_tranche_results.csv"), index=False)
+    if len(m.NAMED_TRANCHE_PERIODS):
+        pd.DataFrame([{"TRANCHE": k, "PERIOD": p, "delivered_mwh_per_yr": value(m.NamedTrancheImports[k, p]),
+                       "free_mwh_per_yr": value(m.named_tranche_free_mwh_per_yr[k, p]),
+                       "excess_mwh_per_yr": value(m.NamedTrancheExcessImports[k, p]),
+                       "cost_per_mwh": value(m.named_tranche_cost_per_mwh[k, p]),
+                       "annual_cost": value(m.named_tranche_cost_per_mwh[k, p] * m.NamedTrancheExcessImports[k, p])}
+                      for (k, p) in m.NAMED_TRANCHE_PERIODS]).to_csv(
+            os.path.join(outdir, "trans_import_tranches_results.csv"), index=False)
+    if len(m.TRANCHE_PERIODS) or len(m.NAMED_TRANCHE_PERIODS):
         info = os.path.join(m.options.inputs_dir, "trans_import_tranche_info.csv")
         if os.path.exists(info):
             shutil.copy(info, os.path.join(outdir, "trans_import_tranche_info.csv"))

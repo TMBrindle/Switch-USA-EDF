@@ -430,6 +430,13 @@ CA_WA_DEFAULTS = {
     "two_tranche": {"free_mwh_per_yr": 49.399e6,
                     "source": "PLACEHOLDER: CEC 2023 TSEG specified non-emitting imports (hydro, nuclear, wind, "
                               "solar), 49,399 of 76,400 GWh, CEC basis, held flat; calibration in v3.2"},
+    # v3.2 flag (CHANGES §100): WA imports. per_mwh (v3.1): every MWh into a WA zone from outside CA / WA pays price x
+    # the WA factor (or the import_charge option's WA share). two_tranche: the CA form for WA, a named tranche "WA"
+    # (trans_import_tranches*.csv): free_mwh_per_yr free, every MWh above at price x the WA factor. free 0 = v3.1's
+    # charge on every MWh, in the tranche form. Candidate basis and value: CHANGES §100 (Commerce CY2023 fuel mix).
+    "wa_import_charge": "per_mwh",
+    "wa_two_tranche": {"free_mwh_per_yr": 0.0,
+                       "source": "PLACEHOLDER: 0 = every WA import MWh charged (v3.1's charge); candidate in CHANGES §100"},
     # 2024$ per metric tCO2 by model year (between keys: linear; after the last: held)
     "prices": {
         "central": {2028: 48.6, 2030: 53.4, 2035: 67.8, 2040: 86.0, 2045: 109.2},   # CARB ISOR Jan 2026, Table 21
@@ -441,7 +448,7 @@ CA_WA_DEFAULTS = {
 
 def ca_wa_settings(s0: dict) -> dict:
     over = (s0 or {}).get("ca_wa_carbon") or {}
-    deep = ("programs", "import_tco2_per_mwh", "prices", "unspecified_share", "two_tranche")
+    deep = ("programs", "import_tco2_per_mwh", "prices", "unspecified_share", "two_tranche", "wa_two_tranche")
     r = {**CA_WA_DEFAULTS, **{k: v for k, v in over.items() if k not in deep}}
     for k in deep:
         r[k] = {**CA_WA_DEFAULTS[k], **(over.get(k) or {})}
@@ -463,6 +470,11 @@ def ca_wa_settings(s0: dict) -> dict:
             raise ValueError(f"s0_production.ca_wa_carbon.specified_factor must be >= 0, not {f}")
     if r["import_charge"] == "two_tranche" and float(r["two_tranche"]["free_mwh_per_yr"]) < 0:
         raise ValueError("s0_production.ca_wa_carbon.two_tranche.free_mwh_per_yr must be >= 0")
+    if r["wa_import_charge"] not in ("per_mwh", "two_tranche"):
+        raise ValueError(f"s0_production.ca_wa_carbon.wa_import_charge must be per_mwh or two_tranche, not "
+                         f"{r['wa_import_charge']!r}")
+    if r["wa_import_charge"] == "two_tranche" and float(r["wa_two_tranche"]["free_mwh_per_yr"]) < 0:
+        raise ValueError("s0_production.ca_wa_carbon.wa_two_tranche.free_mwh_per_yr must be >= 0")
     return r
 
 
@@ -625,6 +637,8 @@ def write_ca_wa_import_cost(folder: Path, s0: dict, scen_settings_dict: dict, lo
     table = ca_wa_source_table(r)
     rows, tranche, tdirs = [], [], set()
     two = r["import_charge"] == "two_tranche"
+    wa_two = r["wa_import_charge"] == "two_tranche"
+    wa_tranche, wa_dirs = [], set()
     for year in sorted(int(y) for y in scen_settings_dict):
         price = ca_wa_price(year, r)
         if price is None:
@@ -640,22 +654,44 @@ def write_ca_wa_import_cost(folder: Path, s0: dict, scen_settings_dict: dict, lo
                 if two and dst in state_of and src not in state_of and state_of[dst] == "CA":
                     tdirs.add((src, dst))          # two_tranche: CA imports go to the tranche, aggregated
                     continue
+                if wa_two and dst in state_of and src not in state_of and state_of[dst] == "WA":
+                    wa_dirs.add((src, dst))        # v3.2 WA two_tranche: WA imports go to the WA tranche
+                    continue
                 if dst in state_of and src not in state_of:
                     rows.append({"trans_lz_from": src, "trans_lz_to": dst, "PERIOD": year,
                                  "trans_import_cost_per_mwh": round(
                                      price * ca_wa_import_factor(r, state_of[dst], src, year, table), 4)})
+        if wa_two and any(v == "WA" for v in state_of.values()):
+            wa_tranche.append({"TRANCHE": "WA", "PERIOD": year,
+                               "named_tranche_free_mwh_per_yr": float(r["wa_two_tranche"]["free_mwh_per_yr"]),
+                               "named_tranche_cost_per_mwh": round(price * float(r["import_tco2_per_mwh"]["WA"]), 4)})
         if two and any(v == "CA" for v in state_of.values()):
             tranche.append({"PERIOD": year, "tranche_free_mwh_per_yr": float(r["two_tranche"]["free_mwh_per_yr"]),
                             "tranche_cost_per_mwh": round(price * float(r["import_tco2_per_mwh"]["CA"]), 4)})
+    info = []
     if two and tranche:
         pd.DataFrame(tranche).to_csv(folder / "trans_import_tranche.csv", index=False)
         pd.DataFrame(sorted(tdirs), columns=["trans_lz_from", "trans_lz_to"]).to_csv(
             folder / "trans_import_tranche_dirs.csv", index=False)
-        pd.DataFrame([{"mode": "two_tranche", "state": "CA", "PERIOD": t["PERIOD"],
-                       "free_mwh_per_yr": t["tranche_free_mwh_per_yr"], "cost_per_mwh": t["tranche_cost_per_mwh"],
-                       "factor_tco2_per_mwh": float(r["import_tco2_per_mwh"]["CA"]), "directions": len(tdirs),
-                       "source": r["two_tranche"]["source"], "wa": "per-MWh charge as v3"} for t in tranche]).to_csv(
-            folder / "trans_import_tranche_info.csv", index=False)
+        info += [{"mode": "two_tranche", "state": "CA", "PERIOD": t["PERIOD"],
+                  "free_mwh_per_yr": t["tranche_free_mwh_per_yr"], "cost_per_mwh": t["tranche_cost_per_mwh"],
+                  "factor_tco2_per_mwh": float(r["import_tco2_per_mwh"]["CA"]), "directions": len(tdirs),
+                  "source": r["two_tranche"]["source"], "wa": "per-MWh charge as v3"} for t in tranche]
+    if wa_two and wa_tranche:
+        pd.DataFrame(wa_tranche).to_csv(folder / "trans_import_tranches.csv", index=False)
+        pd.DataFrame([("WA", a, b) for a, b in sorted(wa_dirs)],
+                     columns=["TRANCHE", "trans_lz_from", "trans_lz_to"]).to_csv(
+            folder / "trans_import_tranches_dirs.csv", index=False)
+        info += [{"mode": "two_tranche", "state": "WA", "PERIOD": t["PERIOD"],
+                  "free_mwh_per_yr": t["named_tranche_free_mwh_per_yr"], "cost_per_mwh": t["named_tranche_cost_per_mwh"],
+                  "factor_tco2_per_mwh": float(r["import_tco2_per_mwh"]["WA"]), "directions": len(wa_dirs),
+                  "source": r["wa_two_tranche"]["source"], "wa": "two_tranche (v3.2)"} for t in wa_tranche]
+        log(f"ca_wa_carbon (WA two_tranche): WA imports over {len(wa_dirs)} directions, free "
+            f"{float(r['wa_two_tranche']['free_mwh_per_yr']) / 1e6:.3f} TWh/yr, then $/MWh by period "
+            + ", ".join(f"{t['PERIOD']}: {t['named_tranche_cost_per_mwh']}" for t in wa_tranche))
+    if info:
+        pd.DataFrame(info).to_csv(folder / "trans_import_tranche_info.csv", index=False)
+    if two and tranche:
         log(f"ca_wa_carbon (two_tranche): CA imports over {len(tdirs)} directions, free "
             f"{float(r['two_tranche']['free_mwh_per_yr']) / 1e6:.3f} TWh/yr, then $/MWh by period "
             + ", ".join(f"{t['PERIOD']}: {t['tranche_cost_per_mwh']}" for t in tranche)
