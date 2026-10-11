@@ -308,17 +308,30 @@ indicative.
   - distribution excluded.
 - **Combustion comparison:** 116.65 lb CO2/MMBtu (EIA) = 52.91 kg/MMBtu → **410 kg CO2/MWh**.
 
-| Zone (2024 supply) | Upstream kg CH4/MMBtu, central (L–H) | kg CH4/MWh incl. T&S, central (L–H) | t CO2e/MWh GWP100 | t CO2e/MWh GWP20 | vs combustion CO2 (GWP100 / GWP20) | Inventory-based kg CH4/MWh |
-|---|---|---|---|---|---|---|
-| FL p101 (Appalachia 34%, Haynesville 31%, Permian 9%, Midcon 8%, GOM 7%) | 0.212 (0.136–0.306) | 1.94 (1.10–2.75) | 0.058 (0.033–0.082) | 0.160 (0.090–0.226) | +14% / +39% | 0.53 |
-| VA p99 (Appalachia 99.9%) | 0.106 (0.053–0.178) | 1.12 (0.45–1.75) | 0.033 (0.014–0.052) | 0.092 (0.038–0.145) | +8% / +22% | 0.38 |
-| east TX p64 (Permian 39%, Eagle Ford 26%, Haynesville 23%) | 0.319 (0.195–0.459) | 2.76 (1.55–3.94) | 0.082 (0.046–0.117) | 0.228 (0.128–0.325) | +20% / +56% | 0.66 |
-| CA p10 (Permian 33%, W. Canada 29%, Rockies 24%, San Juan 8%) | 0.402 (0.216–0.566) | 3.41 (1.72–4.77) | 0.102 (0.051–0.142) | 0.281 (0.142–0.393) | +25% / +69% | 1.01 |
+Measured basis (IDEA-01 default; Tom, 2026-10-11):
 
-How to read the table:
+| Zone (2024 supply) | Upstream kg CH4/MMBtu, central (L–H) | kg CH4/MWh incl. T&S, central (L–H) | t CO2e/MWh GWP100 | t CO2e/MWh GWP20 | vs combustion CO2 (GWP100 / GWP20) |
+|---|---|---|---|---|---|
+| FL p101 (Appalachia 34%, Haynesville 31%, Permian 9%, Midcon 8%, GOM 7%) | 0.212 (0.136–0.306) | 1.94 (1.10–2.75) | 0.058 (0.033–0.082) | 0.160 (0.090–0.226) | +14% / +39% |
+| VA p99 (Appalachia 99.9%) | 0.106 (0.053–0.178) | 1.12 (0.45–1.75) | 0.033 (0.014–0.052) | 0.092 (0.038–0.145) | +8% / +22% |
+| east TX p64 (Permian 39%, Eagle Ford 26%, Haynesville 23%) | 0.319 (0.195–0.459) | 2.76 (1.55–3.94) | 0.082 (0.046–0.117) | 0.228 (0.128–0.325) | +20% / +56% |
+| CA p10 (Permian 33%, W. Canada 29%, Rockies 24%, San Juan 8%) | 0.402 (0.216–0.566) | 3.41 (1.72–4.77) | 0.102 (0.051–0.142) | 0.281 (0.142–0.393) | +25% / +69% |
+
+Inventory basis (sensitivity), same shares, heat rate and T&S:
+
+| Zone | Upstream kg CH4/MMBtu | kg CH4/MWh incl. T&S | t CO2e/MWh GWP100 | t CO2e/MWh GWP20 | vs combustion CO2 (GWP100 / GWP20) | Measured ÷ inventory |
+|---|---|---|---|---|---|---|
+| FL p101 | 0.030 | 0.53 | 0.016 | 0.043 | +3.8% / +10.6% | 3.7× |
+| VA p99 | 0.011 | 0.38 | 0.011 | 0.031 | +2.7% / +7.5% | 3.0× |
+| east TX p64 | 0.048 | 0.66 | 0.020 | 0.055 | +4.8% / +13.3% | 4.2× |
+| CA p10 | 0.093 | 1.01 | 0.030 | 0.084 | +7.4% / +20.4% | 3.4× |
+
+How to read the tables:
 - **"vs combustion"** is upstream + T&S CO2e as a share of the plant's stack CO2.
-- **"Inventory-based"** uses GHGRP 2023 basin rates (prod + G&B) plus the same T&S. Basins without GHGRP use the
-  measured value, and W. Canada uses its NIR-level value. Measured values are **2.9–4.2× higher**.
+- **Inventory basis:** GHGRP RY2023 basin rates (production + G&B, `inventory` rows of the CSV); Fed. GOM at GHGRP
+  offshore 0.35%; W. Canada at its NIR-level value (AB 1.75/1.5, BC 0.42/1.7, CER weights). E. Canada and LNG imports
+  have no inventory value and keep the measured one (0.01–0.07% of supply in these zones). T&S is the GHGI central in
+  both tables, so the T&S share is larger on the inventory basis (0.29 of 0.38 kg/MWh in VA).
 - **Sensitivity, Eagle Ford conventional at 3.9%:** east TX +0.22 kg/MWh (+8%); FL +0.05 (+2%).
 - **`current_rules` path with 2024 shares and heat rate held, kg CH4/MWh for 2030 → 2035–2045:**
   - FL 1.66 → 1.47;
@@ -396,8 +409,76 @@ zones it varies about 3×, driven by basin mix:
   - ECCC NIR 2026 Part 3 / CRT tables by province;
   - the basin tables in Varon 2025, Gautam 2026 and the MethaneSAT ACP paper.
 
-## 10. Open points for Tom
+## 10. Decisions (Tom, 2026-10-11)
 
-1. Whether to use measured `upstream_total` as the default basis for IDEA-01, with inventory as a sensitivity (the
-   recommendation here).
-2. Rockies (other) weighting for CA flows (Kern River = Green River-heavy), and the 50/50 E. Canada assumption.
+1. **Measured `upstream_total` is the IDEA-01 default; inventory is a sensitivity.**
+2. **Rockies (other) weighting and the 50/50 E. Canada mix stay as placeholders, with sensitivities.** The
+   Piceance/Uinta range (1.7 / 7.0 / 9.0%) stays visible in the CSV notes and §2. Sensitivities to carry:
+   Rockies (other) at its low (1.0%) and high (4.7%) values; E. Canada at 100% W. Canada (1.2%) and 100% Appalachia
+   (0.6%).
+3. **Stage 1 is the source of basin shares; Stage 2a is the feasibility/capacity check.**
+
+## 11. For publication: values taken from search snippets
+
+Every value below came from a search-engine summary, not from the paper or document itself, and must be checked
+against the source before anything is published. Values from EIA files, the EPA files (VM originals) and IPCC
+Table 7.15 are not on this list.
+
+**Basin intensities (§2, CSV `measurement` rows)**
+- [ ] MethaneSAT/MethaneAIR team, ACP 26:5961 (2026): Permian 2.6% (1.9–3.5) of marketed gas, Delaware NM ~1.2%,
+  Delaware TX ~3.1%; Appalachia ~0.6%; Uinta ~9%; Eagle Ford ~2.4%. MethaneSAT global assessment (Feb 2026):
+  Permian 2.4%, Appalachia 0.6%. MethaneSAT data span Mar 2024–Jun 2025.
+- [ ] Gautam et al., ACP 26:1179 (2026): national 1.6% of gross (2023); ~5× EPA; Permian 2.4% (1.5–3.2);
+  Appalachia and Haynesville ~1%; Uinta and Piceance >7%; Eagle Ford ~2.0%, Barnett ~1.6%, Anadarko ~1.4%,
+  Bakken ~2.1%, DJ ~1.3% (the last five low confidence).
+- [ ] Varon et al., ES&T 60(1) (2025-12-22): Permian 5.2% → 3.2% (2019 → 2023), TX 5.2 → 3.6, NM 4.5 → 2.1;
+  Haynesville 0.6 → 0.4%, Eagle Ford 1.2 → 1.0%, Barnett 2.8 → 2.5%, Anadarko 2.3 → 2.0% (2022 → 2023).
+- [ ] Varon et al. 2023: Permian 4.6 ± 1.3% (used for the ±30% single-study band).
+- [ ] Estrada/Runkle et al., ACP (2026), TROPOMI 2019–24: US 2.3% → 1.9% (also the `current_rules` trend);
+  basins: Appalachia 0.8%, Haynesville 0.7%, Permian 2.3%, Eagle Ford 0.9%, Barnett 3.1%, Anadarko 1.6%,
+  San Juan 2.2%, Uinta–Piceance 1.7%.
+- [ ] Appalachian Methane Initiative (2025): 0.52% (0.30–0.62); unconventional 0.09% vs conventional 18.3%;
+  conventional ~2% of gas, 63.5% of emissions.
+- [ ] Zhang et al., Sci. Adv. (2020): Permian 3.7% (2018–19).
+- [ ] Sherwin et al., Nat. Commun. (2024): NM Permian 9.63% (9.04–10.39, 2018–20); DJ 1.08% (0.98–1.18, 2021).
+- [ ] Lin et al. (2021): Uinta 6–8%. Robertson et al. (2017): Upper Green River 0.18%.
+- [ ] Peischl et al. (2016): Bakken 4.2–8.4% of CH4 produced (2014), 1.4–1.6% energy-based.
+- [ ] Omara et al., ESSD (2024): national 2.6% (2021).
+- [ ] Omara et al., Nat. Commun. 13:2085 (2022): low-production sites ≥10% loss, 6–12× the 1.5% all-site mean,
+  37–75% of well-site CH4, 6% of 2019 output (basis of `eagle_ford_conventional` high).
+- [ ] Gorchov Negron et al., ES&T 54:5112 (2020): federal GOM 2.9% (2.2–3.8%); shallow ~6–7%, deep ~0.2%.
+- [ ] Gorchov Negron et al., PNAS (2023): 0.60 Tg/yr (0.41–0.81); 5.3 g CO2e/MJ (4.1–6.7); deep 1.1, shallow
+  federal 16, shallow state 43 g CO2e/MJ.
+- [ ] Alvarez et al., Science 361:186 (2018), Table 1: 13 Tg, 2.3% of gross; production 7.6, G&B 2.6,
+  processing 0.72, T&S 1.8, distribution 0.44 Tg; GHGI 3.5/2.3/0.44/1.4/0.44 (segment shares and the T&S high
+  multiplier).
+
+**Canada**
+- [ ] Conrad et al. (2023): Alberta conventional ~1.7–1.8%, ~1.5× NIR. Johnson/Conrad/Tyner (2023): BC ~0.42%,
+  ~1.7× inventory. Chan et al. (2020): AB+SK ~1.9× NIR. Johnson (2017) 1.25–1.5×; MacKay (2021) 1.5×;
+  Chan (2024) NIR gap ~10%.
+- [ ] CER 2024 production 18.3 Bcf/d (AB 59.7%, BC 38.6%).
+- [ ] ECCC NIR 2026: O&G CH4 −46% from the 2014 peak; EDF tabulation 1,856 kt O&G CH4 (2023).
+
+**LNG imports**
+- [ ] Norway 2024: 10,871 t CH4 over 126 bcm; Foulds et al. (2022) measured 16% below operator reports.
+- [ ] SEA-LNG/Rystad: 13.9 g CO2e/MJ well-to-tank (2024).
+
+**Inventory context**
+- [ ] ERM/Ceres/CATF benchmarking (2024): 0.36–0.63% national, Permian 0.37–0.86%; ONE Future 0.331% (2023);
+  EOG 0.04%.
+- [ ] EDF blog (15 Apr 2026): no EPA 1990–2024 inventory; US UNFCCC withdrawal effective Feb 2027.
+
+**Rules and dates (§6), to check against the Federal Register, statutes and state dockets**
+- [ ] OOOOb/c: FR 2025-14531 (31 Jul 2025), FR 2025-21788 (3 Dec 2025), deadlines 22 Jan 2027; FR 2026-06808
+  (9 Apr 2026); EPA flaring memo 30 Apr 2026; Phase 2 proposal 7 Oct 2026; Texas v. EPA (abeyance); EDF v. Zeldin
+  No. 26-1152.
+- [ ] WEC: P.L. 119-2 (14 Mar 2025); part 99 removal 19 May 2025; P.L. 119-21 (4 Jul 2025), charge from 2034
+  emissions.
+- [ ] Subpart W: 89 FR 42062 (14 May 2024); RY2025 deadline 30 Oct 2026 (91 FR 9712, 27 Feb 2026); suspension
+  proposal 16 Sep 2025.
+- [ ] States: NM OCD 98% capture by 31 Dec 2026, NMED 20.2.50, 20.2.51 petition 13 Aug 2026 and hearing
+  ~30 Nov 2026; CO Reg 7 and OOOOc-equivalent 18 Sep 2026; PA RACT 2022, EQB 2027; ND 91%.
+- [ ] EU 2024/1787 dates; Canada amended regulations (CG II 31 Dec 2025, ~72% by 2030) and Alberta MOU (75% by
+  2035).
+

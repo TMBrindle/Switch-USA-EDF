@@ -15,7 +15,8 @@ python -m gasnet.cli fetch      # download the pinned inputs into data/raw/ (git
 python -m gasnet.cli run        # writes outputs/ (refuses if a raw file differs from its pin)
 python -m gasnet.cli report <switch outputs dir> [--inputs-dir <inputs dir>]   # writes basin_gas_mmbtu.csv there
 python -m gasnet.cli stage2a    # Stage 2a annual network LP -> outputs/stage2a/ (§103)
-python -m pytest -q             # 30 tests; the raw-data ones skip if data/raw is empty
+python -m gasnet.cli nemscap    # NGMM capacity (AEO2026 restart file) vs Stage 2a min expansion (§104)
+python -m pytest -q             # 33 tests; the raw-data ones skip if data/raw is empty
 python -m gasnet.cli pin        # only after a deliberate data refresh: rewrites data/SOURCES.yml
 ```
 
@@ -25,7 +26,8 @@ python -m gasnet.cli pin        # only after a deliberate data refresh: rewrites
 
 | File | Contents |
 |---|---|
-| `zone_basin_shares.csv` | `zone, year, basin, share, method, source_vintage` for the 134 zones, 2024 and 2028/2030/2035/2040/2045, default method (`trace_aeo_additive_balanced`). Shares sum to 1 per zone and year (rounded to 6 decimals). |
+| `zone_basin_shares.csv` | `zone, year, basin, share, method, source_vintage, fallback` for the 134 zones, 2024 and 2028/2030/2035/2040/2045, default method (`trace_aeo_additive_balanced`), with the §104 share fallback applied (`method` `fallback_2024`, `fallback` = reason; empty otherwise). Shares sum to 1 per zone and year (rounded to 6 decimals). |
+| `zone_basin_shares_no_fallback.csv`, `share_fallback.csv`, `balance_degeneracy_by_zone.csv` | The shares before the fallback (identical to the §103 file); the zone-years that fall back and why; the degeneracy (pp) of every zone and model year (§104) |
 | `zone_basin_shares.meta.json` | Method description and the known limitations, quantified (district labelling, Colorado San Juan, mixing, routing) |
 | `zone_basin_shares_sensitivity_ratio.csv` | Model years under the ratio method (`trace_aeo_ratio_balanced`) |
 | `method_comparison.csv` | Example zones under all four projection variants (additive/ratio × balanced/unbalanced) |
@@ -40,7 +42,8 @@ python -m gasnet.cli pin        # only after a deliberate data refresh: rewrites
 | `flags.csv`, `run_summary.json` | Every held, scaled or assigned item (below) and the run summary |
 
 `method`: `trace_eia` (2024: proportional sharing on EIA state-to-state movements); `trace_aeo_additive_balanced`
-(model years, default) and `trace_aeo_ratio_balanced` (sensitivity), below. `source_vintage` codes:
+(model years, default) and `trace_aeo_ratio_balanced` (sensitivity), below; `fallback_2024` (a model year that
+takes the zone's 2024 shares, §104). `source_vintage` codes:
 - `NGA2024@<release>` – EIA Natural Gas Annual dnav files;
 - `ARR2024@<release>` – EIA proved-reserves report, year-end 2024;
 - `NEMS@1bfbb2a` – EIAgov/NEMS inputs;
@@ -577,6 +580,72 @@ What the differences mean:
 - Crossings not capacity-limited.
 - Distances are between generator-weighted centroids.
 - Utilisation cap uniform.
+
+## Stage 1 share fallback, NGMM capacity comparison (§104)
+
+**Share fallback** (Tom, 2026-10-11; `config.yaml share_fallback`, `gasnet/limitations.share_fallback`). A projected
+zone-year takes the zone's 2024 shares (`method` `fallback_2024`, 2024 `source_vintage`, `fallback` = reason) when
+- a hub the zone draws on (`zone_hub_weights` weight > 0) has unmet local use above 25% of its floor
+  (`unmet_local_use.csv`), or
+- the zone's shares differ by more than 10 pp between the two equally good balancing solutions
+  (`balance_degeneracy_by_zone.csv`, total-variation distance).
+
+89 zone-years in 24 zones switch (`share_fallback.csv`):
+
+| Zones | State | Years | Reason |
+|---|---|---|---|
+| p1–p4 | WA | 2028, 2030, 2040, 2045 | unmet local use 26–69% |
+| p5–p7 | OR | all | unmet local use 29–100% |
+| p45, p69, p70 | IA | 2040, 2045 | unmet local use 78–91% |
+| p92 | TN | 2035 | unmet local use 57% (TN 2045 is 22%, below the threshold) |
+| p54, p55, p71–p73, p84 | MO | all | degeneracy 15–27 pp |
+| p80–p83 | IL | 2030, 2035 | degeneracy 11–13 pp |
+| p130 | NH | all | degeneracy 10–13 pp |
+| p129, p134 | VT, ME | 2030–2045 | degeneracy 11–13 pp |
+
+- The change in these zone-years is 3.6–47 pp (total-variation distance from the balanced shares); largest in
+  Missouri (47 pp) and Illinois (43 pp), smallest in WA/OR (3.6–4.6 pp), whose 2024 and projected mixes are close.
+- **The example zones (FL, east TX p57/p64–p67, VA, MA, CA) do not switch in any year**; their shares are unchanged.
+- No other output changes: `zone_basin_shares_no_fallback.csv` is byte-identical to the §103 `zone_basin_shares.csv`,
+  and Stage 2a's comparison zones are unaffected.
+- Fallback years are flagged rather than solved; a zone can switch in one year and not the next (e.g. VT 2028).
+
+**NGMM pipeline capacity vs Stage 2a** (`gasnet/nems_capacity.py`, `python -m gasnet.cli nemscap` →
+`outputs/stage2a/nems_capacity_vs_stage2a.csv`, `nems_ngmm_capacity_d011626a.csv`).
+- **Source.** EIAgov/NEMS publishes one reference-case restart file, `output/aeo2026/cb2026/d011626a/restart.npz`
+  (pinned). It is **run d011626a, not the published d021826b**, whose restart file is not in the repo. NGMM writes
+  common block NGRPT to it: `NGCAPS(12,6,year)` (capacity entering each flow region, by arc) and `NGFLOWS` (Bcf/yr).
+  The arcs are identified by matching NGFLOWS to Table 64; across all matched arcs and years 2025–2050 the d011626a
+  flows are within 1.2% (weighted) of the published d021826b Table 64, so the run is a close proxy.
+- **Endogenous builds.** NGMM allows builds after NoBuildYear 2027 (`ngassumptions.txt`). Its planned list
+  (`ngcapacity.txt` PlannedCapacity, 2025–2028) has nothing across the Mid-Atlantic/Ohio → Eastern Midwest boundary.
+- **AEO assumes new Appalachian takeaway, a lot of it:**
+
+| Arc (NGMM regions) | 2025 capacity, Bcf/d | Added by 2035 | Added by 2045 | Stage 2a min expansion 2035 | 2045 |
+|---|---|---|---|---|---|
+| Mid-Atlantic/Ohio → Eastern Midwest | 19.2 | +11.1 | +22.5 | +4.2 (WV→KY 3.1, OH→MI 1.1) | +12.2 (WV→KY 4.9, OH→MI 4.1, OH→IN 3.1, VA→TN 0.2) |
+| Eastern Midwest → South Central | 11.9 | +1.5 | +11.4 | 0 | 0 |
+| Eastern Midwest → Southeast | 0.2 | +0.4 | +0.8 | 0 | 0 |
+| Mid-Atlantic/Ohio → Southeast | 3.4 | 0 | +0.7 | +0.3 (VA→NC) | +0.8 (VA→NC) |
+| South Central → Florida | 4.9 | 0 | +1.0 | 0 | +0.5 (AL→FL) |
+| Northern Great Plains → Eastern Midwest | 4.3 | +0.6 | +0.6 | 0 | 0 |
+| Within Mid-Atlantic/Ohio (not an NGMM arc) | – | – | – | +2.2 (PA→MD) | +7.8 (PA→OH 5.0, PA→MD 2.8) |
+| Within Eastern Midwest (not an NGMM arc) | – | – | – | 0 | +1.0 (KY→TN) |
+
+- NGMM's Mid-Atlantic → Eastern Midwest capacity goes 7,001 → 11,035 → 15,217 Bcf/yr (2025/2035/2045), with
+  flows 4,297 → 9,455 → 12,408 Bcf. Much of it continues south: Eastern Midwest → South Central flow reaches 7,179 Bcf
+  in 2045 (Table 64: 7,200), i.e. Appalachian gas to the Gulf through the Midwest.
+- Stage 2a figures are nameplate Bcf/d (the annual expansion ÷ the 0.9 utilisation cap), comparable with NGCAPS.
+- **Stage 2a needs less than NGMM builds** across the boundary: 4.2 vs 11.1 Bcf/d by 2035, 12.2 vs 22.5 by 2045
+  (6.7 and 22.3 Bcf/d in all, including arcs inside the Mid-Atlantic region that NGMM does not represent). Stage 2a
+  serves demand at least cost and has no reason to send Appalachian gas to the Gulf; NGMM does (Eastern Midwest →
+  South Central +11.4 Bcf/d by 2045). The two start from the same boundary capacity: Stage 2a's EIA-based 2025
+  nameplate is 19.1 Bcf/d, NGMM's 19.2.
+- Two NGCAPS rows/columns carry flow but match no Table 64 arc (row 12 and some extra columns, e.g. into FL and
+  AZ_NM); they are kept as `unidentified` in the full file and do not enter the comparison.
+- **The file that would have d021826b:** `output/aeo2026/cb2026/d021826b/restart.npz` (or `restart.rlx`) in
+  EIAgov/NEMS; it is not published. NGMM's own capacity report pages (`models/ngas/Pages/Capacity Additions.xml`)
+  are AIMMS pages stored as Git LFS pointers and hold no data.
 
 ## Limits
 

@@ -95,9 +95,44 @@ def test_committed_sensitivity_and_metadata():
     np.testing.assert_allclose(s.groupby(["zone", "year"]).share.sum().values, 1.0, atol=1e-5)
     assert set(s.method) == {"trace_aeo_ratio_balanced"}
     z = pd.read_csv(OUT / "zone_basin_shares.csv")
-    assert set(z[z.year > 2024].method) == {"trace_aeo_additive_balanced"}
+    assert set(z[z.year > 2024].method) == {"trace_aeo_additive_balanced", "fallback_2024"}
+    assert set(pd.read_csv(OUT / "zone_basin_shares_no_fallback.csv").query("year > 2024").method) == {
+        "trace_aeo_additive_balanced"}
     meta = json.load(open(OUT / "zone_basin_shares.meta.json"))
     ids = [k["id"] for k in meta["known_limitations"]]
     assert "district_to_basin_labelling" in ids and "colorado_san_juan_model_based" in ids
     r = pd.read_csv(OUT / "projection_reconciliation.csv")
     assert (r[r.method.str.endswith("_balanced")].overdraw_after_mmcf > -1).all()
+
+
+def test_share_fallback_rule():
+    from gasnet import limitations
+    z = pd.DataFrame([(zn, y, b, s, "trace_eia" if y == 2024 else "t", "v24" if y == 2024 else "vp")
+                      for zn, y, b, s in [("p1", 2024, "a", 0.6), ("p1", 2024, "b", 0.4), ("p1", 2030, "a", 0.2),
+                                          ("p1", 2030, "b", 0.8), ("p2", 2024, "a", 1.0), ("p2", 2024, "b", 0.0),
+                                          ("p2", 2030, "a", 0.5), ("p2", 2030, "b", 0.5), ("p3", 2030, "a", 0.3),
+                                          ("p3", 2030, "b", 0.7), ("p3", 2024, "a", 0.3), ("p3", 2024, "b", 0.7)]],
+                     columns=["zone", "year", "basin", "share", "method", "source_vintage"])
+    w = pd.DataFrame({"zone": ["p1", "p2", "p3"], "hub": ["OR", "MO", "OR"], "weight": [1.0, 1.0, 0.0]})
+    unmet = pd.DataFrame({"year": [2030], "hub": ["OR"], "shortfall_pct_of_floor": [30.0]})
+    deg = pd.DataFrame({"year": [2030, 2030], "zone": ["p2", "p3"], "tvd_pp": [12.0, 9.9]})
+    out, sw = limitations.share_fallback(z, w, unmet, deg, 2024, 25, 10)
+    s = out.set_index(["zone", "year", "basin"])
+    assert s.loc[("p1", 2030, "a"), "share"] == pytest.approx(0.6) and "unmet local use OR" in s.loc[("p1", 2030, "a"), "fallback"]
+    assert s.loc[("p2", 2030, "b"), "share"] == 0.0 and "degeneracy" in s.loc[("p2", 2030, "b"), "fallback"]
+    assert s.loc[("p2", 2030, "a"), "method"] == "fallback_2024" and s.loc[("p2", 2030, "a"), "source_vintage"] == "v24"
+    assert s.loc[("p3", 2030, "a"), "fallback"] == "" and s.loc[("p3", 2030, "a"), "share"] == 0.3   # weight 0, 9.9 pp
+    assert list(sw.zone) == ["p1", "p2"]
+
+
+def test_committed_fallback_leaves_example_zones():
+    z = pd.read_csv(OUT / "zone_basin_shares.csv", keep_default_na=False)
+    o = pd.read_csv(OUT / "zone_basin_shares_no_fallback.csv")
+    m = z.merge(o, on=["zone", "year", "basin"], suffixes=("", "_o"))
+    ex = ["p91", "p101", "p102", "p57", "p64", "p65", "p66", "p67", "p99", "p100", "p118", "p124", "p131",
+          "p8", "p9", "p10", "p11"]
+    assert (m[m.zone.isin(ex)].share - m[m.zone.isin(ex)].share_o).abs().max() < 1e-12
+    fb = m[m.fallback != ""]
+    base = z[z.year == 2024].set_index(["zone", "basin"]).share
+    np.testing.assert_allclose(fb.share.values, base.loc[list(zip(fb.zone, fb.basin))].values)
+    assert set(fb.zone) >= {"p5", "p6", "p7", "p54"}

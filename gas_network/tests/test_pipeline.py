@@ -18,7 +18,7 @@ def test_committed_zone_shares_sum_to_one_and_complete():
     assert sorted(z.year.unique()) == [cfg["base_year"]] + cfg["model_years"]
     assert set(z.basin) == set(cfg["basins"])
     assert (z.share >= -1e-9).all()
-    assert list(z.columns) == ["zone", "year", "basin", "share", "method", "source_vintage"]
+    assert list(z.columns) == ["zone", "year", "basin", "share", "method", "source_vintage", "fallback"]
 
 
 def test_basin_intensity_template_empty():

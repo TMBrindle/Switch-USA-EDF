@@ -101,3 +101,33 @@ def unmet_local_use(cfg: dict, nets: dict, raw) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["year", "state", "hub", "shortfall_bcf", "floor_bcf", "shortfall_pct_of_floor",
                                        "gas_mw_eia860m",
                                        "has_gas_generation", "switch_zones"])
+
+
+def share_fallback(z: pd.DataFrame, w: pd.DataFrame, unmet: pd.DataFrame, deg_zone: pd.DataFrame, base_year: int,
+                   unmet_pct: float, deg_pp: float) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """CHANGES §104 (Tom): a projected zone-year falls back to the zone's base-year shares when
+    (a) a hub the zone draws on (zone_hub_weights weight > 0) has unmet local use above unmet_pct % of its floor, or
+    (b) the zone's shares differ by more than deg_pp (total-variation distance) between two equally good balancing
+    optima (deg_zone: year, zone, tvd_pp).
+    Returns the shares with method 'fallback_2024', the base-year vintage and a 'fallback' reason column ('' when
+    kept), and the list of switches (year, zone, reason)."""
+    reasons: dict = {}
+    for r in unmet[unmet.shortfall_pct_of_floor > unmet_pct].itertuples():
+        for zone in w[(w.hub == r.hub) & (w.weight > 0)].zone:
+            reasons.setdefault((zone, int(r.year)), []).append(
+                f"unmet local use {r.hub} {r.shortfall_pct_of_floor:.1f}% > {unmet_pct:g}%")
+    for r in deg_zone[deg_zone.tvd_pp > deg_pp].itertuples():
+        reasons.setdefault((r.zone, int(r.year)), []).append(f"balance degeneracy {r.tvd_pp:.1f} pp > {deg_pp:g} pp")
+    out = z.copy()
+    out["fallback"] = ""
+    base = z[z.year == base_year]
+    rows = []
+    for (zone, y), rs in sorted(reasons.items(), key=lambda kv: (kv[0][1], int(kv[0][0][1:]))):
+        m = (out.zone == zone) & (out.year == y)
+        b = base[base.zone == zone]
+        out.loc[m, "share"] = out.loc[m, "basin"].map(b.set_index("basin").share).fillna(0.0).values
+        out.loc[m, "method"] = "fallback_2024"
+        out.loc[m, "source_vintage"] = b.source_vintage.iloc[0]
+        out.loc[m, "fallback"] = "; ".join(rs)
+        rows.append(dict(year=y, zone=zone, reason="; ".join(rs)))
+    return out, pd.DataFrame(rows, columns=["year", "zone", "reason"])

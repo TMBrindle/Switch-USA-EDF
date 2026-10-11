@@ -826,3 +826,11 @@ files:
     -> RRC district'
   sha256: 86a7374e09f930bc227c5f3b4e2fc0de60bfa9c8d32a7fb93712313592297ccb
   retrieved: '2026-10-09'
+- id: nems_restart_cb2026_d011626a
+  path: nems/restart_cb2026_d011626a.npz
+  url: https://raw.githubusercontent.com/EIAgov/NEMS/1bfbb2af4c3eb6e884227630ae67eb0e0e3c72ba/output/aeo2026/cb2026/d011626a/restart.npz
+  release: EIAgov/NEMS commit 1bfbb2a (2026-06-26)
+  publisher: "EIA NEMS AEO2026 reference-case restart file, run cb2026.d011626a (NOT the published d021826b): NGRPT/NGCAPS\
+    \ interregional pipeline capacity (CHANGES \xA7104)"
+  sha256: ea4e32d4e8414bce5a67c2f0eee2250f59acbda6f90978aae6ae9ae0f83eaae2
+  retrieved: '2026-10-11'

@@ -93,3 +93,16 @@ def test_demand_2024_matches_eia():
     bd = stage2a.base_demand(inp)
     cons = bd[~bd.use.str.startswith("exports")].mmcf.sum()
     assert cons / 1e6 == pytest.approx(32.515, abs=0.01)             # EIA 2024 total consumption, 49 files
+
+
+@needs_raw
+def test_nems_capacity_vs_stage2a():
+    from gasnet import nems_capacity
+    d = pd.read_csv(OUT / "nems_capacity_vs_stage2a.csv").set_index(["year", "src", "dst"])
+    a = pd.read_csv(OUT / "nems_ngmm_capacity_d011626a.csv")
+    m = a.dropna(subset=["t64_bcf"])
+    m = m[(m.year >= 2025) & (m.t64_bcf.abs() > 50)]
+    assert (m.flow_bcf - m.t64_bcf).abs().sum() / m.t64_bcf.abs().sum() < 0.03   # arcs identified (run d011626a vs d021826b)
+    k = (2045, "MidAtlantic_OH", "EasternMidwest")
+    assert d.loc[k, "ngmm_added_bcfd"] > 20 and 5 < d.loc[k, "stage2a_min_expansion_bcfd"] < d.loc[k, "ngmm_added_bcfd"]
+    assert nems_capacity.DEST[2] == "EasternMidwest"

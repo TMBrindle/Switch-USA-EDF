@@ -6,6 +6,12 @@ base_year: 2024            # EIA Natural Gas Annual state-to-state movements (la
 model_years: [2028, 2030, 2035, 2040, 2045]
 projection_method: additive   # additive (default) | ratio (sensitivity); CHANGES §102
 balance: true               # rebalance projected arcs so no hub is overdrawn (gasnet/balance.py)
+# Share fallback (Tom, CHANGES §104): a projected zone-year takes the zone's 2024 shares when a hub it draws on
+# ends below its local-use floor by more than unmet_pct_of_local_use %, or when the zone's shares differ by more than
+# degeneracy_pp between two equally good balancing solutions. zone_basin_shares.csv flags the reason.
+share_fallback:
+  unmet_pct_of_local_use: 25
+  degeneracy_pp: 10
 aeo_index_base_year: 2025  # ASSUMPTION: AEO2026 growth from its first table year (2025) is applied to the 2024 base
 
 # Natural-gas fuels in the S0 v3.1 inputs (pg/settings/fuels.yml tech_fuel_map + ccs_fuel_map). report.py fails if

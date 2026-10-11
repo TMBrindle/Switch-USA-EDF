@@ -574,5 +574,455 @@
     "switch_zones": "p1 p2 p3 p4"
    }
   ]
+ },
+ "share_fallback": {
+  "text": "CHANGES \u00a7104 (Tom): a projected zone-year uses the zone's 2024 shares (method fallback_2024, column 'fallback' gives the reason) when a hub it draws on has unmet local use above 25% of its floor, or its shares differ by more than 10 pp between equally good balancing solutions. Shares before the fallback: zone_basin_shares_no_fallback.csv.",
+  "rows": [
+   {
+    "year": 2028,
+    "zone": "p1",
+    "reason": "unmet local use WA 25.8% > 25%"
+   },
+   {
+    "year": 2028,
+    "zone": "p2",
+    "reason": "unmet local use WA 25.8% > 25%"
+   },
+   {
+    "year": 2028,
+    "zone": "p3",
+    "reason": "unmet local use WA 25.8% > 25%"
+   },
+   {
+    "year": 2028,
+    "zone": "p4",
+    "reason": "unmet local use WA 25.8% > 25%"
+   },
+   {
+    "year": 2028,
+    "zone": "p5",
+    "reason": "unmet local use OR 79.5% > 25%"
+   },
+   {
+    "year": 2028,
+    "zone": "p6",
+    "reason": "unmet local use OR 79.5% > 25%"
+   },
+   {
+    "year": 2028,
+    "zone": "p7",
+    "reason": "unmet local use OR 79.5% > 25%"
+   },
+   {
+    "year": 2028,
+    "zone": "p54",
+    "reason": "balance degeneracy 26.7 pp > 10 pp"
+   },
+   {
+    "year": 2028,
+    "zone": "p55",
+    "reason": "balance degeneracy 26.7 pp > 10 pp"
+   },
+   {
+    "year": 2028,
+    "zone": "p71",
+    "reason": "balance degeneracy 26.7 pp > 10 pp"
+   },
+   {
+    "year": 2028,
+    "zone": "p72",
+    "reason": "balance degeneracy 26.7 pp > 10 pp"
+   },
+   {
+    "year": 2028,
+    "zone": "p73",
+    "reason": "balance degeneracy 26.7 pp > 10 pp"
+   },
+   {
+    "year": 2028,
+    "zone": "p84",
+    "reason": "balance degeneracy 26.7 pp > 10 pp"
+   },
+   {
+    "year": 2028,
+    "zone": "p130",
+    "reason": "balance degeneracy 10.3 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p1",
+    "reason": "unmet local use WA 28.2% > 25%"
+   },
+   {
+    "year": 2030,
+    "zone": "p2",
+    "reason": "unmet local use WA 28.2% > 25%"
+   },
+   {
+    "year": 2030,
+    "zone": "p3",
+    "reason": "unmet local use WA 28.2% > 25%"
+   },
+   {
+    "year": 2030,
+    "zone": "p4",
+    "reason": "unmet local use WA 28.2% > 25%"
+   },
+   {
+    "year": 2030,
+    "zone": "p5",
+    "reason": "unmet local use OR 94.6% > 25%"
+   },
+   {
+    "year": 2030,
+    "zone": "p6",
+    "reason": "unmet local use OR 94.6% > 25%"
+   },
+   {
+    "year": 2030,
+    "zone": "p7",
+    "reason": "unmet local use OR 94.6% > 25%"
+   },
+   {
+    "year": 2030,
+    "zone": "p54",
+    "reason": "balance degeneracy 20.8 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p55",
+    "reason": "balance degeneracy 20.8 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p71",
+    "reason": "balance degeneracy 20.8 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p72",
+    "reason": "balance degeneracy 20.8 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p73",
+    "reason": "balance degeneracy 20.8 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p80",
+    "reason": "balance degeneracy 13.2 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p81",
+    "reason": "balance degeneracy 13.2 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p82",
+    "reason": "balance degeneracy 13.2 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p83",
+    "reason": "balance degeneracy 13.2 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p84",
+    "reason": "balance degeneracy 20.8 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p129",
+    "reason": "balance degeneracy 12.5 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p130",
+    "reason": "balance degeneracy 13.1 pp > 10 pp"
+   },
+   {
+    "year": 2030,
+    "zone": "p134",
+    "reason": "balance degeneracy 11.8 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p5",
+    "reason": "unmet local use OR 28.7% > 25%"
+   },
+   {
+    "year": 2035,
+    "zone": "p6",
+    "reason": "unmet local use OR 28.7% > 25%"
+   },
+   {
+    "year": 2035,
+    "zone": "p7",
+    "reason": "unmet local use OR 28.7% > 25%"
+   },
+   {
+    "year": 2035,
+    "zone": "p54",
+    "reason": "balance degeneracy 15.3 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p55",
+    "reason": "balance degeneracy 15.3 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p71",
+    "reason": "balance degeneracy 15.3 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p72",
+    "reason": "balance degeneracy 15.3 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p73",
+    "reason": "balance degeneracy 15.3 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p80",
+    "reason": "balance degeneracy 10.7 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p81",
+    "reason": "balance degeneracy 10.7 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p82",
+    "reason": "balance degeneracy 10.7 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p83",
+    "reason": "balance degeneracy 10.7 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p84",
+    "reason": "balance degeneracy 15.3 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p92",
+    "reason": "unmet local use TN 56.7% > 25%"
+   },
+   {
+    "year": 2035,
+    "zone": "p129",
+    "reason": "balance degeneracy 12.0 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p130",
+    "reason": "balance degeneracy 12.5 pp > 10 pp"
+   },
+   {
+    "year": 2035,
+    "zone": "p134",
+    "reason": "balance degeneracy 11.4 pp > 10 pp"
+   },
+   {
+    "year": 2040,
+    "zone": "p1",
+    "reason": "unmet local use WA 27.6% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p2",
+    "reason": "unmet local use WA 27.6% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p3",
+    "reason": "unmet local use WA 27.6% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p4",
+    "reason": "unmet local use WA 27.6% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p5",
+    "reason": "unmet local use OR 71.5% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p6",
+    "reason": "unmet local use OR 71.5% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p7",
+    "reason": "unmet local use OR 71.5% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p45",
+    "reason": "unmet local use IA 90.7% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p54",
+    "reason": "balance degeneracy 18.3 pp > 10 pp"
+   },
+   {
+    "year": 2040,
+    "zone": "p55",
+    "reason": "balance degeneracy 18.3 pp > 10 pp"
+   },
+   {
+    "year": 2040,
+    "zone": "p69",
+    "reason": "unmet local use IA 90.7% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p70",
+    "reason": "unmet local use IA 90.7% > 25%"
+   },
+   {
+    "year": 2040,
+    "zone": "p71",
+    "reason": "balance degeneracy 18.3 pp > 10 pp"
+   },
+   {
+    "year": 2040,
+    "zone": "p72",
+    "reason": "balance degeneracy 18.3 pp > 10 pp"
+   },
+   {
+    "year": 2040,
+    "zone": "p73",
+    "reason": "balance degeneracy 18.3 pp > 10 pp"
+   },
+   {
+    "year": 2040,
+    "zone": "p84",
+    "reason": "balance degeneracy 18.3 pp > 10 pp"
+   },
+   {
+    "year": 2040,
+    "zone": "p129",
+    "reason": "balance degeneracy 12.0 pp > 10 pp"
+   },
+   {
+    "year": 2040,
+    "zone": "p130",
+    "reason": "balance degeneracy 12.5 pp > 10 pp"
+   },
+   {
+    "year": 2040,
+    "zone": "p134",
+    "reason": "balance degeneracy 11.5 pp > 10 pp"
+   },
+   {
+    "year": 2045,
+    "zone": "p1",
+    "reason": "unmet local use WA 68.6% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p2",
+    "reason": "unmet local use WA 68.6% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p3",
+    "reason": "unmet local use WA 68.6% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p4",
+    "reason": "unmet local use WA 68.6% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p5",
+    "reason": "unmet local use OR 100.0% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p6",
+    "reason": "unmet local use OR 100.0% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p7",
+    "reason": "unmet local use OR 100.0% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p45",
+    "reason": "unmet local use IA 77.7% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p54",
+    "reason": "balance degeneracy 24.1 pp > 10 pp"
+   },
+   {
+    "year": 2045,
+    "zone": "p55",
+    "reason": "balance degeneracy 24.1 pp > 10 pp"
+   },
+   {
+    "year": 2045,
+    "zone": "p69",
+    "reason": "unmet local use IA 77.7% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p70",
+    "reason": "unmet local use IA 77.7% > 25%"
+   },
+   {
+    "year": 2045,
+    "zone": "p71",
+    "reason": "balance degeneracy 24.1 pp > 10 pp"
+   },
+   {
+    "year": 2045,
+    "zone": "p72",
+    "reason": "balance degeneracy 24.1 pp > 10 pp"
+   },
+   {
+    "year": 2045,
+    "zone": "p73",
+    "reason": "balance degeneracy 24.1 pp > 10 pp"
+   },
+   {
+    "year": 2045,
+    "zone": "p84",
+    "reason": "balance degeneracy 24.1 pp > 10 pp"
+   },
+   {
+    "year": 2045,
+    "zone": "p129",
+    "reason": "balance degeneracy 12.0 pp > 10 pp"
+   },
+   {
+    "year": 2045,
+    "zone": "p130",
+    "reason": "balance degeneracy 12.4 pp > 10 pp"
+   },
+   {
+    "year": 2045,
+    "zone": "p134",
+    "reason": "balance degeneracy 11.6 pp > 10 pp"
+   }
+  ]
  }
 }

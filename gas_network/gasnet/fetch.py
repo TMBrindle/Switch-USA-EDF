@@ -70,6 +70,11 @@ def manifest() -> list[dict]:
             for k in ("producing_gas", "producing_oil", "continuous", "undiscovered", "co2_eor")]:
         m.append(dict(id="nems_" + Path(p).stem, path="nems/" + Path(p).name, url=f"{NEMS_RAW}/{p}",
                       release=f"EIAgov/NEMS commit {NEMS_COMMIT[:7]} (2026-06-26)", publisher=f"EIA NEMS (AEO2026): {what}"))
+    m.append(dict(id="nems_restart_cb2026_d011626a", path="nems/restart_cb2026_d011626a.npz",
+                  url=f"{NEMS_RAW}/output/aeo2026/cb2026/d011626a/restart.npz",
+                  release=f"EIAgov/NEMS commit {NEMS_COMMIT[:7]} (2026-06-26)",
+                  publisher="EIA NEMS AEO2026 reference-case restart file, run cb2026.d011626a (NOT the published "
+                            "d021826b): NGRPT/NGCAPS interregional pipeline capacity (CHANGES §104)"))
     return m
 
 

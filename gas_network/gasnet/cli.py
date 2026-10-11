@@ -89,7 +89,6 @@ def run(cfg, log=print) -> dict:
         variants[(method, bal)] = {"nets": nets, "hubs": hubs, "zones": _zone_shares(w, hubs)}
     d = variants[default]
     z, hubs, nets = d["zones"], d["hubs"], {by: base, **d["nets"]}
-    z.to_csv(out / "zone_basin_shares.csv", index=False, float_format="%.6f")
     sens = variants[("ratio", True)]["zones"]
     sens[sens.year != by].to_csv(out / "zone_basin_shares_sensitivity_ratio.csv", index=False, float_format="%.6f")
     hubs[["hub", "year", "basin", "share", "throughput", "method", "source_vintage"]].rename(
@@ -142,7 +141,7 @@ def run(cfg, log=print) -> dict:
         rows = [(b, y, "", "", "") for b in basins for y in nets]
         pd.DataFrame(rows, columns=["basin", "year", "kg_ch4_per_mmbtu", "gwp_basis", "source"]).to_csv(tmpl, index=False)
     # degeneracy of the balancing LP: a second optimum (tie-break) for the default variant
-    deg_rows = []
+    deg_rows, deg_zone = [], []
     for y in cfg["model_years"]:
         p = network.project(inp, base, y, default[0])
         p2, _ = balance.balance(inp, base, p, nodes, tie_break=True)
@@ -151,6 +150,7 @@ def run(cfg, log=print) -> dict:
         z1 = z[z.year == y]
         m = z1.merge(z2[["zone", "basin", "share"]], on=["zone", "basin"], suffixes=("", "_alt"))
         d = m.assign(ad=(m.share - m.share_alt).abs()).groupby("zone").ad.sum().div(2).mul(100)
+        deg_zone += [dict(year=y, zone=k, tvd_pp=float(v)) for k, v in d.items()]
         for name, zone in EXAMPLE_ZONES.items():
             deg_rows.append(dict(year=y, zones=name, tvd_pp=float(d.get(zone, 0.0))))
         deg_rows.append(dict(year=y, zones="all zones: max", tvd_pp=float(d.max())))
@@ -159,6 +159,14 @@ def run(cfg, log=print) -> dict:
     deg.to_csv(out / "balance_degeneracy.csv", index=False, float_format="%.2f")
     unmet = limitations.unmet_local_use(cfg, {y: n for y, n in nets.items() if y != by}, inp.raw)
     unmet.to_csv(out / "unmet_local_use.csv", index=False)
+    deg_zone = pd.DataFrame(deg_zone, columns=["year", "zone", "tvd_pp"])
+    deg_zone.to_csv(out / "balance_degeneracy_by_zone.csv", index=False, float_format="%.2f")
+    fb = cfg.get("share_fallback", {})
+    z.to_csv(out / "zone_basin_shares_no_fallback.csv", index=False, float_format="%.6f")
+    z, switches = limitations.share_fallback(z, w, unmet, deg_zone, by, float(fb.get("unmet_pct_of_local_use", 25)),
+                                             float(fb.get("degeneracy_pp", 10)))
+    switches.to_csv(out / "share_fallback.csv", index=False)
+    z.to_csv(out / "zone_basin_shares.csv", index=False, float_format="%.6f")
     meta = limitations.metadata(cfg, default, mix, sj, _label(*default))
     meta["status"] = ("Stage 1 accepted (ddac626). 2024 shares are the reference; projected years are INDICATIVE "
                       "(scaled-and-rebalanced network, not a solved one).")
@@ -172,6 +180,13 @@ def run(cfg, log=print) -> dict:
                 "(default variant). Bcf/yr. gas_mw = EIA-860M Aug 2026 operating NG nameplate. Allocation between "
                 "states of one region can be a tie; regional totals are robust.",
         "rows": unmet.to_dict(orient="records")}
+    meta["share_fallback"] = {
+        "text": "CHANGES §104 (Tom): a projected zone-year uses the zone's 2024 shares (method fallback_2024, column "
+                "'fallback' gives the reason) when a hub it draws on has unmet local use above "
+                f"{fb.get('unmet_pct_of_local_use', 25)}% of its floor, or its shares differ by more than "
+                f"{fb.get('degeneracy_pp', 10)} pp between equally good balancing solutions. Shares before the "
+                "fallback: zone_basin_shares_no_fallback.csv.",
+        "rows": switches.to_dict(orient="records")}
     json.dump(meta, open(out / "zone_basin_shares.meta.json", "w"), indent=1)
     summ = {"years": list(nets), "zones": int(z.zone.nunique()), "hubs": len(nodes), "basins": basins,
             "default_method": _label(*default), "aeo_datekey": inp.aeo_datekey, "flags": len(flags),
@@ -193,6 +208,7 @@ def main(argv=None):
     sub.add_parser("verify")
     sub.add_parser("run")
     sub.add_parser("stage2a")
+    sub.add_parser("nemscap")
     r = sub.add_parser("report")
     r.add_argument("outputs_dir")
     r.add_argument("--inputs-dir")
@@ -215,6 +231,11 @@ def main(argv=None):
     elif a.cmd == "stage2a":
         from . import stage2a
         stage2a.run(cfg)
+    elif a.cmd == "nemscap":
+        from . import nems_capacity
+        r = nems_capacity.compare(raw, PKG / "data/reference", Path(cfg["paths"]["outputs"]) / "stage2a")
+        print(f"NGCAPS flows vs Table 64 weighted abs error {r['flow_match_weighted_abs_error']:.3f}; "
+              f"{len(r['rows'])} rows")
     elif a.cmd == "report":
         d = report.basin_gas_mmbtu(a.outputs_dir, a.shares, cfg["gas_fuels"], a.inputs_dir)
         print(f"wrote {Path(a.outputs_dir) / 'basin_gas_mmbtu.csv'} ({len(d)} rows)")

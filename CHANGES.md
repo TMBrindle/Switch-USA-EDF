@@ -3839,3 +3839,43 @@ degeneracy" and "Stage 2a".
   exactly on 1.4.4.
 
 **Stopped before** seasonal/peak-day work and any coupling to Switch.
+
+## 104. Gas Stage 1 Share Fallback; NGMM Pipeline Capacity vs Stage 2a; Methane Worked Example on the Inventory Basis
+
+**Date:** 2026-10-11 · **Branch:** `tom/gas-network`. No Switch link; no model code changed. §105–106 remain reserved
+for gas Stage 2. Guide: "Guides and documentation/gas_network.md", section "Stage 1 share fallback, NGMM capacity
+comparison (§104)"; methane: `gas_network/docs/methane_intensity_research.md`.
+
+**Decisions recorded (Tom, 2026-10-11).** Measured methane intensities are the IDEA-01 default (inventory a
+sensitivity); the Rockies (other) weighting and the 50/50 E. Canada mix stay placeholders with sensitivities; Stage 1
+is the source of basin shares and Stage 2a the feasibility/capacity check.
+
+**Share fallback** (`config.yaml share_fallback`, `gasnet/limitations.share_fallback`, `gasnet/cli.py run`).
+- A projected zone-year takes the zone's 2024 shares when a hub it draws on has unmet local use > 25% of its floor,
+  or the zone's shares differ by > 10 pp between the two equally good balancing solutions.
+- `zone_basin_shares.csv` gains a `fallback` column (reason; empty otherwise) and `method` `fallback_2024`.
+  New outputs: `zone_basin_shares_no_fallback.csv` (byte-identical to the §103 shares), `share_fallback.csv`,
+  `balance_degeneracy_by_zone.csv`; `zone_basin_shares.meta.json` gains `share_fallback`.
+- 89 zone-years in 24 zones switch: WA p1–p4, OR p5–p7, IA p45/p69/p70 (2040–45), TN p92 (2035) for unmet local
+  use; MO p54/p55/p71–p73/p84, IL p80–p83 (2030–35), NH p130, VT p129, ME p134 for degeneracy. Changes 3.6–47 pp.
+- FL, east TX, VA, MA and CA do not switch; their shares are unchanged. No other output changes.
+
+**NGMM capacity vs Stage 2a** (`gasnet/nems_capacity.py`, `python -m gasnet.cli nemscap` →
+`outputs/stage2a/nems_capacity_vs_stage2a.csv`, `nems_ngmm_capacity_d011626a.csv`).
+- Source: the only AEO2026 reference restart file in EIAgov/NEMS, `output/aeo2026/cb2026/d011626a/restart.npz`
+  (pinned; 118 files in `data/SOURCES.yml`, no existing pin changed). It is run d011626a, not the published d021826b;
+  its NGFLOWS match d021826b Table 64 within 1.2% (weighted, 2025–2050). NGRPT/NGCAPS gives capacity by NGMM arc.
+- AEO builds new Appalachian takeaway endogenously (builds allowed after 2027; no planned project crosses the
+  boundary): Mid-Atlantic/Ohio → Eastern Midwest 19.2 Bcf/d (2025) + 11.1 by 2035 and + 22.5 by 2045; Eastern
+  Midwest → South Central + 1.5 / + 11.4 (Appalachian gas to the Gulf via the Midwest).
+- Stage 2a's minimum expansion (nameplate) across the same boundary is 4.2 (2035) and 12.2 Bcf/d (2045); 6.7 and
+  22.3 Bcf/d in all, including PA→OH/PA→MD inside the Mid-Atlantic region, which NGMM does not represent.
+- d021826b's restart file (`output/aeo2026/cb2026/d021826b/restart.npz`) is not published.
+
+**Methane note** (docs only): the worked example gains inventory-basis columns (FL 0.53, VA 0.38, east TX 0.66,
+CA 1.01 kg CH4/MWh; measured is 3.0–4.2× higher) and a "for publication" checklist of every snippet-sourced value;
+§10 records the decisions above.
+
+**Tests:** 33 (3 new: fallback rule on a toy case, committed fallback leaves the example zones unchanged, NGMM arc
+identification and the 2045 comparison). Pass on pandas 3.0.6 and 1.4.4; Stage 1 and the comparison reproduce
+byte-identically on 1.4.4.
