@@ -25,32 +25,33 @@
   "lng_imports",
   "other"
  ],
+ "default_method": "trace_aeo_additive_balanced",
  "aeo_datekey": "d021826b",
- "flags": 95,
+ "flags": 77,
  "texas": {
   "2024": {
    "disposition_scale": 0.8654,
    "capacity_slack_mmcf": 72790.3
   },
   "2028": {
-   "disposition_scale": 0.9099,
-   "capacity_slack_mmcf": 477204.6
+   "disposition_scale": 0.9133,
+   "capacity_slack_mmcf": 519579.6
   },
   "2030": {
-   "disposition_scale": 0.9243,
-   "capacity_slack_mmcf": 813892.0
+   "disposition_scale": 0.9313,
+   "capacity_slack_mmcf": 904576.1
   },
   "2035": {
-   "disposition_scale": 0.8639,
-   "capacity_slack_mmcf": 692048.0
+   "disposition_scale": 0.8554,
+   "capacity_slack_mmcf": 581012.9
   },
   "2040": {
-   "disposition_scale": 0.8209,
-   "capacity_slack_mmcf": 783109.7
+   "disposition_scale": 0.8107,
+   "capacity_slack_mmcf": 653123.5
   },
   "2045": {
-   "disposition_scale": 0.7999,
-   "capacity_slack_mmcf": 1345625.7
+   "disposition_scale": 0.7994,
+   "capacity_slack_mmcf": 1351704.6
   }
  }
 }

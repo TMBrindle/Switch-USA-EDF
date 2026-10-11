@@ -151,3 +151,26 @@ def generators(path: Path, state: str) -> pd.DataFrame:
                          "mw": pd.to_numeric(d["Nameplate Capacity (MW)"], errors="coerce").values,
                          "lat": pd.to_numeric(d["Latitude"], errors="coerce").values,
                          "lon": pd.to_numeric(d["Longitude"], errors="coerce").values}).dropna(subset=["lat", "lon"])
+
+
+def arr_shale_production(path: Path, year: int = 2024) -> pd.DataFrame:
+    """Proved-reserves report Table 9: shale-play production (wet after lease separation, Bcf) by state and
+    subdivision for `year`. Returns state, subdivision, shale_bcf ('' subdivision = state total; '-' read as 0)."""
+    d = pd.read_excel(path, sheet_name="9", header=None)
+    hdr = d.index[d.iloc[:, 0].astype(str).str.strip() == "State and Subdivision"][0]
+    col = [i for i in range(1, 5) if str(d.iloc[hdr, i]).strip().split(".")[0] == str(year)][0]
+    rows, state = [], None
+    for i in range(hdr + 1, d.shape[0]):
+        name = str(d.iloc[i, 0]).strip()
+        if name in ("nan", "") or name.startswith(("(", "-", "Notes", "Natural gas", "Source")):
+            continue
+        v = pd.to_numeric(d.iloc[i, col], errors="coerce")
+        v = 0.0 if pd.isna(v) else float(v)
+        if name in STATE_NAMES:
+            state = STATE_NAMES[name]
+            rows.append((state, "", v))
+        elif name.startswith(("Federal Offshore", "Lower 48", "U.S. Total", "Other States")):
+            state = None
+        elif state is not None:
+            rows.append((state, name.replace(" Onshore", ""), v))
+    return pd.DataFrame(rows, columns=["state", "subdivision", "shale_bcf"])

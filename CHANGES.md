@@ -3738,3 +3738,58 @@ Output: `gas_network/outputs/zone_basin_shares.csv`, plus a region cross-check, 
   fallback);
 - reproduction of the Step 1 scratch numbers and of the corrected ones;
 - the Texas/NM splits, the Table 64 parse and anomaly, sha256 pins, and a fresh run matching the committed outputs.
+
+## 94. Gas Network Stage 1 Fixes: Additive Projection with Mass-Balance Repair, Colorado San Juan, District Mixing; Capacity Research
+
+**Date:** 2026-10-11 · **Branch:** `tom/gas-network`. Still no model change. Guide: "Guides and documentation/gas_network.md"
+(Colorado San Juan split, Projections, Checking the methods, Things that did not reconcile).
+
+**1. Projection method** (Tom: additive variant; ratio as sensitivity; reconcile against AEO; default unless worse):
+- **Additive** (`network._move`): interregional bundles and Table 64 Canada arcs = 2024 + (Table 64 level(y) −
+  level(2025)), spread over the bundle's arcs by 2024 flow, floored at 0.
+- **Ratio** as before. `config.yaml projection_method: additive` is the default.
+- **The production check can't separate the methods.** Traced basin totals always equal node supply (an identity of
+  proportional sharing). Gaps against Tables 59/60 are therefore the same for every method and constant over the
+  years: Eagle Ford +38%, Haynesville +25%, Fed. GOM −24%, Mid-Con +11%, Rockies + San Juan −10%, Barnett −12%,
+  Permian +6.5%, Appalachia +2.4%; Lower 48 −3.6% (2024 vs 2025) to −1.9% in 2045.
+- **What did separate them is overdraw.** Scaled arcs left through-hubs (TN, MO, OH, WV, MN, NH, OR, GOM) shipping
+  more than they had: 0.15 Tcf in 2028, 7.2 (additive) / 7.6 (ratio) Tcf in 2045. That gas carried the hub's mix
+  downstream; Florida's Appalachian share was inflated.
+- **New `gasnet/balance.py`** (on by default): a least-L1 HiGHS LP moves only intra-region, GOM and intra-Texas arcs,
+  keeping Table 64 bundles. Every hub keeps ≥ its 2024 local disposition × AEO2026 Table 62 division consumption
+  growth (West South Central + Table 61 exports), scaled to supply. Unmet floors are flagged.
+- **Results.** Overdraw goes to 0. The census-division disposition error falls from 26–37% (2035–2045, unbalanced) to
+  6.5–9%.
+- **Additive + balancing is the default.** After balancing it beats ratio in 2035–2045 on every measure and in 2030
+  on unmet floors and error; ratio is marginally better in 2028.
+- **New outputs:** `zone_basin_shares_sensitivity_ratio.csv`, `method_comparison.csv`,
+  `projection_reconciliation.csv` and `basin_production_vs_aeo.csv`.
+- **Florida 2045** (default): 77% Appalachian (66–67% unbalanced). **TX_E 2045**: 13% Appalachian via Louisiana
+  after balancing (0% unbalanced).
+
+**2. Colorado San Juan.**
+- Observed county data (ECMC, its State Publications Library tables, data.colorado.gov, ONRR) is refused by the egress
+  policy. The split uses EIA's AEO2026 HSM producing-project files (county, USGS province, GP1 first-year gas):
+  province 22 in La Plata/Archuleta/Montezuma/San Juan = **27.5% of Colorado** (614 of 2,232 Bcf).
+- Validation: the same method gives NM San Juan 15.4% vs 14.1% in the reserves report; Colorado's four western
+  counties come to 45% vs EIA's 44% for 2019. It is model-based and labelled so.
+- Utah and Arizona have no province-22 production (San Juan County, UT is Paradox Basin).
+- 2024 California: San Juan 4.8 → 7.7%, Rockies (other) 26.9 → 24.0%.
+
+**3. District-to-basin labelling** is a known limitation in `zone_basin_shares.meta.json`, quantified in
+`district_basin_mixing.csv` (reserves report YE2024 Tables 8/9):
+- Over 30% non-shale: RRC D3 96%, D4 41%, D7B 32%, D8A 88%, D10 100%.
+- Only D1, D2 and D4 move gas between basins: 73 + 77 + 375 = 525 Bcf (2024 dry) of conventional Gulf Coast gas
+  under the Eagle Ford label, 24% of it.
+
+**4. Stage 2 capacity research** (`gas_network/docs/stage2_capacity_research.md`, no code):
+- EIA State-to-State Capacity January 2026 (to 2025) and the Pipeline Projects tracker (August 2026).
+- Texas/NM interstate capacity is unchanged 2023–2025 except TX→LA +364 MMcf/d. The Alabama→Tennessee −2.3 Bcf/d is a
+  missing-row gap in EIA's file.
+- Permian takeaway TX_W→TX_E grows from NGMM's 8.38 to about 13.95 Bcf/d by 2026 (Matterhorn, GCX expansion,
+  Blackcomb) and 17.65 with Eiger Express (2028). Hugh Brinson adds 2.2 to TX_W→TX_N.
+- The note sets out what a current capacity table needs (topology, county → sub-hub mapping, a project status rule,
+  tariffs, pins).
+
+**Tests:** 24 (6 new: move rules, the traced-total identity under overdraw, balancing on a toy network, the Colorado
+split with its NM validation, district mixing, sensitivity/metadata outputs). All pass on pandas 3.0.6 and 1.4.4.

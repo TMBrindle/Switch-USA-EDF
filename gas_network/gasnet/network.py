@@ -56,6 +56,25 @@ class Inputs:
         return self._aeo[k]
 
 
+SAN_JUAN_PROVINCE = 22          # USGS province code = HSM play // 100 (play 2205 = San Juan Basin mesaverde, ...)
+SAN_JUAN_COUNTIES = {"CO": {"La Plata", "Archuleta", "Montezuma", "San Juan"},
+                     "UT": {"San Juan"}, "AZ": {"Apache"}, "NM": {"San Juan", "Rio Arriba", "Sandoval", "McKinley"}}
+
+
+def hsm_san_juan(nems_dir: Path, state: str) -> dict:
+    """San Juan Basin vs other gas in a state, from the AEO2026 HSM onshore *producing* project files (EIA, NEMS
+    1bfbb2a): GP1 = each project's first projection-year gas from wells already producing (MMcf). Model-based county
+    volumes; observed county production (ECMC) is not reachable from cloud sessions (CHANGES §94).
+    San Juan = USGS province 22 projects in the basin's counties. Returns {'san_juan', 'other', 'province22_elsewhere'}."""
+    d = pd.concat([pd.read_csv(nems_dir / f"on_projects_{k}.csv", skiprows=1, low_memory=False,
+                               usecols=["state", "cnty_name", "play", "GP1"]) for k in ("producing_gas", "producing_oil")])
+    d = d[d.state == state]
+    prov22 = (pd.to_numeric(d.play, errors="coerce") // 100) == SAN_JUAN_PROVINCE
+    incty = d.cnty_name.isin(SAN_JUAN_COUNTIES.get(state, set()))
+    sj = float(d[prov22 & incty].GP1.sum())
+    return {"san_juan": sj, "other": float(d.GP1.sum()) - sj, "province22_elsewhere": float(d[prov22 & ~incty].GP1.sum())}
+
+
 def _area_shares(inp: Inputs) -> pd.DataFrame:
     """Production area -> share of its state's dry production."""
     rows = []
@@ -65,8 +84,12 @@ def _area_shares(inp: Inputs) -> pd.DataFrame:
             for r in g.itertuples():
                 rows.append((r.area, r.state, r.hub, r.basin, 1.0))
             continue
-        arr = inp.arr[inp.arr.state == st].set_index("subdivision").bcf
-        vals = {r.area: sum(float(arr[s]) for s in r.arr_subdivision.split(";")) for r in subs.itertuples()}
+        if subs.arr_subdivision.str.startswith("HSM:").all():
+            sj = hsm_san_juan(inp.raw / "nems", st)
+            vals = {r.area: sj[r.arr_subdivision[4:]] for r in subs.itertuples()}
+        else:
+            arr = inp.arr[inp.arr.state == st].set_index("subdivision").bcf
+            vals = {r.area: sum(float(arr[s]) for s in r.arr_subdivision.split(";")) for r in subs.itertuples()}
         tot = sum(vals.values())
         for r in subs.itertuples():
             rows.append((r.area, r.state, r.hub, r.basin, vals[r.area] / tot))
@@ -146,31 +169,62 @@ def _t64(inp: Inputs, src: str, dst: str, year: int) -> float | None:
     return None if r.empty else float(r.bcf.sum())
 
 
-def project(inp: Inputs, base: dict, year: int) -> dict:
+def _move(tot: float, v0, v1, method: str):
+    """New total (MMcf) for a bundle with 2024 total `tot` and Table 64 levels v0 (2025) / v1 (year), Bcf.
+    ratio: tot x v1/v0; additive: tot + (v1 - v0), floored at 0. Returns (new, reason or None if moved)."""
+    if v0 is None:
+        return tot, "not_in_table64_held"
+    v1 = v1 or 0.0
+    if method == "ratio":
+        if v0 == 0:
+            return tot, "zero_in_table64_held"
+        return tot * v1 / v0, None
+    new = tot + (v1 - v0) * 1000.0
+    if new < 0:
+        return 0.0, "additive_floored_at_0"
+    return new, None
+
+
+def project(inp: Inputs, base: dict, year: int, method: str | None = None) -> dict:
     cfg = inp.cfg
+    method = method or cfg.get("projection_method", "additive")
+    if method not in ("additive", "ratio"):
+        raise ValueError(f"projection_method must be additive or ratio, not {method!r}")
     b0 = int(cfg["aeo_index_base_year"])
     flags = []
     reg = inp.region
     # supply
     sup = base["supply"].copy()
     new = []
-    for r in sup.itertuples():
+    can_arc = {}
+    for i, r in sup.iterrows():
+        if r.kind == "import_canada":
+            st = r.area
+            can_arc[i] = ("Canada@WA", "OR_WA") if st == "WA" else ("Canada@ID", "OR_WA") if st == "ID" \
+                else ("Canada", reg[st])
+    arc_tot = {}
+    for i, a in can_arc.items():
+        arc_tot[a] = arc_tot.get(a, 0.0) + sup.loc[i, "value"]
+    arc_new = {}
+    for a, tot in arc_tot.items():
+        v0, v1 = _t64(inp, a[0], a[1], b0), _t64(inp, a[0], a[1], year)
+        if v0 is None or (method == "ratio" and v0 == 0):
+            arc_new[a] = tot
+            flags.append((year, "canada_import_held", f"{a[0]}->{a[1]}", tot, f"no usable Table 64 Canada arc ({method})"))
+        else:
+            arc_new[a], why = _move(tot, v0, v1, method)
+            if why:
+                flags.append((year, "canada_import_" + why, f"{a[0]}->{a[1]}", tot, method))
+    for i, r in sup.iterrows():
         if r.kind == "production":
             new.append(r.value * _index(inp, r.basin, year))
         elif r.kind == "import_lng":
             new.append(r.value * _index(inp, "lng_imports", year))
         elif r.kind == "import_mexico":
             new.append(r.value)
-        else:   # Canada
-            st = r.area
-            src, dst = ("Canada@WA", "OR_WA") if st == "WA" else ("Canada@ID", "OR_WA") if st == "ID" \
-                else ("Canada", reg[st])
-            v0, v1 = _t64(inp, src, dst, b0), _t64(inp, src, dst, year)
-            if v0 is None or v0 == 0:
-                new.append(r.value)
-                flags.append((year, "canada_import_held", st, r.value, f"no Table 64 Canada arc into {dst} in {b0}"))
-            else:
-                new.append(r.value * v1 / v0)
+        else:   # Canada: crossing's share of its Table 64 arc
+            a = can_arc[i]
+            new.append(r.value * arc_new[a] / arc_tot[a] if arc_tot[a] > 0 else 0.0)
     sup["value"] = new
     held_mx = base["supply"][base["supply"].kind == "import_mexico"].value.sum()
     if held_mx > 0:
@@ -191,17 +245,21 @@ def project(inp: Inputs, base: dict, year: int) -> dict:
         else:
             v0, v1 = _t64(inp, rs, rd, b0), _t64(inp, rs, rd, year)
         tot = float(g.value.sum())
-        if v0 is None:
-            flags.append((year, "arc_not_in_table64_held", f"{rs}->{rd}", tot, "held at 2024"))
-        elif v0 == 0:
-            flags.append((year, "arc_zero_in_table64_held", f"{rs}->{rd}", tot,
-                          f"Table 64 shows 0 in {b0} ({(v1 or 0) * 1000:.0f} MMcf in {year}); held at 2024"))
-        else:
-            factor[g.index] = v1 / v0
-            if not (1 / 3 <= tot / (v0 * 1000.0) <= 3):
-                flags.append((year, "arc_level_mismatch_indexed", f"{rs}->{rd}", tot * v1 / v0,
-                              f"EIA 2024 {tot / 1000:.0f} Bcf vs Table 64 {b0} {v0:.0f} Bcf (>3x apart); indexed "
-                              f"to {tot * v1 / v0 / 1000:.0f} Bcf (Table 64 {year}: {v1:.0f})"))
+        newtot, why = _move(tot, v0, v1, method)
+        if why:
+            if why == "not_in_table64_held":
+                note = "held at 2024"
+            elif why == "zero_in_table64_held":
+                note = f"Table 64 shows 0 in {b0} ({(v1 or 0) * 1000:.0f} MMcf in {year}); held"
+            else:
+                note = f"2024 {tot:.0f} + Table 64 change {((v1 or 0) - v0) * 1000:.0f} < 0"
+            flags.append((year, "arc_" + why, f"{rs}->{rd}", newtot, note))
+        if tot > 0:
+            factor[g.index] = newtot / tot
+        if method == "ratio" and v0 and not (1 / 3 <= tot / (v0 * 1000.0) <= 3):
+            flags.append((year, "arc_level_mismatch_indexed", f"{rs}->{rd}", newtot,
+                          f"EIA 2024 {tot / 1000:.0f} Bcf vs Table 64 {b0} {v0:.0f} Bcf (>3x apart); indexed "
+                          f"to {newtot / 1000:.0f} Bcf (Table 64 {year}: {v1:.0f})"))
     fl["value"] = fl.value * factor
     # intra-region growth
     sup["region"] = sup.hub.map(reg)
@@ -236,4 +294,4 @@ def project(inp: Inputs, base: dict, year: int) -> dict:
                                 tb["lng"] * float(lng[year] / lng[b0]), days=365)
     fl = pd.concat([fl, routes.assign(kind="intra_texas")[["src", "dst", "value", "kind"]]], ignore_index=True)
     return {"year": year, "supply": sup.drop(columns="region"), "flows": fl, "texas": info, "tx_routes": routes,
-            "flags": flags, "region_growth": g_r}
+            "flags": flags, "region_growth": g_r, "method": method}

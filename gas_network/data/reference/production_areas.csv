@@ -27,7 +27,8 @@ NM_W,NM,NM,san_juan,West,
 OK,OK,OK,midcon_anadarko,,
 KS,KS,KS,midcon_anadarko,,
 AR,AR,AR,midcon_anadarko,,Arkoma basin (Fayetteville)
-CO,CO,CO,rockies_other,,ASSUMPTION: Colorado's San Juan-basin share (La Plata/Archuleta) not split out; labelled Rockies (other)
+CO_SJ,CO,CO,san_juan,HSM:san_juan,"Colorado San Juan Basin: AEO2026 HSM producing projects in USGS province 22 in La Plata/Archuleta/Montezuma/San Juan counties (GP1 share; model-based, see guide)"
+CO_OTHER,CO,CO,rockies_other,HSM:other,"Rest of Colorado (DJ, Piceance, Raton...): HSM GP1 share"
 WY,WY,WY,rockies_other,,
 UT,UT,UT,rockies_other,,
 ND,ND,ND,bakken,,

@@ -1,0 +1,73 @@
+{
+ "file": "zone_basin_shares.csv",
+ "method": "trace_aeo_additive_balanced",
+ "methods": {
+  "trace_eia": "2024: proportional sharing (full mixing) on EIA Natural Gas Annual 2024 state-to-state movements",
+  "trace_aeo_additive_balanced": "model years: 2024 network; production indexed to AEO2026 (Tables 59/60); interregional bundles and Canada arcs = 2024 + (Table 64 level(y) - level(2025)), floored at 0; intra-region arcs, GOM and intra-Texas arcs then rebalanced (least L1 change) so no hub ships more than it has and each keeps its AEO-grown local disposition where the network allows",
+  "sensitivity": "zone_basin_shares_sensitivity_ratio.csv: the same with ratio scaling (2024 x Table 64(y)/(2025))"
+ },
+ "known_limitations": [
+  {
+   "id": "district_to_basin_labelling",
+   "text": "Each production area (Texas RRC district, NM East/West, LA North/South, a state) is labelled whole with its main basin. Non-shale gas in an area keeps the area's label.",
+   "quantified": {
+    "areas_over_30pct_non_shale": {
+     "LA_S": 100.0,
+     "TX_D3": 96.2,
+     "TX_D4": 41.2,
+     "TX_D7B": 32.2,
+     "TX_D8A": 88.1,
+     "TX_D10": 100.0,
+     "TX_SO": 100.0,
+     "NM_W": 100.0
+    },
+    "moves_between_basins_dry_bcf_2024": {
+     "TX_D1": 72.7,
+     "TX_D2": 76.6,
+     "TX_D4": 375.3
+    },
+    "eagle_ford_label_non_eagle_ford_bcf_2024": 524.7,
+    "note": "Only RRC Districts 1, 2, 4 move gas between basins (conventional Gulf Coast gas labelled Eagle Ford instead of Barnett/other TX). Districts 3, 7B, 8A, 10 are >30% non-shale but their non-shale gas is in the labelled basin. Source: EIA proved reserves YE2024 Tables 8 and 9; outputs/district_basin_mixing.csv."
+   }
+  },
+  {
+   "id": "colorado_san_juan_model_based",
+   "text": "Colorado San Juan share from AEO2026 HSM producing-project first-year volumes (model-based, EIA); observed county production (ECMC) not reachable from cloud sessions.",
+   "quantified": {
+    "co_san_juan_share_pct": 27.5
+   }
+  },
+  {
+   "id": "full_mixing",
+   "text": "Gas is fully mixed at each hub; contract paths and displacement ignored."
+  },
+  {
+   "id": "annual",
+   "text": "Annual flows; no seasonal routing."
+  },
+  {
+   "id": "texas_routing",
+   "text": "Texas sub-hub routing is an assumption (NGMM border mapping, least-flow intra-Texas transfers on NGMM 2023 capacities)."
+  },
+  {
+   "id": "projected_arcs_scaled",
+   "text": "Projected arcs are scaled and rebalanced, not solved by a network model; Stage 2 replaces them."
+  }
+ ],
+ "basins": {
+  "appalachia": "Appalachia",
+  "haynesville": "Haynesville",
+  "permian": "Permian",
+  "eagle_ford": "Eagle Ford",
+  "barnett_other_tx": "Barnett/other TX",
+  "midcon_anadarko": "Mid-Continent/Anadarko",
+  "san_juan": "San Juan",
+  "rockies_other": "Rockies (other)",
+  "bakken": "Bakken",
+  "fed_gom": "Fed. GOM",
+  "w_canada": "W. Canada",
+  "e_canada": "E. Canada",
+  "lng_imports": "LNG imports",
+  "other": "other"
+ }
+}
