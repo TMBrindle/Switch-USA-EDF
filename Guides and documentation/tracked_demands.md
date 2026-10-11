@@ -1661,3 +1661,74 @@ The charge understates a draw that moves onto a dearer piece.
 In a chain, the connection and its cumulative draw carry forward (`tracked_demand_connection_existing`). Only the
 connection added in a stage draws new headroom; the carried draw is charged at each later stage's headroom value.
 An endogenous connection, like a still-free siting, is not in the PRM region peak.
+
+### 15.9 Case-build writer
+
+The writer runs after the case is built and works on a copy of its inputs folder:
+
+```
+python -m tracked_demands.case_writer --inputs-dir switch/in/2035/<case> --spec tracked_demands/specs/<spec>.yml
+```
+
+It writes `<case>_td` (or `--out-dir`), so the original case and the scenarios that share it are untouched. The spec
+(`tracked_demands/specs/dc_1gw_example.yml`) lists each tracked demand with these fields:
+- zone and MW;
+- annual energy share;
+- connection (cost multiplier or own $/kW, bill share, endogenous, headroom draw);
+- stress mode and curtailable share;
+- export limit;
+- matching (hourly / annual / hour_ranges, target, penalty);
+- private on-site techs (energy source by spec name, cost, `tax_credit_key`, MW cap);
+- battery;
+- linked generators (prime mover, fuel by spec name, heat rate, $/kW, unit MW, MW limit).
+
+It also gives the case's `CO2_PROGRAM` names mapped to rule families. From the case it takes:
+
+| Input | Taken from the case |
+|---|---|
+| time blocks | `timepoints.csv`, without zero-weight timeseries and those in `prm_timeseries.csv` / `stress_light_timeseries.csv` |
+| energy-source / fuel names | `gen_info.csv` (e.g. solar → `sun`) and the fuel the zone's existing gas plant burns |
+| tax credits | `gen_tax_credits.csv` (pg_to_switch's `tax_credit_values`, by period), matched on `tax_credit_key`; a spec `tax_credit_values` block overrides |
+| zone upgrade $/kW | ReEDS conventional reinforcement median (`interconnection_headroom/data/reference/reeds_reinforcement_by_zone.csv`, 2024$) |
+| reserve credit, ic weight, gas-turbine cap | rows added to `prm_gen_credit.csv`, `ic_weights.csv`, `gas_turbine_cap_gens.csv` when present |
+| zone states (NY rule) | `hierarchy.csv` |
+
+`tracked_demands_scenario_options.txt` gives the option to add (`--include-module study_modules.tracked_demands`,
+before prm_regional's options). `tracked_demands_writer_log.txt` records what was resolved.
+
+For a chain, run the writer on each stage's folder with the same spec.
+
+### 15.10 Ready for a first real case
+
+**Inputs a case needs** (the writer produces all of these from the spec and the case):
+`tracked_demands.csv`, `tracked_demand_candidate_zones.csv`, and as used:
+- time blocks and CFE targets;
+- on-site techs, subsidies, build caps, battery;
+- linked generators (`gen_info` / `gen_build_costs` rows, `tracked_demand_onsite_gens.csv`);
+- cap coverage, state overrides and zone states;
+- zone upgrade costs;
+- `grid_clean_fraction.csv`.
+
+**Still manual:**
+- the spec values: costs, sizes, targets, penalty. The example's numbers are placeholders;
+- the first-pass grid clean fraction: a constant, or a previous run's `grid_clean_fraction_computed.csv`. Iterate
+  (10.1) for large demands;
+- for aggregated zones, the zone upgrade $/kW (ReEDS has BA zones only);
+- adding the option to the scenario line, before prm_regional's options (S0: `s0_production.extra_modules`);
+- for chains, running the writer per stage;
+- for the headroom draw, `td_connection_uses_headroom` and, as a check, `scripts/headroom_counterfactual.py`.
+
+**Expected size, one 1 GW data centre in one zone** shaped like the example spec (one on-site tech, a battery,
+hourly matching, one linked generator, fixed connection). Measured on the toy: +17 variables and +27 constraints
+per timepoint (no commitment on the toy). On the S0 configuration (960 timepoints in a 2035 stage; about 15.8 M
+variables and 20.4 M constraints with compact reserve rows, CHANGES §70), that is about +16–20 k variables and
++26–30 k constraints, about 0.1%, including the linked generator's commitment rows under `commit_operate`. A few
+existing rows gain terms:
+- the zone's energy balance;
+- the zone's stress-hour reserve rows (a constant);
+- gen_zone_ratio rows where the zone has limits;
+- the carbon-cap row of its programme (only when on-site emissions are exempt).
+
+For the regression row `s4x1_S0prod_2035` (PowerGenome k-means days), scale by its timepoint count. It is
+LP unless `td_onsite_tech_min_build_mw` / `_build_increment_mw` are set (MIP). Duals for the headroom charge need
+an LP solution; Gurobi barrier gives them.

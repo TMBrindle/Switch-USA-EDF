@@ -1,0 +1,30 @@
+# Example spec for tracked_demands/case_writer.py: one 1 GW data centre (CHANGES §108 (g)).
+# Placeholder values for a first case, not sourced: replace them before quoting results.
+tracked_demands:
+  - name: DC1
+    type: data_center
+    zone: p33                   # a ReEDS zone of the case
+    max_mw: 1000
+    min_mw: 1000                # flat 24/7 load
+    annual_energy_share: 0.95   # requirement = share x max x 8760 MWh/yr
+    connection_mw: 1000
+    stress_mode: max            # max | profile | min
+    curtailable_share: 0.0
+    export_limit_share: 0       # no export
+    connection:
+      cost_multiplier: 1.0      # x ReEDS reinforcement median $/kW for the zone
+      cost_share_demand: 1.0    # bill reporting only
+      endogenous: false
+      uses_headroom: false
+    matching: {mode: hourly, target: 0.9, penalty: 200}   # hourly | annual | hour_ranges
+    onsite_techs:               # private, non-fuel
+      - {name: solar_onsite, energy_source: solar, capital_cost_per_mw_yr: 90000, clean: true,
+         tax_credit_key: UtilityPV, max_mw: 500}
+    storage: {power_cost_per_mw_yr: 30000, energy_cost_per_mwh_yr: 20000, max_hours: 8}
+    onsite_gens:                # linked ordinary generators
+      - {name: p33_DC1_recip, prime_mover: recip, fuel: gas, heat_rate: 8.3, overnight_cost_per_kw: 1500,
+         fixed_om_per_kw_yr: 15, variable_om: 6, unit_mw: 4.5, capacity_limit_mw: 300, max_age: 25}
+cap_coverage:                   # the case's CO2_PROGRAM -> tracked_demands/data/cap_coverage_rules.yml family
+  "ETS 1": RGGI
+  "ETS 2": CA
+  "ETS 3": WA

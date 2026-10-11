@@ -4112,3 +4112,31 @@ matches the generation side, which already counts those generators as zone gener
    chain.
 
    interconnection_headroom's own suite is unchanged (24 passed, 7 skipped).
+
+**(g) Case-build writer** (`tracked_demands/case_writer.py`; no shared code). It runs after a case is built:
+`python -m tracked_demands.case_writer --inputs-dir <case> --spec <spec.yml>` copies the inputs folder (default
+`<case>_td`) and writes the tracked-demand inputs there. The original case, and every scenario reading it, is
+untouched.
+- **Time blocks** leave out stress hours: zero-weight timeseries, and those in `prm_timeseries.csv` /
+  `stress_light_timeseries.csv`. Modes: hourly, annual, or hour ranges.
+- **Energy-source and fuel names** are the case's own. `solar` → the case's solar source (`sun` in PowerGenome
+  cases); `gas` → the fuel the zone's existing gas plant burns.
+- **Tax credits** come from the case's `gen_tax_credits.csv`, which pg_to_switch wrote from `tax_credit_values`. An
+  on-site tech's or linked generator's `tax_credit_key` takes, per period, the credit of new-build projects whose
+  technology contains the key (pg_to_switch's substring rule); conflicting values stop the writer. A spec
+  `tax_credit_values` block overrides it. This replaces hand-set subsidies.
+- **Linked generators** are added to `gen_info` / `gen_build_costs` (template: the zone's gas plant), with
+  `prm_credit none`, ic weight 0, and gas-turbine-cap membership for turbines when those files exist.
+- **Zone upgrade cost** is ReEDS conventional reinforcement, median $/kW (2024$), unless the spec gives one.
+- **Cap coverage** comes from `tracked_demand_cap_coverage.csv` and the state overrides, mapped from
+  `tracked_demands/data/cap_coverage_rules.yml` (RGGI, VA, CA, WA, cited) to the case's `CO2_PROGRAM` names. Zone
+  states come from `hierarchy.csv`.
+- **Grid clean fraction:** a constant or a previous run's computed file.
+- **Scenario options** go in `tracked_demands_scenario_options.txt`, with the load-order note.
+
+Example spec: `tracked_demands/specs/dc_1gw_example.yml` (placeholder values).
+Tests (`test_td_case_writer.py`, 7): stress hours left out, case names, credits from the case and by override,
+coverage files, original untouched, and the written case solves.
+
+Results after (g): `tracked_demands/tests` 98 passed on pandas 3.0.6 (Python 3.11) and 1.4.4 (Python 3.10).
+interconnection_headroom's suite: 24 passed, 7 skipped (unchanged).
