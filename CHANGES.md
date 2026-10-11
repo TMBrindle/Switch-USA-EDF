@@ -4166,6 +4166,28 @@ stays as planned.
 leaves. Add (A) if the scan shows large zone residuals concentrated where load also matters. Set both at ±3% against
 the full record, on repaired profiles.
 
+*Run-time and fit with the planned workflow (Tom, 11 Oct): option B, with the run time kept in check.*
+- **Planned workflow:** (1) regional models through the region-split functionality (`region_scope`: a detail region at
+  zone level, the rest aggregated) for regionally focused work; (2) large-sample production-cost iterations
+  (`adjust/make_split_models.py`, builds reused from the expansion run) for reliability testing.
+- **No added LP size.** B is a pre-processing step on `variable_capacity_factors.csv`: no new variables, constraints or
+  days. Its cost is seconds in the case build. Fidelity is never bought with more sample days: `n_days` stays as set,
+  and A, if ever used, swaps days instead of adding them.
+- **Applies to the expansion sample only.** The production-cost runs sample many days or the full record, so they need
+  no rescaling. The scale is about 1 there and should be left off: `cf_fidelity: off` on production-cost builds, or the
+  step skips itself when the sample covers the record.
+  - The split runs must start from a build without scaled profiles. Otherwise a split of the expansion case's inputs
+    would inherit the scaling.
+  - Each expansion case writes `vcf_fidelity.csv` (scale per cluster), so differences between the expansion and
+    production-cost runs can be attributed.
+- **Regional models:** B works per cluster as built, so aggregated zones (combined clusters) are rescaled the same way.
+  The ±3% check is reported for the detail region's zones; aggregated zones only need regional fidelity.
+  - If A is ever needed, it can be limited to the detail region's zones (a few dozen soft rows in the selector LP, which
+    solves in seconds), and the Switch model is unchanged.
+- **Reliability stays with the production-cost loop.** B corrects energy (mean CF), not tails. Low-wind or low-solar
+  extremes and the stress days stay with the existing stress-day rules and the production-cost iteration's feedback.
+  B leaves stress days (weight 0) untouched, so it doesn't weaken that loop.
+
 **2. Time alignment (for the dashboards' load check).**
 - The profiles are in UTC; the model's hours are UTC−5 (`model_definition.yml` `utc_offset: -5`). PowerGenome shifts
   the resource profiles.
