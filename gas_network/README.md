@@ -9,6 +9,7 @@ House rules: `../interconnection_headroom/CLAUDE.md` (sourced numbers only, mark
 python -m gasnet.cli fetch    # pinned inputs -> data/raw/ (git-ignored), sha256-checked against data/SOURCES.yml
 python -m gasnet.cli run      # outputs/zone_basin_shares.csv and the cross-checks
 python -m gasnet.cli report <switch outputs dir>   # basin_gas_mmbtu.csv for a Switch run
+python -m gasnet.cli stage2a  # Stage 2a annual network LP (no Switch link) -> outputs/stage2a/
 python -m pytest -q           # pandas 3.x and 1.4.4
 ```
 

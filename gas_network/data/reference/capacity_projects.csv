@@ -1,0 +1,50 @@
+project,status,in_service_year,mmcfd,src,dst,in_base_2025,note
+Henderson County Expansion Project,Completed,2024,220,KY,IN,yes,tracker historical sheet; visible in EIA 2023->2025 change
+Mountain Valley Pipeline,Completed,2024,2000,WV,VA,yes,visible in EIA file
+Regional Energy Access Project (Phase I and II),Completed,2024,829,PA,NJ,yes,visible in EIA file
+GTN XPress,Completed,2024,150,ID,WA,yes,BC->ID import leg not an arc; path ID->WA->OR
+GTN XPress,Completed,2024,150,WA,OR,yes,
+Southside Reliability Enhancement Project,Completed,2024,423,NC,VA,yes,visible in EIA file
+Ohio Valley Connector Expansion Project,Completed,2024,300,WV,OH,yes,EIA shows +300 WV->OH (tracker 350 over PA-WV-OH)
+Matterhorn Express Pipeline,Completed,2024,2500,TX_W,TX_E,yes,in NGMM texas_capacity 2024 (10880)
+Evangeline Pass Expansion Project (Phase 2),Completed,2025,1100,MS,LA,yes,visible in EIA file
+Texas to Louisiana Energy Pathway,Completed,2025,364,TX_E,LA,yes,visible in EIA file
+Golden Pass LNG Bidirectional Pipeline,Completed,2025,2500,LA,TX_E,no,completed 2025 but not in EIA 2025 LA->TX capacity (4440 unchanged)
+Wisconsin Reliability Project,Completed,2025,144,WI,IL,no,completed 2025 but not visible in EIA file
+Gulf Coast Express Expansion,Completed,2026,570,TX_W,TX_E,no,Waha->Agua Dulce compression
+Blackcomb Pipeline,Construction,2026,2500,TX_W,TX_E,no,Midland Basin->Agua Dulce
+Hugh Brinson Pipeline (formerly Warrior Pipeline) Phase I & II,Part Completed,2026,2200,TX_W,TX_N,no,Waha->Maypearl (NGMM planned row says Warrior 3700)
+Eiger Express Pipeline,Construction,2028,3700,TX_W,TX_E,no,Permian->Katy
+Apex,On Hold,2027,2000,TX_W,TX_E,no,excluded by status rule (NGMM planned row includes it)
+Bison Xpress Project,Completed,2026,300,ND,MT,no,path ND-MT-WY
+Bison Xpress Project,Completed,2026,300,MT,WY,no,
+Bakken xPress Project,Construction,2026,300,ND,MT,no,tracker lists ND+WY (not adjacent); routed ND-MT-WY (ASSUMPTION)
+Bakken xPress Project,Construction,2026,300,MT,WY,no,
+ECCC pipeline,Construction,2026,150,NM,TX_W,no,Eddy NM->Culberson TX
+Louisiana Connector- Port Arthur Pipeline,Part Completed,2026,2000,LA,TX_E,no,
+CP Express Pipeline Project Phase 1,Construction,2027,1800,TX_E,LA,no,
+CP Express Pipeline Project Phase II,Construction,2027,2200,TX_E,LA,no,
+Northeast Supply Enhancement Project,Construction,2027,400,PA,NJ,no,path PA-NJ-NY
+Northeast Supply Enhancement Project,Construction,2027,400,NJ,NY,no,
+Southeast Supply Enhancement Project,Construction,2027,1600,VA,NC,no,path VA-NC-SC-GA-AL (Transco)
+Southeast Supply Enhancement Project,Construction,2027,1600,NC,SC,no,
+Southeast Supply Enhancement Project,Construction,2027,1600,SC,GA,no,
+Southeast Supply Enhancement Project,Construction,2027,1600,GA,AL,no,
+Appalachia to Market II & Armagh & Entriken HP Replacement Project,Construction,2027,55,PA,NJ,no,
+MVP Southgate Project,Construction,2028,550,VA,NC,no,the separate 'Amendment' row is the same project (not added twice)
+Texas-Louisiana Expansion Project,Completed,2028,467,TX_E,LA,no,tracker status Completed with 2028 in-service year (as published)
+Pipeline Modifications Project (Lake Charles LNG),Construction,2031,2600,AR,MS,no,path AR-MS-LA
+Pipeline Modifications Project (Lake Charles LNG),Construction,2031,2600,MS,LA,no,
+Crow Creek Pipeline,Approved,2026,2,ID,WY,no,
+Appalachia to Market III Project,Approved,2027,32,DE,PA,no,
+Heartland Project,Approved,2027,473,IL,WI,no,
+Sabal Trail Project Phase III,Approved,2027,76,AL,GA,no,path AL-GA-FL
+Sabal Trail Project Phase III,Approved,2027,76,GA,FL,no,
+Ameren-EMRT Big Hollow Project,Approved,2028,200,IL,MO,no,
+Appalachian Reliability Project,Approved,2028,550,PA,OH,no,
+Iroquois Expansion by Compression Project,Approved,2028,125,NY,CT,no,
+Kelso-Beaver Reliability Project,Approved,2028,183,OR,WA,no,
+Mississippi Crossing (MSX),Approved,2028,2100,MS,AL,no,
+System Expansion 4 (SSE4) Project,Approved,2028,1323,MS,AL,no,path MS-AL-GA-SC
+System Expansion 4 (SSE4) Project,Approved,2028,1323,AL,GA,no,
+System Expansion 4 (SSE4) Project,Approved,2028,1323,GA,SC,no,

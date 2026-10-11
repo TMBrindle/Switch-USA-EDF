@@ -1,0 +1,841 @@
+zones,year,variant,basin,stage2a,stage1
+"FL (p91, p101, p102)",2024,status_rule,appalachia,0.348754,0.341543
+"FL (p91, p101, p102)",2024,status_rule,haynesville,0.181564,0.305012
+"FL (p91, p101, p102)",2024,status_rule,permian,0.074139,0.093788
+"FL (p91, p101, p102)",2024,status_rule,eagle_ford,0.021246,0.058316
+"FL (p91, p101, p102)",2024,status_rule,barnett_other_tx,0.003621,0.010275
+"FL (p91, p101, p102)",2024,status_rule,midcon_anadarko,0.147034,0.078732
+"FL (p91, p101, p102)",2024,status_rule,san_juan,0.004492,0.001415
+"FL (p91, p101, p102)",2024,status_rule,rockies_other,0.007542,0.003802
+"FL (p91, p101, p102)",2024,status_rule,bakken,0.000000,0.002333
+"FL (p91, p101, p102)",2024,status_rule,fed_gom,0.179094,0.070999
+"FL (p91, p101, p102)",2024,status_rule,w_canada,0.000000,0.003406
+"FL (p91, p101, p102)",2024,status_rule,e_canada,0.000000,0.000108
+"FL (p91, p101, p102)",2024,status_rule,lng_imports,0.000101,0.000159
+"FL (p91, p101, p102)",2024,status_rule,other,0.032414,0.030113
+"east TX (p57, p64-p67)",2024,status_rule,appalachia,0.000000,0.000079
+"east TX (p57, p64-p67)",2024,status_rule,haynesville,0.219880,0.229955
+"east TX (p57, p64-p67)",2024,status_rule,permian,0.389356,0.387420
+"east TX (p57, p64-p67)",2024,status_rule,eagle_ford,0.255937,0.264203
+"east TX (p57, p64-p67)",2024,status_rule,barnett_other_tx,0.043617,0.046550
+"east TX (p57, p64-p67)",2024,status_rule,midcon_anadarko,0.082908,0.059327
+"east TX (p57, p64-p67)",2024,status_rule,san_juan,0.008239,0.002471
+"east TX (p57, p64-p67)",2024,status_rule,rockies_other,0.000000,0.001779
+"east TX (p57, p64-p67)",2024,status_rule,bakken,0.000000,0.000005
+"east TX (p57, p64-p67)",2024,status_rule,fed_gom,0.000000,0.008113
+"east TX (p57, p64-p67)",2024,status_rule,w_canada,0.000000,0.000012
+"east TX (p57, p64-p67)",2024,status_rule,e_canada,0.000000,0.000000
+"east TX (p57, p64-p67)",2024,status_rule,lng_imports,0.000000,0.000000
+"east TX (p57, p64-p67)",2024,status_rule,other,0.000062,0.000085
+"VA (p99, p100, p118, p124)",2024,status_rule,appalachia,0.999523,0.998875
+"VA (p99, p100, p118, p124)",2024,status_rule,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule,e_canada,0.000000,0.000387
+"VA (p99, p100, p118, p124)",2024,status_rule,lng_imports,0.000477,0.000738
+"VA (p99, p100, p118, p124)",2024,status_rule,other,0.000000,0.000000
+MA (p131),2024,status_rule,appalachia,0.884077,0.818310
+MA (p131),2024,status_rule,haynesville,0.000000,0.000000
+MA (p131),2024,status_rule,permian,0.000000,0.000000
+MA (p131),2024,status_rule,eagle_ford,0.000000,0.000000
+MA (p131),2024,status_rule,barnett_other_tx,0.000000,0.000000
+MA (p131),2024,status_rule,midcon_anadarko,0.000000,0.000000
+MA (p131),2024,status_rule,san_juan,0.000000,0.000000
+MA (p131),2024,status_rule,rockies_other,0.000000,0.000000
+MA (p131),2024,status_rule,bakken,0.000000,0.000000
+MA (p131),2024,status_rule,fed_gom,0.000000,0.000000
+MA (p131),2024,status_rule,w_canada,0.000000,0.000000
+MA (p131),2024,status_rule,e_canada,0.090709,0.155461
+MA (p131),2024,status_rule,lng_imports,0.025213,0.026229
+MA (p131),2024,status_rule,other,0.000000,0.000000
+CA (p8-p11),2024,status_rule,appalachia,0.000000,0.000000
+CA (p8-p11),2024,status_rule,haynesville,0.000000,0.000000
+CA (p8-p11),2024,status_rule,permian,0.562022,0.328324
+CA (p8-p11),2024,status_rule,eagle_ford,0.000000,0.000000
+CA (p8-p11),2024,status_rule,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2024,status_rule,midcon_anadarko,0.000000,0.010539
+CA (p8-p11),2024,status_rule,san_juan,0.092362,0.076775
+CA (p8-p11),2024,status_rule,rockies_other,0.070043,0.239784
+CA (p8-p11),2024,status_rule,bakken,0.000759,0.001589
+CA (p8-p11),2024,status_rule,fed_gom,0.000000,0.000000
+CA (p8-p11),2024,status_rule,w_canada,0.219270,0.285509
+CA (p8-p11),2024,status_rule,e_canada,0.000000,0.000000
+CA (p8-p11),2024,status_rule,lng_imports,0.000000,0.000000
+CA (p8-p11),2024,status_rule,other,0.055545,0.057478
+"FL (p91, p101, p102)",2030,status_rule,appalachia,0.315182,0.492521
+"FL (p91, p101, p102)",2030,status_rule,haynesville,0.234783,0.275326
+"FL (p91, p101, p102)",2030,status_rule,permian,0.076589,0.079990
+"FL (p91, p101, p102)",2030,status_rule,eagle_ford,0.028710,0.041869
+"FL (p91, p101, p102)",2030,status_rule,barnett_other_tx,0.004889,0.008893
+"FL (p91, p101, p102)",2030,status_rule,midcon_anadarko,0.127347,0.023550
+"FL (p91, p101, p102)",2030,status_rule,san_juan,0.001396,0.000498
+"FL (p91, p101, p102)",2030,status_rule,rockies_other,0.000000,0.000416
+"FL (p91, p101, p102)",2030,status_rule,bakken,0.000000,0.000152
+"FL (p91, p101, p102)",2030,status_rule,fed_gom,0.175131,0.050392
+"FL (p91, p101, p102)",2030,status_rule,w_canada,0.000000,0.000257
+"FL (p91, p101, p102)",2030,status_rule,e_canada,0.000000,0.000128
+"FL (p91, p101, p102)",2030,status_rule,lng_imports,0.000301,0.000322
+"FL (p91, p101, p102)",2030,status_rule,other,0.035672,0.025685
+"east TX (p57, p64-p67)",2030,status_rule,appalachia,0.000000,0.000093
+"east TX (p57, p64-p67)",2030,status_rule,haynesville,0.201006,0.239181
+"east TX (p57, p64-p67)",2030,status_rule,permian,0.541120,0.431857
+"east TX (p57, p64-p67)",2030,status_rule,eagle_ford,0.202839,0.226188
+"east TX (p57, p64-p67)",2030,status_rule,barnett_other_tx,0.034540,0.048040
+"east TX (p57, p64-p67)",2030,status_rule,midcon_anadarko,0.010584,0.043587
+"east TX (p57, p64-p67)",2030,status_rule,san_juan,0.009861,0.002569
+"east TX (p57, p64-p67)",2030,status_rule,rockies_other,0.000000,0.001716
+"east TX (p57, p64-p67)",2030,status_rule,bakken,0.000000,0.000006
+"east TX (p57, p64-p67)",2030,status_rule,fed_gom,0.000000,0.006661
+"east TX (p57, p64-p67)",2030,status_rule,w_canada,0.000000,0.000027
+"east TX (p57, p64-p67)",2030,status_rule,e_canada,0.000000,0.000000
+"east TX (p57, p64-p67)",2030,status_rule,lng_imports,0.000000,0.000001
+"east TX (p57, p64-p67)",2030,status_rule,other,0.000051,0.000075
+"VA (p99, p100, p118, p124)",2030,status_rule,appalachia,0.999204,0.997769
+"VA (p99, p100, p118, p124)",2030,status_rule,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule,e_canada,0.000000,0.000396
+"VA (p99, p100, p118, p124)",2030,status_rule,lng_imports,0.000796,0.001835
+"VA (p99, p100, p118, p124)",2030,status_rule,other,0.000000,0.000000
+MA (p131),2030,status_rule,appalachia,0.848402,0.828534
+MA (p131),2030,status_rule,haynesville,0.000000,0.000000
+MA (p131),2030,status_rule,permian,0.000000,0.000000
+MA (p131),2030,status_rule,eagle_ford,0.000000,0.000000
+MA (p131),2030,status_rule,barnett_other_tx,0.000000,0.000000
+MA (p131),2030,status_rule,midcon_anadarko,0.000000,0.000000
+MA (p131),2030,status_rule,san_juan,0.000000,0.000000
+MA (p131),2030,status_rule,rockies_other,0.000000,0.000000
+MA (p131),2030,status_rule,bakken,0.000000,0.000000
+MA (p131),2030,status_rule,fed_gom,0.000000,0.000000
+MA (p131),2030,status_rule,w_canada,0.000000,0.000000
+MA (p131),2030,status_rule,e_canada,0.084998,0.094720
+MA (p131),2030,status_rule,lng_imports,0.066599,0.076746
+MA (p131),2030,status_rule,other,0.000000,0.000000
+CA (p8-p11),2030,status_rule,appalachia,0.000000,0.000000
+CA (p8-p11),2030,status_rule,haynesville,0.000000,0.000000
+CA (p8-p11),2030,status_rule,permian,0.583287,0.361532
+CA (p8-p11),2030,status_rule,eagle_ford,0.000000,0.000000
+CA (p8-p11),2030,status_rule,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2030,status_rule,midcon_anadarko,0.000000,0.008601
+CA (p8-p11),2030,status_rule,san_juan,0.061901,0.058255
+CA (p8-p11),2030,status_rule,rockies_other,0.180784,0.195127
+CA (p8-p11),2030,status_rule,bakken,0.003744,0.001871
+CA (p8-p11),2030,status_rule,fed_gom,0.000000,0.000000
+CA (p8-p11),2030,status_rule,w_canada,0.112837,0.311495
+CA (p8-p11),2030,status_rule,e_canada,0.000000,0.000000
+CA (p8-p11),2030,status_rule,lng_imports,0.000000,0.000000
+CA (p8-p11),2030,status_rule,other,0.057446,0.063118
+"FL (p91, p101, p102)",2035,status_rule,appalachia,0.000000,0.628293
+"FL (p91, p101, p102)",2035,status_rule,haynesville,0.000000,0.185395
+"FL (p91, p101, p102)",2035,status_rule,permian,0.000000,0.049027
+"FL (p91, p101, p102)",2035,status_rule,eagle_ford,0.000000,0.033123
+"FL (p91, p101, p102)",2035,status_rule,barnett_other_tx,0.000000,0.004994
+"FL (p91, p101, p102)",2035,status_rule,midcon_anadarko,0.000000,0.032509
+"FL (p91, p101, p102)",2035,status_rule,san_juan,0.000000,0.000037
+"FL (p91, p101, p102)",2035,status_rule,rockies_other,0.000000,0.000031
+"FL (p91, p101, p102)",2035,status_rule,bakken,0.000000,0.000049
+"FL (p91, p101, p102)",2035,status_rule,fed_gom,0.000000,0.044047
+"FL (p91, p101, p102)",2035,status_rule,w_canada,0.000000,0.000049
+"FL (p91, p101, p102)",2035,status_rule,e_canada,0.000000,0.000140
+"FL (p91, p101, p102)",2035,status_rule,lng_imports,0.000000,0.000238
+"FL (p91, p101, p102)",2035,status_rule,other,1.000000,0.022069
+"east TX (p57, p64-p67)",2035,status_rule,appalachia,0.000000,0.081929
+"east TX (p57, p64-p67)",2035,status_rule,haynesville,0.185046,0.232623
+"east TX (p57, p64-p67)",2035,status_rule,permian,0.534166,0.340677
+"east TX (p57, p64-p67)",2035,status_rule,eagle_ford,0.235254,0.237610
+"east TX (p57, p64-p67)",2035,status_rule,barnett_other_tx,0.021690,0.035827
+"east TX (p57, p64-p67)",2035,status_rule,midcon_anadarko,0.015786,0.055059
+"east TX (p57, p64-p67)",2035,status_rule,san_juan,0.008005,0.000222
+"east TX (p57, p64-p67)",2035,status_rule,rockies_other,0.000000,0.000093
+"east TX (p57, p64-p67)",2035,status_rule,bakken,0.000000,0.000007
+"east TX (p57, p64-p67)",2035,status_rule,fed_gom,0.000000,0.012890
+"east TX (p57, p64-p67)",2035,status_rule,w_canada,0.000000,0.000007
+"east TX (p57, p64-p67)",2035,status_rule,e_canada,0.000000,0.000018
+"east TX (p57, p64-p67)",2035,status_rule,lng_imports,0.000000,0.000033
+"east TX (p57, p64-p67)",2035,status_rule,other,0.000053,0.003004
+"VA (p99, p100, p118, p124)",2035,status_rule,appalachia,0.999278,0.997866
+"VA (p99, p100, p118, p124)",2035,status_rule,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule,e_canada,0.000000,0.000422
+"VA (p99, p100, p118, p124)",2035,status_rule,lng_imports,0.000722,0.001712
+"VA (p99, p100, p118, p124)",2035,status_rule,other,0.000000,0.000000
+MA (p131),2035,status_rule,appalachia,0.857356,0.833754
+MA (p131),2035,status_rule,haynesville,0.000000,0.000000
+MA (p131),2035,status_rule,permian,0.000000,0.000000
+MA (p131),2035,status_rule,eagle_ford,0.000000,0.000000
+MA (p131),2035,status_rule,barnett_other_tx,0.000000,0.000000
+MA (p131),2035,status_rule,midcon_anadarko,0.000000,0.000000
+MA (p131),2035,status_rule,san_juan,0.000000,0.000000
+MA (p131),2035,status_rule,rockies_other,0.000000,0.000000
+MA (p131),2035,status_rule,bakken,0.000000,0.000000
+MA (p131),2035,status_rule,fed_gom,0.000000,0.000000
+MA (p131),2035,status_rule,w_canada,0.000000,0.000000
+MA (p131),2035,status_rule,e_canada,0.081591,0.093656
+MA (p131),2035,status_rule,lng_imports,0.061053,0.072590
+MA (p131),2035,status_rule,other,0.000000,0.000000
+CA (p8-p11),2035,status_rule,appalachia,0.000000,0.000006
+CA (p8-p11),2035,status_rule,haynesville,0.000000,0.000000
+CA (p8-p11),2035,status_rule,permian,0.596187,0.379713
+CA (p8-p11),2035,status_rule,eagle_ford,0.000000,0.000000
+CA (p8-p11),2035,status_rule,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2035,status_rule,midcon_anadarko,0.000000,0.017225
+CA (p8-p11),2035,status_rule,san_juan,0.067030,0.055929
+CA (p8-p11),2035,status_rule,rockies_other,0.147924,0.186890
+CA (p8-p11),2035,status_rule,bakken,0.000612,0.001963
+CA (p8-p11),2035,status_rule,fed_gom,0.000000,0.000000
+CA (p8-p11),2035,status_rule,w_canada,0.123309,0.281310
+CA (p8-p11),2035,status_rule,e_canada,0.000000,0.000000
+CA (p8-p11),2035,status_rule,lng_imports,0.000000,0.000000
+CA (p8-p11),2035,status_rule,other,0.064938,0.076964
+"FL (p91, p101, p102)",2045,status_rule,appalachia,0.000000,0.770519
+"FL (p91, p101, p102)",2045,status_rule,haynesville,0.000000,0.052287
+"FL (p91, p101, p102)",2045,status_rule,permian,0.000000,0.032510
+"FL (p91, p101, p102)",2045,status_rule,eagle_ford,0.000000,0.022270
+"FL (p91, p101, p102)",2045,status_rule,barnett_other_tx,0.000000,0.000892
+"FL (p91, p101, p102)",2045,status_rule,midcon_anadarko,0.000000,0.060654
+"FL (p91, p101, p102)",2045,status_rule,san_juan,0.000000,0.000444
+"FL (p91, p101, p102)",2045,status_rule,rockies_other,0.000000,0.001514
+"FL (p91, p101, p102)",2045,status_rule,bakken,0.000000,0.005174
+"FL (p91, p101, p102)",2045,status_rule,fed_gom,0.000000,0.030331
+"FL (p91, p101, p102)",2045,status_rule,w_canada,0.000000,0.004449
+"FL (p91, p101, p102)",2045,status_rule,e_canada,0.000000,0.000325
+"FL (p91, p101, p102)",2045,status_rule,lng_imports,0.000000,0.000131
+"FL (p91, p101, p102)",2045,status_rule,other,1.000000,0.018499
+"east TX (p57, p64-p67)",2045,status_rule,appalachia,0.000000,0.126843
+"east TX (p57, p64-p67)",2045,status_rule,haynesville,0.103460,0.111119
+"east TX (p57, p64-p67)",2045,status_rule,permian,0.501718,0.373996
+"east TX (p57, p64-p67)",2045,status_rule,eagle_ford,0.275589,0.285487
+"east TX (p57, p64-p67)",2045,status_rule,barnett_other_tx,0.012604,0.011435
+"east TX (p57, p64-p67)",2045,status_rule,midcon_anadarko,0.096145,0.072187
+"east TX (p57, p64-p67)",2045,status_rule,san_juan,0.010438,0.001507
+"east TX (p57, p64-p67)",2045,status_rule,rockies_other,0.000000,0.001159
+"east TX (p57, p64-p67)",2045,status_rule,bakken,0.000000,0.000852
+"east TX (p57, p64-p67)",2045,status_rule,fed_gom,0.000000,0.011464
+"east TX (p57, p64-p67)",2045,status_rule,w_canada,0.000000,0.000732
+"east TX (p57, p64-p67)",2045,status_rule,e_canada,0.000000,0.000054
+"east TX (p57, p64-p67)",2045,status_rule,lng_imports,0.000000,0.000023
+"east TX (p57, p64-p67)",2045,status_rule,other,0.000047,0.003143
+"VA (p99, p100, p118, p124)",2045,status_rule,appalachia,0.999342,0.997974
+"VA (p99, p100, p118, p124)",2045,status_rule,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule,e_canada,0.000000,0.000470
+"VA (p99, p100, p118, p124)",2045,status_rule,lng_imports,0.000658,0.001556
+"VA (p99, p100, p118, p124)",2045,status_rule,other,0.000000,0.000000
+MA (p131),2045,status_rule,appalachia,0.854680,0.827153
+MA (p131),2045,status_rule,haynesville,0.000000,0.000000
+MA (p131),2045,status_rule,permian,0.000000,0.000000
+MA (p131),2045,status_rule,eagle_ford,0.000000,0.000000
+MA (p131),2045,status_rule,barnett_other_tx,0.000000,0.000000
+MA (p131),2045,status_rule,midcon_anadarko,0.000000,0.000000
+MA (p131),2045,status_rule,san_juan,0.000000,0.000000
+MA (p131),2045,status_rule,rockies_other,0.000000,0.000000
+MA (p131),2045,status_rule,bakken,0.000000,0.000000
+MA (p131),2045,status_rule,fed_gom,0.000000,0.000000
+MA (p131),2045,status_rule,w_canada,0.000000,0.000000
+MA (p131),2045,status_rule,e_canada,0.081783,0.097263
+MA (p131),2045,status_rule,lng_imports,0.063537,0.075584
+MA (p131),2045,status_rule,other,0.000000,0.000000
+CA (p8-p11),2045,status_rule,appalachia,0.000000,0.000000
+CA (p8-p11),2045,status_rule,haynesville,0.000000,0.000000
+CA (p8-p11),2045,status_rule,permian,0.619611,0.309551
+CA (p8-p11),2045,status_rule,eagle_ford,0.000000,0.000000
+CA (p8-p11),2045,status_rule,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2045,status_rule,midcon_anadarko,0.000000,0.018596
+CA (p8-p11),2045,status_rule,san_juan,0.084562,0.062292
+CA (p8-p11),2045,status_rule,rockies_other,0.197023,0.220913
+CA (p8-p11),2045,status_rule,bakken,0.000000,0.000000
+CA (p8-p11),2045,status_rule,fed_gom,0.000000,0.000000
+CA (p8-p11),2045,status_rule,w_canada,0.011165,0.314181
+CA (p8-p11),2045,status_rule,e_canada,0.000000,0.000000
+CA (p8-p11),2045,status_rule,lng_imports,0.000000,0.000000
+CA (p8-p11),2045,status_rule,other,0.087639,0.074468
+"FL (p91, p101, p102)",2024,with_approved,appalachia,0.348754,0.341543
+"FL (p91, p101, p102)",2024,with_approved,haynesville,0.181564,0.305012
+"FL (p91, p101, p102)",2024,with_approved,permian,0.074139,0.093788
+"FL (p91, p101, p102)",2024,with_approved,eagle_ford,0.021246,0.058316
+"FL (p91, p101, p102)",2024,with_approved,barnett_other_tx,0.003621,0.010275
+"FL (p91, p101, p102)",2024,with_approved,midcon_anadarko,0.147034,0.078732
+"FL (p91, p101, p102)",2024,with_approved,san_juan,0.004492,0.001415
+"FL (p91, p101, p102)",2024,with_approved,rockies_other,0.007542,0.003802
+"FL (p91, p101, p102)",2024,with_approved,bakken,0.000000,0.002333
+"FL (p91, p101, p102)",2024,with_approved,fed_gom,0.179094,0.070999
+"FL (p91, p101, p102)",2024,with_approved,w_canada,0.000000,0.003406
+"FL (p91, p101, p102)",2024,with_approved,e_canada,0.000000,0.000108
+"FL (p91, p101, p102)",2024,with_approved,lng_imports,0.000101,0.000159
+"FL (p91, p101, p102)",2024,with_approved,other,0.032414,0.030113
+"east TX (p57, p64-p67)",2024,with_approved,appalachia,0.000000,0.000079
+"east TX (p57, p64-p67)",2024,with_approved,haynesville,0.219880,0.229955
+"east TX (p57, p64-p67)",2024,with_approved,permian,0.389356,0.387420
+"east TX (p57, p64-p67)",2024,with_approved,eagle_ford,0.255937,0.264203
+"east TX (p57, p64-p67)",2024,with_approved,barnett_other_tx,0.043617,0.046550
+"east TX (p57, p64-p67)",2024,with_approved,midcon_anadarko,0.082908,0.059327
+"east TX (p57, p64-p67)",2024,with_approved,san_juan,0.008239,0.002471
+"east TX (p57, p64-p67)",2024,with_approved,rockies_other,0.000000,0.001779
+"east TX (p57, p64-p67)",2024,with_approved,bakken,0.000000,0.000005
+"east TX (p57, p64-p67)",2024,with_approved,fed_gom,0.000000,0.008113
+"east TX (p57, p64-p67)",2024,with_approved,w_canada,0.000000,0.000012
+"east TX (p57, p64-p67)",2024,with_approved,e_canada,0.000000,0.000000
+"east TX (p57, p64-p67)",2024,with_approved,lng_imports,0.000000,0.000000
+"east TX (p57, p64-p67)",2024,with_approved,other,0.000062,0.000085
+"VA (p99, p100, p118, p124)",2024,with_approved,appalachia,0.999523,0.998875
+"VA (p99, p100, p118, p124)",2024,with_approved,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,with_approved,e_canada,0.000000,0.000387
+"VA (p99, p100, p118, p124)",2024,with_approved,lng_imports,0.000477,0.000738
+"VA (p99, p100, p118, p124)",2024,with_approved,other,0.000000,0.000000
+MA (p131),2024,with_approved,appalachia,0.884077,0.818310
+MA (p131),2024,with_approved,haynesville,0.000000,0.000000
+MA (p131),2024,with_approved,permian,0.000000,0.000000
+MA (p131),2024,with_approved,eagle_ford,0.000000,0.000000
+MA (p131),2024,with_approved,barnett_other_tx,0.000000,0.000000
+MA (p131),2024,with_approved,midcon_anadarko,0.000000,0.000000
+MA (p131),2024,with_approved,san_juan,0.000000,0.000000
+MA (p131),2024,with_approved,rockies_other,0.000000,0.000000
+MA (p131),2024,with_approved,bakken,0.000000,0.000000
+MA (p131),2024,with_approved,fed_gom,0.000000,0.000000
+MA (p131),2024,with_approved,w_canada,0.000000,0.000000
+MA (p131),2024,with_approved,e_canada,0.090709,0.155461
+MA (p131),2024,with_approved,lng_imports,0.025213,0.026229
+MA (p131),2024,with_approved,other,0.000000,0.000000
+CA (p8-p11),2024,with_approved,appalachia,0.000000,0.000000
+CA (p8-p11),2024,with_approved,haynesville,0.000000,0.000000
+CA (p8-p11),2024,with_approved,permian,0.562022,0.328324
+CA (p8-p11),2024,with_approved,eagle_ford,0.000000,0.000000
+CA (p8-p11),2024,with_approved,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2024,with_approved,midcon_anadarko,0.000000,0.010539
+CA (p8-p11),2024,with_approved,san_juan,0.092362,0.076775
+CA (p8-p11),2024,with_approved,rockies_other,0.070043,0.239784
+CA (p8-p11),2024,with_approved,bakken,0.000759,0.001589
+CA (p8-p11),2024,with_approved,fed_gom,0.000000,0.000000
+CA (p8-p11),2024,with_approved,w_canada,0.219270,0.285509
+CA (p8-p11),2024,with_approved,e_canada,0.000000,0.000000
+CA (p8-p11),2024,with_approved,lng_imports,0.000000,0.000000
+CA (p8-p11),2024,with_approved,other,0.055545,0.057478
+"FL (p91, p101, p102)",2030,with_approved,appalachia,0.315182,0.492521
+"FL (p91, p101, p102)",2030,with_approved,haynesville,0.234783,0.275326
+"FL (p91, p101, p102)",2030,with_approved,permian,0.076589,0.079990
+"FL (p91, p101, p102)",2030,with_approved,eagle_ford,0.028710,0.041869
+"FL (p91, p101, p102)",2030,with_approved,barnett_other_tx,0.004889,0.008893
+"FL (p91, p101, p102)",2030,with_approved,midcon_anadarko,0.127347,0.023550
+"FL (p91, p101, p102)",2030,with_approved,san_juan,0.001396,0.000498
+"FL (p91, p101, p102)",2030,with_approved,rockies_other,0.000000,0.000416
+"FL (p91, p101, p102)",2030,with_approved,bakken,0.000000,0.000152
+"FL (p91, p101, p102)",2030,with_approved,fed_gom,0.175131,0.050392
+"FL (p91, p101, p102)",2030,with_approved,w_canada,0.000000,0.000257
+"FL (p91, p101, p102)",2030,with_approved,e_canada,0.000000,0.000128
+"FL (p91, p101, p102)",2030,with_approved,lng_imports,0.000301,0.000322
+"FL (p91, p101, p102)",2030,with_approved,other,0.035672,0.025685
+"east TX (p57, p64-p67)",2030,with_approved,appalachia,0.000000,0.000093
+"east TX (p57, p64-p67)",2030,with_approved,haynesville,0.201006,0.239181
+"east TX (p57, p64-p67)",2030,with_approved,permian,0.541120,0.431857
+"east TX (p57, p64-p67)",2030,with_approved,eagle_ford,0.202839,0.226188
+"east TX (p57, p64-p67)",2030,with_approved,barnett_other_tx,0.034540,0.048040
+"east TX (p57, p64-p67)",2030,with_approved,midcon_anadarko,0.010584,0.043587
+"east TX (p57, p64-p67)",2030,with_approved,san_juan,0.009861,0.002569
+"east TX (p57, p64-p67)",2030,with_approved,rockies_other,0.000000,0.001716
+"east TX (p57, p64-p67)",2030,with_approved,bakken,0.000000,0.000006
+"east TX (p57, p64-p67)",2030,with_approved,fed_gom,0.000000,0.006661
+"east TX (p57, p64-p67)",2030,with_approved,w_canada,0.000000,0.000027
+"east TX (p57, p64-p67)",2030,with_approved,e_canada,0.000000,0.000000
+"east TX (p57, p64-p67)",2030,with_approved,lng_imports,0.000000,0.000001
+"east TX (p57, p64-p67)",2030,with_approved,other,0.000051,0.000075
+"VA (p99, p100, p118, p124)",2030,with_approved,appalachia,0.999204,0.997769
+"VA (p99, p100, p118, p124)",2030,with_approved,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,with_approved,e_canada,0.000000,0.000396
+"VA (p99, p100, p118, p124)",2030,with_approved,lng_imports,0.000796,0.001835
+"VA (p99, p100, p118, p124)",2030,with_approved,other,0.000000,0.000000
+MA (p131),2030,with_approved,appalachia,0.848402,0.828534
+MA (p131),2030,with_approved,haynesville,0.000000,0.000000
+MA (p131),2030,with_approved,permian,0.000000,0.000000
+MA (p131),2030,with_approved,eagle_ford,0.000000,0.000000
+MA (p131),2030,with_approved,barnett_other_tx,0.000000,0.000000
+MA (p131),2030,with_approved,midcon_anadarko,0.000000,0.000000
+MA (p131),2030,with_approved,san_juan,0.000000,0.000000
+MA (p131),2030,with_approved,rockies_other,0.000000,0.000000
+MA (p131),2030,with_approved,bakken,0.000000,0.000000
+MA (p131),2030,with_approved,fed_gom,0.000000,0.000000
+MA (p131),2030,with_approved,w_canada,0.000000,0.000000
+MA (p131),2030,with_approved,e_canada,0.084998,0.094720
+MA (p131),2030,with_approved,lng_imports,0.066599,0.076746
+MA (p131),2030,with_approved,other,0.000000,0.000000
+CA (p8-p11),2030,with_approved,appalachia,0.000000,0.000000
+CA (p8-p11),2030,with_approved,haynesville,0.000000,0.000000
+CA (p8-p11),2030,with_approved,permian,0.583287,0.361532
+CA (p8-p11),2030,with_approved,eagle_ford,0.000000,0.000000
+CA (p8-p11),2030,with_approved,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2030,with_approved,midcon_anadarko,0.000000,0.008601
+CA (p8-p11),2030,with_approved,san_juan,0.061901,0.058255
+CA (p8-p11),2030,with_approved,rockies_other,0.180924,0.195127
+CA (p8-p11),2030,with_approved,bakken,0.003748,0.001871
+CA (p8-p11),2030,with_approved,fed_gom,0.000000,0.000000
+CA (p8-p11),2030,with_approved,w_canada,0.112694,0.311495
+CA (p8-p11),2030,with_approved,e_canada,0.000000,0.000000
+CA (p8-p11),2030,with_approved,lng_imports,0.000000,0.000000
+CA (p8-p11),2030,with_approved,other,0.057446,0.063118
+"FL (p91, p101, p102)",2035,with_approved,appalachia,0.000000,0.628293
+"FL (p91, p101, p102)",2035,with_approved,haynesville,0.000000,0.185395
+"FL (p91, p101, p102)",2035,with_approved,permian,0.000000,0.049027
+"FL (p91, p101, p102)",2035,with_approved,eagle_ford,0.000000,0.033123
+"FL (p91, p101, p102)",2035,with_approved,barnett_other_tx,0.000000,0.004994
+"FL (p91, p101, p102)",2035,with_approved,midcon_anadarko,0.000000,0.032509
+"FL (p91, p101, p102)",2035,with_approved,san_juan,0.000000,0.000037
+"FL (p91, p101, p102)",2035,with_approved,rockies_other,0.000000,0.000031
+"FL (p91, p101, p102)",2035,with_approved,bakken,0.000000,0.000049
+"FL (p91, p101, p102)",2035,with_approved,fed_gom,0.000000,0.044047
+"FL (p91, p101, p102)",2035,with_approved,w_canada,0.000000,0.000049
+"FL (p91, p101, p102)",2035,with_approved,e_canada,0.000000,0.000140
+"FL (p91, p101, p102)",2035,with_approved,lng_imports,0.000000,0.000238
+"FL (p91, p101, p102)",2035,with_approved,other,1.000000,0.022069
+"east TX (p57, p64-p67)",2035,with_approved,appalachia,0.000000,0.081929
+"east TX (p57, p64-p67)",2035,with_approved,haynesville,0.185046,0.232623
+"east TX (p57, p64-p67)",2035,with_approved,permian,0.534166,0.340677
+"east TX (p57, p64-p67)",2035,with_approved,eagle_ford,0.235254,0.237610
+"east TX (p57, p64-p67)",2035,with_approved,barnett_other_tx,0.021690,0.035827
+"east TX (p57, p64-p67)",2035,with_approved,midcon_anadarko,0.015786,0.055059
+"east TX (p57, p64-p67)",2035,with_approved,san_juan,0.008005,0.000222
+"east TX (p57, p64-p67)",2035,with_approved,rockies_other,0.000000,0.000093
+"east TX (p57, p64-p67)",2035,with_approved,bakken,0.000000,0.000007
+"east TX (p57, p64-p67)",2035,with_approved,fed_gom,0.000000,0.012890
+"east TX (p57, p64-p67)",2035,with_approved,w_canada,0.000000,0.000007
+"east TX (p57, p64-p67)",2035,with_approved,e_canada,0.000000,0.000018
+"east TX (p57, p64-p67)",2035,with_approved,lng_imports,0.000000,0.000033
+"east TX (p57, p64-p67)",2035,with_approved,other,0.000053,0.003004
+"VA (p99, p100, p118, p124)",2035,with_approved,appalachia,0.999278,0.997866
+"VA (p99, p100, p118, p124)",2035,with_approved,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,with_approved,e_canada,0.000000,0.000422
+"VA (p99, p100, p118, p124)",2035,with_approved,lng_imports,0.000722,0.001712
+"VA (p99, p100, p118, p124)",2035,with_approved,other,0.000000,0.000000
+MA (p131),2035,with_approved,appalachia,0.857356,0.833754
+MA (p131),2035,with_approved,haynesville,0.000000,0.000000
+MA (p131),2035,with_approved,permian,0.000000,0.000000
+MA (p131),2035,with_approved,eagle_ford,0.000000,0.000000
+MA (p131),2035,with_approved,barnett_other_tx,0.000000,0.000000
+MA (p131),2035,with_approved,midcon_anadarko,0.000000,0.000000
+MA (p131),2035,with_approved,san_juan,0.000000,0.000000
+MA (p131),2035,with_approved,rockies_other,0.000000,0.000000
+MA (p131),2035,with_approved,bakken,0.000000,0.000000
+MA (p131),2035,with_approved,fed_gom,0.000000,0.000000
+MA (p131),2035,with_approved,w_canada,0.000000,0.000000
+MA (p131),2035,with_approved,e_canada,0.081591,0.093656
+MA (p131),2035,with_approved,lng_imports,0.061053,0.072590
+MA (p131),2035,with_approved,other,0.000000,0.000000
+CA (p8-p11),2035,with_approved,appalachia,0.000000,0.000006
+CA (p8-p11),2035,with_approved,haynesville,0.000000,0.000000
+CA (p8-p11),2035,with_approved,permian,0.596187,0.379713
+CA (p8-p11),2035,with_approved,eagle_ford,0.000000,0.000000
+CA (p8-p11),2035,with_approved,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2035,with_approved,midcon_anadarko,0.000000,0.017225
+CA (p8-p11),2035,with_approved,san_juan,0.067041,0.055929
+CA (p8-p11),2035,with_approved,rockies_other,0.148107,0.186890
+CA (p8-p11),2035,with_approved,bakken,0.000613,0.001963
+CA (p8-p11),2035,with_approved,fed_gom,0.000000,0.000000
+CA (p8-p11),2035,with_approved,w_canada,0.123114,0.281310
+CA (p8-p11),2035,with_approved,e_canada,0.000000,0.000000
+CA (p8-p11),2035,with_approved,lng_imports,0.000000,0.000000
+CA (p8-p11),2035,with_approved,other,0.064938,0.076964
+"FL (p91, p101, p102)",2045,with_approved,appalachia,0.000000,0.770519
+"FL (p91, p101, p102)",2045,with_approved,haynesville,0.000000,0.052287
+"FL (p91, p101, p102)",2045,with_approved,permian,0.000000,0.032510
+"FL (p91, p101, p102)",2045,with_approved,eagle_ford,0.000000,0.022270
+"FL (p91, p101, p102)",2045,with_approved,barnett_other_tx,0.000000,0.000892
+"FL (p91, p101, p102)",2045,with_approved,midcon_anadarko,0.000000,0.060654
+"FL (p91, p101, p102)",2045,with_approved,san_juan,0.000000,0.000444
+"FL (p91, p101, p102)",2045,with_approved,rockies_other,0.000000,0.001514
+"FL (p91, p101, p102)",2045,with_approved,bakken,0.000000,0.005174
+"FL (p91, p101, p102)",2045,with_approved,fed_gom,0.000000,0.030331
+"FL (p91, p101, p102)",2045,with_approved,w_canada,0.000000,0.004449
+"FL (p91, p101, p102)",2045,with_approved,e_canada,0.000000,0.000325
+"FL (p91, p101, p102)",2045,with_approved,lng_imports,0.000000,0.000131
+"FL (p91, p101, p102)",2045,with_approved,other,1.000000,0.018499
+"east TX (p57, p64-p67)",2045,with_approved,appalachia,0.000000,0.126843
+"east TX (p57, p64-p67)",2045,with_approved,haynesville,0.103460,0.111119
+"east TX (p57, p64-p67)",2045,with_approved,permian,0.501718,0.373996
+"east TX (p57, p64-p67)",2045,with_approved,eagle_ford,0.275589,0.285487
+"east TX (p57, p64-p67)",2045,with_approved,barnett_other_tx,0.012604,0.011435
+"east TX (p57, p64-p67)",2045,with_approved,midcon_anadarko,0.096145,0.072187
+"east TX (p57, p64-p67)",2045,with_approved,san_juan,0.010438,0.001507
+"east TX (p57, p64-p67)",2045,with_approved,rockies_other,0.000000,0.001159
+"east TX (p57, p64-p67)",2045,with_approved,bakken,0.000000,0.000852
+"east TX (p57, p64-p67)",2045,with_approved,fed_gom,0.000000,0.011464
+"east TX (p57, p64-p67)",2045,with_approved,w_canada,0.000000,0.000732
+"east TX (p57, p64-p67)",2045,with_approved,e_canada,0.000000,0.000054
+"east TX (p57, p64-p67)",2045,with_approved,lng_imports,0.000000,0.000023
+"east TX (p57, p64-p67)",2045,with_approved,other,0.000047,0.003143
+"VA (p99, p100, p118, p124)",2045,with_approved,appalachia,0.999342,0.997974
+"VA (p99, p100, p118, p124)",2045,with_approved,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,with_approved,e_canada,0.000000,0.000470
+"VA (p99, p100, p118, p124)",2045,with_approved,lng_imports,0.000658,0.001556
+"VA (p99, p100, p118, p124)",2045,with_approved,other,0.000000,0.000000
+MA (p131),2045,with_approved,appalachia,0.854680,0.827153
+MA (p131),2045,with_approved,haynesville,0.000000,0.000000
+MA (p131),2045,with_approved,permian,0.000000,0.000000
+MA (p131),2045,with_approved,eagle_ford,0.000000,0.000000
+MA (p131),2045,with_approved,barnett_other_tx,0.000000,0.000000
+MA (p131),2045,with_approved,midcon_anadarko,0.000000,0.000000
+MA (p131),2045,with_approved,san_juan,0.000000,0.000000
+MA (p131),2045,with_approved,rockies_other,0.000000,0.000000
+MA (p131),2045,with_approved,bakken,0.000000,0.000000
+MA (p131),2045,with_approved,fed_gom,0.000000,0.000000
+MA (p131),2045,with_approved,w_canada,0.000000,0.000000
+MA (p131),2045,with_approved,e_canada,0.081783,0.097263
+MA (p131),2045,with_approved,lng_imports,0.063537,0.075584
+MA (p131),2045,with_approved,other,0.000000,0.000000
+CA (p8-p11),2045,with_approved,appalachia,0.000000,0.000000
+CA (p8-p11),2045,with_approved,haynesville,0.000000,0.000000
+CA (p8-p11),2045,with_approved,permian,0.619611,0.309551
+CA (p8-p11),2045,with_approved,eagle_ford,0.000000,0.000000
+CA (p8-p11),2045,with_approved,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2045,with_approved,midcon_anadarko,0.000000,0.018596
+CA (p8-p11),2045,with_approved,san_juan,0.084562,0.062292
+CA (p8-p11),2045,with_approved,rockies_other,0.197023,0.220913
+CA (p8-p11),2045,with_approved,bakken,0.000000,0.000000
+CA (p8-p11),2045,with_approved,fed_gom,0.000000,0.000000
+CA (p8-p11),2045,with_approved,w_canada,0.011165,0.314181
+CA (p8-p11),2045,with_approved,e_canada,0.000000,0.000000
+CA (p8-p11),2045,with_approved,lng_imports,0.000000,0.000000
+CA (p8-p11),2045,with_approved,other,0.087639,0.074468
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,appalachia,0.348754,0.341543
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,haynesville,0.181564,0.305012
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,permian,0.074139,0.093788
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,eagle_ford,0.021246,0.058316
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,barnett_other_tx,0.003621,0.010275
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,midcon_anadarko,0.147034,0.078732
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,san_juan,0.004492,0.001415
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,rockies_other,0.007542,0.003802
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,bakken,0.000000,0.002333
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,fed_gom,0.179094,0.070999
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,w_canada,0.000000,0.003406
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,e_canada,0.000000,0.000108
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,lng_imports,0.000101,0.000159
+"FL (p91, p101, p102)",2024,status_rule_min_expansion,other,0.032414,0.030113
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,appalachia,0.000000,0.000079
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,haynesville,0.219880,0.229955
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,permian,0.389356,0.387420
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,eagle_ford,0.255937,0.264203
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,barnett_other_tx,0.043617,0.046550
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,midcon_anadarko,0.082908,0.059327
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,san_juan,0.008239,0.002471
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,rockies_other,0.000000,0.001779
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,bakken,0.000000,0.000005
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,fed_gom,0.000000,0.008113
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,w_canada,0.000000,0.000012
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,e_canada,0.000000,0.000000
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,lng_imports,0.000000,0.000000
+"east TX (p57, p64-p67)",2024,status_rule_min_expansion,other,0.000062,0.000085
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,appalachia,0.999523,0.998875
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,e_canada,0.000000,0.000387
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,lng_imports,0.000477,0.000738
+"VA (p99, p100, p118, p124)",2024,status_rule_min_expansion,other,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,appalachia,0.884077,0.818310
+MA (p131),2024,status_rule_min_expansion,haynesville,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,permian,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,midcon_anadarko,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,san_juan,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,rockies_other,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,bakken,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,fed_gom,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,w_canada,0.000000,0.000000
+MA (p131),2024,status_rule_min_expansion,e_canada,0.090709,0.155461
+MA (p131),2024,status_rule_min_expansion,lng_imports,0.025213,0.026229
+MA (p131),2024,status_rule_min_expansion,other,0.000000,0.000000
+CA (p8-p11),2024,status_rule_min_expansion,appalachia,0.000000,0.000000
+CA (p8-p11),2024,status_rule_min_expansion,haynesville,0.000000,0.000000
+CA (p8-p11),2024,status_rule_min_expansion,permian,0.562022,0.328324
+CA (p8-p11),2024,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+CA (p8-p11),2024,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2024,status_rule_min_expansion,midcon_anadarko,0.000000,0.010539
+CA (p8-p11),2024,status_rule_min_expansion,san_juan,0.092362,0.076775
+CA (p8-p11),2024,status_rule_min_expansion,rockies_other,0.070043,0.239784
+CA (p8-p11),2024,status_rule_min_expansion,bakken,0.000759,0.001589
+CA (p8-p11),2024,status_rule_min_expansion,fed_gom,0.000000,0.000000
+CA (p8-p11),2024,status_rule_min_expansion,w_canada,0.219270,0.285509
+CA (p8-p11),2024,status_rule_min_expansion,e_canada,0.000000,0.000000
+CA (p8-p11),2024,status_rule_min_expansion,lng_imports,0.000000,0.000000
+CA (p8-p11),2024,status_rule_min_expansion,other,0.055545,0.057478
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,appalachia,0.315182,0.492521
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,haynesville,0.234783,0.275326
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,permian,0.076589,0.079990
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,eagle_ford,0.028710,0.041869
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,barnett_other_tx,0.004889,0.008893
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,midcon_anadarko,0.127347,0.023550
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,san_juan,0.001396,0.000498
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,rockies_other,0.000000,0.000416
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,bakken,0.000000,0.000152
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,fed_gom,0.175131,0.050392
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,w_canada,0.000000,0.000257
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,e_canada,0.000000,0.000128
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,lng_imports,0.000301,0.000322
+"FL (p91, p101, p102)",2030,status_rule_min_expansion,other,0.035672,0.025685
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,appalachia,0.000000,0.000093
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,haynesville,0.201006,0.239181
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,permian,0.541120,0.431857
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,eagle_ford,0.202839,0.226188
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,barnett_other_tx,0.034540,0.048040
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,midcon_anadarko,0.010584,0.043587
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,san_juan,0.009861,0.002569
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,rockies_other,0.000000,0.001716
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,bakken,0.000000,0.000006
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,fed_gom,0.000000,0.006661
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,w_canada,0.000000,0.000027
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,e_canada,0.000000,0.000000
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,lng_imports,0.000000,0.000001
+"east TX (p57, p64-p67)",2030,status_rule_min_expansion,other,0.000051,0.000075
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,appalachia,0.999204,0.997769
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,e_canada,0.000000,0.000396
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,lng_imports,0.000796,0.001835
+"VA (p99, p100, p118, p124)",2030,status_rule_min_expansion,other,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,appalachia,0.848402,0.828534
+MA (p131),2030,status_rule_min_expansion,haynesville,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,permian,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,midcon_anadarko,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,san_juan,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,rockies_other,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,bakken,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,fed_gom,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,w_canada,0.000000,0.000000
+MA (p131),2030,status_rule_min_expansion,e_canada,0.084998,0.094720
+MA (p131),2030,status_rule_min_expansion,lng_imports,0.066599,0.076746
+MA (p131),2030,status_rule_min_expansion,other,0.000000,0.000000
+CA (p8-p11),2030,status_rule_min_expansion,appalachia,0.000000,0.000000
+CA (p8-p11),2030,status_rule_min_expansion,haynesville,0.000000,0.000000
+CA (p8-p11),2030,status_rule_min_expansion,permian,0.583287,0.361532
+CA (p8-p11),2030,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+CA (p8-p11),2030,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2030,status_rule_min_expansion,midcon_anadarko,0.000000,0.008601
+CA (p8-p11),2030,status_rule_min_expansion,san_juan,0.061901,0.058255
+CA (p8-p11),2030,status_rule_min_expansion,rockies_other,0.180784,0.195127
+CA (p8-p11),2030,status_rule_min_expansion,bakken,0.003744,0.001871
+CA (p8-p11),2030,status_rule_min_expansion,fed_gom,0.000000,0.000000
+CA (p8-p11),2030,status_rule_min_expansion,w_canada,0.112837,0.311495
+CA (p8-p11),2030,status_rule_min_expansion,e_canada,0.000000,0.000000
+CA (p8-p11),2030,status_rule_min_expansion,lng_imports,0.000000,0.000000
+CA (p8-p11),2030,status_rule_min_expansion,other,0.057446,0.063118
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,appalachia,0.646678,0.628293
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,haynesville,0.000000,0.185395
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,permian,0.000000,0.049027
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,eagle_ford,0.000000,0.033123
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,barnett_other_tx,0.000000,0.004994
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,midcon_anadarko,0.125829,0.032509
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,san_juan,0.000000,0.000037
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,rockies_other,0.000000,0.000031
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,bakken,0.000000,0.000049
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,fed_gom,0.194496,0.044047
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,w_canada,0.000000,0.000049
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,e_canada,0.000000,0.000140
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,lng_imports,0.000084,0.000238
+"FL (p91, p101, p102)",2035,status_rule_min_expansion,other,0.032913,0.022069
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,appalachia,0.000000,0.081929
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,haynesville,0.183396,0.232623
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,permian,0.529403,0.340677
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,eagle_ford,0.233156,0.237610
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,barnett_other_tx,0.021497,0.035827
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,midcon_anadarko,0.024561,0.055059
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,san_juan,0.007934,0.000222
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,rockies_other,0.000000,0.000093
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,bakken,0.000000,0.000007
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,fed_gom,0.000000,0.012890
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,w_canada,0.000000,0.000007
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,e_canada,0.000000,0.000018
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,lng_imports,0.000000,0.000033
+"east TX (p57, p64-p67)",2035,status_rule_min_expansion,other,0.000052,0.003004
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,appalachia,0.999137,0.997866
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,e_canada,0.000000,0.000422
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,lng_imports,0.000863,0.001712
+"VA (p99, p100, p118, p124)",2035,status_rule_min_expansion,other,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,appalachia,0.857356,0.833754
+MA (p131),2035,status_rule_min_expansion,haynesville,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,permian,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,midcon_anadarko,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,san_juan,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,rockies_other,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,bakken,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,fed_gom,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,w_canada,0.000000,0.000000
+MA (p131),2035,status_rule_min_expansion,e_canada,0.081591,0.093656
+MA (p131),2035,status_rule_min_expansion,lng_imports,0.061053,0.072590
+MA (p131),2035,status_rule_min_expansion,other,0.000000,0.000000
+CA (p8-p11),2035,status_rule_min_expansion,appalachia,0.000000,0.000006
+CA (p8-p11),2035,status_rule_min_expansion,haynesville,0.000000,0.000000
+CA (p8-p11),2035,status_rule_min_expansion,permian,0.596187,0.379713
+CA (p8-p11),2035,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+CA (p8-p11),2035,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2035,status_rule_min_expansion,midcon_anadarko,0.000000,0.017225
+CA (p8-p11),2035,status_rule_min_expansion,san_juan,0.067030,0.055929
+CA (p8-p11),2035,status_rule_min_expansion,rockies_other,0.147924,0.186890
+CA (p8-p11),2035,status_rule_min_expansion,bakken,0.000612,0.001963
+CA (p8-p11),2035,status_rule_min_expansion,fed_gom,0.000000,0.000000
+CA (p8-p11),2035,status_rule_min_expansion,w_canada,0.123309,0.281310
+CA (p8-p11),2035,status_rule_min_expansion,e_canada,0.000000,0.000000
+CA (p8-p11),2035,status_rule_min_expansion,lng_imports,0.000000,0.000000
+CA (p8-p11),2035,status_rule_min_expansion,other,0.064938,0.076964
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,appalachia,0.807595,0.770519
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,haynesville,0.000000,0.052287
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,permian,0.000000,0.032510
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,eagle_ford,0.000000,0.022270
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,barnett_other_tx,0.000000,0.000892
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,midcon_anadarko,0.162852,0.060654
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,san_juan,0.000000,0.000444
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,rockies_other,0.000000,0.001514
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,bakken,0.000000,0.005174
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,fed_gom,0.000000,0.030331
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,w_canada,0.000000,0.004449
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,e_canada,0.000000,0.000325
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,lng_imports,0.000100,0.000131
+"FL (p91, p101, p102)",2045,status_rule_min_expansion,other,0.029453,0.018499
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,appalachia,0.000000,0.126843
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,haynesville,0.101661,0.111119
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,permian,0.473767,0.373996
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,eagle_ford,0.259892,0.285487
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,barnett_other_tx,0.013605,0.011435
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,midcon_anadarko,0.141173,0.072187
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,san_juan,0.009857,0.001507
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,rockies_other,0.000000,0.001159
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,bakken,0.000000,0.000852
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,fed_gom,0.000000,0.011464
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,w_canada,0.000000,0.000732
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,e_canada,0.000000,0.000054
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,lng_imports,0.000000,0.000023
+"east TX (p57, p64-p67)",2045,status_rule_min_expansion,other,0.000044,0.003143
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,appalachia,0.999233,0.997974
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,haynesville,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,permian,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,midcon_anadarko,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,san_juan,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,rockies_other,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,bakken,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,fed_gom,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,w_canada,0.000000,0.000000
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,e_canada,0.000000,0.000470
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,lng_imports,0.000767,0.001556
+"VA (p99, p100, p118, p124)",2045,status_rule_min_expansion,other,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,appalachia,0.854680,0.827153
+MA (p131),2045,status_rule_min_expansion,haynesville,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,permian,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,midcon_anadarko,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,san_juan,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,rockies_other,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,bakken,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,fed_gom,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,w_canada,0.000000,0.000000
+MA (p131),2045,status_rule_min_expansion,e_canada,0.081783,0.097263
+MA (p131),2045,status_rule_min_expansion,lng_imports,0.063537,0.075584
+MA (p131),2045,status_rule_min_expansion,other,0.000000,0.000000
+CA (p8-p11),2045,status_rule_min_expansion,appalachia,0.000000,0.000000
+CA (p8-p11),2045,status_rule_min_expansion,haynesville,0.000000,0.000000
+CA (p8-p11),2045,status_rule_min_expansion,permian,0.461311,0.309551
+CA (p8-p11),2045,status_rule_min_expansion,eagle_ford,0.000000,0.000000
+CA (p8-p11),2045,status_rule_min_expansion,barnett_other_tx,0.000000,0.000000
+CA (p8-p11),2045,status_rule_min_expansion,midcon_anadarko,0.000000,0.018596
+CA (p8-p11),2045,status_rule_min_expansion,san_juan,0.090623,0.062292
+CA (p8-p11),2045,status_rule_min_expansion,rockies_other,0.287174,0.220913
+CA (p8-p11),2045,status_rule_min_expansion,bakken,0.000000,0.000000
+CA (p8-p11),2045,status_rule_min_expansion,fed_gom,0.000000,0.000000
+CA (p8-p11),2045,status_rule_min_expansion,w_canada,0.096202,0.314181
+CA (p8-p11),2045,status_rule_min_expansion,e_canada,0.000000,0.000000
+CA (p8-p11),2045,status_rule_min_expansion,lng_imports,0.000000,0.000000
+CA (p8-p11),2045,status_rule_min_expansion,other,0.064690,0.074468

@@ -3793,3 +3793,49 @@ Output: `gas_network/outputs/zone_basin_shares.csv`, plus a region cross-check, 
 
 **Tests:** 24 (6 new: move rules, the traced-total identity under overdraw, balancing on a toy network, the Colorado
 split with its NM validation, district mixing, sensitivity/metadata outputs). All pass on pandas 3.0.6 and 1.4.4.
+
+## 96. Gas Stage 1 Close-out (Unmet Local Use, Degeneracy) and Gas Stage 2a: Standalone Annual Network LP
+
+**Date:** 2026-10-11 · **Branch:** `tom/gas-network`. No Switch link; no model code changed. §96–99 are reserved for
+gas Stage 2. Guide: "Guides and documentation/gas_network.md", sections "Stage 1 status, unmet local use and balancing
+degeneracy" and "Stage 2a".
+
+**Stage 1 close-out** (Tom: accepted at ddac626; 2024 = reference, projected years indicative).
+- `zone_basin_shares.meta.json` gains `status`, `year_status`, `unmet_local_use_after_balancing` and
+  `balance_degeneracy`.
+- **Unmet local use** (`outputs/unmet_local_use.csv`): every state with a shortfall has gas-fired generation
+  (EIA-860M).
+  - OR 80–100% of its floor (2028–2045), WA 16–69%, IA 1–91%, TN 22–57%, GA 6–18%, FL 0.4–14%, CA 0.5–6%.
+  - Within a region the state that takes it can be a tie; regional totals are robust.
+- **Balancing degeneracy** (`outputs/balance_degeneracy.csv`): a second optimum of the balancing LP (tie-break) moves
+  zone shares by 1.9–3.4 pp on average; Missouri's six zones by 24–27 pp, NH/VT 10–12 pp, about 20 zones >5 pp. The
+  accepted formulation stays the default, and the accepted outputs are unchanged byte for byte.
+
+**Stage 2a** (`gasnet/capacity.py`, `gasnet/stage2a.py`, `python -m gasnet.cli stage2a` → `outputs/stage2a/`):
+- **Network:** 52 hubs + 14 basin supply nodes (fixed gathering arcs).
+- **Capacity:** EIA State-to-State January 2026 (2025, by pipeline and county pair; Texas by county to sub-hubs) +
+  NGMM intra-Texas 2024 + `data/reference/capacity_projects.csv` (EIA tracker, August 2026) under Tom's status rule.
+  Completed/Part Completed/Construction count from November of the in-service year; Approved is a sensitivity; the
+  rest are excluded.
+- **Supply:** 2024 EIA; later years Stage 1's AEO2026-indexed basin supply.
+- **Demand:** EIA 2024 state end uses + exports, × AEO2026 Table 62/61 growth, scaled to supply.
+- **Objective:** min Σ km × flow + 10⁶ × (unserved + spill). Calibrated on 2024 over utilisation cap × hurdle: U = 0.9
+  (the lowest that serves 2024), hurdle 0.
+- **2024:**
+  - State-arc weighted absolute error 0.61 (net 0.57), R² 0.55. Structural: the LP doesn't cross-haul (47.8 vs 67.0
+    Tcf of gross receipts).
+  - Region error vs Table 64 2025 is 0.27.
+- **2030** is feasible except Vermont (6 Bcf; no arc).
+- **2035 and 2045 are infeasible under the status rule.** Appalachian takeaway binds; 1.9 / 4.9 Tcf spill in PA and
+  goes unserved in FL, GA, LA, CA, WI. Approved projects don't change this.
+- **A min-expansion diagnostic** needs 6.7 Bcf/d (2035) and 22.3 Bcf/d (2045) of extra Appalachian outlet capacity:
+  WV→KY, PA→OH, PA→MD, OH→MI, OH→IN, KY→TN, VA→NC, AL→FL. Region error vs Table 64 falls from 0.49/0.62 to 0.35.
+- **Traced shares vs Stage 1:** VA, MA and east TX within 0.1–6.6 pp in 2024; FL 19 pp and CA 25 pp (min-cost routing
+  vs observed paths). Stage 1 stays the 2024 reference; Stage 2a is a feasibility and capacity check.
+- **Data:** 51 new files pinned (state consumption ×49, the state-to-state capacity workbook, the projects tracker);
+  117 in `data/SOURCES.yml`; no existing pin changed.
+- **Tests:** 30 (6 new: status rule, LP known answer and binding arc, unserved and min expansion, arc error, run
+  outputs, 2024 demand = EIA 32.515 Tcf). They pass on pandas 3.0.6 and 1.4.4, and the Stage 2a run reproduces
+  exactly on 1.4.4.
+
+**Stopped before** seasonal/peak-day work and any coupling to Switch.

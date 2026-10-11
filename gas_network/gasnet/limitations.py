@@ -77,3 +77,27 @@ def metadata(cfg: dict, default, mix: pd.DataFrame, co_sj: dict, label: str) -> 
             {"id": "projected_arcs_scaled", "text": "Projected arcs are scaled and rebalanced, not solved by a "
                                                     "network model; Stage 2 replaces them."}],
         "basins": cfg["basins"]}
+
+
+def unmet_local_use(cfg: dict, nets: dict, raw) -> pd.DataFrame:
+    """States whose local use stays below its AEO-grown floor after balancing (default variant), with gas-fired
+    capacity (EIA-860M operating NG nameplate; Switch's existing gas fleet is built from EIA-860 via PowerGenome) and
+    the Switch zones in the state. Which state inside a region takes a shortfall can be a tie between equivalent
+    optima; regional totals are the robust number."""
+    h = pd.read_csv(cfg["paths"]["hierarchy"])
+    h = h[h.country == "USA"]
+    zones_by_state = h.groupby("st").ba.apply(lambda s: " ".join(sorted(s, key=lambda z: int(z[1:]))))
+    mw = eia.gas_capacity_by_state(raw / "eia" / "august_generator2026.xlsx")
+    rows = []
+    for y, n in nets.items():
+        for hub, v in n.get("balance", {}).get("slack_hubs", {}).items():
+            st = "TX" if hub.startswith("TX_") else hub
+            fl = n["balance"]["floor_hubs"].get(hub, float("nan"))
+            rows.append(dict(year=y, state=st, hub=hub, shortfall_bcf=round(v / 1000, 1), floor_bcf=round(fl / 1000, 1),
+                             shortfall_pct_of_floor=round(100 * v / fl, 1),
+                             gas_mw_eia860m=round(float(mw.get(st, 0.0))),
+                             has_gas_generation=bool(mw.get(st, 0.0) > 0),
+                             switch_zones=zones_by_state.get(st, "")))
+    return pd.DataFrame(rows, columns=["year", "state", "hub", "shortfall_bcf", "floor_bcf", "shortfall_pct_of_floor",
+                                       "gas_mw_eia860m",
+                                       "has_gas_generation", "switch_zones"])

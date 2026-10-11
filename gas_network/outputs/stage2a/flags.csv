@@ -1,0 +1,20 @@
+year,flag,what,note
+,capacity_tx_county_hub_by_zone,armstrong,TX_W (dominant hub of p48)
+,capacity_tx_county_hub_by_zone,bailey,TX_W (dominant hub of p48)
+,capacity_tx_county_hub_by_zone,castro,TX_W (dominant hub of p48)
+,capacity_tx_county_hub_by_zone,dallam,TX_W (dominant hub of p48)
+,capacity_tx_county_hub_by_zone,deaf smith,TX_W (dominant hub of p48)
+,capacity_tx_county_hub_by_zone,parmer,TX_W (dominant hub of p48)
+,capacity_tx_county_hub_by_zone,randall,TX_W (dominant hub of p48)
+,capacity_tx_county_hub_by_zone,swisher,TX_W (dominant hub of p48)
+,capacity_tx_county_hub_by_zone,briscoe,TX_W (dominant hub of p60)
+,capacity_tx_county_hub_by_zone,hall,TX_W (dominant hub of p60)
+,capacity_tx_county_hub_by_zone,delta,TX_N (dominant hub of p63)
+,capacity_tx_county_hub_by_zone,fannin,TX_N (dominant hub of p63)
+,capacity_tx_county_hub_by_zone,rockwall,TX_N (dominant hub of p63)
+,capacity_tx_county_hub_by_zone,gillespie,TX_E (dominant hub of p64)
+,capacity_tx_county_hub_by_zone,mason,TX_E (dominant hub of p64)
+2024,observed_arc_without_capacity,NH->VT,152 Bcf observed; no EIA capacity row
+2024,observed_arc_without_capacity,OH->LA,224 Bcf observed; no EIA capacity row
+2024,observed_arc_without_capacity,VT->NH,152 Bcf observed; no EIA capacity row
+2024,observed_flow_above_capacity,PA->OH,1533 Bcf observed vs 869 Bcf/yr capacity

@@ -40,6 +40,18 @@ def manifest() -> list[dict]:
              url="https://www.eia.gov/electricity/data/eia860m/xls/august_generator2026.xlsx",
              release="2026-09-24", publisher="EIA-860M, Inventory of Operating Generators as of August 2026"),
     ]
+    m += [dict(id="eia_state2state_capacity_jan2026", path="eia/EIA-StatetoStateCapacity_Jan2026.xlsx",
+               url="https://www.eia.gov/naturalgas/pipelines/EIA-StatetoStateCapacity_Jan2026.xlsx",
+               release="2026-01-31 (sheet update dates)",
+               publisher="EIA U.S. State-to-State Capacity, by pipeline and county pair, 1990-2025, MMcf/d"),
+          dict(id="eia_pipeline_projects_aug2026", path="eia/EIA-NaturalGasPipelineProjectsAug2026.xlsx",
+               url="https://www.eia.gov/naturalgas/pipelines/EIA-NaturalGasPipelineProjectsAug2026.xlsx",
+               release="August 2026 (rows updated to 2026-07)",
+               publisher="EIA Natural Gas Pipeline Projects tracker (projects from 2025; completed 1996-2025)")]
+    for s in STATES:
+        m.append(dict(id=f"eia_consumption_{s}", path=f"eia/consumption/NG_CONS_SUM_DCU_S{s}_A.xls",
+                      url=f"https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_S{s}_A.xls",
+                      publisher=f"EIA Natural Gas Annual (dnav): {s} consumption by end use, annual MMcf"))
     for s in STATES:
         m.append(dict(id=f"eia_movements_{s}", path=f"eia/movements/NG_MOVE_IST_A2DCU_S{s}_A.xls",
                       url=f"https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_S{s}_A.xls",

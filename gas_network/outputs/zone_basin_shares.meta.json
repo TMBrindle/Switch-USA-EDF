@@ -69,5 +69,510 @@
   "e_canada": "E. Canada",
   "lng_imports": "LNG imports",
   "other": "other"
+ },
+ "status": "Stage 1 accepted (ddac626). 2024 shares are the reference; projected years are INDICATIVE (scaled-and-rebalanced network, not a solved one).",
+ "year_status": {
+  "2024": "reference",
+  "2028": "indicative",
+  "2030": "indicative",
+  "2035": "indicative",
+  "2040": "indicative",
+  "2045": "indicative"
+ },
+ "balance_degeneracy": {
+  "text": "The balancing LP has tied optima. A second optimum (sorted arcs, tiny tie-break costs) gives the total-variation distance (pp) below between zone shares; projected shares are indicative to this extent.",
+  "rows": [
+   {
+    "year": 2028,
+    "zones": "FL (p91, p101, p102)",
+    "tvd_pp": 0.12
+   },
+   {
+    "year": 2028,
+    "zones": "TX_E zones (p57, p64-p67)",
+    "tvd_pp": 0.07
+   },
+   {
+    "year": 2028,
+    "zones": "MA (p131)",
+    "tvd_pp": 3.59
+   },
+   {
+    "year": 2028,
+    "zones": "CA (p8-p11)",
+    "tvd_pp": 0.3
+   },
+   {
+    "year": 2028,
+    "zones": "TX_W zones (p48, p59, p62)",
+    "tvd_pp": 0.07
+   },
+   {
+    "year": 2028,
+    "zones": "VA (p99, p100, p118, p124)",
+    "tvd_pp": 0.0
+   },
+   {
+    "year": 2028,
+    "zones": "all zones: max",
+    "tvd_pp": 26.71
+   },
+   {
+    "year": 2028,
+    "zones": "all zones: mean",
+    "tvd_pp": 2.55
+   },
+   {
+    "year": 2030,
+    "zones": "FL (p91, p101, p102)",
+    "tvd_pp": 0.14
+   },
+   {
+    "year": 2030,
+    "zones": "TX_E zones (p57, p64-p67)",
+    "tvd_pp": 0.1
+   },
+   {
+    "year": 2030,
+    "zones": "MA (p131)",
+    "tvd_pp": 2.14
+   },
+   {
+    "year": 2030,
+    "zones": "CA (p8-p11)",
+    "tvd_pp": 0.06
+   },
+   {
+    "year": 2030,
+    "zones": "TX_W zones (p48, p59, p62)",
+    "tvd_pp": 0.11
+   },
+   {
+    "year": 2030,
+    "zones": "VA (p99, p100, p118, p124)",
+    "tvd_pp": 0.28
+   },
+   {
+    "year": 2030,
+    "zones": "all zones: max",
+    "tvd_pp": 20.77
+   },
+   {
+    "year": 2030,
+    "zones": "all zones: mean",
+    "tvd_pp": 2.68
+   },
+   {
+    "year": 2035,
+    "zones": "FL (p91, p101, p102)",
+    "tvd_pp": 1.15
+   },
+   {
+    "year": 2035,
+    "zones": "TX_E zones (p57, p64-p67)",
+    "tvd_pp": 0.14
+   },
+   {
+    "year": 2035,
+    "zones": "MA (p131)",
+    "tvd_pp": 0.87
+   },
+   {
+    "year": 2035,
+    "zones": "CA (p8-p11)",
+    "tvd_pp": 0.3
+   },
+   {
+    "year": 2035,
+    "zones": "TX_W zones (p48, p59, p62)",
+    "tvd_pp": 0.01
+   },
+   {
+    "year": 2035,
+    "zones": "VA (p99, p100, p118, p124)",
+    "tvd_pp": 0.4
+   },
+   {
+    "year": 2035,
+    "zones": "all zones: max",
+    "tvd_pp": 15.26
+   },
+   {
+    "year": 2035,
+    "zones": "all zones: mean",
+    "tvd_pp": 1.94
+   },
+   {
+    "year": 2040,
+    "zones": "FL (p91, p101, p102)",
+    "tvd_pp": 3.93
+   },
+   {
+    "year": 2040,
+    "zones": "TX_E zones (p57, p64-p67)",
+    "tvd_pp": 1.69
+   },
+   {
+    "year": 2040,
+    "zones": "MA (p131)",
+    "tvd_pp": 0.59
+   },
+   {
+    "year": 2040,
+    "zones": "CA (p8-p11)",
+    "tvd_pp": 0.22
+   },
+   {
+    "year": 2040,
+    "zones": "TX_W zones (p48, p59, p62)",
+    "tvd_pp": 3.19
+   },
+   {
+    "year": 2040,
+    "zones": "VA (p99, p100, p118, p124)",
+    "tvd_pp": 0.5
+   },
+   {
+    "year": 2040,
+    "zones": "all zones: max",
+    "tvd_pp": 18.34
+   },
+   {
+    "year": 2040,
+    "zones": "all zones: mean",
+    "tvd_pp": 3.01
+   },
+   {
+    "year": 2045,
+    "zones": "FL (p91, p101, p102)",
+    "tvd_pp": 4.56
+   },
+   {
+    "year": 2045,
+    "zones": "TX_E zones (p57, p64-p67)",
+    "tvd_pp": 2.89
+   },
+   {
+    "year": 2045,
+    "zones": "MA (p131)",
+    "tvd_pp": 0.97
+   },
+   {
+    "year": 2045,
+    "zones": "CA (p8-p11)",
+    "tvd_pp": 0.2
+   },
+   {
+    "year": 2045,
+    "zones": "TX_W zones (p48, p59, p62)",
+    "tvd_pp": 3.55
+   },
+   {
+    "year": 2045,
+    "zones": "VA (p99, p100, p118, p124)",
+    "tvd_pp": 0.49
+   },
+   {
+    "year": 2045,
+    "zones": "all zones: max",
+    "tvd_pp": 24.07
+   },
+   {
+    "year": 2045,
+    "zones": "all zones: mean",
+    "tvd_pp": 3.42
+   }
+  ]
+ },
+ "unmet_local_use_after_balancing": {
+  "text": "States whose local use (consumption + exports) stays below its AEO2026-grown floor after balancing (default variant). Bcf/yr. gas_mw = EIA-860M Aug 2026 operating NG nameplate. Allocation between states of one region can be a tie; regional totals are robust.",
+  "rows": [
+   {
+    "year": 2028,
+    "state": "IA",
+    "hub": "IA",
+    "shortfall_bcf": 5.3,
+    "floor_bcf": 453.5,
+    "shortfall_pct_of_floor": 1.2,
+    "gas_mw_eia860m": 4350,
+    "has_gas_generation": true,
+    "switch_zones": "p45 p69 p70"
+   },
+   {
+    "year": 2028,
+    "state": "CA",
+    "hub": "CA",
+    "shortfall_bcf": 10.2,
+    "floor_bcf": 1918.5,
+    "shortfall_pct_of_floor": 0.5,
+    "gas_mw_eia860m": 40278,
+    "has_gas_generation": true,
+    "switch_zones": "p8 p9 p10 p11"
+   },
+   {
+    "year": 2028,
+    "state": "OR",
+    "hub": "OR",
+    "shortfall_bcf": 218.9,
+    "floor_bcf": 275.2,
+    "shortfall_pct_of_floor": 79.5,
+    "gas_mw_eia860m": 4348,
+    "has_gas_generation": true,
+    "switch_zones": "p5 p6 p7"
+   },
+   {
+    "year": 2028,
+    "state": "WA",
+    "hub": "WA",
+    "shortfall_bcf": 124.0,
+    "floor_bcf": 480.9,
+    "shortfall_pct_of_floor": 25.8,
+    "gas_mw_eia860m": 4045,
+    "has_gas_generation": true,
+    "switch_zones": "p1 p2 p3 p4"
+   },
+   {
+    "year": 2030,
+    "state": "FL",
+    "hub": "FL",
+    "shortfall_bcf": 5.8,
+    "floor_bcf": 1645.5,
+    "shortfall_pct_of_floor": 0.4,
+    "gas_mw_eia860m": 55325,
+    "has_gas_generation": true,
+    "switch_zones": "p91 p101 p102"
+   },
+   {
+    "year": 2030,
+    "state": "GA",
+    "hub": "GA",
+    "shortfall_bcf": 85.3,
+    "floor_bcf": 837.2,
+    "shortfall_pct_of_floor": 10.2,
+    "gas_mw_eia860m": 18594,
+    "has_gas_generation": true,
+    "switch_zones": "p94"
+   },
+   {
+    "year": 2030,
+    "state": "OR",
+    "hub": "OR",
+    "shortfall_bcf": 262.9,
+    "floor_bcf": 277.9,
+    "shortfall_pct_of_floor": 94.6,
+    "gas_mw_eia860m": 4348,
+    "has_gas_generation": true,
+    "switch_zones": "p5 p6 p7"
+   },
+   {
+    "year": 2030,
+    "state": "WA",
+    "hub": "WA",
+    "shortfall_bcf": 136.7,
+    "floor_bcf": 485.5,
+    "shortfall_pct_of_floor": 28.2,
+    "gas_mw_eia860m": 4045,
+    "has_gas_generation": true,
+    "switch_zones": "p1 p2 p3 p4"
+   },
+   {
+    "year": 2035,
+    "state": "FL",
+    "hub": "FL",
+    "shortfall_bcf": 95.8,
+    "floor_bcf": 1687.2,
+    "shortfall_pct_of_floor": 5.7,
+    "gas_mw_eia860m": 55325,
+    "has_gas_generation": true,
+    "switch_zones": "p91 p101 p102"
+   },
+   {
+    "year": 2035,
+    "state": "GA",
+    "hub": "GA",
+    "shortfall_bcf": 157.7,
+    "floor_bcf": 858.4,
+    "shortfall_pct_of_floor": 18.4,
+    "gas_mw_eia860m": 18594,
+    "has_gas_generation": true,
+    "switch_zones": "p94"
+   },
+   {
+    "year": 2035,
+    "state": "TN",
+    "hub": "TN",
+    "shortfall_bcf": 237.2,
+    "floor_bcf": 418.4,
+    "shortfall_pct_of_floor": 56.7,
+    "gas_mw_eia860m": 7388,
+    "has_gas_generation": true,
+    "switch_zones": "p92"
+   },
+   {
+    "year": 2035,
+    "state": "CA",
+    "hub": "CA",
+    "shortfall_bcf": 101.2,
+    "floor_bcf": 1828.3,
+    "shortfall_pct_of_floor": 5.5,
+    "gas_mw_eia860m": 40278,
+    "has_gas_generation": true,
+    "switch_zones": "p8 p9 p10 p11"
+   },
+   {
+    "year": 2035,
+    "state": "OR",
+    "hub": "OR",
+    "shortfall_bcf": 75.1,
+    "floor_bcf": 262.3,
+    "shortfall_pct_of_floor": 28.7,
+    "gas_mw_eia860m": 4348,
+    "has_gas_generation": true,
+    "switch_zones": "p5 p6 p7"
+   },
+   {
+    "year": 2035,
+    "state": "WA",
+    "hub": "WA",
+    "shortfall_bcf": 75.1,
+    "floor_bcf": 458.2,
+    "shortfall_pct_of_floor": 16.4,
+    "gas_mw_eia860m": 4045,
+    "has_gas_generation": true,
+    "switch_zones": "p1 p2 p3 p4"
+   },
+   {
+    "year": 2040,
+    "state": "IA",
+    "hub": "IA",
+    "shortfall_bcf": 439.3,
+    "floor_bcf": 484.4,
+    "shortfall_pct_of_floor": 90.7,
+    "gas_mw_eia860m": 4350,
+    "has_gas_generation": true,
+    "switch_zones": "p45 p69 p70"
+   },
+   {
+    "year": 2040,
+    "state": "FL",
+    "hub": "FL",
+    "shortfall_bcf": 256.9,
+    "floor_bcf": 1864.5,
+    "shortfall_pct_of_floor": 13.8,
+    "gas_mw_eia860m": 55325,
+    "has_gas_generation": true,
+    "switch_zones": "p91 p101 p102"
+   },
+   {
+    "year": 2040,
+    "state": "GA",
+    "hub": "GA",
+    "shortfall_bcf": 56.1,
+    "floor_bcf": 948.6,
+    "shortfall_pct_of_floor": 5.9,
+    "gas_mw_eia860m": 18594,
+    "has_gas_generation": true,
+    "switch_zones": "p94"
+   },
+   {
+    "year": 2040,
+    "state": "CA",
+    "hub": "CA",
+    "shortfall_bcf": 90.3,
+    "floor_bcf": 1990.4,
+    "shortfall_pct_of_floor": 4.5,
+    "gas_mw_eia860m": 40278,
+    "has_gas_generation": true,
+    "switch_zones": "p8 p9 p10 p11"
+   },
+   {
+    "year": 2040,
+    "state": "OR",
+    "hub": "OR",
+    "shortfall_bcf": 204.1,
+    "floor_bcf": 285.5,
+    "shortfall_pct_of_floor": 71.5,
+    "gas_mw_eia860m": 4348,
+    "has_gas_generation": true,
+    "switch_zones": "p5 p6 p7"
+   },
+   {
+    "year": 2040,
+    "state": "WA",
+    "hub": "WA",
+    "shortfall_bcf": 137.8,
+    "floor_bcf": 498.9,
+    "shortfall_pct_of_floor": 27.6,
+    "gas_mw_eia860m": 4045,
+    "has_gas_generation": true,
+    "switch_zones": "p1 p2 p3 p4"
+   },
+   {
+    "year": 2045,
+    "state": "IA",
+    "hub": "IA",
+    "shortfall_bcf": 397.1,
+    "floor_bcf": 511.3,
+    "shortfall_pct_of_floor": 77.7,
+    "gas_mw_eia860m": 4350,
+    "has_gas_generation": true,
+    "switch_zones": "p45 p69 p70"
+   },
+   {
+    "year": 2045,
+    "state": "FL",
+    "hub": "FL",
+    "shortfall_bcf": 256.6,
+    "floor_bcf": 2091.6,
+    "shortfall_pct_of_floor": 12.3,
+    "gas_mw_eia860m": 55325,
+    "has_gas_generation": true,
+    "switch_zones": "p91 p101 p102"
+   },
+   {
+    "year": 2045,
+    "state": "TN",
+    "hub": "TN",
+    "shortfall_bcf": 101.5,
+    "floor_bcf": 468.1,
+    "shortfall_pct_of_floor": 21.7,
+    "gas_mw_eia860m": 7388,
+    "has_gas_generation": true,
+    "switch_zones": "p92"
+   },
+   {
+    "year": 2045,
+    "state": "CA",
+    "hub": "CA",
+    "shortfall_bcf": 124.8,
+    "floor_bcf": 2134.9,
+    "shortfall_pct_of_floor": 5.8,
+    "gas_mw_eia860m": 40278,
+    "has_gas_generation": true,
+    "switch_zones": "p8 p9 p10 p11"
+   },
+   {
+    "year": 2045,
+    "state": "OR",
+    "hub": "OR",
+    "shortfall_bcf": 306.3,
+    "floor_bcf": 306.3,
+    "shortfall_pct_of_floor": 100.0,
+    "gas_mw_eia860m": 4348,
+    "has_gas_generation": true,
+    "switch_zones": "p5 p6 p7"
+   },
+   {
+    "year": 2045,
+    "state": "WA",
+    "hub": "WA",
+    "shortfall_bcf": 367.2,
+    "floor_bcf": 535.1,
+    "shortfall_pct_of_floor": 68.6,
+    "gas_mw_eia860m": 4045,
+    "has_gas_generation": true,
+    "switch_zones": "p1 p2 p3 p4"
+   }
+  ]
  }
 }

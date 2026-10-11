@@ -30,6 +30,363 @@ files:
   publisher: EIA-860M, Inventory of Operating Generators as of August 2026
   sha256: b4b70abb4c217e8e2658c3bde7608a3d530e86a81279ccc572ced82a200e9f1c
   retrieved: '2026-10-09'
+- id: eia_state2state_capacity_jan2026
+  path: eia/EIA-StatetoStateCapacity_Jan2026.xlsx
+  url: https://www.eia.gov/naturalgas/pipelines/EIA-StatetoStateCapacity_Jan2026.xlsx
+  release: 2026-01-31 (sheet update dates)
+  publisher: EIA U.S. State-to-State Capacity, by pipeline and county pair, 1990-2025, MMcf/d
+  sha256: 2cea0fc5b4cbe4f82a36cf22598c00a68612cec26bf0cccfa55ba4f74dd5ed31
+  retrieved: '2026-10-11'
+- id: eia_pipeline_projects_aug2026
+  path: eia/EIA-NaturalGasPipelineProjectsAug2026.xlsx
+  url: https://www.eia.gov/naturalgas/pipelines/EIA-NaturalGasPipelineProjectsAug2026.xlsx
+  release: August 2026 (rows updated to 2026-07)
+  publisher: EIA Natural Gas Pipeline Projects tracker (projects from 2025; completed 1996-2025)
+  sha256: 5c278179984027f380dfa6e9bdb739db628889dc25e6003f933b33f362ec469d
+  retrieved: '2026-10-11'
+- id: eia_consumption_AL
+  path: eia/consumption/NG_CONS_SUM_DCU_SAL_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SAL_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): AL consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 348765d2759142ee15ae76b7403510d6c4308a55568164b62dc8b5df95fc28c9
+  retrieved: '2026-10-11'
+- id: eia_consumption_AZ
+  path: eia/consumption/NG_CONS_SUM_DCU_SAZ_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SAZ_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): AZ consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: a7fde5605244e4b98f5c6250409941eb4a125b26fc42e65f1e193226f9ccfc38
+  retrieved: '2026-10-11'
+- id: eia_consumption_AR
+  path: eia/consumption/NG_CONS_SUM_DCU_SAR_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SAR_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): AR consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: a6eb325640cc49cc103cdce4f0f54ed3b70a684ec408c58114794d5e0fed9dfa
+  retrieved: '2026-10-11'
+- id: eia_consumption_CA
+  path: eia/consumption/NG_CONS_SUM_DCU_SCA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SCA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): CA consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: cd82102132c0495cfdaa63b3a948d071df3f3eec9f2a050187b55f4d4eddec6b
+  retrieved: '2026-10-11'
+- id: eia_consumption_CO
+  path: eia/consumption/NG_CONS_SUM_DCU_SCO_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SCO_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): CO consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 1e20273100070234d5bc7b1878bcc224dbb48a84a5693890187a186b34919d8d
+  retrieved: '2026-10-11'
+- id: eia_consumption_CT
+  path: eia/consumption/NG_CONS_SUM_DCU_SCT_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SCT_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): CT consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: d04b0d0fc5b0f936304a720698b31e4c6ece8d9084dc9871bd3d02ac77a6c3f4
+  retrieved: '2026-10-11'
+- id: eia_consumption_DE
+  path: eia/consumption/NG_CONS_SUM_DCU_SDE_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SDE_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): DE consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 06be2583516201ef359d214feb505fe6ce6edefb9ef09eb4d0b8542b6e175213
+  retrieved: '2026-10-11'
+- id: eia_consumption_DC
+  path: eia/consumption/NG_CONS_SUM_DCU_SDC_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SDC_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): DC consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 9865a3eb8fd2337816c8d18a8486839f70cb7d57df3e77359baa40add48afbc8
+  retrieved: '2026-10-11'
+- id: eia_consumption_FL
+  path: eia/consumption/NG_CONS_SUM_DCU_SFL_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SFL_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): FL consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 2f48bde72eef025b73c084d43ce989c5d72e435a54c4eb418cb0aba990b683d5
+  retrieved: '2026-10-11'
+- id: eia_consumption_GA
+  path: eia/consumption/NG_CONS_SUM_DCU_SGA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SGA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): GA consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 8f0048009c89d3b8249e9b1773ff1be04dec8835046927d9f32a09840878ecab
+  retrieved: '2026-10-11'
+- id: eia_consumption_ID
+  path: eia/consumption/NG_CONS_SUM_DCU_SID_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SID_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): ID consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 8270414490f19dfa780118b7f6a95ddfdae8b9da7d60adfedc4a7b3fb208ae6f
+  retrieved: '2026-10-11'
+- id: eia_consumption_IL
+  path: eia/consumption/NG_CONS_SUM_DCU_SIL_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SIL_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): IL consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: f74cf3c16b7f52199eec8126d06547aa7a8b768cb9098e47d472f3e00389326f
+  retrieved: '2026-10-11'
+- id: eia_consumption_IN
+  path: eia/consumption/NG_CONS_SUM_DCU_SIN_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SIN_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): IN consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 444144ff1874107da9215f82348578fc03b494096369e538ddd8aa39be5604ff
+  retrieved: '2026-10-11'
+- id: eia_consumption_IA
+  path: eia/consumption/NG_CONS_SUM_DCU_SIA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SIA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): IA consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 3007d247179a57736d7a6fb33a4e9cdaed785b5f155a71acdb47e9ebb3094ca0
+  retrieved: '2026-10-11'
+- id: eia_consumption_KS
+  path: eia/consumption/NG_CONS_SUM_DCU_SKS_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SKS_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): KS consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 61e928faed4c53c8fded12b2919472fbdb5606e0abd2b64dc8604188032c6399
+  retrieved: '2026-10-11'
+- id: eia_consumption_KY
+  path: eia/consumption/NG_CONS_SUM_DCU_SKY_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SKY_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): KY consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 255173c8e34d22b842b89371d1b4b8ee1f1ce8b24a0ca8647cb8c246bf2c87fd
+  retrieved: '2026-10-11'
+- id: eia_consumption_LA
+  path: eia/consumption/NG_CONS_SUM_DCU_SLA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SLA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): LA consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: f46c917cf4a25e8626ecc7462af221a87fb3e0c5d3e0e98261a0f377f4faa28d
+  retrieved: '2026-10-11'
+- id: eia_consumption_ME
+  path: eia/consumption/NG_CONS_SUM_DCU_SME_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SME_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): ME consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 3558281565e79933d88d6623acead56028f56bf5cd5be6c70e636978b40add1f
+  retrieved: '2026-10-11'
+- id: eia_consumption_MD
+  path: eia/consumption/NG_CONS_SUM_DCU_SMD_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SMD_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MD consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: bb19bb13846c2d89ba4a894dadaf256a2c8c6e8003b5b78bb9ef7c9fbe54394a
+  retrieved: '2026-10-11'
+- id: eia_consumption_MA
+  path: eia/consumption/NG_CONS_SUM_DCU_SMA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SMA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MA consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: e5e12b24f637cbba101ca87454eea1db52db7723fa4f3bea1f6b0370925109b4
+  retrieved: '2026-10-11'
+- id: eia_consumption_MI
+  path: eia/consumption/NG_CONS_SUM_DCU_SMI_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SMI_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MI consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 766d293746bd09e76777d780c1cd14dd3216dbfede29588cb71e9229b2d02b21
+  retrieved: '2026-10-11'
+- id: eia_consumption_MN
+  path: eia/consumption/NG_CONS_SUM_DCU_SMN_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SMN_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MN consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 43a074ce029c8c17913098b50a7b9dc0516b6a15366ac89b198eeaa1f350ca86
+  retrieved: '2026-10-11'
+- id: eia_consumption_MS
+  path: eia/consumption/NG_CONS_SUM_DCU_SMS_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SMS_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MS consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 888e16da3387747e19b780797f75f993f772ac615e847f3685a878d654d9f46f
+  retrieved: '2026-10-11'
+- id: eia_consumption_MO
+  path: eia/consumption/NG_CONS_SUM_DCU_SMO_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SMO_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MO consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: cd9674772507cadd1194e4591a1f15e00758b1f417ff871a3a18e8588de2f8fb
+  retrieved: '2026-10-11'
+- id: eia_consumption_MT
+  path: eia/consumption/NG_CONS_SUM_DCU_SMT_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SMT_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): MT consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: c87b46136b6c8ff72ba7ae2be3a34cffa23a5e94935a332ae9cafce2872ef635
+  retrieved: '2026-10-11'
+- id: eia_consumption_NE
+  path: eia/consumption/NG_CONS_SUM_DCU_SNE_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SNE_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NE consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 78b17a9be9a2cbe1551f1ecc2fc3026734f8a0377cda362b32dcb6feb0dba81d
+  retrieved: '2026-10-11'
+- id: eia_consumption_NV
+  path: eia/consumption/NG_CONS_SUM_DCU_SNV_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SNV_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NV consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 338deb6fc55cde653671f55873a12836ada13a1fd973e788e84358008aec9e2d
+  retrieved: '2026-10-11'
+- id: eia_consumption_NH
+  path: eia/consumption/NG_CONS_SUM_DCU_SNH_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SNH_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NH consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 7ea85a7c53f94575e7bbf249cf03f2b6bdbc2892484e4ae7d2b8e6a5aba1d252
+  retrieved: '2026-10-11'
+- id: eia_consumption_NJ
+  path: eia/consumption/NG_CONS_SUM_DCU_SNJ_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SNJ_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NJ consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: a3f71f9cdc3c807e72658bb749eeadbb5c062ff46cd548bf712246bd1a35bf3c
+  retrieved: '2026-10-11'
+- id: eia_consumption_NM
+  path: eia/consumption/NG_CONS_SUM_DCU_SNM_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SNM_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NM consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 1a55400728d8a13c96b68287ad5294b17ea3a37eea3d02d6c85e24ab58078cc2
+  retrieved: '2026-10-11'
+- id: eia_consumption_NY
+  path: eia/consumption/NG_CONS_SUM_DCU_SNY_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SNY_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NY consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: a40c3dba406c732b65bbca515afe885334463410f934d7e69f894ac7f3c6344e
+  retrieved: '2026-10-11'
+- id: eia_consumption_NC
+  path: eia/consumption/NG_CONS_SUM_DCU_SNC_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SNC_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): NC consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 3f075bf6dac3564901aa11cd7bb5bb7791a87821b79255a4a61d90752467d370
+  retrieved: '2026-10-11'
+- id: eia_consumption_ND
+  path: eia/consumption/NG_CONS_SUM_DCU_SND_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SND_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): ND consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: e5b705d8dce8e68db17700f66048095ab85c08d3024a776a264541cca3f069ab
+  retrieved: '2026-10-11'
+- id: eia_consumption_OH
+  path: eia/consumption/NG_CONS_SUM_DCU_SOH_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SOH_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): OH consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: b21e5859270c1dc461f1725bdf8e1d8380e30fd56ba36893e5b54007038121c0
+  retrieved: '2026-10-11'
+- id: eia_consumption_OK
+  path: eia/consumption/NG_CONS_SUM_DCU_SOK_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SOK_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): OK consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 0ae30663a1561c3425c494b65fca6bdd963ea0c2b38b774f3cf34e43348626ba
+  retrieved: '2026-10-11'
+- id: eia_consumption_OR
+  path: eia/consumption/NG_CONS_SUM_DCU_SOR_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SOR_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): OR consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: cd3721b1271d3f4ee37fad9d95681469c76a9a4701ba155ee3d36eae09edcb4e
+  retrieved: '2026-10-11'
+- id: eia_consumption_PA
+  path: eia/consumption/NG_CONS_SUM_DCU_SPA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SPA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): PA consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 47796305f05b6a5e985a05124588810433443ab74b649b4fb07f6969439f6114
+  retrieved: '2026-10-11'
+- id: eia_consumption_RI
+  path: eia/consumption/NG_CONS_SUM_DCU_SRI_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SRI_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): RI consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 49857a8adf180c9f0caffa3e1164f472a03afa231ccb1fe6885bfe16530979f1
+  retrieved: '2026-10-11'
+- id: eia_consumption_SC
+  path: eia/consumption/NG_CONS_SUM_DCU_SSC_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SSC_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): SC consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 385ec248d3087fa9ed72a9520b8b7c2418d30a0087d6fd9eac3e298aa53ccc19
+  retrieved: '2026-10-11'
+- id: eia_consumption_SD
+  path: eia/consumption/NG_CONS_SUM_DCU_SSD_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SSD_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): SD consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 3a4b7bf4571eb8effcc975f9cd695161ee2511f1f438395d29fd7997f1f102f0
+  retrieved: '2026-10-11'
+- id: eia_consumption_TN
+  path: eia/consumption/NG_CONS_SUM_DCU_STN_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_STN_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): TN consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 22d229d1e36b54c590d28bc2d3a7c6f3c9bdc36691d69625c044b201de00a9d9
+  retrieved: '2026-10-11'
+- id: eia_consumption_TX
+  path: eia/consumption/NG_CONS_SUM_DCU_STX_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_STX_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): TX consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 86f1d311d105fde33676f3206eb904ce8e0e432d4aabfc542ea9ccc5a5adf976
+  retrieved: '2026-10-09'
+- id: eia_consumption_UT
+  path: eia/consumption/NG_CONS_SUM_DCU_SUT_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SUT_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): UT consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 8b360deb972e5bd8af76995a2ce43aa830e8a6f2ccb73e9082578ff1f07ddd3c
+  retrieved: '2026-10-11'
+- id: eia_consumption_VT
+  path: eia/consumption/NG_CONS_SUM_DCU_SVT_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SVT_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): VT consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 05086713f0d597e944b878fc0ac8cd45761a36b42a3a34282508256910c6b678
+  retrieved: '2026-10-11'
+- id: eia_consumption_VA
+  path: eia/consumption/NG_CONS_SUM_DCU_SVA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SVA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): VA consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 284787b8aec70cc232bb6e49b52a894cfb13b1826c755f1d53c9f04e9f47e624
+  retrieved: '2026-10-11'
+- id: eia_consumption_WA
+  path: eia/consumption/NG_CONS_SUM_DCU_SWA_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SWA_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): WA consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 19dcb940a08954edb9849462eb155735297c2a0801867c4ae55b66dcfb577056
+  retrieved: '2026-10-11'
+- id: eia_consumption_WV
+  path: eia/consumption/NG_CONS_SUM_DCU_SWV_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SWV_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): WV consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: ebcfdbfa0a07e5c521c7ce65066a65692ae0a11b3cd037135959c86159c7819c
+  retrieved: '2026-10-11'
+- id: eia_consumption_WI
+  path: eia/consumption/NG_CONS_SUM_DCU_SWI_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SWI_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): WI consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: f54350a249578ac1bc965c09e5c1525bcef4b081be16e907c0bad7854d51bc4e
+  retrieved: '2026-10-11'
+- id: eia_consumption_WY
+  path: eia/consumption/NG_CONS_SUM_DCU_SWY_A.xls
+  url: https://www.eia.gov/dnav/ng/xls/NG_CONS_SUM_DCU_SWY_A.xls
+  publisher: 'EIA Natural Gas Annual (dnav): WY consumption by end use, annual MMcf'
+  release: '2026-09-30'
+  sha256: 3c0fc29094859f51478e933dc3f81da427e2c73cee2e753053fbe2a9a704a47b
+  retrieved: '2026-10-11'
 - id: eia_movements_AL
   path: eia/movements/NG_MOVE_IST_A2DCU_SAL_A.xls
   url: https://www.eia.gov/dnav/ng/xls/NG_MOVE_IST_A2DCU_SAL_A.xls

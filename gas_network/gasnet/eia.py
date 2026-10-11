@@ -174,3 +174,10 @@ def arr_shale_production(path: Path, year: int = 2024) -> pd.DataFrame:
         elif state is not None:
             rows.append((state, name.replace(" Onshore", ""), v))
     return pd.DataFrame(rows, columns=["state", "subdivision", "shale_bcf"])
+
+
+def gas_capacity_by_state(path: Path) -> pd.Series:
+    """EIA-860M operating natural-gas (Energy Source Code NG) nameplate MW by state."""
+    d = pd.read_excel(path, sheet_name="Operating", header=2)
+    d = d[d["Energy Source Code"] == "NG"]
+    return pd.to_numeric(d["Nameplate Capacity (MW)"], errors="coerce").groupby(d["Plant State"]).sum()

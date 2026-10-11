@@ -79,6 +79,7 @@ def run(cfg, log=print) -> dict:
             info.update(method=label, year=y, overdraw_after_mmcf=float(la[la < 0].sum()),
                         division_disposition_error_pct=balance.division_error(inp, base, p, nodes))
             info.pop("slack_hubs", None)
+            info.pop("floor_hubs", None)
             recon.append(info)
             nets[y] = p
             t = trace(p, y, label)
@@ -140,7 +141,37 @@ def run(cfg, log=print) -> dict:
     if not tmpl.exists():
         rows = [(b, y, "", "", "") for b in basins for y in nets]
         pd.DataFrame(rows, columns=["basin", "year", "kg_ch4_per_mmbtu", "gwp_basis", "source"]).to_csv(tmpl, index=False)
+    # degeneracy of the balancing LP: a second optimum (tie-break) for the default variant
+    deg_rows = []
+    for y in cfg["model_years"]:
+        p = network.project(inp, base, y, default[0])
+        p2, _ = balance.balance(inp, base, p, nodes, tie_break=True)
+        t2 = trace(p2, y, "tie_break")
+        z2 = _zone_shares(w, t2)
+        z1 = z[z.year == y]
+        m = z1.merge(z2[["zone", "basin", "share"]], on=["zone", "basin"], suffixes=("", "_alt"))
+        d = m.assign(ad=(m.share - m.share_alt).abs()).groupby("zone").ad.sum().div(2).mul(100)
+        for name, zone in EXAMPLE_ZONES.items():
+            deg_rows.append(dict(year=y, zones=name, tvd_pp=float(d.get(zone, 0.0))))
+        deg_rows.append(dict(year=y, zones="all zones: max", tvd_pp=float(d.max())))
+        deg_rows.append(dict(year=y, zones="all zones: mean", tvd_pp=float(d.mean())))
+    deg = pd.DataFrame(deg_rows)
+    deg.to_csv(out / "balance_degeneracy.csv", index=False, float_format="%.2f")
+    unmet = limitations.unmet_local_use(cfg, {y: n for y, n in nets.items() if y != by}, inp.raw)
+    unmet.to_csv(out / "unmet_local_use.csv", index=False)
     meta = limitations.metadata(cfg, default, mix, sj, _label(*default))
+    meta["status"] = ("Stage 1 accepted (ddac626). 2024 shares are the reference; projected years are INDICATIVE "
+                      "(scaled-and-rebalanced network, not a solved one).")
+    meta["year_status"] = {str(y): ("reference" if y == by else "indicative") for y in nets}
+    meta["balance_degeneracy"] = {
+        "text": "The balancing LP has tied optima. A second optimum (sorted arcs, tiny tie-break costs) gives the "
+                "total-variation distance (pp) below between zone shares; projected shares are indicative to this extent.",
+        "rows": deg.round(2).to_dict(orient="records")}
+    meta["unmet_local_use_after_balancing"] = {
+        "text": "States whose local use (consumption + exports) stays below its AEO2026-grown floor after balancing "
+                "(default variant). Bcf/yr. gas_mw = EIA-860M Aug 2026 operating NG nameplate. Allocation between "
+                "states of one region can be a tie; regional totals are robust.",
+        "rows": unmet.to_dict(orient="records")}
     json.dump(meta, open(out / "zone_basin_shares.meta.json", "w"), indent=1)
     summ = {"years": list(nets), "zones": int(z.zone.nunique()), "hubs": len(nodes), "basins": basins,
             "default_method": _label(*default), "aeo_datekey": inp.aeo_datekey, "flags": len(flags),
@@ -161,6 +192,7 @@ def main(argv=None):
     sub.add_parser("pin")
     sub.add_parser("verify")
     sub.add_parser("run")
+    sub.add_parser("stage2a")
     r = sub.add_parser("report")
     r.add_argument("outputs_dir")
     r.add_argument("--inputs-dir")
@@ -180,6 +212,9 @@ def main(argv=None):
         print("ok" if not bad else f"mismatch: {bad}")
     elif a.cmd == "run":
         run(cfg)
+    elif a.cmd == "stage2a":
+        from . import stage2a
+        stage2a.run(cfg)
     elif a.cmd == "report":
         d = report.basin_gas_mmbtu(a.outputs_dir, a.shares, cfg["gas_fuels"], a.inputs_dir)
         print(f"wrote {Path(a.outputs_dir) / 'basin_gas_mmbtu.csv'} ({len(d)} rows)")

@@ -51,11 +51,16 @@ def local_disposition(supply: pd.DataFrame, flows: pd.DataFrame, nodes) -> pd.Se
     return P + inn - out
 
 
-def balance(inp, base: dict, net: dict, nodes) -> tuple[dict, dict]:
+def balance(inp, base: dict, net: dict, nodes, tie_break: bool = False) -> tuple[dict, dict]:
     """Returns (balanced net, info)."""
     year = net["year"]
     reg = inp.region
+    # The L1 problem can have tied optima. Default: the accepted Stage 1 formulation (ddac626). tie_break=True sorts
+    # the arcs and adds tiny index-based costs: a second optimum, used only to measure how non-unique the projected
+    # shares are (outputs/balance_degeneracy.csv, §96).
     fl = net["flows"].reset_index(drop=True).copy()
+    if tie_break:
+        fl = fl.sort_values(["src", "dst", "kind"]).reset_index(drop=True)
     rs, rd = fl.src.map(reg).fillna("SouthCentral"), fl.dst.map(reg).fillna("SouthCentral")
     adj = ((rs == rd) | (fl.src == "GOM") | (fl.kind == "intra_texas")).values
     L0 = local_disposition(base["supply"], base["flows"], nodes).clip(lower=0.0)
@@ -72,7 +77,9 @@ def balance(inp, base: dict, net: dict, nodes) -> tuple[dict, dict]:
     Lfix = local_disposition(net["supply"], fixed, nodes)
     # variables: f_a (A), dplus (A), dminus (A), slack (N)
     nv = 3 * A + N
-    c = np.concatenate([np.zeros(A), np.ones(A), np.ones(A), np.full(N, SLACK_COST)])
+    tie = 1e-7 * np.arange(A) if tie_break else np.zeros(A)
+    tn = 1e-7 * np.arange(N) if tie_break else np.zeros(N)
+    c = np.concatenate([np.zeros(A), 1 + tie, 1 + tie, SLACK_COST * (1 + tn)])
     # f - dplus + dminus = target
     Aeq = np.zeros((A, nv))
     for k in range(A):
@@ -101,7 +108,8 @@ def balance(inp, base: dict, net: dict, nodes) -> tuple[dict, dict]:
     info = {"kappa": kappa, "moved_mmcf": moved, "adjustable_arc_mmcf": float(beq.sum()),
             "overdraw_before_mmcf": float(L_before[L_before < 0].sum()),
             "overdraw_after_mmcf": float(L_after[L_after < 0].sum()),
-            "slack_mmcf": float(slack.sum()), "slack_hubs": {h: float(v) for h, v in slack.items() if v > 1}}
+            "slack_mmcf": float(slack.sum()), "slack_hubs": {h: float(v) for h, v in slack.items() if v > 1},
+            "floor_hubs": {h: float(lmin[h]) for h, v in slack.items() if v > 1}}
     new = dict(net)
     new["flows"] = out[out.value > 1e-6].reset_index(drop=True)
     new["balance"] = info

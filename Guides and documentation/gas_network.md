@@ -14,7 +14,8 @@ Run from `gas_network/`. Tested on pandas 3.0.6 (Python 3.12) and pandas 1.4.4 (
 python -m gasnet.cli fetch      # download the pinned inputs into data/raw/ (git-ignored) and check their sha256
 python -m gasnet.cli run        # writes outputs/ (refuses if a raw file differs from its pin)
 python -m gasnet.cli report <switch outputs dir> [--inputs-dir <inputs dir>]   # writes basin_gas_mmbtu.csv there
-python -m pytest -q             # 24 tests; the raw-data ones skip if data/raw is empty
+python -m gasnet.cli stage2a    # Stage 2a annual network LP -> outputs/stage2a/ (§96)
+python -m pytest -q             # 30 tests; the raw-data ones skip if data/raw is empty
 python -m gasnet.cli pin        # only after a deliberate data refresh: rewrites data/SOURCES.yml
 ```
 
@@ -350,6 +351,232 @@ region columns as sensitivity.
    - The other high non-shale areas hold gas from the same geological basin as the label: Permian conventional in
      8A, Anadarko Granite Wash in 10, Upper Gulf Coast in 3 (already "other TX"), and 7B.
    - Montana is all Bakken; Kentucky is all Appalachia.
+
+## Stage 1 status, unmet local use and balancing degeneracy (§96)
+
+**Status** (Tom, 2026-10-11): Stage 1 is accepted at ddac626. **2024 shares are the reference; projected years are
+indicative.** `zone_basin_shares.meta.json` carries `year_status` and the two tables below.
+
+**Unmet local use after balancing** (default variant; `outputs/unmet_local_use.csv`). These states end below their
+AEO-grown floor of local use (consumption + exports). Every one has gas-fired generation in Switch zones; capacity is
+EIA-860M August 2026 operating NG nameplate (Switch's existing gas fleet is built from EIA-860 via PowerGenome).
+
+| Year | State (Switch zones) | Shortfall, Bcf | Floor, Bcf | Shortfall % | Gas MW |
+|---|---|---|---|---|---|
+| 2028 | OR (p5–p7) | 218.9 | 275.2 | 79.5 | 4,348 |
+| 2028 | WA (p1–p4) | 124.0 | 480.9 | 25.8 | 4,045 |
+| 2028 | CA (p8–p11) | 10.2 | 1,918.5 | 0.5 | 40,278 |
+| 2028 | IA (p45, p69, p70) | 5.3 | 453.5 | 1.2 | 4,350 |
+| 2030 | OR | 262.9 | 277.9 | 94.6 | 4,348 |
+| 2030 | WA | 136.7 | 485.5 | 28.2 | 4,045 |
+| 2030 | GA (p94) | 85.3 | 837.2 | 10.2 | 18,594 |
+| 2030 | FL (p91, p101, p102) | 5.8 | 1,645.5 | 0.4 | 55,325 |
+| 2035 | TN (p92) | 237.2 | 418.4 | 56.7 | 7,388 |
+| 2035 | GA | 157.7 | 858.4 | 18.4 | 18,594 |
+| 2035 | CA | 101.2 | 1,828.3 | 5.5 | 40,278 |
+| 2035 | FL | 95.8 | 1,687.2 | 5.7 | 55,325 |
+| 2035 | OR / WA | 75.1 / 75.1 | 262.3 / 458.2 | 28.7 / 16.4 | 4,348 / 4,045 |
+| 2040 | IA | 439.3 | 484.4 | 90.7 | 4,350 |
+| 2040 | FL | 256.9 | 1,864.5 | 13.8 | 55,325 |
+| 2040 | OR / WA | 204.1 / 137.8 | 285.5 / 498.9 | 71.5 / 27.6 | 4,348 / 4,045 |
+| 2040 | CA / GA | 90.3 / 56.1 | 1,990.4 / 948.6 | 4.5 / 5.9 | 40,278 / 18,594 |
+| 2045 | IA | 397.1 | 511.3 | 77.7 | 4,350 |
+| 2045 | WA / OR | 367.2 / 306.3 | 535.1 / 306.3 | 68.6 / 100.0 | 4,045 / 4,348 |
+| 2045 | FL | 256.6 | 2,091.6 | 12.3 | 55,325 |
+| 2045 | CA / TN | 124.8 / 101.5 | 2,134.9 / 468.1 | 5.8 / 21.7 | 40,278 / 7,388 |
+
+Reading it:
+- **Pacific Northwest.** Table 64's Canada → WA and through-Idaho imports fall, and the fixed bundles can't refill
+  OR/WA. Oregon's local use is fully unmet by 2045. These hubs keep their traced mix, but their volumes don't add up.
+- **Iowa/Tennessee (Eastern Midwest) and Florida/Georgia** sit at the ends of Table 64 bundles that don't grow with
+  AEO consumption.
+- Which state inside a region takes a shortfall can be a tie between equal optima (Iowa vs Tennessee in 2035).
+  Regional totals are the robust number.
+
+**Balancing degeneracy** (`outputs/balance_degeneracy.csv`). The balancing LP has tied optima. A second optimum
+(sorted arcs, tiny tie-break costs) moves zone shares by the total-variation distances below:
+- the mean over all 134 zones is 1.9–3.4 pp;
+- the example zones are under 1.2 pp through 2035, except MA at 2–3.6 pp; in 2040–45, FL is at 3.9–4.6 pp and the
+  TX_E/TX_W zones at 1.7–3.6 pp;
+- the worst are Missouri's six zones (24–27 pp, a through-hub) and NH/VT (10–12 pp); about 20 zones exceed 5 pp.
+
+The accepted ddac626 formulation stays the default, and is one of the optima. This is part of why the projected years
+are indicative.
+
+## Stage 2a: standalone annual gas network LP (§96)
+
+`python -m gasnet.cli stage2a` → `outputs/stage2a/`. No Switch link, and no model code changed.
+
+**Network.**
+- **Nodes:** the 52 Stage 1 hubs plus 14 basin supply nodes. Gathering arcs from each basin to its hubs are fixed at
+  the hub's share (production areas; crossings for Canada; terminals for LNG imports), so supply by basin is exact.
+- **Arcs:** `gasnet/capacity.py`.
+  - EIA State-to-State Capacity January 2026, per-pipeline 2025 values (2024 where a 2025 row is missing). Texas
+    endpoints go to sub-hubs by county; two counties without a district (Fannin, Parmer) take their zone's hub.
+    Gulf of America rows map to GOM.
+  - NGMM intra-Texas 2024, which includes Matterhorn.
+  - Projects from `data/reference/capacity_projects.csv` (EIA tracker, August 2026, hand-mapped to hub arcs) under
+    the **status rule**: Completed, Part Completed and Construction count from November of the in-service year (2/12
+    of the year, then full); Approved only in the `with_approved` sensitivity; everything else excluded.
+  - Two 2025 completions missing from EIA's 2025 capacity are added: Golden Pass bidirectional LA→TX_E 2,500 and
+    Wisconsin Reliability 144.
+  - TX_W→TX_E reaches 17,650 MMcf/d by 2030 (NGMM 2024 10,880 + GCX expansion + Blackcomb + Eiger Express). TX_W→TX_N
+    reaches 3,760 (with Hugh Brinson 2,200). NGMM's own planned row (Warrior 3,700 + Apex 2,000) differs; Apex is on
+    hold and excluded.
+  - Canadian and Mexican crossings are not arcs: imports are supply at the crossing state, exports demand there.
+
+**Supply.**
+- 2024: EIA observed (Stage 1 base).
+- 2030, 2035, 2045: Stage 1's AEO2026-indexed basin supply (Tables 59/60; Canada additive Table 64; LNG Table 61).
+
+**Demand.**
+- 2024: EIA consumption by state and end use (49 state files) plus exports by state (Mexico, Canada, LNG).
+- Projected years:
+  - end uses × AEO2026 Table 62 growth (census division × sector);
+  - exports × Table 61;
+  - lease and plant fuel × state production growth;
+  - pipeline and distribution use × delivered-use growth.
+- Texas is split as in Stage 1.
+- Demand is scaled to total supply: ×1.031 in 2024, 1.07–1.10 later.
+- State movement files give LNG exports of about 3.6 Tcf in 2024, against EIA's national ~4.3 Tcf; the scaling
+  absorbs the gap.
+
+**Objective.**
+- Minimise Σ great-circle km × flow between hub centroids, plus 10⁶ per MMcf unserved and per MMcf spilled.
+  - Centroids are the mean location of each hub's gas generators in EIA-860M; Vermont uses all its generators; GOM is
+    28.5N 90.5W.
+  - With fixed supply and demand only relative distances matter, so the $/km scale is irrelevant to flows.
+- **Calibration** on 2024 (`calibration_grid.csv`): annual utilisation cap U ∈ {0.6 … 1.0} × per-arc hurdle ∈
+  {0, 100, 300, 1000} km. The chosen setting has the lowest 2024 arc error among those that serve all 2024 demand
+  (within 0.1%): **U = 0.9, hurdle 0**. Below 0.9, 2024 demand can't be met (0.6 leaves 2.8 Tcf unserved).
+
+**Calibration result (2024).**
+- State-arc weighted absolute error 0.61 (net of direction 0.57), R² 0.55.
+- The LP moves 47.8 Tcf on interstate arcs against 67.0 Tcf of observed gross receipts. EIA's movements include
+  cross-hauls (MS↔LA, AL↔MS, LA↔TX) that a min-cost LP never makes; the largest misses are those (MS→AL −2.1 Tcf,
+  LA→MS −1.9 Tcf).
+- Observed 2024 flows on arcs with no EIA capacity row (NH↔VT 152 Bcf each way, OH→LA 224 Bcf) and above listed
+  capacity (PA→OH 1,533 Bcf vs 869 Bcf/yr) are flagged.
+- Against Table 64 2025 at region level the error is 0.27.
+
+**Projected years.**
+
+| Year | Unserved (Bcf) | Where | Spilled | Binding arcs | Region error vs Table 64 |
+|---|---|---|---|---|---|
+| 2030 | 6 | VT | ID, NM | 23 | 0.33 |
+| 2035 | 1,892 | FL 1,816, GA 69, VT 7 | PA 1,892 | 23 | 0.49 |
+| 2045 | 4,871 | FL 2,315, GA 1,063, LA 685, CA 626, WI 145, SC 29, VT 7 | PA 4,871 | 25 | 0.62 |
+
+- **Approved projects change nothing material** (same unserved; one more binding arc).
+- **The binding constraint is Appalachian takeaway.** AEO2026's Marcellus/Utica growth (+72% 2025→2045) can't leave
+  Pennsylvania on existing plus under-construction capacity.
+- Arcs binding in every year: PA→OH, PA→NY, PA→MD, WV→KY, TN→GA, OK→AR, OK→MO, NM→AZ, ND→MN, ID→OR, NY→MA, CT→MA,
+  DE→MD, MD→DC. From 2030 also OH→IN, OH→MI, WV→MD and WV→VA. TX_W→TX_E binds in 2024 (Matterhorn only 2/12),
+  2030 and 2045.
+- Which demand goes unserved is then arbitrary: the LP drops the most remote, so Florida's traced mix in 2035/2045 is
+  meaningless.
+- **Diagnostic variant `status_rule_min_expansion`** (not Stage 4). Extra capacity on existing arcs at 10,000 km +
+  distance per MMcf, far above routing and far below unserved. It finds the least expansion that serves all demand:
+  - 2035 needs 6.7 Bcf/d: WV→KY 3.1, PA→MD 2.2, OH→MI 1.1, VA→NC 0.3;
+  - 2045 needs 22.3 Bcf/d: PA→OH 5.0, WV→KY 4.9, OH→MI 4.1, OH→IN 3.1, PA→MD 2.8, KY→TN 1.0, VA→NC 0.75, AL→FL 0.5,
+    VA→TN 0.2.
+  - Only Vermont stays unserved (7 Bcf, no arc). Region error vs Table 64 falls to 0.35 in both years.
+
+**Traced basin shares vs Stage 1** (% of delivered gas; "distance" = total-variation distance from Stage 1 additive
+balanced, pp; full table `zone_shares_vs_stage1.csv`):
+
+**FL (p91, p101, p102)**
+
+| Year | Source | App | Hay | Perm | EF | Barn | MidC | GOM | SJ | Rock | WCan | ECan | LNG | oth | Distance from Stage 1 (pp) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2024 | Stage 1 | 34.2 | 30.5 | 9.4 | 5.8 | 1.0 | 7.9 | 7.1 | 0.1 | 0.4 | 0.3 | – | – | 3.0 |  |
+| 2024 | 2a | 34.9 | 18.2 | 7.4 | 2.1 | 0.4 | 14.7 | 17.9 | 0.4 | 0.8 | – | – | – | 3.2 | 19.3 |
+| 2030 | Stage 1 | 49.3 | 27.5 | 8.0 | 4.2 | 0.9 | 2.4 | 5.0 | – | – | – | – | – | 2.6 |  |
+| 2030 | 2a | 31.5 | 23.5 | 7.7 | 2.9 | 0.5 | 12.7 | 17.5 | 0.1 | – | – | – | – | 3.6 | 23.9 |
+| 2035 | Stage 1 | 62.8 | 18.5 | 4.9 | 3.3 | 0.5 | 3.3 | 4.4 | – | – | – | – | – | 2.2 |  |
+| 2035 | 2a | – | – | – | – | – | – | – | – | – | – | – | – | 100.0 | 97.8 |
+| 2035 | 2a + min. expansion | 64.7 | – | – | – | – | 12.6 | 19.4 | – | – | – | – | – | 3.3 | 27.3 |
+| 2045 | Stage 1 | 77.1 | 5.2 | 3.3 | 2.2 | 0.1 | 6.1 | 3.0 | – | 0.2 | 0.4 | – | – | 1.8 |  |
+| 2045 | 2a | – | – | – | – | – | – | – | – | – | – | – | – | 100.0 | 98.2 |
+| 2045 | 2a + min. expansion | 80.8 | – | – | – | – | 16.3 | – | – | – | – | – | – | 2.9 | 15.0 |
+
+**east TX (p57, p64-p67)**
+
+| Year | Source | App | Hay | Perm | EF | Barn | MidC | GOM | SJ | Rock | WCan | ECan | LNG | oth | Distance from Stage 1 (pp) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2024 | Stage 1 | – | 23.0 | 38.7 | 26.4 | 4.7 | 5.9 | 0.8 | 0.2 | 0.2 | – | – | – | – |  |
+| 2024 | 2a | – | 22.0 | 38.9 | 25.6 | 4.4 | 8.3 | – | 0.8 | – | – | – | – | – | 3.1 |
+| 2030 | Stage 1 | – | 23.9 | 43.2 | 22.6 | 4.8 | 4.4 | 0.7 | 0.3 | 0.2 | – | – | – | – |  |
+| 2030 | 2a | – | 20.1 | 54.1 | 20.3 | 3.5 | 1.1 | – | 1.0 | – | – | – | – | – | 11.7 |
+| 2035 | Stage 1 | 8.2 | 23.3 | 34.1 | 23.8 | 3.6 | 5.5 | 1.3 | – | – | – | – | – | 0.3 |  |
+| 2035 | 2a | – | 18.5 | 53.4 | 23.5 | 2.2 | 1.6 | – | 0.8 | – | – | – | – | – | 20.1 |
+| 2035 | 2a + min. expansion | – | 18.3 | 52.9 | 23.3 | 2.1 | 2.5 | – | 0.8 | – | – | – | – | – | 19.6 |
+| 2045 | Stage 1 | 12.7 | 11.1 | 37.4 | 28.5 | 1.1 | 7.2 | 1.1 | 0.2 | 0.1 | 0.1 | – | – | 0.3 |  |
+| 2045 | 2a | – | 10.3 | 50.2 | 27.6 | 1.3 | 9.6 | – | 1.0 | – | – | – | – | – | 16.2 |
+| 2045 | 2a + min. expansion | – | 10.2 | 47.4 | 26.0 | 1.4 | 14.1 | – | 1.0 | – | – | – | – | – | 17.9 |
+
+**VA (p99, p100, p118, p124)**
+
+| Year | Source | App | Hay | Perm | EF | Barn | MidC | GOM | SJ | Rock | WCan | ECan | LNG | oth | Distance from Stage 1 (pp) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2024 | Stage 1 | 99.9 | – | – | – | – | – | – | – | – | – | – | 0.1 | – |  |
+| 2024 | 2a | 100.0 | – | – | – | – | – | – | – | – | – | – | – | – | 0.1 |
+| 2030 | Stage 1 | 99.8 | – | – | – | – | – | – | – | – | – | – | 0.2 | – |  |
+| 2030 | 2a | 99.9 | – | – | – | – | – | – | – | – | – | – | 0.1 | – | 0.1 |
+| 2035 | Stage 1 | 99.8 | – | – | – | – | – | – | – | – | – | – | 0.2 | – |  |
+| 2035 | 2a | 99.9 | – | – | – | – | – | – | – | – | – | – | 0.1 | – | 0.1 |
+| 2035 | 2a + min. expansion | 99.9 | – | – | – | – | – | – | – | – | – | – | 0.1 | – | 0.1 |
+| 2045 | Stage 1 | 99.8 | – | – | – | – | – | – | – | – | – | – | 0.2 | – |  |
+| 2045 | 2a | 99.9 | – | – | – | – | – | – | – | – | – | – | 0.1 | – | 0.1 |
+| 2045 | 2a + min. expansion | 99.9 | – | – | – | – | – | – | – | – | – | – | 0.1 | – | 0.1 |
+
+**MA (p131)**
+
+| Year | Source | App | Hay | Perm | EF | Barn | MidC | GOM | SJ | Rock | WCan | ECan | LNG | oth | Distance from Stage 1 (pp) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2024 | Stage 1 | 81.8 | – | – | – | – | – | – | – | – | – | 15.5 | 2.6 | – |  |
+| 2024 | 2a | 88.4 | – | – | – | – | – | – | – | – | – | 9.1 | 2.5 | – | 6.6 |
+| 2030 | Stage 1 | 82.9 | – | – | – | – | – | – | – | – | – | 9.5 | 7.7 | – |  |
+| 2030 | 2a | 84.8 | – | – | – | – | – | – | – | – | – | 8.5 | 6.7 | – | 2.0 |
+| 2035 | Stage 1 | 83.4 | – | – | – | – | – | – | – | – | – | 9.4 | 7.3 | – |  |
+| 2035 | 2a | 85.7 | – | – | – | – | – | – | – | – | – | 8.2 | 6.1 | – | 2.4 |
+| 2035 | 2a + min. expansion | 85.7 | – | – | – | – | – | – | – | – | – | 8.2 | 6.1 | – | 2.4 |
+| 2045 | Stage 1 | 82.7 | – | – | – | – | – | – | – | – | – | 9.7 | 7.6 | – |  |
+| 2045 | 2a | 85.5 | – | – | – | – | – | – | – | – | – | 8.2 | 6.4 | – | 2.8 |
+| 2045 | 2a + min. expansion | 85.5 | – | – | – | – | – | – | – | – | – | 8.2 | 6.4 | – | 2.8 |
+
+**CA (p8-p11)**
+
+| Year | Source | App | Hay | Perm | EF | Barn | MidC | GOM | SJ | Rock | WCan | ECan | LNG | oth | Distance from Stage 1 (pp) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2024 | Stage 1 | – | – | 32.8 | – | – | 1.1 | – | 7.7 | 24.0 | 28.6 | – | – | 5.7 |  |
+| 2024 | 2a | – | – | 56.2 | – | – | – | – | 9.2 | 7.0 | 21.9 | – | – | 5.6 | 24.9 |
+| 2030 | Stage 1 | – | – | 36.2 | – | – | 0.9 | – | 5.8 | 19.5 | 31.1 | – | – | 6.3 |  |
+| 2030 | 2a | – | – | 58.3 | – | – | – | – | 6.2 | 18.1 | 11.3 | – | – | 5.7 | 22.7 |
+| 2035 | Stage 1 | – | – | 38.0 | – | – | 1.7 | – | 5.6 | 18.7 | 28.1 | – | – | 7.7 |  |
+| 2035 | 2a | – | – | 59.6 | – | – | – | – | 6.7 | 14.8 | 12.3 | – | – | 6.5 | 22.8 |
+| 2035 | 2a + min. expansion | – | – | 59.6 | – | – | – | – | 6.7 | 14.8 | 12.3 | – | – | 6.5 | 22.8 |
+| 2045 | Stage 1 | – | – | 31.0 | – | – | 1.9 | – | 6.2 | 22.1 | 31.4 | – | – | 7.4 |  |
+| 2045 | 2a | – | – | 62.0 | – | – | – | – | 8.5 | 19.7 | 1.1 | – | – | 8.8 | 34.6 |
+| 2045 | 2a + min. expansion | – | – | 46.1 | – | – | – | – | 9.1 | 28.7 | 9.6 | – | – | 6.5 | 24.6 |
+
+What the differences mean:
+- **East TX, VA and MA** agree with Stage 1 within about 3 pp in 2024 (MA 6.6). From 2030 east TX differs by 12–20
+  pp, because the LP sends more Permian gas through the new TX_W→TX_E pipes and no Appalachian gas reaches Texas.
+- **Florida and California** differ by about 19–25 pp even in 2024. That is the min-cost routing, not the data:
+  - Florida draws on the nearer Gulf/Mid-Continent pipes in place of Haynesville;
+  - California takes more Permian via Arizona and less Rockies/Canada gas, against observed AZ→CA 898 and OR→CA
+    686 Bcf.
+- So Stage 1 (traced on observed flows) stays the reference for 2024. Stage 2a's flows are a feasibility and capacity
+  check: what the network can carry under AEO's production, and where it needs pipe.
+
+**Limits (Stage 2a).**
+- Annual: no seasonal or peak-day constraint (Stage 2b/3).
+- No cross-hauling, contract paths, tariffs or fuel losses.
+- Supply fixed by basin.
+- Crossings not capacity-limited.
+- Distances are between generator-weighted centroids.
+- Utilisation cap uniform.
 
 ## Limits
 
