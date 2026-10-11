@@ -1,13 +1,17 @@
 # Carbon-programme applicability rules for on-site generators (CHANGES §108, guide 15.2). Checked 11 Oct 2026.
 # The case writer (tracked_demands/case_writer.py) maps a case's CO2_PROGRAM names to these families
 # (spec key cap_coverage, e.g. {"ETS 1": RGGI, "ETS 2": CA, "ETS 3": WA}).
+# limited_export_exemption is OFF in every family: the exemption needs a permit condition the site may not have, so a
+# case turns it on itself (spec: "ETS 1": {family: RGGI, limited_export_exemption: 1}). `exemption_available`
+# records where the rule allows it.
 RGGI:
   # 2017 Model Rule XX-1.4 as adopted in each state's CO2 Budget Trading rule (25 MWe generator nameplate;
   # exemption for a permit limiting grid supply to <= 10% of the unit's annual gross generation). The 2025 Model
   # Rule (Third Program Review, 3 Jul 2025; states adopt by 1 Jan 2027) was not found to change it.
   threshold_mw: 25
   basis: unit
-  limited_export_exemption: 1
+  limited_export_exemption: 0
+  exemption_available: 1
   states:
     # 6 NYCRR 242-1.4(a)(2): from 1 Jan 2021, a unit >= 15 MWe at an existing CO2 budget source or at a source
     # with two or more units >= 15 MWe
@@ -17,7 +21,8 @@ VA:
   # effective 24 Apr 2026. In S0, Virginia is in ETS 1 with RGGI's rule, which is the same.
   threshold_mw: 25
   basis: unit
-  limited_export_exemption: 1
+  limited_export_exemption: 0
+  exemption_available: 1
 CA:
   # 17 CCR 95812(c)(1): 25,000 tCO2e per data year, per facility; no limited-export exemption
   threshold_tco2: 25000

@@ -37,6 +37,13 @@ REPO = Path(__file__).resolve().parents[1]
 RULES = REPO / "tracked_demands" / "data" / "cap_coverage_rules.yml"
 REINFORCEMENT = REPO / "interconnection_headroom" / "data" / "reference" / "reeds_reinforcement_by_zone.csv"
 HIERARCHY = REPO / "hierarchy.csv"
+UC_DEFAULTS = REPO / "tracked_demands" / "data" / "onsite_uc_defaults.yml"
+# Switch's unit-commitment and ramp columns (gen_info.csv), set from the spec or onsite_uc_defaults.yml, never copied
+# from a template plant
+UC_FIELDS = ("min_load_fraction", "min_uptime", "min_downtime", "startup_om", "startup_fuel",
+             "ramp_limit_up", "ramp_limit_down")
+TECH_PRIME_MOVER = {"recip": "recip", "diesel": "recip", "aero": "turbine", "frame_ct": "turbine",
+                    "fuel_cell": "fuel_cell"}
 
 # spec names -> candidate names a case may use (case-insensitive); the first present in the case wins
 SOURCE_ALIASES = {
@@ -63,6 +70,88 @@ class Log(list):
     def __call__(self, msg):
         print(msg)
         self.append(msg)
+
+
+# --------------------------------------------------------------------------------------------- case files
+def variants(folder: Path, fname: str) -> list[Path]:
+    """The base file and every <stem>.chained.<case>.csv of it in folder: a chained stage reads the chained
+    version (pg_to_switch's --input-aliases), so the writer edits all of them alike."""
+    stem = fname[:-4]
+    out = [folder / fname] if (folder / fname).exists() else []
+    return out + sorted(folder.glob(f"{stem}.chained.*.csv"))
+
+
+def add_rows(folder: Path, fname: str, rows: list[dict], n_index: int, log, replace: bool = False,
+             create: tuple | None = None) -> None:
+    """Append rows to fname and each chained variant, using each file's own column names.
+
+    rows use logical keys "_i0", "_i1", ... for the index columns, which take the file's first n_index column
+    names (e.g. GENERATION_PROJECT / BUILD_YEAR or build_year, whatever the case wrote); other keys are Switch's
+    parameter column names and are added as columns when the file lacks them. Rows whose index is already in the
+    file are left alone (a stage folder that already carries them), or replaced with replace=True. create: the
+    index column names for a file that doesn't exist yet (None: leave a missing file missing)."""
+    paths = variants(folder, fname)
+    if not paths:
+        if not create:
+            return
+        paths = [folder / fname]
+    for path in paths:
+        df = _read(path) if path.exists() else None
+        if df is None:
+            cols = [k for k in rows[0] if not k.startswith("_i")]
+            df = pd.DataFrame(columns=list(create) + cols)
+        idx = list(df.columns[:n_index])
+        new = pd.DataFrame(rows).rename(columns={f"_i{i}": c for i, c in enumerate(idx)})
+        for c in new.columns:
+            if c not in df.columns:
+                df[c] = float("nan")
+                log(f"{path.name}: added column {c}")
+        new = new.reindex(columns=df.columns)
+        keys = set(map(tuple, df[idx].astype(str).values))
+        dup = new[idx].astype(str).apply(tuple, axis=1).isin(keys)
+        if replace:
+            drop = df[idx].astype(str).apply(tuple, axis=1).isin(set(map(tuple, new[idx].astype(str).values)))
+            df = df[~drop]
+        elif dup.any():
+            log(f"{path.name}: {int(dup.sum())} row(s) already there, kept as they are")
+            new = new[~dup]
+        _write(pd.concat([df, new], ignore_index=True), path)
+
+
+def uc_settings(g: dict, log) -> tuple[dict, str, str]:
+    """(UC fields, technology, prime mover) of a linked generator: the spec's `uc:` values, else the technology's
+    defaults (onsite_uc_defaults.yml), each default or gap logged as a WARNING."""
+    defaults = yaml.safe_load(UC_DEFAULTS.read_text())
+    tech = g.get("technology")
+    pm = g.get("prime_mover")
+    if tech is None:
+        if pm == "recip":
+            tech = "diesel" if str(g.get("fuel", "gas")).lower().startswith("diesel") or \
+                str(g.get("fuel", "gas")).lower().startswith("distillate") else "recip"
+        elif pm == "turbine":
+            tech = "aero"
+            log(f"WARNING: {g['name']}: no technology given for a turbine; assumed aero (set technology: frame_ct "
+                f"for a frame turbine)")
+        elif pm == "fuel_cell":
+            tech = "fuel_cell"
+    if tech is not None and tech not in defaults:
+        raise ValueError(f"case_writer: technology {tech!r} of {g['name']} (one of {sorted(defaults)})")
+    pm = pm or TECH_PRIME_MOVER.get(tech, "other")
+    d = defaults.get(tech, {})
+    spec_uc = g.get("uc") or {}
+    out, missing = {}, []
+    for f in UC_FIELDS:
+        if f in spec_uc and spec_uc[f] is not None:
+            out[f] = float(spec_uc[f])
+        elif f in d:
+            out[f] = float(d[f])
+            missing.append(f"{f}={d[f]:g} (default)")
+        else:
+            missing.append(f"{f} unset (Switch default)")
+    if missing:
+        log(f"WARNING: {g['name']}: unit commitment not in the spec, using {tech or 'no technology'} defaults "
+            f"[{d.get('source', 'none')}]: " + ", ".join(missing))
+    return out, tech or "", pm
 
 
 # --------------------------------------------------------------------------------------------- names as Switch uses
@@ -182,7 +271,7 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
     credits_override = spec.get("tax_credit_values")
 
     rows = {k: [] for k in ("td", "zones", "blocks", "targets", "techs", "subsidies", "caps", "storage", "links",
-                            "gi", "bc", "credit", "prm", "gtc")}
+                            "gi", "bc", "credit", "prm", "gtc", "ic")}
     for d in spec["tracked_demands"]:
         name, zone = d["name"], d["zone"]
         if zone not in zones:
@@ -236,40 +325,48 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
         for g in d.get("onsite_gens", []) or []:
             gid = g["name"]
             fuel = case_fuel(gen_info, fuels, g.get("fuel", "gas"), zone)
+            uc, techname, pm = uc_settings(g, log)
+            # template for the remaining gen_info fields (outage rates, age...): the zone's plant of that fuel,
+            # preferring one without CCS; CCS, storage and unit-commitment fields are never copied
             tmpl = gen_info[(gen_info["gen_load_zone"] == zone) & (gen_info["gen_energy_source"] == fuel)]
-            row = (tmpl.iloc[0].copy() if len(tmpl) else pd.Series({c: float("nan") for c in gen_info.columns},
-                                                                       dtype=object))
-            tech = g.get("gen_tech", f"TD_{g.get('prime_mover', 'other')}")
-            fields = {"GENERATION_PROJECT": gid, "gen_tech": tech, "gen_load_zone": zone,
+            if "gen_ccs_capture_efficiency" in tmpl:
+                tmpl = tmpl.sort_values("gen_ccs_capture_efficiency", na_position="first")
+            row = {k: v for k, v in (tmpl.iloc[0].to_dict() if len(tmpl) else {}).items()
+                   if not (k.startswith(("gen_ccs", "gen_storage")) or k[4:] in UC_FIELDS)}
+            row.pop(gen_info.columns[0], None)
+            tech = g.get("gen_tech", f"TD_{techname or pm}")
+            row.update({"_i0": gid, "gen_tech": tech, "gen_load_zone": zone,
                         "gen_energy_source": fuel, "gen_full_load_heat_rate": float(g["heat_rate"]),
                         "gen_variable_om": float(g.get("variable_om", 0.0)),
-                        "gen_connect_cost_per_mw": 0.0, "gen_capacity_limit_mw": g.get("capacity_limit_mw"),
+                        "gen_connect_cost_per_mw": 0.0,
+                        "gen_capacity_limit_mw": (float(g["capacity_limit_mw"])
+                                                  if g.get("capacity_limit_mw") is not None else float("nan")),
                         "gen_max_age": g.get("max_age", row.get("gen_max_age", 30)),
                         "gen_unit_size": float("nan"), "gen_min_build_capacity": 0,
-                        "gen_is_variable": 0, "gen_is_baseload": 0, "gen_dbid": gid}
-            for k, v in fields.items():          # assigned one by one: Series.update would skip NaN (unit size)
-                if k in row.index:
-                    row[k] = float("nan") if v is None else v
+                        "gen_is_variable": 0, "gen_is_baseload": 0, "gen_is_cogen": 0})
+            if "gen_dbid" in gen_info.columns:
+                row["gen_dbid"] = gid
+            for f in UC_FIELDS:
+                row["gen_" + f] = uc.get(f, float("nan"))
             rows["gi"].append(row)
-            cost_cols = _read(out / "gen_build_costs.csv").columns
             for p in periods:
-                b = {c: float("nan") for c in cost_cols}
-                b.update({"GENERATION_PROJECT": gid, "build_year": p,
-                          "gen_overnight_cost": float(g["overnight_cost_per_kw"]) * 1000.0,
-                          "gen_fixed_om": float(g.get("fixed_om_per_kw_yr", 0.0)) * 1000.0})
-                rows["bc"].append(b)
+                rows["bc"].append({"_i0": gid, "_i1": p,
+                                   "gen_overnight_cost": float(g["overnight_cost_per_kw"]) * 1000.0,
+                                   "gen_fixed_om": float(g.get("fixed_om_per_kw_yr", 0.0)) * 1000.0})
             rows["links"].append({"TRACKED_DEMAND": name, "GENERATION_PROJECT": gid,
-                                  "td_onsite_prime_mover": g.get("prime_mover", "other"),
+                                  "td_onsite_prime_mover": pm,
                                   "td_onsite_unit_mw": g.get("unit_mw", "."),
                                   "td_onsite_rated_mw": g.get("rated_mw", g.get("capacity_limit_mw", "."))})
             if g.get("tax_credit_key"):
                 for p, v in credit_by_period(out, g["tax_credit_key"], periods, credits_override, gen_info).items():
-                    rows["credit"].append({"GENERATION_PROJECT": gid, "PERIOD": p, "gen_ptc_value_per_mwh": v})
-            rows["prm"].append({"GENERATION_PROJECT": gid, "prm_credit": "none", "prm_class": "onsite"})
-            if g.get("prime_mover") == "turbine":
-                rows["gtc"].append({"GENERATION_PROJECT": gid, "gtc_class": g.get("gtc_class", "ct"),
+                    rows["credit"].append({"_i0": gid, "_i1": p, "gen_ptc_value_per_mwh": v})
+            rows["prm"].append({"_i0": gid, "prm_credit": "none", "prm_class": "onsite"})
+            if pm == "turbine":
+                rows["gtc"].append({"_i0": gid, "gtc_class": g.get("gtc_class", "ct"),
                                     "gtc_weight": float(g.get("gtc_weight", 1.0))})
-            log(f"{name}: linked generator {gid} ({g.get('prime_mover', 'other')}, fuel {fuel})")
+            rows["ic"].append(tech)
+            log(f"{name}: linked generator {gid} ({techname or pm}, prime mover {pm}, fuel {fuel}, gen_tech {tech}, "
+                f"UC " + ", ".join(f"{k}={v:g}" for k, v in uc.items()) + ")")
 
     def put(key, fname, cols=None):
         if rows[key]:
@@ -287,29 +384,17 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
     put("links", "tracked_demand_onsite_gens.csv")
 
     if rows["gi"]:
-        gi = pd.concat([gen_info, pd.DataFrame(rows["gi"])[gen_info.columns]], ignore_index=True)
-        _write(gi, out / "gen_info.csv")
-        bc = _read(out / "gen_build_costs.csv")
-        _write(pd.concat([bc, pd.DataFrame(rows["bc"])[bc.columns]], ignore_index=True), out / "gen_build_costs.csv")
-        techs = sorted({r["gen_tech"] for r in rows["gi"]})
-        if (out / "prm_gen_credit.csv").exists():
-            pc = _read(out / "prm_gen_credit.csv")
-            _write(pd.concat([pc, pd.DataFrame(rows["prm"])], ignore_index=True)[pc.columns], out / "prm_gen_credit.csv")
-        if (out / "ic_weights.csv").exists():
-            w = _read(out / "ic_weights.csv")
-            key = w.columns[0]
-            w = w[~w[key].isin(techs)]
-            _write(pd.concat([w, pd.DataFrame({key: techs, w.columns[1]: 0.0})], ignore_index=True),
-                   out / "ic_weights.csv")
-        if rows["gtc"] and (out / "gas_turbine_cap_gens.csv").exists():
-            g = _read(out / "gas_turbine_cap_gens.csv")
-            _write(pd.concat([g, pd.DataFrame(rows["gtc"])], ignore_index=True)[g.columns],
-                   out / "gas_turbine_cap_gens.csv")
+        # every file the case reads, base and chained (each with its own column names)
+        add_rows(out, "gen_info.csv", rows["gi"], 1, log)
+        add_rows(out, "gen_build_costs.csv", rows["bc"], 2, log)
+        add_rows(out, "prm_gen_credit.csv", rows["prm"], 1, log)
+        add_rows(out, "gas_turbine_cap_gens.csv", rows["gtc"], 1, log) if rows["gtc"] else None
+        if variants(out, "ic_weights.csv"):
+            w = _read(variants(out, "ic_weights.csv")[0])
+            add_rows(out, "ic_weights.csv", [{"_i0": t, w.columns[1]: 0.0} for t in sorted(set(rows["ic"]))], 1, log,
+                     replace=True)
         if rows["credit"]:
-            f = out / "gen_tax_credits.csv"
-            tc = _read(f) if f.exists() else pd.DataFrame(columns=["GENERATION_PROJECT", "PERIOD",
-                                                                    "gen_ptc_value_per_mwh"])
-            _write(pd.concat([tc, pd.DataFrame(rows["credit"])], ignore_index=True), f)
+            add_rows(out, "gen_tax_credits.csv", rows["credit"], 2, log, create=("GENERATION_PROJECT", "PERIOD"))
 
     # zone network-upgrade cost for the connection
     zcost = spec.get("zone_upgrade_cost_per_kw") or {}
@@ -333,10 +418,17 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
         programmes = set(_read(out / "carbon_policies_regional.csv")["CO2_PROGRAM"]) \
             if (out / "carbon_policies_regional.csv").exists() else set()
         crows, srows = [], []
-        for prog, family in cov.items():
+        for prog, entry in cov.items():
             if programmes and prog not in programmes:
                 raise ValueError(f"case_writer: programme {prog!r} isn't in carbon_policies_regional.csv")
-            r = rules[family]
+            # "ETS 1": RGGI, or "ETS 1": {family: RGGI, limited_export_exemption: 1, ...} to override the rule
+            entry = {"family": entry} if isinstance(entry, str) else dict(entry)
+            family = entry.pop("family")
+            r = {**rules[family], **entry}
+            if r.get("limited_export_exemption", 0) and not r.get("exemption_available", 0):
+                log(f"WARNING: {prog}: limited-export exemption set, but {family}'s rule has none")
+            log(f"{prog}: on-site coverage from the {family} rule, limited-export exemption "
+                f"{'ON' if r.get('limited_export_exemption', 0) else 'off'}")
             crows.append({"CO2_PROGRAM": prog, "td_cap_counts_onsite": r.get("counts_onsite", 1),
                           "td_cap_threshold_mw": r.get("threshold_mw", "."),
                           "td_cap_threshold_tco2": r.get("threshold_tco2", "."),

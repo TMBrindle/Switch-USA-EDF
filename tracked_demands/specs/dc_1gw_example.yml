@@ -22,9 +22,10 @@ tracked_demands:
          tax_credit_key: UtilityPV, max_mw: 500}
     storage: {power_cost_per_mw_yr: 30000, energy_cost_per_mwh_yr: 20000, max_hours: 8}
     onsite_gens:                # linked ordinary generators
-      - {name: p33_DC1_recip, prime_mover: recip, fuel: gas, heat_rate: 8.3, overnight_cost_per_kw: 1500,
-         fixed_om_per_kw_yr: 15, variable_om: 6, unit_mw: 4.5, capacity_limit_mw: 300, max_age: 25}
+      - {name: p33_DC1_recip, technology: recip, fuel: gas, heat_rate: 8.3, overnight_cost_per_kw: 1500,
+         fixed_om_per_kw_yr: 15, variable_om: 6, unit_mw: 4.5, capacity_limit_mw: 300, max_age: 25,
+         uc: {min_load_fraction: 0.3, min_uptime: 0, min_downtime: 0}}   # placeholders; startup cost unset (warned)
 cap_coverage:                   # the case's CO2_PROGRAM -> tracked_demands/data/cap_coverage_rules.yml family
-  "ETS 1": RGGI
+  "ETS 1": RGGI                # limited-export exemption off; {family: RGGI, limited_export_exemption: 1} to set it
   "ETS 2": CA
   "ETS 3": WA

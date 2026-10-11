@@ -4140,3 +4140,38 @@ coverage files, original untouched, and the written case solves.
 
 Results after (g): `tracked_demands/tests` 98 passed on pandas 3.0.6 (Python 3.11) and 1.4.4 (Python 3.10).
 interconnection_headroom's suite: 24 passed, 7 skipped (unchanged).
+
+**(g) Writer fixes from the VM runner's mechanics-test preparation** (12 Oct; base `s0v31_tt/2035/S0prod_A`, a chained
+stage):
+1. **Column names from the file.** Index columns are taken from each file's own header: the first column (the
+   project) and, in build costs, the second (build year). pg_to_switch writes `BUILD_YEAR`; the writer assumed
+   `build_year`, so linked generators got no build year. Parameter columns keep Switch's names; one the file lacks
+   is added.
+2. **Chained stages.** Every file the writer edits is edited in its base version and in every
+   `<file>.chained.<case>.csv`; a chained stage reads the chained versions through pg_to_switch's
+   `--input-aliases`. The edited files are `gen_info`, `gen_build_costs`, `prm_gen_credit`, `ic_weights`,
+   `gas_turbine_cap_gens` and `gen_tax_credits`. Rows already present are kept, so a stage folder that already
+   carries the generators gets no duplicates.
+3. **Unit commitment from the spec.** `gen_min_load_fraction`, `gen_min_uptime`, `gen_min_downtime`,
+   `gen_startup_om`, `gen_startup_fuel` and `gen_ramp_limit_up` / `_down` come from the generator's `uc:` block. A
+   field it leaves out takes the default for its `technology` (`recip`, `aero`, `frame_ct`, `fuel_cell`, `diesel`;
+   `tracked_demands/data/onsite_uc_defaults.yml`) or stays unset, with a WARNING naming each field.
+   - Frame CT values are the repo's PowerGenome combustion-turbine rows; the others are marked unsourced
+     placeholders.
+   - A turbine without a technology is assumed aero, with a warning.
+   - Nothing is copied from the zone's gas plant any more (it was: 53% minimum load, 6 h up/down). CCS and storage
+     fields aren't copied either.
+4. **Limited-export exemption was ON by default in the writer's rules file** (`limited_export_exemption: 1` for
+   RGGI and VA). The module's own default was already 0. It is now off in every family (`exemption_available`
+   records where the rule allows it), and a case turns it on per programme:
+   `cap_coverage: {"ETS 1": {family: RGGI, limited_export_exemption: 1}}`.
+5. **Tests** (`test_td_case_writer.py`, 11):
+   - BUILD_YEAR;
+   - UC from the spec, defaults and warnings;
+   - exemption off unless set;
+   - the writer on a copy of a chained toy stage (2030 after 2020, BUILD_YEAR, the stage's chained aliases). The
+     stage's model sees each linked generator, its costs from the chained build costs, its UC settings (commitment
+     loaded) and its link; the solve builds both generators and gives each its coverage (2 MW recip exempt under
+     RGGI's 25 MWe, 30 MW aero covered).
+
+`tracked_demands/tests`: 102 passed on pandas 3.0.6 (Python 3.11) and 1.4.4 (Python 3.10).

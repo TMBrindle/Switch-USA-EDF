@@ -1698,6 +1698,21 @@ before prm_regional's options). `tracked_demands_writer_log.txt` records what wa
 
 For a chain, run the writer on each stage's folder with the same spec.
 
+**Files the writer edits.** `gen_info`, `gen_build_costs`, `prm_gen_credit`, `ic_weights`, `gas_turbine_cap_gens`
+and `gen_tax_credits` are edited in the base file and in every `<file>.chained.<case>.csv`; a chained stage reads
+the chained ones. Each file's own column names are used (S0 build costs say `BUILD_YEAR`), and rows already present
+are kept.
+
+**Unit commitment of linked generators.** Each generator's `uc:` block sets `min_load_fraction`, `min_uptime`,
+`min_downtime`, `startup_om`, `startup_fuel`, `ramp_limit_up` and `ramp_limit_down` (Switch's `gen_` columns). A
+field left out takes the default for its `technology` (`recip`, `aero`, `frame_ct`, `fuel_cell`, `diesel`) from
+`tracked_demands/data/onsite_uc_defaults.yml`, or stays unset (Switch's default), and the log says so with a
+WARNING. Only `frame_ct` is sourced (the repo's PowerGenome combustion-turbine rows); the rest are placeholders.
+Nothing is copied from existing plants.
+
+**Limited-export exemption.** It is off in every rule family; turn it on per programme in the spec:
+`cap_coverage: {"ETS 1": {family: RGGI, limited_export_exemption: 1}}`.
+
 ### 15.10 Ready for a first real case
 
 **Inputs a case needs** (the writer produces all of these from the spec and the case):

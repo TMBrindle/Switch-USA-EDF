@@ -1,0 +1,38 @@
+# Unit-commitment defaults for linked on-site generators, by technology (CHANGES §108 (g), VM-runner fixes).
+# The case writer uses a spec's own `uc:` values first; every field it takes from here, or leaves unset, is logged
+# as a WARNING. Fields are Switch's gen_info columns without the gen_ prefix:
+#   min_load_fraction (of committed capacity), min_uptime / min_downtime (hours), startup_om ($/MW per start),
+#   startup_fuel (MMBtu/MW per start), ramp_limit_up / ramp_limit_down (fraction of capacity per hour).
+# A field not given here and not in the spec is left blank: Switch's default applies (no minimum, no cost).
+frame_ct:
+  # pg/extra_inputs/misc_gen_inputs.csv, rows natural_gas_fired_combustion_turbine and
+  # naturalgas_f-frame ct_moderate (the values PowerGenome passes to S0 cases' combustion turbines)
+  source: "pg/extra_inputs/misc_gen_inputs.csv (combustion turbine rows)"
+  min_load_fraction: 0.3
+  min_uptime: 1
+  min_downtime: 1
+  ramp_limit_up: 3.78
+  ramp_limit_down: 3.78
+aero:
+  # no aeroderivative row in the repo: the combustion-turbine row above, a placeholder until sourced
+  source: "PLACEHOLDER (combustion-turbine row; not sourced for aeroderivatives)"
+  min_load_fraction: 0.3
+  min_uptime: 1
+  min_downtime: 1
+  ramp_limit_up: 3.78
+  ramp_limit_down: 3.78
+recip:
+  source: "PLACEHOLDER (not sourced: fast-start engines, no minimum up or down time)"
+  min_load_fraction: 0.3
+  min_uptime: 0
+  min_downtime: 0
+diesel:
+  source: "PLACEHOLDER (not sourced: backup diesel engines, no minimum up or down time)"
+  min_load_fraction: 0.3
+  min_uptime: 0
+  min_downtime: 0
+fuel_cell:
+  source: "PLACEHOLDER (not sourced: solid-oxide fuel cells run near-constant and cycle slowly)"
+  min_load_fraction: 0.5
+  min_uptime: 24
+  min_downtime: 24
