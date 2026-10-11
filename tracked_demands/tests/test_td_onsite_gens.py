@@ -218,3 +218,30 @@ def test_onsite_plant_uses_no_headroom(tmp_path):
                                                                 [{"IC_KEY": "TD_gas_recip", "ic_weight": 0.0}])),
               before=("interconnection_headroom",))
     assert (ok / "outputs" / "tracked_demand_onsite_fuel_use.csv").exists()
+
+
+# ------------------------------------------------------------------------------------------------ per-state override (NY)
+@pytest.mark.parametrize("units,covered", [
+    ([(20.0, 20.0)], 0),                     # one 20 MW unit: the programme's 25 MW applies
+    ([(20.0, 20.0), (20.0, 20.0)], 1),       # two units >= 15 MW: NY's 15 MW applies
+    ([(20.0, 40.0)], 1),                     # one generator of two 20 MW units
+    ([(20.0, 20.0), (30.0, 30.0)], 1),       # a 30 MW unit makes the site a budget source
+])
+def test_new_york_15_mw_rule(tmp_path, units, covered):
+    """6 NYCRR 242-1.4(a)(2): from 2021 a unit >= 15 MWe is covered at an existing CO2 budget source or at a source
+    with two or more units >= 15 MWe. RGGI's base threshold stays 25 MWe."""
+    def after(inp):
+        for i, (u, r) in enumerate(units):
+            add_onsite_gen(inp, name=f"N-DC1-gas{i}", unit_mw=u, rated_mw=r)
+        soft_cap(inp)
+        carbon_cap(inp)
+        coverage(td_cap_threshold_mw=25)(inp)
+        csv(inp, "tracked_demand_cap_coverage_states.csv",
+            [{"CO2_PROGRAM": "RGGI", "STATE": "NY", "td_cap_state_threshold_mw": 15,
+              "td_cap_state_condition": "at_budget_source_or_two_units"}])
+        csv(inp, "tracked_demand_zone_states.csv", [{"LOAD_ZONE": "North", "STATE": "NY"}])
+    run = case(tmp_path, f"ny{len(units)}{units[-1][1]:.0f}", after=after, carbon=True)
+    e = read(run, "tracked_demand_onsite_emissions.csv")
+    e = e[(e["period"] == 2020) & (e["generation_project"] == "N-DC1-gas0")].iloc[0]
+    assert e["covered_by_cap"] == covered, e["coverage_reason"]
+    assert ("NY rule" in e["coverage_reason"]) or covered

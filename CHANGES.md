@@ -4002,3 +4002,64 @@ byte-identical unloaded against the tag's copy.
 
 Results after (b): `tracked_demands/tests` 49 passed, 1 xfailed on pandas 3.0.6 (Python 3.11) and 1.4.4
 (Python 3.10).
+
+**(c) Carry-forward between chain stages.**
+1. **The hook.** `prepare_next_stage.chain_stage` (SHARED_CHANGES #112) calls `tracked_demands.chain_inputs` when
+   the stage wrote `tracked_demand_annual.csv`. The function works from written outputs, so stage reuse's handover
+   writes the same files (tested).
+2. **What it hands on,** as `<file>.chained.<case>.csv` in the next stage's inputs:
+   - `tracked_demand_onsite_existing` (MW by TD and tech);
+   - `tracked_demand_storage_existing` (battery MW and MWh);
+   - `tracked_demand_h2_existing` (tank kg);
+   - `tracked_demand_siting_fixed` (a flexible TD's allocation at the committed period; once fixed, passed on
+     unchanged);
+   - `tracked_demand_cap_coverage_fixed` (each linked generator's coverage by programme; earlier stages' rows win).
+3. **How the next stage reads them.** The module reads the chained version when present: case = the outputs
+   folder's name, as `prepare_next_stage` names it; an explicit alias wins. No scenario-line or case-build
+   change is needed.
+4. **How they act:**
+   - existing capacity is a lower bound (expandable) and keeps paying its annualised cost, as predetermined
+     generators do;
+   - fixed siting is normalised to sum to 1;
+   - carried coverage replaces the applicability tests (reason `carried_from_earlier_stage`).
+5. **Linked generators** carry through the standard predetermined-build chaining.
+6. **Limitation:** on-site, battery and H2 builds are single builds per stage, so a window (mode B) commits the
+   whole stage's build rather than only its first period.
+
+**(d) Stress-day load and the PRM requirement.**
+1. **Stress-day load.** On zero-weight timepoints a TD's load is set by `td_stress_mode`: `max` (default),
+   `profile` (`tracked_demand_stress_profile.csv`) or `min`. It may be cut by up to
+   `td_stress_curtailable_share` (default 0), which combines with any mode.
+   - Weighted hours are unchanged.
+   - `max` beyond the grid connection with no on-site supply stops the run with the options to fix it.
+   - §107 gap 1 is closed; its xfail is now a test. No xfails remain.
+2. **PRM requirement.** `td_prm_requirement_mw` = min(grid connection, peak load) × (1 − curtailable share) in
+   every stress hour.
+   - prm_regional adds it to the served load at the TD's zone, at the central node, shared by allocation for a
+     flexible TD (`TDPrmLoad`).
+   - It adds the part known before the solve to the region peak, the import-cap basis (`TDPrmFixedLoadMW`):
+     location-fixed TDs, and flexible TDs with fixed siting. A flexible TD whose siting is still free (first stage
+     or single stage) isn't in the region peak, which leaves that region's import cap tighter than it would be.
+   - SHARED_CHANGES #113.
+   - On-site plant gets no credit (the `pre_solve` check from (a)).
+   - Load order: tracked_demands before prm_regional (S0 lines satisfy this); the module stops otherwise.
+   - The legacy `planning_reserves` pair is not covered.
+
+**Coverage, two more rules:**
+- **Per-state overrides** within a programme: `tracked_demand_cap_coverage_states.csv` (`CO2_PROGRAM, STATE,
+  td_cap_state_threshold_mw, td_cap_state_condition`). Zone → state comes from `tracked_demand_zone_states.csv`,
+  else `hierarchy.csv`.
+- **New York** under RGGI: 15 MWe with condition `at_budget_source_or_two_units`. 6 NYCRR §242-1.4(a)(2): from 1 Jan
+  2021, a unit ≥ 15 MWe is covered at an existing CO2 budget source or at a source with two or more units ≥ 15 MWe.
+- **Virginia's reinstatement** is now confirmed from primary sources: Revision A26, Virginia Register Vol. 42
+  Iss. 20, effective 24 Apr 2026 (DEQ; 9VAC5-140-7020 to -7440). Its first control period runs 1 Jul to
+  31 Dec 2026. DEQ's follow-on Revision D26 will align the rule with the 2025 Model Rule; its applicability text
+  isn't out yet.
+
+**Tests after (d):** `tracked_demands/tests` 77 passed (no xfails) on pandas 3.0.6 (Python 3.11) and 1.4.4
+(Python 3.10):
+- `test_td_chain.py` (7), `test_td_stress_prm.py` (14) and the NY cases in `test_td_onsite_gens.py`;
+- the unloaded proof covers three shared edits (#111–#113), each byte-identical against the tag's copy.
+
+s0_workflow's PRM, foresight, chain-reuse, light-stress, forced-tx-chain, CA/WA and RGGI tests: 76 passed on both
+versions.

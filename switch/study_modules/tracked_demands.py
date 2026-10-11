@@ -134,6 +134,21 @@ def _export_share(m, td):
     return float("inf") if v is None else v
 
 
+def _stress_load(m, td, t):
+    """The TD's stress-day load (MW) at t before curtailment: max, stated profile or min (§108 (d))."""
+    mode = str(value(m.td_stress_mode[td])).strip()
+    if mode == "max":
+        return m.td_max_power_mw[td, t]
+    if mode == "min":
+        return m.td_min_power_mw[td, t]
+    if (td, t) not in m.TD_STRESS_PROFILE:
+        raise ValueError(
+            f"tracked_demands: {td} has td_stress_mode profile but tracked_demand_stress_profile.csv has no row "
+            f"for stress timepoint {t}"
+        )
+    return m.td_stress_load_mw[td, t]
+
+
 def _onsite_clean(m, td, t):
     """On-site clean output of td's private techs at t (MW)."""
     return sum(
@@ -309,6 +324,16 @@ def define_components(m):
         within=Boolean,
         default=False,
     )
+
+    # Stress days (zero-weight timepoints; CHANGES §108 (d)): the TD's load is
+    # its maximum (default), a stated profile, or its minimum, and may be cut
+    # by up to the curtailable share. The same share reduces its PRM
+    # requirement.
+    m.td_stress_mode = Param(
+        m.TRACKED_DEMANDS, within=Any, default="max",
+        validate=lambda m, v, td: str(v).strip() in ("max", "profile", "min"),
+    )
+    m.td_stress_curtailable_share = Param(m.TRACKED_DEMANDS, within=PercentFraction, default=0.0)
 
     # ── Stage 6 prerequisites ─────────────────────────────────────────────────
     # td_min_power_mw / td_max_power_mw are timepoint-indexed overrides of the
@@ -529,6 +554,51 @@ def define_components(m):
     m.TD_Grid_Interconnect_Limit = Constraint(
         m.TD_TIMEPOINTS,
         rule=lambda m, td, t: m.TDGridDraw[td, t] <= m.td_grid_interconnect_mw[td],
+    )
+
+    # ── Stress days (§108 (d)) ────────────────────────────────────────────────
+    # prm_regional's region peak (a parameter, built in its define_components) reads TDPrmFixedLoadMW, so this
+    # module must come first (its served load is built in define_dynamic_components, so that part works either way)
+    if hasattr(m, "prm_region_peak_mw"):
+        raise RuntimeError(
+            "tracked_demands must be loaded before prm_regional (prm_regional reads the tracked demands' reserve "
+            "requirement): list it earlier on the scenario line"
+        )
+
+    m.TD_STRESS_TPS = Set(
+        dimen=1,
+        initialize=lambda m: [t for t in m.TIMEPOINTS if value(m.tp_weight_in_year[t]) == 0],
+        doc="Zero-weight (stress-day) timepoints.",
+    )
+    m.TD_STRESS_PROFILE = Set(dimen=2, within=m.TRACKED_DEMANDS * m.TIMEPOINTS)
+    m.td_stress_load_mw = Param(m.TD_STRESS_PROFILE, within=NonNegativeReals)
+    m.TD_STRESS_TIMEPOINTS = Set(
+        dimen=2,
+        initialize=lambda m: [(td, t) for td in m.TRACKED_DEMANDS for t in m.TD_STRESS_TPS],
+    )
+    m.TD_Stress_Load_Max = Constraint(
+        m.TD_STRESS_TIMEPOINTS,
+        rule=lambda m, td, t: m.TDDispatch[td, t] <= _stress_load(m, td, t),
+    )
+    m.TD_Stress_Load_Min = Constraint(
+        m.TD_STRESS_TIMEPOINTS,
+        rule=lambda m, td, t: (
+            m.TDDispatch[td, t]
+            >= (1 - m.td_stress_curtailable_share[td]) * _stress_load(m, td, t)
+        ),
+    )
+
+    # ── PRM requirement (§108 (d); read by prm_regional) ──────────────────────
+    # min(grid connection, peak load) x (1 - curtailable share), in every stress
+    # hour of the period, at the TD's zone (shared by siting for a location-
+    # flexible TD). On-site plant gets no reserve credit (pre_solve).
+    m.td_prm_requirement_mw = Param(
+        m.TRACKED_DEMANDS, m.PERIODS,
+        initialize=lambda m, td, p: min(
+            value(m.td_grid_interconnect_mw[td]),
+            max(value(m.td_max_power_mw[td, t]) for t in m.TPS_IN_PERIOD[p]),
+        ) * (1 - value(m.td_stress_curtailable_share[td])),
+        doc="Tracked demand's planning-reserve requirement (MW) in each stress hour of the period.",
     )
 
     # Export through the same connection (§108).
@@ -1732,6 +1802,115 @@ def define_components(m):
     )
     m.td_cap_limited_export_exemption = Param(m.TD_CAP_PROGRAMS, within=Any, default=0)
 
+    # Per-state MW threshold overrides within a programme
+    # (tracked_demand_cap_coverage_states.csv: CO2_PROGRAM, STATE,
+    # td_cap_state_threshold_mw, td_cap_state_condition). Condition `always`,
+    # or `at_budget_source_or_two_units` (New York, 6 NYCRR 242-1.4(a)(2): a
+    # unit of >= the state threshold is covered at a site that already has a
+    # unit at or above the programme's threshold, or that has two or more units
+    # at or above the state threshold). Zone -> state:
+    # tracked_demand_zone_states.csv (LOAD_ZONE, STATE), else hierarchy.csv
+    # (ba -> st) found upward from the inputs folder.
+    m.TD_CAP_STATE_RULES = Set(dimen=2, within=Any)
+    m.td_cap_state_threshold_mw = Param(m.TD_CAP_STATE_RULES, within=NonNegativeReals)
+    m.td_cap_state_condition = Param(
+        m.TD_CAP_STATE_RULES, within=Any, default="always",
+        validate=lambda m, v, pr, st: str(v).strip() in ("always", "at_budget_source_or_two_units"),
+    )
+    m.td_zone_state = Param(m.LOAD_ZONES, within=Any, default="")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Stage 13: carry-forward between chain stages (CHANGES §108 (c))
+    # ══════════════════════════════════════════════════════════════════════════
+    # Written by chain_inputs() (called from prepare_next_stage) as
+    # <file>.chained.<case>.csv in the next stage's inputs folder; load_inputs
+    # reads the chained version when present (an explicit alias wins).
+    #   tracked_demand_onsite_existing.csv   on-site MW by (TD, tech)
+    #   tracked_demand_storage_existing.csv  battery MW and MWh by TD
+    #   tracked_demand_h2_existing.csv       H2 tank kg by TD
+    #   tracked_demand_siting_fixed.csv      allocation of a location-flexible TD
+    #   tracked_demand_cap_coverage_fixed.csv  cap coverage by (TD, generator, programme)
+    # Existing capacity is a lower bound on the stage's capacity (expandable)
+    # and keeps paying its annualised cost, like predetermined generators.
+
+    m.TD_ONSITE_EXISTING = Set(dimen=2, within=m.TD_TECH_BUILDS)
+    m.td_onsite_existing_mw = Param(m.TD_ONSITE_EXISTING, within=NonNegativeReals)
+    m.TD_OnsiteTech_Existing = Constraint(
+        m.TD_ONSITE_EXISTING,
+        rule=lambda m, td, tech: m.BuildOnsiteTech[td, tech] >= m.td_onsite_existing_mw[td, tech],
+    )
+
+    m.TD_STORAGE_EXISTING = Set(dimen=1, within=m.TD_STORAGE)
+    m.td_storage_existing_mw = Param(m.TD_STORAGE_EXISTING, within=NonNegativeReals, default=0.0)
+    m.td_storage_existing_mwh = Param(m.TD_STORAGE_EXISTING, within=NonNegativeReals, default=0.0)
+    m.TD_Storage_Existing_MW = Constraint(
+        m.TD_STORAGE_EXISTING,
+        rule=lambda m, td: m.TDStoragePowerCapacity[td] >= m.td_storage_existing_mw[td],
+    )
+    m.TD_Storage_Existing_MWh = Constraint(
+        m.TD_STORAGE_EXISTING,
+        rule=lambda m, td: m.TDStorageEnergyCapacity[td] >= m.td_storage_existing_mwh[td],
+    )
+
+    m.TD_H2_EXISTING = Set(dimen=1, within=m.TD_H2_STORAGE)
+    m.td_h2_existing_kg = Param(m.TD_H2_EXISTING, within=NonNegativeReals)
+    m.TD_H2_Existing = Constraint(
+        m.TD_H2_EXISTING,
+        rule=lambda m, td: m.TDH2StorageCapacity[td] >= m.td_h2_existing_kg[td],
+    )
+
+    # siting of a location-flexible TD, fixed after the first stage (zones not
+    # listed get 0)
+    m.TD_SITING_FIXED = Set(dimen=2, within=m.TD_CANDIDATE_ZONES)
+    m.td_fixed_allocation = Param(m.TD_SITING_FIXED, within=PercentFraction)
+    def _siting_fixed_rule(m, td, z, p):
+        shares = {z2: value(m.td_fixed_allocation[td2, z2]) for td2, z2 in m.TD_SITING_FIXED if td2 == td}
+        if not shares:
+            return Constraint.Skip
+        total = sum(shares.values())
+        if total <= 0:
+            raise ValueError(f"tracked_demands: tracked_demand_siting_fixed.csv gives {td} no allocation")
+        # normalised, so rounded carried shares still sum to exactly 1 (TD_ZoneAllocation_Sum)
+        return m.TDZoneAllocation[td, z, p] == shares.get(z, 0.0) / total
+
+    m.TD_Siting_Fixed = Constraint(m.TD_FLEX_ZONE_PERIODS, rule=_siting_fixed_rule)
+
+    # ── PRM load by zone (§108 (d)) ───────────────────────────────────────────
+    # TDPrmLoad[z, p]: added to prm_regional's served load in every stress hour
+    # of p. TDPrmFixedLoadMW[z, p]: the part known before the solve (location-
+    # fixed TDs, and flexible TDs whose siting is fixed), added to the region
+    # peak (prm_region_peak_mw, the import-cap basis), which is a parameter.
+
+    def _prm_load_rule(m, z, p):
+        out = 0
+        for td in m.TRACKED_DEMANDS:
+            if value(m.td_location_fixed[td]):
+                if _td_zone(m, td) == z:
+                    out = out + m.td_prm_requirement_mw[td, p]
+            elif (td, z, p) in m.TD_FLEX_ZONE_PERIODS:
+                out = out + m.TDZoneAllocation[td, z, p] * m.td_prm_requirement_mw[td, p]
+        return out
+
+    m.TDPrmLoad = Expression(m.LOAD_ZONES, m.PERIODS, rule=_prm_load_rule)
+
+    def _prm_fixed_load_rule(m, z, p):
+        out = 0.0
+        for td in m.TRACKED_DEMANDS:
+            if value(m.td_location_fixed[td]):
+                if _td_zone(m, td) == z:
+                    out += value(m.td_prm_requirement_mw[td, p])
+            elif (td, z) in m.TD_SITING_FIXED:
+                shares = {z2: value(m.td_fixed_allocation[td2, z2]) for td2, z2 in m.TD_SITING_FIXED if td2 == td}
+                out += shares[z] / sum(shares.values()) * value(m.td_prm_requirement_mw[td, p])
+        return out
+
+    m.TDPrmFixedLoadMW = Param(m.LOAD_ZONES, m.PERIODS, within=NonNegativeReals, initialize=_prm_fixed_load_rule)
+
+    # cap coverage of linked generators carried from the stage where it was
+    # first decided (used instead of the applicability tests)
+    m.TD_CAP_COVERAGE_FIXED = Set(dimen=3, within=Any)
+    m.td_cap_covered = Param(m.TD_CAP_COVERAGE_FIXED, within=Any)
+
     m.TDCapCoverage = BuildAction(rule=_apply_cap_coverage)
 
 
@@ -1786,6 +1965,9 @@ def _cap_coverage(m):
         gens = [g for g in _onsite_gens(m, td) if g in m.FUEL_BASED_GENS]
         for g in gens:
             for pr in sorted(progs.get(m.gen_load_zone[g], ()), key=str):
+                if (td, g, pr) in m.TD_CAP_COVERAGE_FIXED:
+                    cov[td, g, pr] = (_flag(m.td_cap_covered[td, g, pr]), "carried_from_earlier_stage")
+                    continue
                 listed = pr in m.TD_CAP_PROGRAMS
                 if listed and not _flag(m.td_cap_counts_onsite[pr]):
                     cov[td, g, pr] = (False, "programme_excludes_onsite")
@@ -1799,6 +1981,7 @@ def _cap_coverage(m):
                 if th_mw is None and th_t is None:
                     cov[td, g, pr] = (True, "covered")
                     continue
+                th_mw, rule = _state_mw_threshold(m, td, g, pr, gens, th_mw)
                 site = listed and str(value(m.td_cap_threshold_basis[pr])).strip() == "site"
                 if site:
                     members = [h for h in gens if m.gen_load_zone[h] == m.gen_load_zone[g]]
@@ -1817,13 +2000,59 @@ def _cap_coverage(m):
                 mw = sum(sizes.values())
                 pte = sum(_pte_tco2(m, h, v) for h, v in sizes.items())
                 if th_mw is not None and mw < th_mw:
-                    cov[td, g, pr] = (False, f"below_mw_threshold ({mw:g} < {th_mw:g} MW)")
+                    cov[td, g, pr] = (False, f"below_mw_threshold ({mw:g} < {th_mw:g} MW{rule})")
                 elif th_t is not None and pte < th_t:
                     cov[td, g, pr] = (False, f"below_tco2_threshold (potential {pte:.0f} < {th_t:g} t/yr)")
                 else:
                     cov[td, g, pr] = (True, "covered")
     m._td_cap_coverage = cov
     return cov
+
+
+def _zone_state(m, z):
+    st = str(value(m.td_zone_state[z])).strip()
+    if st:
+        return st
+    if not hasattr(m, "_td_hier_states"):
+        m._td_hier_states = {}
+        path = _find_hierarchy_file(m.options.inputs_dir) if getattr(m.options, "inputs_dir", None) else None
+        if path is not None:
+            h = pd.read_csv(path, dtype=str)
+            if {"ba", "st"} <= set(h.columns):
+                m._td_hier_states = dict(zip(h["ba"], h["st"]))
+    return m._td_hier_states.get(z, "")
+
+
+def _site_units(m, td, gens, z):
+    """[(unit MW, count)] of td's linked fuel generators in zone z (count = rated / unit, at least 1)."""
+    out = []
+    for h in gens:
+        if m.gen_load_zone[h] != z:
+            continue
+        u, r = _unit_mw(m, td, h), _rated_mw(m, td, h)
+        if u is None:
+            continue
+        n = max(1, int(round(r / u))) if (r is not None and u > 0 and r != float("inf")) else 1
+        out.append((u, n))
+    return out
+
+
+def _state_mw_threshold(m, td, g, pr, gens, th_mw):
+    """The MW threshold for generator g in programme pr after any state override, and a note for the reason."""
+    z = m.gen_load_zone[g]
+    st = _zone_state(m, z) if len(m.TD_CAP_STATE_RULES) else ""
+    if not st or (pr, st) not in m.TD_CAP_STATE_RULES:
+        return th_mw, ""
+    over = value(m.td_cap_state_threshold_mw[pr, st])
+    cond = str(value(m.td_cap_state_condition[pr, st])).strip()
+    if cond == "always":
+        return over, f", {st} rule"
+    units = _site_units(m, td, gens, z)
+    at_source = th_mw is not None and any(u >= th_mw for u, _ in units)
+    two_units = sum(n for u, n in units if u >= over) >= 2
+    if at_source or two_units:
+        return over, f", {st} rule: {'site is a budget source' if at_source else 'two or more units'}"
+    return th_mw, f", {st} rule not met"
 
 
 def _apply_cap_coverage(m):
@@ -1875,7 +2104,21 @@ def _apply_cap_coverage(m):
 
 
 def pre_solve(m):
-    """Checks on linked on-site generators against the other modules' settings (§108)."""
+    """Checks before the solve: stress-day loads the grid connection alone can't serve (§108 (d)), and linked
+    on-site generators against the other modules' settings (§108 (a))."""
+    for td in m.TRACKED_DEMANDS:
+        if str(value(m.td_stress_mode[td])).strip() != "max" or not len(m.TD_STRESS_TPS):
+            continue
+        has_onsite = bool(_onsite_gens(m, td)) or len(m.TD_ONSITE_TECHS) > 0 or td in m.TD_STORAGE
+        need = (1 - value(m.td_stress_curtailable_share[td])) * max(
+            value(m.td_max_power_mw[td, t]) for t in m.TD_STRESS_TPS)
+        if not has_onsite and need > value(m.td_grid_interconnect_mw[td]) + 1e-9:
+            raise ValueError(
+                f"tracked_demands: {td} must draw {need:g} MW on stress days (stress mode max, curtailable share "
+                f"{value(m.td_stress_curtailable_share[td]):g}) but its grid connection is "
+                f"{value(m.td_grid_interconnect_mw[td]):g} MW and it has no on-site supply: set td_stress_mode, "
+                f"a curtailable share, or on-site plant"
+            )
     if not len(m.TD_ONSITE_GENS):
         return
     owner = {}
@@ -1922,6 +2165,104 @@ def pre_solve(m):
                 f"linked generator (tracked_demand_onsite_gens.csv) so its fuel and emissions go through Switch's "
                 f"accounting (CHANGES §108)"
             )
+
+
+CARRY_FILES = (
+    "tracked_demand_onsite_existing.csv",
+    "tracked_demand_storage_existing.csv",
+    "tracked_demand_h2_existing.csv",
+    "tracked_demand_siting_fixed.csv",
+    "tracked_demand_cap_coverage_fixed.csv",
+)
+
+
+def _carried_file(m, switch_data, inputs_dir, name):
+    """The file to read for a carry-forward input: an explicit --input-alias for `name` wins; else
+    <name>.chained.<case>.csv when prepare_next_stage wrote one (case = the outputs folder's name, as
+    prepare_next_stage names it); else `name` (usually absent: the first stage)."""
+    path = os.path.join(inputs_dir, name)
+    aliased = apply_input_aliases(switch_data, path)
+    if aliased != path:
+        return aliased
+    case = os.path.basename(os.path.normpath(getattr(m.options, "outputs_dir", "") or ""))
+    if case:
+        chained = os.path.join(inputs_dir, f"{name[:-4]}.chained.{case}.csv")
+        if os.path.exists(chained):
+            return chained
+    return path
+
+
+def chain_inputs(in_path, out_path, next_in_path, case_name, commit=None):
+    """Write the next stage's carry-forward files from this stage's outputs (called by prepare_next_stage; it works
+    from written outputs, so stage reuse can run it on copied outputs too).
+
+    commit: the period this stage commits (None = its last). On-site, battery and H2 capacity are single builds
+    for the whole stage, so the stage's build is carried (it exists from the stage's first period). Siting and cap
+    coverage are carried from the earlier stage when it already fixed them, else taken at `commit`.
+    """
+    from pathlib import Path
+    in_path, out_path, next_in_path = Path(in_path), Path(out_path), Path(next_in_path)
+
+    def chained(name):
+        return next_in_path / f"{name[:-4]}.chained.{case_name}.csv"
+
+    def earlier(name):
+        p = in_path / f"{name[:-4]}.chained.{case_name}.csv"
+        return pd.read_csv(p) if p.exists() else None
+
+    def out(name):
+        p = out_path / name
+        return pd.read_csv(p) if p.exists() else None
+
+    b = out("tracked_demand_onsite_build.csv")
+    if b is not None and len(b):
+        b = b.rename(columns={"tracked_demand": "TRACKED_DEMAND", "tech": "td_onsite_tech",
+                              "built_MW": "td_onsite_existing_mw"})
+        b["td_onsite_existing_mw"] = b["td_onsite_existing_mw"].clip(lower=0).round(6)
+        b[["TRACKED_DEMAND", "td_onsite_tech", "td_onsite_existing_mw"]].to_csv(
+            chained("tracked_demand_onsite_existing.csv"), index=False)
+
+    s = out("tracked_demand_storage_build.csv")
+    if s is not None and len(s):
+        s = s.rename(columns={"tracked_demand": "TRACKED_DEMAND", "built_power_MW": "td_storage_existing_mw",
+                              "built_energy_MWh": "td_storage_existing_mwh"})
+        for c in ("td_storage_existing_mw", "td_storage_existing_mwh"):
+            s[c] = s[c].clip(lower=0).round(6)
+        s[["TRACKED_DEMAND", "td_storage_existing_mw", "td_storage_existing_mwh"]].to_csv(
+            chained("tracked_demand_storage_existing.csv"), index=False)
+
+    h = out("tracked_demand_h2_build.csv")
+    if h is not None and len(h):
+        h = h.rename(columns={"tracked_demand": "TRACKED_DEMAND", "h2_tank_capacity_kg": "td_h2_existing_kg"})
+        h["td_h2_existing_kg"] = h["td_h2_existing_kg"].clip(lower=0).round(6)
+        h[["TRACKED_DEMAND", "td_h2_existing_kg"]].to_csv(chained("tracked_demand_h2_existing.csv"), index=False)
+
+    fixed = earlier("tracked_demand_siting_fixed.csv")
+    a = out("tracked_demand_zone_allocation.csv")
+    if fixed is not None:
+        fixed.to_csv(chained("tracked_demand_siting_fixed.csv"), index=False)
+    elif a is not None and len(a):
+        p = commit if commit is not None else a["period"].max()
+        a = a[a["period"] == p].rename(columns={"tracked_demand": "TRACKED_DEMAND", "zone": "LOAD_ZONE",
+                                                "allocation_fraction": "td_fixed_allocation"})
+        a["td_fixed_allocation"] = a["td_fixed_allocation"].clip(0, 1).round(9)
+        a[["TRACKED_DEMAND", "LOAD_ZONE", "td_fixed_allocation"]].to_csv(
+            chained("tracked_demand_siting_fixed.csv"), index=False)
+
+    cov = earlier("tracked_demand_cap_coverage_fixed.csv")
+    e = out("tracked_demand_onsite_emissions.csv")
+    if e is not None and len(e):
+        p = commit if commit is not None else e["period"].max()
+        e = e[(e["period"] == p) & e["co2_program"].notna() & (e["co2_program"].astype(str) != "")]
+        e = e.rename(columns={"tracked_demand": "TRACKED_DEMAND", "generation_project": "GENERATION_PROJECT",
+                              "co2_program": "CO2_PROGRAM", "covered_by_cap": "td_cap_covered"})
+        e = e[["TRACKED_DEMAND", "GENERATION_PROJECT", "CO2_PROGRAM", "td_cap_covered"]]
+        if cov is not None:
+            keys = ["TRACKED_DEMAND", "GENERATION_PROJECT", "CO2_PROGRAM"]
+            e = pd.concat([cov, e]).drop_duplicates(subset=keys, keep="first")
+        cov = e
+    if cov is not None and len(cov):
+        cov.to_csv(chained("tracked_demand_cap_coverage_fixed.csv"), index=False)
 
 
 def load_inputs(m, switch_data, inputs_dir):
@@ -2022,6 +2363,8 @@ def load_inputs(m, switch_data, inputs_dir):
             m.td_grid_interconnect_mw,
             m.td_onsite_emissions_in_system_cap,
             m.td_export_limit_share,
+            m.td_stress_mode,
+            m.td_stress_curtailable_share,
         ),
         optional_params=(
             m.td_default_min_power_mw,
@@ -2029,7 +2372,15 @@ def load_inputs(m, switch_data, inputs_dir):
             m.td_grid_interconnect_mw,
             m.td_onsite_emissions_in_system_cap,
             m.td_export_limit_share,
+            m.td_stress_mode,
+            m.td_stress_curtailable_share,
         ),
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_stress_profile.csv"),
+        optional=True,
+        index=m.TD_STRESS_PROFILE,
+        param=(m.td_stress_load_mw,),
     )
     # set= + explicit select= required for parameter-free multi-column set files.
     switch_data.load_aug(
@@ -2217,6 +2568,44 @@ def load_inputs(m, switch_data, inputs_dir):
         index=m.TD_SOFT_CAP,
         param=(m.td_grid_soft_cap_mw, m.td_grid_soft_cap_penalty),
         optional_params=(m.td_grid_soft_cap_penalty,),
+    )
+
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_cap_coverage_states.csv"),
+        optional=True, index=m.TD_CAP_STATE_RULES,
+        param=(m.td_cap_state_threshold_mw, m.td_cap_state_condition),
+        optional_params=(m.td_cap_state_condition,),
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_zone_states.csv"),
+        optional=True, param=(m.td_zone_state,), select=("LOAD_ZONE", "STATE"),
+    )
+
+    # ── Stage 13 (§108 (c)): carry-forward files ─────────────────────────────
+    def carry(name):
+        return _carried_file(m, switch_data, inputs_dir, name)
+
+    switch_data.load_aug(
+        filename=carry("tracked_demand_onsite_existing.csv"),
+        optional=True, index=m.TD_ONSITE_EXISTING, param=(m.td_onsite_existing_mw,),
+    )
+    switch_data.load_aug(
+        filename=carry("tracked_demand_storage_existing.csv"),
+        optional=True, index=m.TD_STORAGE_EXISTING,
+        param=(m.td_storage_existing_mw, m.td_storage_existing_mwh),
+        optional_params=(m.td_storage_existing_mw, m.td_storage_existing_mwh),
+    )
+    switch_data.load_aug(
+        filename=carry("tracked_demand_h2_existing.csv"),
+        optional=True, index=m.TD_H2_EXISTING, param=(m.td_h2_existing_kg,),
+    )
+    switch_data.load_aug(
+        filename=carry("tracked_demand_siting_fixed.csv"),
+        optional=True, index=m.TD_SITING_FIXED, param=(m.td_fixed_allocation,),
+    )
+    switch_data.load_aug(
+        filename=carry("tracked_demand_cap_coverage_fixed.csv"),
+        optional=True, index=m.TD_CAP_COVERAGE_FIXED, param=(m.td_cap_covered,),
     )
 
     # ── Stage 12 (§108) ───────────────────────────────────────────────────────

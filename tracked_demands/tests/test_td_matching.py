@@ -1,7 +1,8 @@
 """Hourly clean-energy matching on the toy data centre: on (hourly blocks), annual, off; zero-weight stress hours.
 
 Tests marked xfail(strict=True) record gaps found in the step-1 audit (CHANGES §107). Each passes, and so fails the
-suite, once the gap is fixed, so the marker has to be removed with the fix. Gaps 3 and 5 were fixed in §108 (b).
+suite, once the gap is fixed, so the marker has to be removed with the fix. Gaps 3 and 5 were fixed in §108 (b),
+gap 1 in §108 (d); none is left.
 """
 from __future__ import annotations
 
@@ -63,9 +64,9 @@ def test_clean_through_the_battery_counts_once_at_discharge(runs):
 
 
 
-@pytest.mark.xfail(strict=True, reason="§107 gap 1: a flexible tracked load drops to its minimum on zero-weight "
-                                       "stress days (free: no weight), so stress days don't see it")
+# ------------------------------------------------------------------------------------------------ §107 gap 1, fixed in §108 (d)
 def test_tracked_load_present_on_stress_days(tmp_path):
+    """Stress mode `max` (the default): a flexible TD (minimum 0) runs at its maximum on zero-weight stress days."""
     run = td_case(tmp_path, "stressflex", matching=None, stress=True, min_mw=0.0, onsite=False, storage=False)
     d = read(run, "tracked_demand_dispatch.csv").set_index("timepoint")
     assert d.loc[[8, 9], "TDDispatch_MW"].min() > 0.5

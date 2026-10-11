@@ -17,6 +17,7 @@ import pandas as pd
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "s0_workflow" / "tests"))
+sys.path.insert(0, str(REPO))
 import toyutil  # noqa: E402
 
 DC_MW = 2.0
@@ -133,7 +134,14 @@ def add_onsite_gen(inp: Path, name="N-DC1-gas", td="DC1", zone="North", tech="TD
     """Append an on-site gas generator to gen_info.csv / gen_build_costs.csv and link it to `td`."""
     inp = Path(inp)
     gi = pd.read_csv(inp / "gen_info.csv", na_values=".")
-    row = gi[gi["GENERATION_PROJECT"] == "N-NG_GT"].iloc[0].copy()
+    tmpl = gi[gi["GENERATION_PROJECT"] == "N-NG_GT"]
+    if len(tmpl):
+        row = tmpl.iloc[0].copy()
+    else:   # a toy without the 3-zone example's gas turbine (e.g. s0_workflow's prm toy)
+        row = pd.Series({c: float("nan") for c in gi.columns}, dtype=object)
+        row.update({"gen_max_age": 30, "gen_scheduled_outage_rate": 0.0, "gen_forced_outage_rate": 0.0,
+                    "gen_is_variable": 0, "gen_is_baseload": 0, "gen_is_cogen": 0,
+                    "gen_energy_source": "NaturalGas"})
     row.update({"GENERATION_PROJECT": name, "gen_tech": tech, "gen_load_zone": zone, "gen_connect_cost_per_mw": 0.0,
                 "gen_capacity_limit_mw": cap_limit, "gen_full_load_heat_rate": heat_rate,
                 "gen_variable_om": variable_om, "gen_unit_size": unit_size, "gen_min_build_capacity": 0})
@@ -142,7 +150,8 @@ def add_onsite_gen(inp: Path, name="N-DC1-gas", td="DC1", zone="North", tech="TD
     gi.to_csv(inp / "gen_info.csv", index=False, na_rep=".")
     bc = pd.read_csv(inp / "gen_build_costs.csv")
     bc = pd.concat([bc, pd.DataFrame([{"GENERATION_PROJECT": name, "build_year": y, "gen_overnight_cost": overnight,
-                                        "gen_fixed_om": 5000.0} for y in (2020, 2030)])])
+                                        "gen_fixed_om": 5000.0}
+                                       for y in pd.read_csv(inp / "periods.csv")["INVESTMENT_PERIOD"]])])
     bc.to_csv(inp / "gen_build_costs.csv", index=False)
     f = inp / "tracked_demand_onsite_gens.csv"
     links = pd.read_csv(f) if f.exists() else pd.DataFrame()
@@ -169,3 +178,59 @@ def carbon_cap(inp: Path, program="RGGI", zones=("North",), cap=1e9, periods=(20
 def soft_cap(inp: Path, mw=1.0, penalty=1e6, td="DC1"):
     pd.DataFrame([{"TRACKED_DEMAND": td, "td_grid_soft_cap_mw": mw, "td_grid_soft_cap_penalty": penalty}]).to_csv(
         Path(inp) / "tracked_demand_grid_soft_cap.csv", index=False)
+
+
+# ---------------------------------------------------------------------------------------------------
+# two-stage chains (§108 (c))
+# ---------------------------------------------------------------------------------------------------
+TD_TP_FILES = {"tracked_demand_time_blocks.csv": "TIMEPOINT", "grid_clean_fraction.csv": "TIMEPOINT",
+               "tracked_demand_dispatch_bounds.csv": "TIMEPOINT", "tracked_demand_flex_events.csv": "TIMEPOINT",
+               "tracked_demand_stress_profile.csv": "TIMEPOINT"}
+TD_PERIOD_FILES = {"tracked_demand_cfe_targets.csv": "PERIOD", "tracked_demand_grid_caps.csv": "PERIOD",
+                   "tracked_demand_grid_clean_caps.csv": "PERIOD", "tracked_demand_rec_supply.csv": "PERIOD",
+                   "tracked_demand_onsite_tech_subsidies.csv": "PERIOD", "carbon_policies_regional.csv": "PERIOD"}
+
+
+def subset_td_files(dst: Path, periods):
+    """Keep only the rows of `periods` (and their timepoints) in dst's tracked-demand files (after subset_periods)."""
+    dst = Path(dst)
+    tps = set(pd.read_csv(dst / "timepoints.csv")["timepoint_id"])
+    for f, col in TD_TP_FILES.items():
+        if (dst / f).exists():
+            d = pd.read_csv(dst / f)
+            d[d[col].isin(tps)].to_csv(dst / f, index=False, na_rep=".")
+    for f, col in TD_PERIOD_FILES.items():
+        if (dst / f).exists():
+            d = pd.read_csv(dst / f)
+            d[d[col].isin(set(periods))].to_csv(dst / f, index=False, na_rep=".")
+
+
+def td_chain(tmp_path, name, modules=("tracked_demands",), stage_edit=None, solve=True, **kw):
+    """A myopic (mode A) chain of the toy: stage 2020 then stage 2030, with the tracked-demand inputs of
+    write_td_inputs(**kw) (after= edits them, as in td_case). stage_edit(stage_name, inputs_dir) edits a stage's
+    inputs after the split. Returns (run, stages, outputs)."""
+    import s0_workflow.production as s0prod
+    after = kw.pop("after", None)
+
+    def edit(inp):
+        write_td_inputs(inp, **kw)
+        if after is not None:
+            after(inp)
+    run = toyutil.toy_inputs(tmp_path, name, modules=modules, edit=edit)
+    stages = s0prod.plan_stages([2020, 2030], "myopic")
+    for st in stages:
+        d = run / "in" / st["name"] / "case"
+        d.parent.mkdir(parents=True, exist_ok=True)
+        toyutil.subset_periods(run / "inputs", d, st["years"])
+        subset_td_files(d, st["years"])
+        s0prod.write_stage_info(d, st)
+        if stage_edit is not None:
+            stage_edit(st["name"], d)
+    (run / "mods/prepare_next_stage.py").write_text(
+        (REPO / "switch/study_modules/prepare_next_stage.py").read_text())
+    if not solve:
+        return run, stages, None
+    # prepare_next_stage reads BuildStorageEnergy.csv, so Switch's storage module is on (no storage gens in the toy)
+    outs = toyutil.run_chain(run, stages, modules=list(modules),
+                             extra=["--include-module", "switch_model.generators.extensions.storage"])
+    return run, stages, outs

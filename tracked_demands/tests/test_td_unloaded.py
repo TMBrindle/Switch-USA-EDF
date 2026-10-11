@@ -32,6 +32,8 @@ ALLOWED_MODIFIED = ("CHANGES.md", "SHARED_CHANGES.md", ".gitignore")
 # edit leaves outputs byte-identical with tracked_demands unloaded: {path: (SHARED_CHANGES row, study modules, edit)}
 SHARED_EDITS = {
     "switch/study_modules/carbon_policies_regional.py": (111, ("carbon_policies_regional",), "carbon"),
+    "switch/study_modules/prepare_next_stage.py": (112, (), "chain"),
+    "switch/study_modules/prm_regional.py": (113, (), "prm"),
 }
 GITIGNORE_ADDED = {"!tracked_demands/", "!tracked_demands/**", "tracked_demands/outputs/"}
 
@@ -86,20 +88,70 @@ def _toy_edit(kind):
     return edit
 
 
+def _same_tree(a: Path, b: Path):
+    fa = sorted(str(f.relative_to(a)) for f in a.rglob("*") if f.is_file())
+    fb = sorted(str(f.relative_to(b)) for f in b.rglob("*") if f.is_file())
+    assert fa == fb
+    diff = [f for f in fa if (a / f).read_bytes() != (b / f).read_bytes()]
+    assert not diff, diff
+
+
+def _chain_run(tmp_path, name, source):
+    """A two-stage myopic toy chain (2020 -> 2030) without tracked demands; prepare_next_stage from `source`."""
+    from s0_workflow import production as s0prod
+    run = toyutil.toy_inputs(tmp_path, name)
+    stages = s0prod.plan_stages([2020, 2030], "myopic")
+    for st in stages:
+        d = run / "in" / st["name"] / "case"
+        d.parent.mkdir(parents=True, exist_ok=True)
+        toyutil.subset_periods(run / "inputs", d, st["years"])
+        s0prod.write_stage_info(d, st)
+    (run / "mods/prepare_next_stage.py").write_text(source)
+    toyutil.run_chain(run, stages, extra=["--include-module", "switch_model.generators.extensions.storage"])
+    return run
+
+
+def _prm_run(tmp_path, source):
+    """s0_workflow's prm_regional toy (one stress timeseries), two reserve regions with an import cap, so the
+    requirement, the region peak and the import cap all bind; source: the module text to use (None = this branch's)."""
+    import sys
+    sys.path.insert(0, str(REPO / "s0_workflow" / "tests"))
+    from test_prm import BACKUP, PEN, mini_case
+
+    def swap(inp, tps):
+        if source is not None:
+            (inp.parent / "mods" / "prm_regional.py").write_text(source)
+    gens = BACKUP + [("N-th", "North", "thermal", 30), ("C-wind", "Central", "wind", 4)]
+    loads = {"North": ([50, 50], [8, 8, 8, 8]), "Central": ([50, 50], [10, 12, 10, 9]), "South": ([1, 1], [1, 1, 1, 1])}
+    per = [{"PRM_REGION": r, "PERIOD": 2020, "prm_margin": 0.15, "prm_import_share": 0.3} for r in ("R1", "R2")]
+    return mini_case(tmp_path, "prm", gens, loads, [("N-C", "North", "Central", 20, 0.95),
+                                                    ("C-S", "Central", "South", 0, 1.0)],
+                     {"North": "R1", "Central": "R2"}, per, {}, PEN, cf={"C-wind": 0.5}, extra=swap)
+
+
 @pytest.mark.parametrize("path", sorted(SHARED_EDITS))
 def test_shared_edit_unloaded_is_byte_identical(tmp_path, path):
-    """The edited shared module, with tracked_demands unloaded, writes the same bytes as its copy on the base."""
+    """The edited shared module, with tracked_demands unloaded, writes the same bytes as its copy on the base: every
+    output file (for prepare_next_stage, of both stages of a chain, and the chained inputs it hands on)."""
     base = _base()
     row, mods, kind = SHARED_EDITS[path]
+    if kind == "prm":
+        new = _prm_run(tmp_path / "branch", None)
+        old = _prm_run(tmp_path / "base", _git("show", f"{base}:{path}"))
+        _same_tree(new, old)
+        return
+    if kind == "chain":
+        new = _chain_run(tmp_path / "branch", "c", (REPO / path).read_text())
+        old = _chain_run(tmp_path / "base", "c", _git("show", f"{base}:{path}"))
+        for sub in ("out", "in/2030/case"):
+            _same_tree(new / sub, old / sub)
+        return
     new = toyutil.toy_inputs(tmp_path, "branch", modules=mods, edit=_toy_edit(kind))
     old = toyutil.toy_inputs(tmp_path, "base", modules=mods, edit=_toy_edit(kind))
     (old / "mods" / Path(path).name).write_text(_git("show", f"{base}:{path}"))
     for run in (new, old):
         toyutil.solve(run)
-    a, b = new / "outputs", old / "outputs"
-    assert sorted(os.listdir(a)) == sorted(os.listdir(b))
-    diff = [f for f in sorted(os.listdir(a)) if (a / f).read_bytes() != (b / f).read_bytes()]
-    assert not diff, diff
+    _same_tree(new / "outputs", old / "outputs")
 
 
 def test_nothing_loads_the_module_by_default():
@@ -110,8 +162,12 @@ def test_nothing_loads_the_module_by_default():
     files += sorted((REPO / "s0_workflow").glob("*.py")) + sorted((REPO / "adjust").glob("*.py"))
     files += [f for f in sorted((REPO / "switch/study_modules").glob("*.py")) if f.name != "tracked_demands.py"]
     for f in files:
-        if f.exists() and "tracked_demand" in f.read_text(errors="ignore"):
-            hits.append(str(f.relative_to(REPO)))
+        rel = str(f.relative_to(REPO))
+        # a registered shared edit may name the module's files (prepare_next_stage hands them on when a stage wrote
+        # tracked-demand outputs) but must not put the module on a module list
+        needle = "study_modules.tracked_demands" if rel in SHARED_EDITS else "tracked_demand"
+        if f.exists() and needle in f.read_text(errors="ignore"):
+            hits.append(rel)
     assert not hits, hits
 
 

@@ -339,13 +339,17 @@ def define_components(m):
     # net reserve import over new boundary capacity (exempt from the cap; 0 without the split)
     m.PrmNewImport = Expression(m.PRM_REGIONS, m.PRM_TPS, rule=new_import)
 
-    m.prm_region_peak_mw = Param(
-        m.PRM_REGION_PERIODS,
-        initialize=lambda m, r, p: max(
+    def region_peak(m, r, p):
+        peak = max(
             [sum(m.zone_demand_mw[z, t] for z in m.ZONES_IN_PRM_REGION[r]) for t in m.TPS_IN_PERIOD[p]]
             or [0.0]
-        ),
-    )
+        )
+        # tracked demands' requirement known before the solve (location-fixed or siting fixed; CHANGES §108)
+        if hasattr(m, "TDPrmFixedLoadMW"):
+            peak = peak + sum(value(m.TDPrmFixedLoadMW[z, p]) for z in m.ZONES_IN_PRM_REGION[r])
+        return peak
+
+    m.prm_region_peak_mw = Param(m.PRM_REGION_PERIODS, initialize=region_peak)
 
     # shortfall
     m.PRM_ZONE_PERIODS = Set(
@@ -449,6 +453,15 @@ def define_dynamic_components(m):
     m.PrmLocalCredit = Expression(m.LOAD_ZONES, m.PRM_TPS, rule=local_credit)
 
     def served_load(m, z, t):
+        load = base_served_load(m, z, t)
+        # tracked demands (the tracked-demands module, loaded before this one; CHANGES §108): their
+        # requirement, min(connection, peak) x (1 - curtailable share), at the central node (they connect at
+        # transmission level, outside local T&D)
+        if hasattr(m, "TDPrmLoad"):
+            load = load + m.TDPrmLoad[z, m.tp_period[t]]
+        return load
+
+    def base_served_load(m, z, t):
         if hasattr(m, "Distributed_Power_Withdrawals") and hasattr(m, "local_td_loss_rate"):
             return m.prm_td_multiplier[z] * sum(
                 getattr(m, c)[z, t] for c in m.Distributed_Power_Withdrawals

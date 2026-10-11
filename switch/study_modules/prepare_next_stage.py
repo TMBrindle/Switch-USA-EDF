@@ -384,6 +384,23 @@ def chain_stage(m, in_path, out_path, next_in_path, case_name, commit=None, comm
     # carry interconnection headroom forward (study_modules.interconnection_headroom)
     chain_ic_inputs(in_path, out_path, next_in_path, case_name, commit)
 
+    # carry tracked-demand capacity, siting and cap coverage forward (CHANGES §108 (c)); only when this
+    # stage wrote tracked-demand outputs, so nothing changes for any other case
+    if (Path(out_path) / "tracked_demand_annual.csv").exists():
+        chain_tracked_demand_inputs(in_path, out_path, next_in_path, case_name, commit)
+
+
+def chain_tracked_demand_inputs(in_path, out_path, next_in_path, case_name, commit=None):
+    """Hand on the tracked-demand state (tracked_demands.chain_inputs, which holds the logic). The module file is
+    loaded from beside this one, so this works both in a solve and in stage reuse's handover, which loads this
+    file on its own (s0_workflow/chain_reuse.py HANDOVER)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "tracked_demands_chain", Path(__file__).resolve().with_name("tracked_demands.py"))
+    td = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(td)
+    td.chain_inputs(in_path, out_path, next_in_path, case_name, commit)
+
 
 def chain_forced_tx(in_path, next_in_path, trans_built, chained, read_csv, to_csv):
     """Safeguard for forced lines in S0 chains (pg_to_switch forces each line only in its own period).

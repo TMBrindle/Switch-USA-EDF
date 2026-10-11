@@ -1253,7 +1253,9 @@ the same bytes in every output file as the toy without them (`tracked_demands/te
 > **Status after §108 (step 2, Oct 2026).** Closed so far:
 > - on-site fuel plant and carbon caps (12.2 carbon row, 12.5): sections 15.1–15.2;
 > - the hourly double credit through the battery, the timestamp keying of the computed clean fraction, and the
->   stress-hour CO₂ intensity (12.4): section 15.4.
+>   stress-hour CO₂ intensity (12.4): section 15.4;
+> - stage-chain carry-forward (12.3): section 15.5;
+> - the tracked load on stress days and in the PRM requirement (12.2 prm row, 12.4): section 15.6.
 >
 > The rest of this section is the step-1 audit as written.
 
@@ -1396,8 +1398,10 @@ source isn't at `/opt/switch-src`). The int64 guard from `s0_workflow/tests/conf
   the soft grid cap and annual grid caps.
 - `test_td_matching.py`: a data centre solving with hourly matching on (one block per timepoint), annual and off;
   zero-weight stress hours outside CFE blocks; clean through the battery counted once; a second pass reading the
-  computed clean fraction; one strict xfail left (the stress-day load, until step 2(d)).
-- `test_td_onsite_gens.py` (§108): linked on-site generators and carbon-cap coverage.
+  computed clean fraction; no xfails left (§108 closed the last).
+- `test_td_onsite_gens.py` (§108): linked on-site generators and carbon-cap coverage, including New York's 15 MWe rule.
+- `test_td_chain.py` (§108 (c)): two-stage chain carry-forward and the stage-reuse handover.
+- `test_td_stress_prm.py` (§108 (d)): stress-day modes, the PRM requirement and region peak, load order.
 - `test_td_unloaded.py`: the opt-in proof (section 11): only new files and notes change against the base; nothing
   loads the module by default; unloaded output bytes identical; loaded with no TD, the same plan and objective.
 
@@ -1488,17 +1492,38 @@ names:
 | Programme | Rule | Threshold | Basis | Limited export |
 |---|---|---|---|---|
 | RGGI | 2017 Model Rule XX-1.4, as adopted in each state's CO2 Budget Trading rule; the 2025 Model Rule (Third Program Review, 3 Jul 2025; states to adopt by 1 Jan 2027) wasn't found to change it | a fossil unit serving a generator ≥ 25 MWe nameplate | unit | permit condition limiting grid supply to ≤ 10% of the unit's annual gross generation (exemption, e.g. Delaware 7 DE Admin. Code 1147) |
-| VA | 9VAC5-140-7040 A (reinstated; 6040 repealed); program reinstated effective 24 Apr 2026, compliance from 1 Jul 2026 (secondary source) | 25 MWe | unit | 7040 B: ≤ 10% of annual net generation to the grid, for sources at or next to a manufacturing facility |
+| VA | 9VAC5-140-7040 A: Revision A26, Virginia Register Vol. 42 Iss. 20, effective 24 Apr 2026 (6040 repealed); first control period 1 Jul–31 Dec 2026. DEQ's follow-on Revision D26 will align the rule with the 2025 Model Rule | 25 MWe | unit | 7040 B: ≤ 10% of annual net generation to the grid, for sources at or next to a manufacturing facility |
 | CA | 17 CCR §95812(c)(1); AB 1207 amendments (proposed Jan 2026, for 2027 budgets) weren't found to change it | 25,000 tCO₂e per data year, per facility | site | none |
 | WA | WAC 173-446-030 | 25,000 tCO₂e per year, per facility | site | none |
 
-Variants to note: New York's rule also covers units ≥ 15 MW at an existing CO2 budget source. The CA and WA tests
+**Per-state overrides** within a programme (RGGI is one programme with state rules):
+
+```
+tracked_demand_cap_coverage_states.csv
+CO2_PROGRAM,STATE,td_cap_state_threshold_mw,td_cap_state_condition
+RGGI,NY,15,at_budget_source_or_two_units
+```
+
+`td_cap_state_condition` is `always` or `at_budget_source_or_two_units`. Zone → state comes from
+`tracked_demand_zone_states.csv` (`LOAD_ZONE,STATE`), else `hierarchy.csv` (`ba` → `st`, searched upward from the
+inputs folder).
+
+New York's rule is 6 NYCRR §242-1.4(a)(2): from 1 Jan 2021, a unit serving a generator ≥ 15 MWe is a CO2 budget
+unit if it is at an existing CO2 budget source, or at a source with two or more units ≥ 15 MWe. So a site is
+tested at 15 MWe when one of these holds, and at RGGI's 25 MWe otherwise:
+- one of its units is ≥ 25 MWe (the site is a budget source);
+- it has two or more units ≥ 15 MWe. A generator counts as rated ÷ unit units.
+
+Other notes: The CA and WA tests
 are on CO₂e and on the whole facility; the module tests the on-site generators' CO₂ (combustion and the fuel's
 upstream factor, as `DispatchEmissions`). Sources: [Delaware RGGI rule (25 MWe; 10% exemption)](https://archive.regulations.delaware.gov/register/september2013/proposed/17%20DE%20Reg%20303%2009-01-13.htm),
 [RI DEM RGGI page](https://dem.ri.gov/environmental-protection-bureau/air-resources/regional-greenhouse-gas-initiative-rggi),
 [RGGI program review](https://www.rggi.org/program-overview-and-design/program-review),
 [9VAC5-140-7040](https://law.lis.virginia.gov/admincode/title9/agency5/chapter140/section7040/),
-[Virginia reinstatement](https://jjkellercompliancenetwork.com/news/virginia-reinstates-power-plant-co2-budget-program),
+[Virginia DEQ, Carbon Trading (Revision A26, effective 24 Apr 2026)](https://www.deq.virginia.gov/air-energy/greenhouse-gases/carbon-trading),
+[Virginia Register Vol. 42 Iss. 20](https://register.dls.virginia.gov/vol42/iss20/v42i20.pdf),
+[6 NYCRR §242-1.4](https://www.law.cornell.edu/regulations/new-york/6-NYCRR-242-1.4)
+([NYSDEC Part 242 text](https://dec.ny.gov/sites/default/files/2025-12/part242_et.pdf)),
 [17 CCR §95101/§95812](https://regulations.justia.com/states/california/title-17/division-3/chapter-1/subchapter-10/article-2/subarticle-1/section-95101),
 [ICAP: California Cap-and-Invest](https://icapcarbonaction.com/fr/ets_system/45),
 [WAC 173-446-030](https://lawfilesext.leg.wa.gov/Law/WAC/WAC%20173%20%20TITLE/WAC%20173%20-446%20%20CHAPTER/WAC%20173%20-446%20-030.htm).
@@ -1540,3 +1565,53 @@ the model's `DispatchGen` and `DispatchEmissions` per hour, keyed by timepoint i
 column. The first is a valid `grid_clean_fraction.csv` for the next pass (10.1's iteration works). Storage and every
 TD's linked on-site generators are left out of the grid mix. Zero-weight stress hours have their own values. Light
 stress days (§69) read 0 intensity, as the model has no fuel use there.
+
+### 15.5 Carry-forward between chain stages
+
+In a mode-A chain, `prepare_next_stage` (SHARED_CHANGES #112) calls `tracked_demands.chain_inputs` when the stage
+wrote tracked-demand outputs. It writes, in the next stage's inputs folder:
+
+| File (`.chained.<case>.csv`) | From | In the next stage |
+|---|---|---|
+| `tracked_demand_onsite_existing` | `tracked_demand_onsite_build.csv` | `BuildOnsiteTech ≥ existing` (expandable) |
+| `tracked_demand_storage_existing` | `tracked_demand_storage_build.csv` | battery MW and MWh ≥ existing |
+| `tracked_demand_h2_existing` | `tracked_demand_h2_build.csv` | tank kg ≥ existing |
+| `tracked_demand_siting_fixed` | `tracked_demand_zone_allocation.csv` at the committed period; once fixed, passed on unchanged | allocation fixed (normalised to sum to 1) in every period |
+| `tracked_demand_cap_coverage_fixed` | `tracked_demand_onsite_emissions.csv` at the committed period; earlier stages' rows win | coverage as carried (`carried_from_earlier_stage`) |
+
+The module reads `<file>.chained.<case>.csv` itself, where case is the outputs folder's name, as
+`prepare_next_stage` names it. An explicit `--input-aliases` entry for the base name wins. The same files can be
+written by hand for a first stage, e.g. `tracked_demand_siting_fixed.csv`. Existing capacity keeps paying its
+annualised cost each period, like a predetermined generator.
+
+Linked generators carry through the standard predetermined-build chaining. Stage reuse's handover runs the same
+code on copied outputs and writes the same bytes (tested).
+
+Limitation: on-site, battery and tank capacity are single builds per stage, so a window (mode B) commits the whole
+stage's build.
+
+### 15.6 Stress days and the planning-reserve requirement
+
+Stress days are the zero-weight timepoints. Two new `tracked_demands.csv` columns set the TD's load there:
+
+| Column | Default | Meaning |
+|---|---|---|
+| `td_stress_mode` | `max` | `max`: `td_max_power_mw`; `profile`: `tracked_demand_stress_profile.csv` (`TRACKED_DEMAND, TIMEPOINT, td_stress_load_mw`, every stress timepoint); `min`: `td_min_power_mw` |
+| `td_stress_curtailable_share` | 0 | the load may be cut by up to this share, with any mode: (1 − share) × L ≤ `TDDispatch` ≤ L |
+
+Weighted hours are unchanged. In `max` mode, a TD whose grid connection can't carry (1 − share) × its maximum, and
+that has no on-site supply, stops the run with the options to fix it.
+
+**PRM requirement** (prm_regional, SHARED_CHANGES #113), in every stress hour of period p:
+
+    td_prm_requirement_mw[td, p] = min(td_grid_interconnect_mw, max over p of td_max_power_mw) × (1 − share)
+
+- It is added to the served load of the TD's zone at the central node; a location-flexible TD's is shared by its
+  allocation.
+- The part known before the solve (location-fixed TDs, and flexible TDs with fixed siting) is added to the region
+  peak, so the import cap (share × peak) rises with it. A flexible TD whose siting is still free isn't in the region
+  peak (the peak is a parameter).
+- On-site plant gets no reserve credit (`prm_credit = none`, checked).
+- Load order: tracked_demands before prm_regional (S0 scenario lines put `extra_modules` first); the module stops
+  otherwise.
+- The legacy `planning_reserves` pair doesn't see tracked demands.

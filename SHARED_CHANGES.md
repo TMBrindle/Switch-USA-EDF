@@ -323,6 +323,34 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 | # | File | Change | Why | Effect on existing cases |
 |---|---|---|---|---|
 | 111 | `switch/study_modules/carbon_policies_regional.py` (`post_solve` only) | Reported programme emissions subtract `m.td_cap_exempt_emissions[programme, period]` when that attribute exists. The tracked-demands module sets it and takes the same tonnes out of the cap row (its own `BuildAction`, which rewrites each `Enforce_Regional_Carbon_Cap` row as `(emissions − exempt) × 0.001 <= allowances × 0.001` and stops if the row's form changes). | §108 item 2 (Tom, 11 Oct): per-programme coverage and size thresholds for on-site generators; the report must match the cap. | None: without the module the attribute doesn't exist. Toy proof: `test_td_unloaded.py::test_shared_edit_unloaded_is_byte_identical` (binding cap, every output byte-identical to the tag's copy). **Review point:** the module's rewrite depends on `cap_rule`'s form; a change there should keep `emissions × 0.001 <= …` or update `tracked_demands._apply_cap_coverage`. |
+| 112 | `switch/study_modules/prepare_next_stage.py` (`chain_stage`, new `chain_tracked_demand_inputs`) | At the end of `chain_stage`: when this stage wrote `tracked_demand_annual.csv`, call `tracked_demands.chain_inputs` (the module file is loaded from beside this one, so stage reuse's standalone handover works too). It writes the next stage's `tracked_demand_{onsite,storage,h2}_existing`, `_siting_fixed` and `_cap_coverage_fixed` `.chained.<case>.csv`; the module reads them in the next stage. | §108 (c): on-site plant, batteries, H2 tanks, siting and cap coverage carry through mode-A chains. | None: without tracked-demand outputs the call is skipped. Toy proof: a two-stage chain with the tag's copy and this copy writes the same bytes in both stages' outputs and in the chained inputs (`test_td_unloaded.py`). |
+| 113 | `switch/study_modules/prm_regional.py` (`served_load`, `prm_region_peak_mw`) | When `TDPrmLoad` exists, the served load in each stress hour adds the tracked demands' requirement `TDPrmLoad[z, period]` = min(grid connection, peak load) × (1 − curtailable share), at the central node (shared by siting for a location-flexible TD). When `TDPrmFixedLoadMW` exists, the region peak (the import-cap basis) adds its known part (location-fixed TDs, and flexible TDs with fixed siting). The served-load body moved into `base_served_load`, unchanged. | §108 (d), Tom's decision D1b. | None: without the tracked-demands module both rules return exactly what they did. Toy proof: a two-region toy with an import cap writes the same bytes with the tag's copy and this copy (`test_td_unloaded.py`). **Order:** tracked_demands must be loaded before prm_regional (S0 lines put `extra_modules` before the PRM options); the module stops otherwise. **Not covered:** the legacy `planning_reserves` / `planning_reserves_extreme_days` pair. |
+
+**Review point for Ollie (§108): an alternative to the cap-row rewrite (not implemented).**
+- **What it would be:** `carbon_policies_regional` builds its cap in `define_dynamic_components`, with a list other
+  modules add adjustments to.
+- **Lines in `carbon_policies_regional.py`:**
+  - `define_components` (line 74) gains `m.carbon_cap_adjustments = []`;
+  - `cap_rule` and `Enforce_Regional_Carbon_Cap` (lines 216–253) move unchanged into a new
+    `define_dynamic_components(m)`;
+  - the emissions sum in `cap_rule` (just before the return at line 251) subtracts
+    `sum(f(m, pr, pe) for f in m.carbon_cap_adjustments)`;
+  - `post_solve` (line 368 on) subtracts the same, replacing #111's attribute read.
+
+  About 8 changed lines. `EmissionsCost` (259) and `always_report_duals` (85) are untouched.
+- **What the tracked-demands module would do instead:** append one function returning its exempt emissions, and drop
+  its `BuildAction` and the form check.
+- **The gain:** no dependence on the row's internal form.
+- **The cost:** S0 byte-identity breaks for every case that loads the module (all S0 rows).
+  - The cap row moves after every module's `define_components` components, so constraint construction order,
+    LP row order and `dual_costs.csv` row order change (`write_dual_costs` walks constraints in declaration
+    order, line 117).
+  - The LP is the same problem. S0 solves with Gurobi barrier without crossover, so low-order digits of the
+    solution can differ too.
+  - The S0 regression row would need re-baselining, and stage-reuse references re-recording; any edit under
+    `switch/study_modules/` already fails the reuse code check.
+- **Recommendation:** keep the rewrite on this branch; consider the list hook when carbon_policies_regional next
+  changes for another reason.
 
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
