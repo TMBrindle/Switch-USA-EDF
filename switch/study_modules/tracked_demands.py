@@ -103,6 +103,37 @@ def _candidate_zones_for_td(m, td):
     return m._td_cand_zones.get(td, [])
 
 
+def _onsite_gens(m, td):
+    """Linked on-site generators of td (cached on model instance)."""
+    if not hasattr(m, "_td_onsite_gens"):
+        m._td_onsite_gens = {}
+        for td2, g in m.TD_ONSITE_GENS:
+            m._td_onsite_gens.setdefault(td2, []).append(g)
+    return m._td_onsite_gens.get(td, [])
+
+
+def _export(m, td, t):
+    return m.TDGridExport[td, t] if (td, t) in m.TD_EXPORT_TIMEPOINTS else 0
+
+
+def _float_or_none(v):
+    """A "."-or-number param value as float, or None for "." / blank."""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        v = v.strip()
+        if v in ("", "."):
+            return None
+    v = float(v)
+    return None if v != v else v
+
+
+def _export_share(m, td):
+    """Export limit share of td: inf (no limit), 0 (no export) or a share."""
+    v = _float_or_none(value(m.td_export_limit_share[td]))
+    return float("inf") if v is None else v
+
+
 def _expand_flex_events(inputs_dir, switch_data):
     """
     Read tracked_demand_flex_events.csv and expand time_block references.
@@ -300,6 +331,55 @@ def define_components(m):
         doc="On-site generation dispatched (MW).",
     )
 
+    # ── Stage 12 prerequisites (CHANGES §108): on-site generators ─────────────
+    # Fuel-burning on-site plant is modelled as ordinary Switch generators in the
+    # TD's zone (gen_info.csv etc.), linked to their TD by
+    # tracked_demand_onsite_gens.csv. Their fuel use, fuel cost and emissions go
+    # through Switch's standard accounting (GenFuelUseRate, DispatchEmissions);
+    # the TD energy balance and zone withdrawal below net their output out.
+
+    m.TD_ONSITE_GENS = Set(dimen=2, within=m.TRACKED_DEMANDS * m.GENERATION_PROJECTS)
+
+    # turbine | recip | fuel_cell | boiler | other (turbines count in the
+    # gas-turbine build cap, reciprocating engines don't; checked in pre_solve)
+    m.td_onsite_prime_mover = Param(m.TD_ONSITE_GENS, within=Any, default="other")
+
+    # unit nameplate (MW) for per-unit applicability tests; "." -> gen_unit_size,
+    # else the rated MW
+    m.td_onsite_unit_mw = Param(m.TD_ONSITE_GENS, within=Any, default=".")
+
+    # rated MW of the generator for site-level tests and potential to emit;
+    # "." -> gen_capacity_limit_mw
+    m.td_onsite_rated_mw = Param(m.TD_ONSITE_GENS, within=Any, default=".")
+
+    # annual export to the grid as a share of the linked generators' gross
+    # generation; "." = no limit, 0 = no export
+    m.td_export_limit_share = Param(m.TRACKED_DEMANDS, within=Any, default=".")
+
+    m.TD_EXPORT_TIMEPOINTS = Set(
+        dimen=2,
+        initialize=lambda m: [
+            (td, t)
+            for td in m.TRACKED_DEMANDS
+            if _onsite_gens(m, td) and _export_share(m, td) != 0
+            for t in m.TIMEPOINTS
+        ],
+    )
+
+    m.TDGridExport = Var(
+        m.TD_EXPORT_TIMEPOINTS,
+        within=NonNegativeReals,
+        doc="Power exported to the grid by the TD's site (MW); only TDs with linked generators.",
+    )
+
+    m.TDOnsiteGenMW = Expression(
+        m.TD_TIMEPOINTS,
+        rule=lambda m, td, t: sum(
+            m.DispatchGen[g, t] for g in _onsite_gens(m, td) if (g, t) in m.GEN_TPS
+        ),
+        doc="Output of the TD's linked on-site generators (MW).",
+    )
+
     # ── Stage 4 prerequisites ─────────────────────────────────────────────────
     # TDStorageCharge and TDStorageDischarge appear in TD_Energy_Balance and
     # TD_CFE_Constraint rules, so they must be constructed before those
@@ -380,6 +460,8 @@ def define_components(m):
         rule=lambda m, td, t: (
             m.TDDispatch[td, t]
             == m.TDGridDraw[td, t]
+            - _export(m, td, t)
+            + m.TDOnsiteGenMW[td, t]
             + sum(m.DispatchOnsiteTech[td, tech, t] for tech in m.TD_ONSITE_TECHS)
             + (m.TDStorageDischarge[td, t] - m.TDStorageCharge[td, t]
                if td in m.TD_STORAGE else 0)
@@ -416,6 +498,27 @@ def define_components(m):
     m.TD_Grid_Interconnect_Limit = Constraint(
         m.TD_TIMEPOINTS,
         rule=lambda m, td, t: m.TDGridDraw[td, t] <= m.td_grid_interconnect_mw[td],
+    )
+
+    # Export through the same connection (§108).
+    m.TD_Grid_Export_Limit = Constraint(
+        m.TD_EXPORT_TIMEPOINTS,
+        rule=lambda m, td, t: m.TDGridExport[td, t] <= m.td_grid_interconnect_mw[td],
+    )
+
+    # Annual export <= share x gross generation of the linked generators (§108;
+    # RGGI-style limited export is share 0.1).
+    m.TD_Export_Share_Limit = Constraint(
+        m.TRACKED_DEMANDS,
+        m.PERIODS,
+        rule=lambda m, td, p: (
+            sum(m.TDGridExport[td, t] * m.tp_weight_in_year[t] for t in m.TPS_IN_PERIOD[p])
+            <= _export_share(m, td)
+            * sum(m.TDOnsiteGenMW[td, t] * m.tp_weight_in_year[t] for t in m.TPS_IN_PERIOD[p])
+            if (td, m.TPS_IN_PERIOD[p].first()) in m.TD_EXPORT_TIMEPOINTS
+            and _export_share(m, td) != float("inf")
+            else Constraint.Skip
+        ),
     )
 
     # ── Soft grid cap (Stage 1 extension) ────────────────────────────────────
@@ -527,7 +630,13 @@ def define_components(m):
                     m._td_fixed_in_zone.setdefault(z2, []).append(td2)
                 else:
                     m._td_flex_in_zone.setdefault(z2, []).append(td2)
-        fixed = sum(m.TDGridDraw[td, t] for td in m._td_fixed_in_zone.get(z, []))
+        # A location-fixed TD withdraws its grid draw net of export, plus the
+        # output of its linked generators, which inject through the standard
+        # dispatch module (so the zone nets to draw - export; §108).
+        fixed = sum(
+            m.TDGridDraw[td, t] - _export(m, td, t) + m.TDOnsiteGenMW[td, t]
+            for td in m._td_fixed_in_zone.get(z, [])
+        )
         flex = sum(m.TDGridDrawInZone[td, z, t] for td in m._td_flex_in_zone.get(z, []))
         return fixed + flex
 
@@ -1466,6 +1575,226 @@ def define_components(m):
     )
     m.Cost_Components_Per_Period.append("TDRECCost")
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # Stage 12: carbon-cap coverage of on-site generators (CHANGES §108)
+    # ══════════════════════════════════════════════════════════════════════════
+    # Linked on-site generators are ordinary generators, so
+    # carbon_policies_regional counts their emissions in every programme whose
+    # zones they sit in. tracked_demand_cap_coverage.csv sets, per programme,
+    # whether on-site emissions count and the programme's applicability test:
+    #   td_cap_counts_onsite              1 (default) / 0
+    #   td_cap_threshold_mw               nameplate threshold (RGGI, VA: 25 MWe)
+    #   td_cap_threshold_tco2             emissions threshold (CA, WA: 25,000 t/yr)
+    #   td_cap_threshold_basis            unit (default) / site
+    #   td_cap_limited_export_exemption   1: exempt a site whose export limit
+    #                                     share is <= 0.1 (RGGI-style permit)
+    # A generator below a threshold is exempt from that programme: its emissions
+    # come out of the cap row (TDCapCoverage below). Programmes not listed: on-site
+    # emissions count, no threshold. Applicability is fixed before the solve from
+    # declared sizes (unit / rated MW, potential to emit at rated output);
+    # post_solve checks actual emissions against tCO2 thresholds.
+
+    m.TD_CAP_PROGRAMS = Set(dimen=1, within=Any)
+    m.td_cap_counts_onsite = Param(m.TD_CAP_PROGRAMS, within=Any, default=1)
+    m.td_cap_threshold_mw = Param(m.TD_CAP_PROGRAMS, within=Any, default=".")
+    m.td_cap_threshold_tco2 = Param(m.TD_CAP_PROGRAMS, within=Any, default=".")
+    m.td_cap_threshold_basis = Param(
+        m.TD_CAP_PROGRAMS, within=Any, default="unit",
+        validate=lambda m, v, pr: str(v).strip() in ("unit", "site"),
+    )
+    m.td_cap_limited_export_exemption = Param(m.TD_CAP_PROGRAMS, within=Any, default=0)
+
+    m.TDCapCoverage = BuildAction(rule=_apply_cap_coverage)
+
+
+# ── Stage 12 helpers: cap coverage ────────────────────────────────────────────
+
+LIMITED_EXPORT_SHARE = 0.1   # RGGI Model Rule / 9VAC5-140-7040 B: <= 10% of gross generation to the grid
+
+
+def _flag(v):
+    return str(v).strip() in ("1", "1.0", "True", "true", "yes")
+
+
+def _rated_mw(m, td, g):
+    v = _float_or_none(value(m.td_onsite_rated_mw[td, g]))
+    if v is None and g in m.CAPACITY_LIMITED_GENS:
+        v = value(m.gen_capacity_limit_mw[g])
+    return v
+
+
+def _unit_mw(m, td, g):
+    v = _float_or_none(value(m.td_onsite_unit_mw[td, g]))
+    if v is None and g in m.DISCRETELY_SIZED_GENS:
+        v = value(m.gen_unit_size[g])
+    return _rated_mw(m, td, g) if v is None else v
+
+
+def _pte_tco2(m, g, mw):
+    """Potential to emit (tCO2/yr) of mw of generator g at full load all year."""
+    rate = max(
+        value(m.f_co2_intensity[f])
+        * ((1 - value(m.gen_ccs_capture_efficiency[g])) if g in m.CCS_EQUIPPED_GENS else 1)
+        for f in m.FUELS_FOR_GEN[g]
+    )
+    return mw * 8766 * value(m.gen_full_load_heat_rate[g]) * rate
+
+
+def _cap_programs_of_zone(m):
+    out = {}
+    for pr, pe in getattr(m, "CO2_PROGRAM_PERIODS", ()):
+        for z in m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe]:
+            out.setdefault(z, set()).add(pr)
+    return out
+
+
+def _cap_coverage(m):
+    """{(td, g, programme): (covered, reason)} for linked fuel-based generators in a programme's zones."""
+    if hasattr(m, "_td_cap_coverage"):
+        return m._td_cap_coverage
+    progs = _cap_programs_of_zone(m)
+    cov = {}
+    for td in m.TRACKED_DEMANDS:
+        gens = [g for g in _onsite_gens(m, td) if g in m.FUEL_BASED_GENS]
+        for g in gens:
+            for pr in sorted(progs.get(m.gen_load_zone[g], ()), key=str):
+                listed = pr in m.TD_CAP_PROGRAMS
+                if listed and not _flag(m.td_cap_counts_onsite[pr]):
+                    cov[td, g, pr] = (False, "programme_excludes_onsite")
+                    continue
+                if (listed and _flag(m.td_cap_limited_export_exemption[pr])
+                        and _export_share(m, td) <= LIMITED_EXPORT_SHARE):
+                    cov[td, g, pr] = (False, "limited_export_exemption")
+                    continue
+                th_mw = _float_or_none(value(m.td_cap_threshold_mw[pr])) if listed else None
+                th_t = _float_or_none(value(m.td_cap_threshold_tco2[pr])) if listed else None
+                if th_mw is None and th_t is None:
+                    cov[td, g, pr] = (True, "covered")
+                    continue
+                site = listed and str(value(m.td_cap_threshold_basis[pr])).strip() == "site"
+                if site:
+                    members = [h for h in gens if m.gen_load_zone[h] == m.gen_load_zone[g]]
+                    sizes = {h: _rated_mw(m, td, h) for h in members}
+                    what = "rated MW (td_onsite_rated_mw or gen_capacity_limit_mw)"
+                else:
+                    members = [g]
+                    sizes = {g: _unit_mw(m, td, g)}
+                    what = "unit MW (td_onsite_unit_mw, gen_unit_size or a rated MW)"
+                missing = [h for h, v in sizes.items() if v is None]
+                if missing:
+                    raise ValueError(
+                        f"tracked_demands: programme {pr} tests on-site applicability on a {'site' if site else 'unit'} "
+                        f"basis, but {', '.join(map(str, missing))} (tracked demand {td}) has no {what}."
+                    )
+                mw = sum(sizes.values())
+                pte = sum(_pte_tco2(m, h, v) for h, v in sizes.items())
+                if th_mw is not None and mw < th_mw:
+                    cov[td, g, pr] = (False, f"below_mw_threshold ({mw:g} < {th_mw:g} MW)")
+                elif th_t is not None and pte < th_t:
+                    cov[td, g, pr] = (False, f"below_tco2_threshold (potential {pte:.0f} < {th_t:g} t/yr)")
+                else:
+                    cov[td, g, pr] = (True, "covered")
+    m._td_cap_coverage = cov
+    return cov
+
+
+def _apply_cap_coverage(m):
+    """Take exempt on-site emissions out of carbon_policies_regional's cap rows.
+
+    A hook from this module: the cap row is built before this module's components, so it can't read them. Each row
+    of Enforce_Regional_Carbon_Cap is `emissions x 0.001 <= allowances x 0.001` (carbon_policies_regional.cap_rule);
+    exempt emissions are subtracted on the left in the same scaling. carbon_policies_regional's post_solve reads
+    m.td_cap_exempt_emissions so its reported emissions match the row.
+    """
+    m.td_cap_exempt_emissions = {}
+    if not hasattr(m, "Enforce_Regional_Carbon_Cap"):
+        return
+    cap = m.Enforce_Regional_Carbon_Cap
+    if not cap.is_constructed():
+        raise RuntimeError("tracked_demands must be loaded after carbon_policies_regional")
+    exempt = {pr: set() for pr in m.TD_CAP_PROGRAMS}
+    for (td, g, pr), (covered, _) in _cap_coverage(m).items():
+        if not covered:
+            exempt.setdefault(pr, set()).add(g)
+    light = getattr(m, "LIGHT_TPS", ())
+    for pr, pe in m.CO2_PROGRAM_PERIODS:
+        gens = exempt.get(pr)
+        if not gens or (pr, pe) not in cap:
+            continue
+        zones = set(m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, pe])
+        terms = [
+            m.DispatchEmissions[g, tp, f] * m.tp_weight_in_year[tp]
+            for g in sorted(gens, key=str)
+            if m.gen_load_zone[g] in zones
+            for tp in m.TPS_FOR_GEN_IN_PERIOD[g, pe]
+            if tp not in light
+            for f in m.FUELS_FOR_GEN[g]
+            if (g, tp, f) in m.GEN_TP_FUELS
+        ]
+        if not terms:
+            continue
+        ex = sum(terms)
+        c = cap[pr, pe]
+        expr = c.expr
+        if type(expr).__name__ != "InequalityExpression" or expr.nargs() != 2:
+            raise RuntimeError(
+                "tracked_demands: Enforce_Regional_Carbon_Cap no longer has the form `emissions x 0.001 <= "
+                "allowances x 0.001`; update _apply_cap_coverage to match carbon_policies_regional.cap_rule"
+            )
+        lhs, rhs = expr.args
+        c.set_value(lhs - ex * 0.001 <= rhs)
+        m.td_cap_exempt_emissions[pr, pe] = ex
+
+
+def pre_solve(m):
+    """Checks on linked on-site generators against the other modules' settings (§108)."""
+    if not len(m.TD_ONSITE_GENS):
+        return
+    owner = {}
+    for td, g in m.TD_ONSITE_GENS:
+        if g in owner:
+            raise ValueError(f"tracked_demands: generator {g} is linked to both {owner[g]} and {td}")
+        owner[g] = td
+        if not value(m.td_location_fixed[td]):
+            raise ValueError(f"tracked_demands: {td} has linked on-site generators, so it must be location-fixed")
+        z = _td_zone(m, td)
+        if m.gen_load_zone[g] != z:
+            raise ValueError(
+                f"tracked_demands: on-site generator {g} is in {m.gen_load_zone[g]}, but {td} is in {z}"
+            )
+        # no reserve credit for on-site plant (Tom, 11 Oct 2026)
+        if hasattr(m, "prm_credit") and m.prm_credit[g] != "none":
+            raise ValueError(
+                f"tracked_demands: on-site generator {g} has prm_credit '{m.prm_credit[g]}'; on-site plant gets no "
+                f"reserve credit: list it in prm_gen_credit.csv with prm_credit none"
+            )
+        # behind the meter: no interconnection headroom (assumption recorded in CHANGES §108)
+        if hasattr(m, "gen_ic_weight") and value(m.gen_ic_weight[g]) != 0:
+            raise ValueError(
+                f"tracked_demands: on-site generator {g} has interconnection weight {value(m.gen_ic_weight[g])}; "
+                f"give its gen_tech an ic weight of 0 (on-site plant uses no headroom)"
+            )
+        # gas-turbine build cap: turbines count, reciprocating engines don't
+        if hasattr(m, "GTC_GENS") and len(m.GTC_PERIODS) and len(m.GTC_GENS):
+            pm = str(value(m.td_onsite_prime_mover[td, g])).strip()
+            if pm == "turbine" and g not in m.GTC_GENS:
+                raise ValueError(
+                    f"tracked_demands: on-site turbine {g} must be in gas_turbine_cap_gens.csv (turbines count in "
+                    f"the gas-turbine build cap)"
+                )
+            if pm == "recip" and g in m.GTC_GENS:
+                raise ValueError(
+                    f"tracked_demands: on-site reciprocating engine {g} is in gas_turbine_cap_gens.csv; "
+                    f"reciprocating engines don't count in the gas-turbine build cap"
+                )
+    for tech in m.TD_ONSITE_TECHS:
+        if value(m.td_onsite_tech_fuel_cost[tech]) > 0 or value(m.td_onsite_tech_emissions[tech]) > 0:
+            print(
+                f"tracked_demands: on-site tech {tech} has a fuel cost or emissions; fuel-burning plant should be a "
+                f"linked generator (tracked_demand_onsite_gens.csv) so its fuel and emissions go through Switch's "
+                f"accounting (CHANGES §108)"
+            )
+
 
 def load_inputs(m, switch_data, inputs_dir):
     """
@@ -1564,12 +1893,14 @@ def load_inputs(m, switch_data, inputs_dir):
             m.td_location_fixed,
             m.td_grid_interconnect_mw,
             m.td_onsite_emissions_in_system_cap,
+            m.td_export_limit_share,
         ),
         optional_params=(
             m.td_default_min_power_mw,
             m.td_location_fixed,
             m.td_grid_interconnect_mw,
             m.td_onsite_emissions_in_system_cap,
+            m.td_export_limit_share,
         ),
     )
     # set= + explicit select= required for parameter-free multi-column set files.
@@ -1760,6 +2091,34 @@ def load_inputs(m, switch_data, inputs_dir):
         optional_params=(m.td_grid_soft_cap_penalty,),
     )
 
+    # ── Stage 12 (§108) ───────────────────────────────────────────────────────
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_onsite_gens.csv"),
+        optional=True,
+        index=m.TD_ONSITE_GENS,
+        param=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw),
+        optional_params=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw),
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_cap_coverage.csv"),
+        optional=True,
+        index=m.TD_CAP_PROGRAMS,
+        param=(
+            m.td_cap_counts_onsite,
+            m.td_cap_threshold_mw,
+            m.td_cap_threshold_tco2,
+            m.td_cap_threshold_basis,
+            m.td_cap_limited_export_exemption,
+        ),
+        optional_params=(
+            m.td_cap_counts_onsite,
+            m.td_cap_threshold_mw,
+            m.td_cap_threshold_tco2,
+            m.td_cap_threshold_basis,
+            m.td_cap_limited_export_exemption,
+        ),
+    )
+
     # ── Stage 5 ───────────────────────────────────────────────────────────────
     # Expand time_block rows to individual timepoints using pandas, then load
     # via a temp file so load_aug can populate TD_FLEX_TIMEPOINTS correctly.
@@ -1810,15 +2169,22 @@ def post_solve(m, outdir):
         m.TD_TIMEPOINTS,
         output_file=os.path.join(outdir, "tracked_demand_dispatch.csv"),
         headings=("tracked_demand", "timepoint", "timestamp",
-                  "TDDispatch_MW", "TDGridDraw_MW"),
+                  "TDDispatch_MW", "TDGridDraw_MW", "TDGridExport_MW", "TDOnsiteGen_MW"),
         values=lambda m, td, t: (
             td,
             t,
             m.tp_timestamp[t],
             m.TDDispatch[td, t],
             m.TDGridDraw[td, t],
+            value(_export(m, td, t)),
+            value(m.TDOnsiteGenMW[td, t]),
         ),
     )
+
+    # ── Stage 12 outputs (§108) ───────────────────────────────────────────────
+
+    if m.TD_ONSITE_GENS:
+        _write_onsite_gen_outputs(m, outdir)
 
     reporting.write_table(
         m,
@@ -1888,6 +2254,64 @@ def post_solve(m, outdir):
             _write_cfe_computed(m, outdir, grid_df)
         if m.TD_H2_STORAGE:
             _write_45v_assessment(m, outdir, grid_df)
+
+
+def _write_onsite_gen_outputs(m, outdir):
+    """tracked_demand_onsite_fuel_use.csv (the gas-network interface) and tracked_demand_onsite_emissions.csv."""
+    light = getattr(m, "LIGHT_TPS", ())
+    fuel_rows = []
+    for td, g in m.TD_ONSITE_GENS:
+        if g not in m.FUEL_BASED_GENS:
+            continue
+        for t in m.TPS_FOR_GEN[g]:
+            for f in m.FUELS_FOR_GEN[g]:
+                if (g, t, f) not in m.GEN_TP_FUELS:
+                    continue
+                fuel_rows.append((td, g, m.gen_load_zone[g], t, m.tp_timestamp[t], m.tp_period[t], f,
+                                  value(m.GenFuelUseRate[g, t, f]), value(m.tp_weight_in_year[t]),
+                                  value(m.DispatchEmissions[g, t, f])))
+    pd.DataFrame(fuel_rows, columns=[
+        "tracked_demand", "generation_project", "load_zone", "timepoint", "timestamp", "period", "fuel",
+        "fuel_use_mmbtu_per_h", "tp_weight_in_year", "emissions_tco2_per_h",
+    ]).to_csv(os.path.join(outdir, "tracked_demand_onsite_fuel_use.csv"), index=False)
+
+    cov = _cap_coverage(m)
+    progs = _cap_programs_of_zone(m)
+    rows = []
+    for td, g in m.TD_ONSITE_GENS:
+        if g not in m.FUEL_BASED_GENS:
+            continue
+        for p in m.PERIODS:
+            t_co2 = sum(
+                value(m.DispatchEmissions[g, t, f]) * value(m.tp_weight_in_year[t])
+                for t in m.TPS_FOR_GEN_IN_PERIOD[g, p] if t not in light
+                for f in m.FUELS_FOR_GEN[g] if (g, t, f) in m.GEN_TP_FUELS
+            ) if (g, p) in m.GEN_PERIODS else 0.0
+            in_prog = [
+                pr for pr in sorted(progs.get(m.gen_load_zone[g], ()), key=str)
+                if (pr, p) in m.CO2_PROGRAM_PERIODS and m.gen_load_zone[g] in m.ZONES_IN_CO2_PROGRAM_PERIOD[pr, p]
+            ] if hasattr(m, "CO2_PROGRAM_PERIODS") else []
+            if not in_prog:
+                rows.append((td, g, m.gen_load_zone[g], p, "", t_co2, 0, "no_programme", ""))
+            for pr in in_prog:
+                covered, reason = cov[td, g, pr]
+                th_t = _float_or_none(value(m.td_cap_threshold_tco2[pr])) if pr in m.TD_CAP_PROGRAMS else None
+                # applicability was fixed from potential to emit; flag a site whose actual emissions disagree
+                check = ""
+                if th_t is not None:
+                    site_t = sum(
+                        value(m.DispatchEmissions[h, t, f]) * value(m.tp_weight_in_year[t])
+                        for h in _onsite_gens(m, td) if h in m.FUEL_BASED_GENS and (h, p) in m.GEN_PERIODS
+                        for t in m.TPS_FOR_GEN_IN_PERIOD[h, p] if t not in light
+                        for f in m.FUELS_FOR_GEN[h] if (h, t, f) in m.GEN_TP_FUELS
+                    )
+                    if not covered and reason.startswith("below_tco2") and site_t >= th_t:
+                        check = f"actual site emissions {site_t:.0f} t/yr >= threshold: re-run covered"
+                rows.append((td, g, m.gen_load_zone[g], p, pr, t_co2, int(covered), reason, check))
+    pd.DataFrame(rows, columns=[
+        "tracked_demand", "generation_project", "load_zone", "period", "co2_program", "tco2_per_yr",
+        "covered_by_cap", "coverage_reason", "threshold_check",
+    ]).to_csv(os.path.join(outdir, "tracked_demand_onsite_emissions.csv"), index=False)
 
 
 def _write_cfe_detail(m, outdir):

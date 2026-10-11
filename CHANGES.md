@@ -3896,3 +3896,73 @@ above. Results: 24 passed, 4 xfailed on pandas 3.0.6 (Python 3.11, numpy 2.4.6) 
 numpy 1.23.5), Pyomo 6.9.1 both.
 
 **Not changed:** every existing module, module list, option file, setting, scenario row and case-build script.
+
+## 108. Tracked Demands Step 2: On-Site Generators, Cap Coverage, Matching Fixes
+
+**Date:** 2026-10-11 · **Branch:** `tom/tracked-demands-v2`
+**See also:** `Guides and documentation/tracked_demands.md` (sections 12, 15), `SHARED_CHANGES.md` #111,
+`tracked_demands/docs/decisions_2026-10-11.md`
+
+**Why:** Tom's decisions of 11 Oct on the step-1 questions. Step 2 is done in order (a)–(g), stopping for review
+after (b). Before it, the branch took the `s0-v3.1` tag (3160be1) by merge; the unloaded proof now compares against
+the tag.
+
+**(a) On-site fuel plant as ordinary generators; carbon-cap coverage.**
+1. **Linked generators.** `tracked_demand_onsite_gens.csv` (`TRACKED_DEMAND, GENERATION_PROJECT`, optional
+   `td_onsite_prime_mover`, `td_onsite_unit_mw`, `td_onsite_rated_mw`) links generators in `gen_info.csv` to a
+   location-fixed TD in their zone.
+   - The TD's energy balance adds their output (`TDOnsiteGenMW`).
+   - The TD's zone withdrawal becomes grid draw − export + their output, so the zone nets to the grid draw.
+   - Fuel use, fuel cost and emissions come from Switch's standard accounting (`GenFuelUseRate`,
+     `DispatchEmissions`).
+   - They are never clean in matching.
+2. **Export.** `td_export_limit_share` (`tracked_demands.csv`): "." no limit (default), 0 no export, s: annual
+   export ≤ s × the linked generators' gross output. Export uses the grid connection (`TDGridExport ≤
+   td_grid_interconnect_mw`).
+3. **Other modules' settings, checked in `pre_solve`** (the run stops with the fix to make):
+   - reserve credit `prm_credit = none` (prm_regional);
+   - interconnection weight 0, through `ic_weights.csv` on the generator's `gen_tech` (assumption: behind the
+     meter, no headroom);
+   - in the gas-turbine build cap: turbines must be in `gas_turbine_cap_gens.csv`, reciprocating engines must not.
+
+   No edits to prm_regional, interconnection_headroom or build_rate.
+4. **Cap coverage.** `tracked_demand_cap_coverage.csv`, per `CO2_PROGRAM`:
+   - `td_cap_counts_onsite` (default 1);
+   - `td_cap_threshold_mw` and/or `td_cap_threshold_tco2`;
+   - `td_cap_threshold_basis` (`unit` default / `site`);
+   - `td_cap_limited_export_exemption` (default 0; exempts a site with export share ≤ 0.1).
+
+   A programme not listed counts on-site emissions with no threshold. Applicability is fixed before the solve from
+   declared sizes:
+   - unit MW: `td_onsite_unit_mw`, else `gen_unit_size`, else rated;
+   - site MW: Σ rated (`td_onsite_rated_mw`, else `gen_capacity_limit_mw`);
+   - emissions: potential to emit at rated output.
+
+   Exempt tonnes come out of the cap row (a `BuildAction` in the module rewrites each `Enforce_Regional_Carbon_Cap`
+   row in the same 0.001 scaling and stops if its form changes). carbon_policies_regional's report subtracts them
+   (SHARED_CHANGES #111, the one shared edit).
+5. **Outputs:**
+   - `tracked_demand_onsite_emissions.csv`: every on-site tonne by programme, with `covered_by_cap`,
+     `coverage_reason` and a `threshold_check` that flags a site exempted on potential whose actual emissions
+     reach a tCO₂ threshold;
+   - `tracked_demand_onsite_fuel_use.csv`: MMBtu/h by TD, generator, zone, timepoint and fuel (the gas-network
+     interface);
+   - `tracked_demand_dispatch.csv` gains export and on-site generation columns.
+6. **Superseded:** the April default "on-site emissions off" (`td_onsite_emissions_in_system_cap`, which was loaded
+   and never used). The flag stays loadable for old inputs and does nothing. Private on-site techs with a fuel cost
+   or emissions now print a warning to use a linked generator.
+
+Thresholds, current law (Oct 2026; sources in the guide, section 15):
+
+| Programme | Threshold | Basis | Limited-export exemption |
+|---|---|---|---|
+| RGGI | 25 MWe nameplate of the generator a fossil unit serves (Model Rule XX-1.4, in each state's rule) | unit | yes: permit limiting grid supply to ≤10% of annual gross generation |
+| VA | 25 MWe (9VAC5-140-7040 A) | unit | yes: 9VAC5-140-7040 B (≤10% of annual net generation, at or next to a manufacturing facility) |
+| CA | 25,000 tCO₂e/yr per facility (17 CCR §95812(c)(1)) | site | no |
+| WA | 25,000 tCO₂e/yr per facility (WAC 173-446-030) | site | no |
+
+**Tests:** `tracked_demands/tests/test_td_onsite_gens.py` (18: balance and fuel accounting, zone netting, export
+limits, not clean in matching, coverage default/unit/site/tCO₂ with the actual-emissions flag/limited export/opt-out,
+a binding cap made cheaper by an exemption, the size-missing error, gas-turbine cap membership, headroom weight).
+`test_td_unloaded.py` now allows only registered shared edits (each with its SHARED_CHANGES row) and proves each
+byte-identical unloaded against the tag's copy.

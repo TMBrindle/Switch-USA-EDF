@@ -28,6 +28,7 @@ corrected where the port changed something; sections 11–14 are new.
 12. [Interactions with Today's Model (Oct 2026 Audit)](#12-interactions-with-todays-model-oct-2026-audit)
 13. [Interfaces](#13-interfaces)
 14. [Tests](#14-tests)
+15. [Step 2: On-Site Generators, Cap Coverage, Matching (§108)](#15-step-2-on-site-generators-cap-coverage-matching-108)
 
 ---
 
@@ -1249,6 +1250,9 @@ the same bytes in every output file as the toy without them (`tracked_demands/te
 
 ## 12. Interactions with Today's Model (Oct 2026 Audit)
 
+> **Status after §108 (step 2, Oct 2026).** Closed so far: on-site fuel plant and carbon caps (12.2 carbon row,
+> 12.5) by section 15.1–15.2. The rest of this section is the step-1 audit as written.
+
 Line numbers are for `tom/tracked-demands-v2` at the step-1 commit. "TD" = tracked demand. Items marked
 **(gap)** are open; four are pinned by strict xfail tests.
 
@@ -1394,3 +1398,108 @@ source isn't at `/opt/switch-src`). The int64 guard from `s0_workflow/tests/conf
 ```
 cd Switch-USA-EDF && SWITCH_SRC=/opt/switch-src pytest -q tracked_demands/tests
 ```
+
+## 15. Step 2: On-Site Generators, Cap Coverage, Matching (§108)
+
+Tom's decisions of 11 Oct 2026 are in `tracked_demands/docs/decisions_2026-10-11.md` (to be moved into the decisions
+register). Step 2 runs (a)–(g); this section grows with it.
+
+### 15.1 On-site fuel plant as ordinary generators
+
+Fuel-burning on-site plant (gas engines, turbines, fuel cells on gas, diesel backup) is an ordinary row of
+`gen_info.csv` / `gen_build_costs.csv` in the TD's zone, linked by:
+
+```
+tracked_demand_onsite_gens.csv
+TRACKED_DEMAND,GENERATION_PROJECT,td_onsite_prime_mover,td_onsite_unit_mw,td_onsite_rated_mw
+DC1,N-DC1-recip,recip,4.5,.
+```
+
+| Column | Default | Meaning |
+|---|---|---|
+| `td_onsite_prime_mover` | `other` | `turbine`, `recip`, `fuel_cell`, `boiler`, `other`. Turbines must be in `gas_turbine_cap_gens.csv`; reciprocating engines must not. |
+| `td_onsite_unit_mw` | `gen_unit_size`, else rated | unit nameplate for per-unit applicability tests |
+| `td_onsite_rated_mw` | `gen_capacity_limit_mw` | rated MW for site tests and potential to emit |
+
+`tracked_demands.csv` gains `td_export_limit_share`:
+
+| Value | Meaning |
+|---|---|
+| `.` (default) | no limit |
+| 0 | no export |
+| s | annual export ≤ s × gross output of the linked generators (RGGI-style limited export: 0.1) |
+
+In the model, with G = grid draw, X = export (only TDs with linked generators and a non-zero share) and Gen = the
+linked generators' output:
+
+- TD balance: `TDDispatch = G − X + Gen + private on-site + discharge − charge`;
+- zone withdrawal: `G − X + Gen`. The generators inject `Gen` through the standard dispatch module, so the zone
+  nets to `G − X`;
+- `G ≤ td_grid_interconnect_mw` and `X ≤ td_grid_interconnect_mw`.
+
+Fuel use (`GenFuelUseRate`), fuel cost (`fuel_costs_simple` or fuel markets), emissions (`DispatchEmissions`) and so
+carbon caps and a gas network all come from Switch's standard accounting. Linked generators are never clean in
+matching.
+
+**Settings the run checks (`pre_solve`), from Tom's decisions:**
+
+| Module | Required for each linked generator | Where it's set |
+|---|---|---|
+| prm_regional | `prm_credit = none` (no reserve credit) | `prm_gen_credit.csv` |
+| interconnection_headroom | interconnection weight 0 (assumption: behind the meter, no headroom) | `ic_weights.csv` row for its `gen_tech` |
+| build_rate (gas-turbine cap on) | turbines in `gas_turbine_cap_gens.csv`; reciprocating engines not | `gas_turbine_cap_gens.csv` |
+
+A run that breaks one stops with the fix to make. The case-build writer (step 2g) will write these rows.
+
+Private on-site techs (`tracked_demand_onsite_techs.csv`) stay for non-fuel plant (solar, wind, geothermal); one with
+a fuel cost or emissions prints a warning.
+
+### 15.2 Carbon-cap coverage of on-site emissions
+
+Linked generators are ordinary generators, so `carbon_policies_regional` counts them in every programme covering
+their zone. `tracked_demand_cap_coverage.csv` sets each programme's rule:
+
+| Column | Default | Meaning |
+|---|---|---|
+| `CO2_PROGRAM` | — | the programme name in `carbon_policies_regional.csv` |
+| `td_cap_counts_onsite` | 1 | 0: on-site emissions never count in this programme |
+| `td_cap_threshold_mw` | none | nameplate threshold (MW) |
+| `td_cap_threshold_tco2` | none | emissions threshold (tCO₂/yr), tested on potential to emit at rated output |
+| `td_cap_threshold_basis` | `unit` | `unit`: each generator; `site`: all the TD's linked fuel generators in the zone |
+| `td_cap_limited_export_exemption` | 0 | 1: exempt a site whose `td_export_limit_share` ≤ 0.1 |
+
+A programme not listed counts on-site emissions with no threshold. Applicability is fixed before the solve (a
+threshold on endogenous builds or emissions would make the problem non-convex). After the solve,
+`tracked_demand_onsite_emissions.csv` reports every on-site tonne by programme with `covered_by_cap`,
+`coverage_reason` and `threshold_check`. The check flags a site exempted on potential to emit whose actual
+emissions reach the threshold; re-run it as covered. Exempt tonnes are taken out of the cap row, and
+`carbon_program_clearing_prices.csv` reports emissions net of them (SHARED_CHANGES #111).
+
+**Current thresholds** (checked 11 Oct 2026). The case-build writer (2g) will map them onto the model's programme
+names:
+
+| Programme | Rule | Threshold | Basis | Limited export |
+|---|---|---|---|---|
+| RGGI | 2017 Model Rule XX-1.4, as adopted in each state's CO2 Budget Trading rule; the 2025 Model Rule (Third Program Review, 3 Jul 2025; states to adopt by 1 Jan 2027) wasn't found to change it | a fossil unit serving a generator ≥ 25 MWe nameplate | unit | permit condition limiting grid supply to ≤ 10% of the unit's annual gross generation (exemption, e.g. Delaware 7 DE Admin. Code 1147) |
+| VA | 9VAC5-140-7040 A (reinstated; 6040 repealed); program reinstated effective 24 Apr 2026, compliance from 1 Jul 2026 (secondary source) | 25 MWe | unit | 7040 B: ≤ 10% of annual net generation to the grid, for sources at or next to a manufacturing facility |
+| CA | 17 CCR §95812(c)(1); AB 1207 amendments (proposed Jan 2026, for 2027 budgets) weren't found to change it | 25,000 tCO₂e per data year, per facility | site | none |
+| WA | WAC 173-446-030 | 25,000 tCO₂e per year, per facility | site | none |
+
+Variants to note: New York's rule also covers units ≥ 15 MW at an existing CO2 budget source. The CA and WA tests
+are on CO₂e and on the whole facility; the module tests the on-site generators' CO₂ (combustion and the fuel's
+upstream factor, as `DispatchEmissions`). Sources: [Delaware RGGI rule (25 MWe; 10% exemption)](https://archive.regulations.delaware.gov/register/september2013/proposed/17%20DE%20Reg%20303%2009-01-13.htm),
+[RI DEM RGGI page](https://dem.ri.gov/environmental-protection-bureau/air-resources/regional-greenhouse-gas-initiative-rggi),
+[RGGI program review](https://www.rggi.org/program-overview-and-design/program-review),
+[9VAC5-140-7040](https://law.lis.virginia.gov/admincode/title9/agency5/chapter140/section7040/),
+[Virginia reinstatement](https://jjkellercompliancenetwork.com/news/virginia-reinstates-power-plant-co2-budget-program),
+[17 CCR §95101/§95812](https://regulations.justia.com/states/california/title-17/division-3/chapter-1/subchapter-10/article-2/subarticle-1/section-95101),
+[ICAP: California Cap-and-Invest](https://icapcarbonaction.com/fr/ets_system/45),
+[WAC 173-446-030](https://lawfilesext.leg.wa.gov/Law/WAC/WAC%20173%20%20TITLE/WAC%20173%20-446%20%20CHAPTER/WAC%20173%20-446%20-030.htm).
+
+### 15.3 45V (deferred)
+
+45V stays a post-solve assessment. It goes in the objective once upstream methane from the gas work can feed
+lifecycle intensity. Under current law, a facility must begin construction before 1 January 2028 (OBBBA, P.L. 119-21,
+§70511, amending §45V(c)(3)(C); [Clifford Chance, Nov 2025](https://www.cliffordchance.com/content/dam/cliffordchance/briefings/2025/11/one-big-beautiful-bill-act-notable-terminations-of-tax-credits-for-solar-wind-hydrogen-and-clean-vehicles.pdf)).
+The assessment doesn't apply this date: a period's electrolyser must have started construction in time for its
+result to mean anything.

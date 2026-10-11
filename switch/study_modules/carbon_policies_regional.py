@@ -373,6 +373,11 @@ def post_solve(m, outputs_dir):
             if tp not in getattr(m, "LIGHT_TPS", ())
             for f in m.FUELS_FOR_GEN[g]
         )
+        # on-site generators exempt from this programme under a tracked demand's cap coverage: the
+        # tracked-demands module takes them out of the cap row and lists them here (CHANGES §108)
+        exempt = getattr(m, "td_cap_exempt_emissions", {}).get((pr, pe))
+        if exempt is not None:
+            emissions -= value(exempt)
 
         violation = sum(value(m.AnnualCapViolation[pr, pe, z]) for z in zones)
 

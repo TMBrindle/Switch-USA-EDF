@@ -318,6 +318,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 | 109 | `.gitignore` | Three lines: `!tracked_demands/`, `!tracked_demands/**`, `tracked_demands/outputs/`. | The file ignores every top-level folder not listed; the new folder holds the tests and scripts. | none |
 | 110 | `switch/study_modules/tracked_demands.py` (new file; not in `switch/modules.txt`) | The tracked-demands module, opt-in per scenario line. | §107. | None for the model: no case loads it (`tracked_demands/tests/test_td_unloaded.py`). **Stage reuse:** a new file under `switch/study_modules/` fails `chain_reuse`'s code check (both scopes) against a reference recorded at a head before it, even for lines that don't load the module. Re-record references on a branch that has the file, or narrow the check to the modules a line loads (not changed here). |
 
+### Added in §108 (Oct 2026: tracked demands step 2, `tom/tracked-demands-v2`) — for Ollie's review
+
+| # | File | Change | Why | Effect on existing cases |
+|---|---|---|---|---|
+| 111 | `switch/study_modules/carbon_policies_regional.py` (`post_solve` only) | Reported programme emissions subtract `m.td_cap_exempt_emissions[programme, period]` when that attribute exists. The tracked-demands module sets it and takes the same tonnes out of the cap row (its own `BuildAction`, which rewrites each `Enforce_Regional_Carbon_Cap` row as `(emissions − exempt) × 0.001 <= allowances × 0.001` and stops if the row's form changes). | §108 item 2 (Tom, 11 Oct): per-programme coverage and size thresholds for on-site generators; the report must match the cap. | None: without the module the attribute doesn't exist. Toy proof: `test_td_unloaded.py::test_shared_edit_unloaded_is_byte_identical` (binding cap, every output byte-identical to the tag's copy). **Review point:** the module's rewrite depends on `cap_rule`'s form; a change there should keep `emissions × 0.001 <= …` or update `tracked_demands._apply_cap_coverage`. |
+
 **Not changed:**
 - `gen_build.py`, the Switch core and `switch/modules.txt`;
 - the `retirement_policy` axis, and Can_Retire in `resource_tags.yml`;

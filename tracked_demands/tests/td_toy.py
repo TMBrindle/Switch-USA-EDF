@@ -97,16 +97,19 @@ def solve(run: Path, inputs="inputs", outputs="outputs", extra=(), duals=True):
     return run / outputs
 
 
-def td_case(tmp_path, name, stress=False, solve=True, extra=(), after=None, load_module=True, duals=True, **kw):
+def td_case(tmp_path, name, stress=False, solve=True, extra=(), after=None, load_module=True, duals=True, before=(),
+            **kw):
     """Toy run folder with the tracked-demand inputs; after(inp) edits them further. load_module=False leaves the
-    module out of modules.txt (the input files are still written)."""
+    module out of modules.txt (the input files are still written). before: other repo study modules, loaded ahead of
+    tracked_demands (as on a scenario line, where --include-module comes after switch/modules.txt)."""
     def edit(inp):
         if stress:
             add_stress_timeseries(inp)
         write_td_inputs(inp, **kw)
         if after is not None:
             after(inp)
-    run = toyutil.toy_inputs(tmp_path, name, modules=("tracked_demands",) if load_module else (), edit=edit)
+    mods = tuple(before) + (("tracked_demands",) if load_module else ())
+    run = toyutil.toy_inputs(tmp_path, name, modules=mods, edit=edit)
     if solve:
         globals()["solve"](run, extra=extra, duals=duals)
     return run
@@ -122,3 +125,47 @@ def cost(run: Path, outputs="outputs") -> float:
 
 def csv(inp: Path, name: str, rows):
     pd.DataFrame(rows).to_csv(Path(inp) / name, index=False, na_rep=".")
+
+
+def add_onsite_gen(inp: Path, name="N-DC1-gas", td="DC1", zone="North", tech="TD_gas_recip", prime_mover="recip",
+                   heat_rate=9.0, overnight=900000.0, cap_limit=".", unit_size=".", unit_mw=".", rated_mw=".",
+                   variable_om=5.0):
+    """Append an on-site gas generator to gen_info.csv / gen_build_costs.csv and link it to `td`."""
+    inp = Path(inp)
+    gi = pd.read_csv(inp / "gen_info.csv", na_values=".")
+    row = gi[gi["GENERATION_PROJECT"] == "N-NG_GT"].iloc[0].copy()
+    row.update({"GENERATION_PROJECT": name, "gen_tech": tech, "gen_load_zone": zone, "gen_connect_cost_per_mw": 0.0,
+                "gen_capacity_limit_mw": cap_limit, "gen_full_load_heat_rate": heat_rate,
+                "gen_variable_om": variable_om, "gen_unit_size": unit_size, "gen_min_build_capacity": 0})
+    gi = pd.concat([gi, pd.DataFrame([row])])
+    gi = gi.replace(".", float("nan"))
+    gi.to_csv(inp / "gen_info.csv", index=False, na_rep=".")
+    bc = pd.read_csv(inp / "gen_build_costs.csv")
+    bc = pd.concat([bc, pd.DataFrame([{"GENERATION_PROJECT": name, "build_year": y, "gen_overnight_cost": overnight,
+                                        "gen_fixed_om": 5000.0} for y in (2020, 2030)])])
+    bc.to_csv(inp / "gen_build_costs.csv", index=False)
+    f = inp / "tracked_demand_onsite_gens.csv"
+    links = pd.read_csv(f) if f.exists() else pd.DataFrame()
+    links = pd.concat([links, pd.DataFrame([{"TRACKED_DEMAND": td, "GENERATION_PROJECT": name,
+                                             "td_onsite_prime_mover": prime_mover, "td_onsite_unit_mw": unit_mw,
+                                             "td_onsite_rated_mw": rated_mw}])])
+    links.to_csv(f, index=False, na_rep=".")
+
+
+def set_td(inp: Path, **cols):
+    """Set columns of tracked_demands.csv (all rows)."""
+    td = pd.read_csv(Path(inp) / "tracked_demands.csv")
+    for k, v in cols.items():
+        td[k] = v
+    td.to_csv(Path(inp) / "tracked_demands.csv", index=False, na_rep=".")
+
+
+def carbon_cap(inp: Path, program="RGGI", zones=("North",), cap=1e9, periods=(2020, 2030)):
+    pd.DataFrame([{"CO2_PROGRAM": program, "PERIOD": p, "LOAD_ZONE": z, "carbon_cap_tco2_per_yr": cap / len(zones),
+                   "carbon_cost_dollar_per_tco2": "."} for p in periods for z in zones]).to_csv(
+        Path(inp) / "carbon_policies_regional.csv", index=False)
+
+
+def soft_cap(inp: Path, mw=1.0, penalty=1e6, td="DC1"):
+    pd.DataFrame([{"TRACKED_DEMAND": td, "td_grid_soft_cap_mw": mw, "td_grid_soft_cap_penalty": penalty}]).to_csv(
+        Path(inp) / "tracked_demand_grid_soft_cap.csv", index=False)
