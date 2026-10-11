@@ -424,7 +424,7 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
       module lists `Enforce_Regional_Carbon_Cap`, whose bound is 0, so its dual was dropped before.
     - **Effect on fedpol cases with CCR:** the reported price changes where a residual or both-exhausted tiers
       occurred. The model is unchanged (output only).
-23. (§89, tom/s0-v3.1) **Output-only additions to shared modules.**
+23. (§89; in tag s0-v3.1, 3160be1) **Output-only additions to shared modules.**
     - **`prm_regional.py`:** new `prm_tx_reserve_value.csv` gives the reserve value of 1 MW more new capacity on
       every buildable line ($/kW-yr), including lines with nothing built yet; `dual_costs.csv` drops their rows
       because dual × bound = 0.
@@ -440,3 +440,41 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     - **New cost component:** `TxImportTrancheCost`, 0 without the files. It adds one row to `costs_itemized.csv` for
       every case that loads the module; the model is otherwise unchanged.
     - Any change under `switch/` also fails stage reuse under `--code-check model` against earlier solves.
+116. (§100, tom/s0-v3.2) **`switch/study_modules/interconnection_headroom.py`: optional separately priced technology
+    (wind price factor).**
+    - **Inputs:** new optional `ic_price_factors.csv` (`ic_key`, `ic_price_factor`), written by `switch_case.py` only
+      when `interconnection_headroom.price_factors` sets a factor (`config.yaml` default `{wind: null}`).
+    - **Model:** the priced technology gets its own share of each step and of the release (`ICStepPriced`,
+      `ICReleasePriced`, each at most the step's or release's fill). It has a covering constraint per load zone and
+      period, and pays (f / w − 1) × the step price on that share, inside `ICReactiveOvernight`.
+    - **Outputs:** new `priced_*` columns in `ic_spend.csv`, `ic_headroom.csv` and `ic_tranches_built.csv`.
+      `prepare_next_stage` reads `ic_tranches_built.csv` by column name, so it is unaffected.
+    - **Effect on existing cases:** none without the file (the priced sets are empty). The new columns read 0.
+117. (§100, tom/s0-v3.2) **`switch/study_modules/trans_hurdle_cost.py`: named import tranches.**
+    - **Inputs:** new optional `trans_import_tranches.csv` (TRANCHE, PERIOD, `named_tranche_free_mwh_per_yr`,
+      `named_tranche_cost_per_mwh`) and `trans_import_tranches_dirs.csv`. These are further tranches in the same LP
+      form as row 25 (the S0 WA option, `ca_wa_carbon.wa_import_charge: two_tranche`).
+    - **Cost:** costed in the same component, `TxImportTrancheCost`.
+    - **Outputs:** results in `trans_import_tranches_results.csv`. The single tranche's `annual_cost` is now its own
+      cost rather than the component total; they are equal when no named tranche exists.
+    - **Effect on existing cases:** none without the files.
+118. (§100, tom/s0-v3.2) **`pg_to_switch.py`: credit writer and investment credits.**
+    - **Credit writer:** the §90 hook in `gen_tax_credits_file` (`s0_workflow/tax_credits.py`, brought in from
+      6adc228). It adds nothing without `tax_credit_terms`. `gen_tax_credits.csv` is byte-identical to the s0-v3.1
+      writer's (test).
+    - **Investment credits:** `gen_build_costs_file` takes the settings and applies investment-credit terms
+      (`kind: investment`) to new-build capex, writing `investment_credit_report.csv`.
+    - **Effect on existing cases:** none without such a term (S0's `storage_credit.mode: obbba` sets one; the default,
+      `flat`, does not).
+119. (§109, tom/s0-v3.2) **`pg_to_switch.py`: `make_generator_variability` no longer goes through the joblib cache.**
+    - **Change:** it is called directly, with the same call and the same output. `kmeans_time_clustering` keeps its
+      cache.
+    - **Effect on existing cases:** none on the inputs. It saves about 6.5 GB of disk per build. Old
+      `cache/joblib/**/make_generator_variability` entries can be deleted.
+120. (§110, tom/s0-v3.2) **`pg_to_switch.py`: read-once input cache around the stage loop
+    (`s0_workflow/read_once.py`).**
+    - **Change:** pandas `read_csv` / `read_parquet` / `read_excel` calls on files named by `*_fn` settings are parsed
+      once per build and served from memory, as a deep copy per call. There is no disk cache, and `PG_READ_ONCE=0`
+      turns it off.
+    - **Effect on every case built with this pg_to_switch:** the written inputs are unchanged (five-stage stand-in
+      test). The parsed input files stay in memory for the whole build.

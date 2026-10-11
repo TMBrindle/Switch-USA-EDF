@@ -3921,7 +3921,7 @@ entry is numbered after them so the two branches merge without a clash.
   profiles with a gid join.
 - **Weather years:** S0 uses all seven (2007–2013).
 
-## 101. S0 v3.2: `make_generator_variability` No Longer Cached
+## 109. S0 v3.2: `make_generator_variability` No Longer Cached
 
 **Date:** 2026-10-11. **Branch:** `tom/s0-v3.2` only.
 
@@ -3947,7 +3947,7 @@ entry is numbered after them so the two branches merge without a clash.
 **Test:** `s0_workflow/tests/test_variability_cache.py` checks that the function isn't wrapped by the cache, that the
 single call site uses it directly, and that `kmeans_time_clustering` is still cached.
 
-## 102. S0 v3.2: Read-Once Input Cache for the Case Build
+## 110. S0 v3.2: Read-Once Input Cache for the Case Build
 
 **Date:** 2026-10-11. **Branch:** `tom/s0-v3.2` only.
 

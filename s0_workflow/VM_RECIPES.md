@@ -10,6 +10,21 @@ Ground rules (same as the ic_v4 recipe):
 - No installs into shared conda envs. If an import fails, stop and report it.
 - Case inputs and outputs go to fresh folders, never over existing ones.
 
+## S0 v3.1 and v3.2 worktrees: start from the tag
+
+S0 v3.1 is the tag `s0-v3.1`: annotated tag 98bf33c on commit 3160be1. It is not the `tom/s0-v3.1` branch
+(96b4780), which is behind the tag: it lacks the two-tranche default, the explicit yml key and the corrected
+targets. Build v3.1 reproductions from the tag, and v3.2 work from `tom/s0-v3.2`, which branches from the tag:
+```bash
+git -C "$MAIN" fetch origin tag s0-v3.1
+git -C "$MAIN" rev-parse 's0-v3.1^{commit}'                     # must print 3160be11a19f...
+git -C "$MAIN" worktree add --detach "$MAIN_s0v31" s0-v3.1     # v3.1 reproduction (detached, read-only use)
+git -C "$MAIN" fetch origin tom/s0-v3.2
+git -C "$MAIN" worktree add -b vm/s0v32 "$MAIN_s0v32" origin/tom/s0-v3.2   # local branch; do not push it
+```
+Set `MAIN_s0v31` / `MAIN_s0v32` to new, empty folder paths first. Use the archived load file for v3.1
+(`D:\SWITCH\ReEDS version\Q1 2026 - Strategy runs\archive\s0-v3.1`, CHANGES §98).
+
 ## 0. Worktree and data
 
 ```bash

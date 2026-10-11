@@ -1,4 +1,4 @@
-"""S0 v3.1 (tom/s0-v3.1): build rates stay exactly at v3 (79f4064). The rate tables (build_rate/outputs, generated on
+"""S0 v3.1 (tag s0-v3.1, 3160be1): build rates stay exactly at v3 (79f4064). The rate tables (build_rate/outputs, generated on
 the VM by `python -m brc.cli run`, not tracked) are a function of the build_rate/ code, config and reference data, the
 settings file, the Switch module and the case writer; every one of those is pinned here to its v3 content.
 

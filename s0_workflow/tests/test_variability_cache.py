@@ -1,4 +1,4 @@
-"""v3.2 (CHANGES §101): make_generator_variability is called directly, not through the joblib cache. The cache cost
+"""v3.2 (CHANGES §109): make_generator_variability is called directly, not through the joblib cache. The cache cost
 about 6.5 GB per build for about 2.3 s per stage and was never reused (its key followed generator columns that never
 reach the written files). kmeans_time_clustering keeps its cache."""
 import ast

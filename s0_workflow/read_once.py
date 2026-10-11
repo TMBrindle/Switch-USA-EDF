@@ -1,4 +1,4 @@
-"""Read-once, in-memory cache for the large input files a case build re-reads in every stage (CHANGES §102).
+"""Read-once, in-memory cache for the large input files a case build re-reads in every stage (CHANGES §110).
 
 pg_to_switch builds all the stages of a run in one process. PowerGenome re-reads the same input files in every stage:
 the hourly load file (regional_load_fn, "Loading user supplied load profile"), the flexible-demand file
@@ -154,10 +154,10 @@ def read_once(names, log=None):
             setattr(pd, r, saved[r])
         rows = cache.summary()
         if rows:
-            log("read-once input cache (§102): "
+            log("read-once input cache (§110): "
                 + "; ".join(f"{Path(x['file']).name}: {x['reads']} reads, parsed {x['parsed']}x "
                             f"({x['parse_seconds']} s), ~{x['seconds_saved_est']} s saved" for x in rows)
                 + f"; total ~{sum(x['seconds_saved_est'] for x in rows) / 60:.1f} min saved")
         else:
-            log("read-once input cache (§102): no reads of the named input files went through pandas")
+            log("read-once input cache (§110): no reads of the named input files went through pandas")
         cache.store.clear()

@@ -103,7 +103,7 @@ from conversion_functions import (
 
 from conversion_functions import LogFormatterTwoLine as LogFormatter
 
-# cache some functions to speed up repeated execution. make_generator_variability is NOT cached (v3.2, CHANGES §101):
+# cache some functions to speed up repeated execution. make_generator_variability is NOT cached (v3.2, CHANGES §109):
 # it takes about 2.3 s per stage but wrote about 6.5 GB of cache per build that was never reused, and its key changed
 # with generator columns that never reach the written files (e.g. credit settings), so cases with byte-identical
 # inputs missed each other's entries. The call and its output are unchanged; only the memoisation is gone.
@@ -3951,7 +3951,7 @@ def main(
     #%% [skip]
     """
     # Run through the different cases and save files in a new folder for each.
-    # Read-once input cache (§102, s0_workflow/read_once.py): the large input files the settings name (hourly load,
+    # Read-once input cache (§110, s0_workflow/read_once.py): the large input files the settings name (hourly load,
     # flexible demand, 860M, DG profiles, ...) are parsed once per build and served from memory in later stages;
     # each caller gets a copy, so the written inputs are unchanged. PG_READ_ONCE=0 turns it off.
     with s0_read_once.read_once(s0_read_once.input_file_names(case_settings), logger.info):

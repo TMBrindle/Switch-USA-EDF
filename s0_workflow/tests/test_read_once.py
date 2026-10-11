@@ -1,4 +1,4 @@
-"""Read-once input cache (CHANGES §102; s0_workflow/read_once.py). A five-stage stand-in for the build's per-stage
+"""Read-once input cache (CHANGES §110; s0_workflow/read_once.py). A five-stage stand-in for the build's per-stage
 reads: the load and flexible-demand zips and an 860M-style workbook, each re-read and edited in place every stage, as
 PowerGenome does. The written files must be byte-identical with and without the cache. Hand-built fixtures, not
 results."""
