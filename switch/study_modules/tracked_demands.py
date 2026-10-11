@@ -134,6 +134,37 @@ def _export_share(m, td):
     return float("inf") if v is None else v
 
 
+def _onsite_clean(m, td, t):
+    """On-site clean output of td's private techs at t (MW)."""
+    return sum(
+        m.DispatchOnsiteTech[td, tech, t]
+        for tech in m.TD_ONSITE_TECHS
+        if m.td_onsite_tech_is_clean[tech]
+    )
+
+
+def _onsite_clean_served(m, td, t):
+    """On-site clean power credited to td's consumption at t: direct use plus clean discharge, less export debit.
+
+    Works on model components and, through value(), on a solved model."""
+    out = _onsite_clean(m, td, t)
+    if (td, t) in m.TD_CFE_STORAGE_TPS:
+        out = out - m.TDCleanChargeOnsite[td, t] + m.TDCleanDischarge[td, t]
+    if (td, t) in m.TD_EXPORT_TIMEPOINTS:
+        z = _td_zone(m, td)
+        out = out - m.grid_clean_fraction[z, t] * m.TDGridExport[td, t]
+    return out
+
+
+def _clean_served(m, td, t):
+    """All clean power credited to td's consumption at t (MW), before RECs; export debit excluded (it only lowers
+    the credit, so the hourly cap is tested on the gross)."""
+    out = _onsite_clean(m, td, t) + m.TDGridCleanToLoad[td, t]
+    if (td, t) in m.TD_CFE_STORAGE_TPS:
+        out = out - m.TDCleanChargeOnsite[td, t] + m.TDCleanDischarge[td, t]
+    return out
+
+
 def _expand_flex_events(inputs_dir, switch_data):
     """
     Read tracked_demand_flex_events.csv and expand time_block references.
@@ -699,6 +730,59 @@ def define_components(m):
         doc="CFE shortfall (MWh/yr) in this block; non-zero incurs penalty cost.",
     )
 
+    # ── Clean-energy ledger (CHANGES §108 (b)) ────────────────────────────────
+    # Hourly clean credit counts each clean MWh once and never more than the
+    # TD consumes in that hour. For each TD with CFE targets and timepoint t:
+    #   GridCleanToLoad + CleanChargeGrid  <= gcf x grid draw
+    #   CleanChargeOnsite                  <= on-site clean output
+    #   clean served = on-site clean - CleanChargeOnsite + CleanDischarge
+    #                  + GridCleanToLoad  <= TDDispatch          (hourly cap)
+    # and, for TDs with a battery, a clean sub-ledger of its state of charge
+    # (TD_Clean_Storage_* below): clean charge in, clean discharge out, at the
+    # battery's efficiency, never above the battery's level. Clean that goes
+    # into the battery counts when it comes out, not when it goes in. Export
+    # (§108 (a)) is debited at the grid clean fraction (conservative: it
+    # removes any gain from drawing and exporting in the same hour).
+
+    m.TD_CFE_TDS = Set(
+        dimen=1,
+        initialize=lambda m: sorted({td for td, p, blk in m.TD_CFE_TARGET_PERIODS}, key=str),
+    )
+    m.TD_CFE_TPS = Set(
+        dimen=2,
+        initialize=lambda m: [(td, t) for td in m.TD_CFE_TDS for t in m.TIMEPOINTS],
+    )
+    m.TD_CFE_STORAGE_TPS = Set(
+        dimen=2,
+        initialize=lambda m: [(td, t) for td, t in m.TD_CFE_TPS if td in m.TD_STORAGE],
+    )
+    m.TDGridCleanToLoad = Var(
+        m.TD_CFE_TPS, within=NonNegativeReals,
+        doc="Grid clean power credited to the TD's own consumption (MW).",
+    )
+    m.TDCleanChargeOnsite = Var(m.TD_CFE_STORAGE_TPS, within=NonNegativeReals,
+                                doc="On-site clean power charged into the battery (MW).")
+    m.TDCleanChargeGrid = Var(m.TD_CFE_STORAGE_TPS, within=NonNegativeReals,
+                              doc="Grid clean power charged into the battery (MW).")
+    m.TDCleanDischarge = Var(m.TD_CFE_STORAGE_TPS, within=NonNegativeReals,
+                             doc="Battery discharge credited as clean (MW).")
+    m.TDCleanLevel = Var(m.TD_CFE_STORAGE_TPS, within=NonNegativeReals,
+                         doc="Clean part of the battery's state of charge (MWh).")
+
+    m.TD_Grid_Clean_Available = Constraint(
+        m.TD_CFE_TPS,
+        rule=lambda m, td, t: (
+            Constraint.Skip if _td_zone(m, td) is None else
+            m.TDGridCleanToLoad[td, t]
+            + (m.TDCleanChargeGrid[td, t] if (td, t) in m.TD_CFE_STORAGE_TPS else 0)
+            <= m.grid_clean_fraction[_td_zone(m, td), t] * m.TDGridDraw[td, t]
+        ),
+    )
+    m.TD_Clean_Served_Cap = Constraint(
+        m.TD_CFE_TPS,
+        rule=lambda m, td, t: _clean_served(m, td, t) <= m.TDDispatch[td, t],
+    )
+
     # ── CFE soft constraint ───────────────────────────────────────────────────
 
     def _cfe_constraint_rule(m, td, p, blk):
@@ -710,9 +794,10 @@ def define_components(m):
             return Constraint.Skip
 
         # Grid clean credit comes from TDBlockGridCleanMWh (Stage 9 prerequisite):
-        # bounded above by actual earned grid clean MWh (TD_CFE_Grid_Earned) and
-        # optionally by a per-block source cap (TD_Grid_Clean_Cap, Stage 9).
-        # RECs (Stage 11), on-site clean, and clean storage discharge added directly.
+        # bounded above by the grid clean power credited to the TD's own
+        # consumption (TD_CFE_Grid_Earned) and optionally by a per-block source
+        # cap (TD_Grid_Clean_Cap, Stage 9). RECs (Stage 11) and on-site clean
+        # served (through the clean ledger) are added directly.
         rec_mwh = (
             m.TDBlockRECPurchase[td, p, blk]
             if (td, p, blk) in m.TD_REC_SUPPLY else 0
@@ -720,17 +805,7 @@ def define_components(m):
         estimated_clean_mwh = (
             m.TDBlockGridCleanMWh[td, p, blk]
             + rec_mwh
-            + sum(
-                (sum(
-                     m.DispatchOnsiteTech[td, tech, t]
-                     for tech in m.TD_ONSITE_TECHS
-                     if m.td_onsite_tech_is_clean[tech]
-                 )
-                 + (m.TDStorageDischarge[td, t] * m.grid_clean_fraction[z, t]
-                    if td in m.TD_STORAGE else 0))
-                * m.tp_weight_in_year[t]
-                for t in tps
-            )
+            + sum(_onsite_clean_served(m, td, t) * m.tp_weight_in_year[t] for t in tps)
         )
         total_consumption_mwh = sum(
             m.TDDispatch[td, t] * m.tp_weight_in_year[t] for t in tps
@@ -768,8 +843,7 @@ def define_components(m):
         if not tps or z is None:
             return Constraint.Skip
         return m.TDBlockGridCleanMWh[td, p, blk] <= sum(
-            m.TDGridDraw[td, t] * m.grid_clean_fraction[z, t] * m.tp_weight_in_year[t]
-            for t in tps
+            m.TDGridCleanToLoad[td, t] * m.tp_weight_in_year[t] for t in tps
         )
 
     m.TD_CFE_Grid_Earned = Constraint(m.TD_CFE_TARGET_PERIODS, rule=_td_cfe_grid_earned_rule)
@@ -1194,6 +1268,60 @@ def define_components(m):
     )
 
     # ── Objective function component ──────────────────────────────────────────
+
+    # ── Clean sub-ledger of the battery (§108 (b)) ────────────────────────────
+    # Only for TDs with CFE targets. Clean charge comes from on-site clean
+    # output or the grid's clean share; the rest of the charge must come from
+    # non-clean sources (grid's non-clean share, non-clean on-site output,
+    # linked generators), so clean can't be relabelled. Clean discharge is
+    # bounded by the clean level, which tracks the battery's own losses.
+
+    m.TD_Clean_Charge_Onsite_Limit = Constraint(
+        m.TD_CFE_STORAGE_TPS,
+        rule=lambda m, td, t: m.TDCleanChargeOnsite[td, t] <= _onsite_clean(m, td, t),
+    )
+    m.TD_Clean_Charge_Limit = Constraint(
+        m.TD_CFE_STORAGE_TPS,
+        rule=lambda m, td, t: (
+            m.TDCleanChargeOnsite[td, t] + m.TDCleanChargeGrid[td, t] <= m.TDStorageCharge[td, t]
+        ),
+    )
+
+    def _nonclean_charge_rule(m, td, t):
+        z = _td_zone(m, td)
+        nonclean_onsite = sum(
+            m.DispatchOnsiteTech[td, tech, t]
+            for tech in m.TD_ONSITE_TECHS
+            if not m.td_onsite_tech_is_clean[tech]
+        )
+        return (
+            m.TDStorageCharge[td, t] - m.TDCleanChargeOnsite[td, t] - m.TDCleanChargeGrid[td, t]
+            <= (1 - m.grid_clean_fraction[z, t]) * m.TDGridDraw[td, t]
+            + nonclean_onsite
+            + m.TDOnsiteGenMW[td, t]
+        )
+
+    m.TD_NonClean_Charge_Sources = Constraint(m.TD_CFE_STORAGE_TPS, rule=_nonclean_charge_rule)
+    m.TD_Clean_Discharge_Limit = Constraint(
+        m.TD_CFE_STORAGE_TPS,
+        rule=lambda m, td, t: m.TDCleanDischarge[td, t] <= m.TDStorageDischarge[td, t],
+    )
+    m.TD_Clean_Level_Limit = Constraint(
+        m.TD_CFE_STORAGE_TPS,
+        rule=lambda m, td, t: m.TDCleanLevel[td, t] <= m.TDStorageLevel[td, t],
+    )
+
+    def _clean_level_rule(m, td, t):
+        sqrt_eff = m.td_storage_roundtrip_eff[td] ** 0.5
+        dt = m.tp_duration_hrs[t]
+        return (
+            m.TDCleanLevel[td, t]
+            == m.TDCleanLevel[td, m.tp_previous[t]]
+            + (m.TDCleanChargeOnsite[td, t] + m.TDCleanChargeGrid[td, t]) * sqrt_eff * dt
+            - m.TDCleanDischarge[td, t] / sqrt_eff * dt
+        )
+
+    m.TD_Clean_Storage_Track_Level = Constraint(m.TD_CFE_STORAGE_TPS, rule=_clean_level_rule)
 
     # Same capital cost each period (persistent build, not re-paid).
     m.TDStorageFixedCost = Expression(
@@ -2156,8 +2284,7 @@ def post_solve(m, outdir):
               tracked_demand_cfe_computed.csv (post-hoc CFE using actual dispatch)
               tracked_demand_45v_assessment.csv (H2 TDs only)
 
-    Stage 10 outputs require dispatch.csv written earlier by generators_core_dispatch.
-    If that file is absent (e.g., --skip-output-file dispatch.csv), Stage 10 is skipped.
+    Stage 10 outputs are computed from the solved model (§108 (b); they no longer need dispatch.csv).
     """
     if not m.TRACKED_DEMANDS:
         return
@@ -2217,6 +2344,7 @@ def post_solve(m, outdir):
 
     if m.TD_CFE_TARGET_PERIODS:
         _write_cfe_detail(m, outdir)
+        _write_clean_ledger(m, outdir)
 
     # ── Stage 3 output ────────────────────────────────────────────────────────
 
@@ -2246,7 +2374,7 @@ def post_solve(m, outdir):
     # ── Stage 10 outputs ──────────────────────────────────────────────────────
 
     region_col = getattr(m.options, "td_cfe_region_col", "h2ptcreg")
-    grid_df = _compute_grid_metrics(outdir, m.options.inputs_dir, region_col)
+    grid_df = _compute_grid_metrics(m, m.options.inputs_dir, region_col)
     if grid_df is not None:
         _write_grid_metrics_computed(m, outdir, grid_df)
         _write_td_emissions(m, outdir, grid_df)
@@ -2314,6 +2442,30 @@ def _write_onsite_gen_outputs(m, outdir):
     ]).to_csv(os.path.join(outdir, "tracked_demand_onsite_emissions.csv"), index=False)
 
 
+def _write_clean_ledger(m, outdir):
+    """tracked_demand_clean_ledger.csv: the hourly clean ledger (§108 (b)) for each TD with CFE targets."""
+    def g(var, td, t):
+        return value(var[td, t]) if (td, t) in var else 0.0
+    rows = []
+    for td, t in m.TD_CFE_TPS:
+        rows.append((
+            td, t, m.tp_timestamp[t],
+            value(m.TDDispatch[td, t]),
+            value(m.TDGridCleanToLoad[td, t]),
+            value(_onsite_clean(m, td, t)),
+            g(m.TDCleanChargeOnsite, td, t),
+            g(m.TDCleanChargeGrid, td, t),
+            g(m.TDCleanDischarge, td, t),
+            g(m.TDCleanLevel, td, t),
+            value(_clean_served(m, td, t)),
+        ))
+    pd.DataFrame(rows, columns=[
+        "tracked_demand", "timepoint", "timestamp", "consumption_MW", "grid_clean_to_load_MW", "onsite_clean_MW",
+        "clean_charge_onsite_MW", "clean_charge_grid_MW", "clean_discharge_MW", "clean_level_MWh",
+        "clean_served_MW",
+    ]).to_csv(os.path.join(outdir, "tracked_demand_clean_ledger.csv"), index=False)
+
+
 def _write_cfe_detail(m, outdir):
 
     def _cfe_detail_row(m, td, p, blk):
@@ -2329,19 +2481,12 @@ def _write_cfe_detail(m, outdir):
             value(m.TDBlockRECPurchase[td, p, blk])
             if (td, p, blk) in m.TD_REC_SUPPLY else 0.0
         )
+        # the same terms as TD_CFE_Constraint (clean ledger, §108 (b))
         clean_mwh = (
             value(m.TDBlockGridCleanMWh[td, p, blk])
             + rec_mwh
             + sum(
-                (sum(
-                     value(m.DispatchOnsiteTech[td, tech, t])
-                     for tech in m.TD_ONSITE_TECHS
-                     if m.td_onsite_tech_is_clean[tech]
-                 )
-                 + (value(m.TDStorageDischarge[td, t])
-                    * value(m.grid_clean_fraction[z, t])
-                    if td in m.TD_STORAGE else 0.0))
-                * value(m.tp_weight_in_year[t])
+                value(_onsite_clean_served(m, td, t)) * value(m.tp_weight_in_year[t])
                 for t in tps
             )
         )
@@ -2525,46 +2670,41 @@ def _find_hierarchy_file(start_dir):
     return None
 
 
-def _compute_grid_metrics(outdir, inputs_dir=None, region_col="h2ptcreg"):
+def _compute_grid_metrics(m, inputs_dir=None, region_col="h2ptcreg"):
     """
-    Read dispatch.csv from outdir and compute per-(zone, timepoint) grid metrics,
-    aggregated at the region level specified by region_col in hierarchy.csv.
+    Per-(zone, timepoint) grid metrics from the solved model (§108 (b): was read from dispatch.csv).
 
-    Returns a DataFrame indexed by ["gen_load_zone", "timestamp"] with columns:
-        grid_clean_fraction — fraction of dispatched non-storage generation from
-                              clean sources, aggregated over region_col
-        co2_tonne_per_mwh  — tCO2/MWh of dispatched generation in the region
+    Returns a DataFrame indexed by [LOAD_ZONE, TIMEPOINT] (timepoint ids, as grid_clean_fraction.csv uses) with:
+        timestamp            tp_timestamp, for reference
+        grid_clean_fraction  share of dispatched generation from clean sources, aggregated over region_col
+        co2_tonne_per_mwh    tCO2 (DispatchEmissions) per MWh of dispatched generation in the region
 
-    The region-level values are assigned back to each zone in that region so that
-    zone-level lookups in TD emissions and CFE computations use the wider grid mix.
-
-    Falls back to zone-level aggregation if hierarchy.csv is not found or region_col
-    is absent, or when region_col == 'ba'.
-
-    Returns None if dispatch.csv is absent (Stage 10 is silently skipped).
+    Rates come from DispatchGen and DispatchEmissions per hour, unweighted, so zero-weight stress hours get their
+    own values. Light stress timepoints (§69) have no fuel use or emissions in the model, so their intensity is 0.
+    Left out: storage (it passes energy through) and every tracked demand's linked on-site generators (they serve
+    the demand behind the meter; counting them would charge the demand twice for its own plant).
+    Regions: column region_col of hierarchy.csv (searched upward from inputs_dir); zone level when it is absent or
+    region_col is 'ba'. Returns None when the model has no generators.
     """
-    dispatch_csv = os.path.join(outdir, "dispatch.csv")
-    if not os.path.exists(dispatch_csv):
+    storage = set(getattr(m, "STORAGE_GENS", ()))
+    onsite = {g for _, g in m.TD_ONSITE_GENS}
+    light = getattr(m, "LIGHT_TPS", ())
+    rows = []
+    for g, t in m.GEN_TPS:
+        if g in storage or g in onsite:
+            continue
+        src = str(value(m.gen_energy_source[g])).lower()
+        gen = value(m.DispatchGen[g, t])
+        co2 = 0.0
+        if g in m.FUEL_BASED_GENS and t not in light:
+            co2 = sum(
+                value(m.DispatchEmissions[g, t, f])
+                for f in m.FUELS_FOR_GEN[g] if (g, t, f) in m.GEN_TP_FUELS
+            )
+        rows.append((m.gen_load_zone[g], t, gen, gen if src in _CLEAN_ENERGY_SOURCES else 0.0, co2))
+    if not rows:
         return None
-
-    df = pd.read_csv(dispatch_csv, dtype={"timestamp": str})
-
-    # Exclude storage rows: pass-through devices don't generate clean energy.
-    # (Switch writes is_storage only when a storage module is loaded.)
-    if "is_storage" in df.columns:
-        df_gen = df[~df["is_storage"].fillna(False).astype(bool)].copy()
-    else:
-        df_gen = df.copy()
-
-    # Per-timepoint CO2 rate (tCO2/hr) from the annually-weighted dispatch column.
-    df_gen["co2_per_hr"] = (
-        df_gen["DispatchEmissions_tCO2_per_typical_yr"]
-        / df_gen["tp_weight_in_year_hrs"].clip(lower=1e-9)
-    )
-
-    # Clean classification by energy source (case-insensitive).
-    df_gen["is_clean"] = df_gen["gen_energy_source"].str.lower().isin(_CLEAN_ENERGY_SOURCES)
-    df_gen["clean_gen_mw"] = df_gen["DispatchGen_MW"] * df_gen["is_clean"].astype(float)
+    df_gen = pd.DataFrame(rows, columns=["gen_load_zone", "TIMEPOINT", "gen_mw", "clean_gen_mw", "co2_per_hr"])
 
     # ── Try to load hierarchy for regional aggregation ────────────────────────
     region_map = None
@@ -2593,63 +2733,66 @@ def _compute_grid_metrics(outdir, inputs_dir=None, region_col="h2ptcreg"):
                     f"at '{region_col}' level ({region_map[region_col].nunique()} regions)."
                 )
 
-    # ── Aggregate ─────────────────────────────────────────────────────────────
     if region_map is not None:
         df_gen = df_gen.merge(region_map, on="gen_load_zone", how="left")
         # Zones missing from hierarchy fall back to their own zone name.
         df_gen[region_col] = df_gen[region_col].fillna(df_gen["gen_load_zone"])
-
-        # Sum dispatch at region × timestamp level.
-        reg_agg = df_gen.groupby([region_col, "timestamp"], sort=False).agg(
-            total_gen_mw=("DispatchGen_MW", "sum"),
-            clean_gen_mw=("clean_gen_mw", "sum"),
-            co2_tonne_per_hr=("co2_per_hr", "sum"),
-        )
-        safe_total = reg_agg["total_gen_mw"].clip(lower=1e-9)
-        reg_agg["grid_clean_fraction"] = (reg_agg["clean_gen_mw"] / safe_total).clip(0.0, 1.0)
-        reg_agg["co2_tonne_per_mwh"] = (reg_agg["co2_tonne_per_hr"] / safe_total).clip(lower=0.0)
-
-        # Map regional metrics back to (zone, timestamp) index for zone-level lookup.
-        zone_ts = (
-            df_gen[["gen_load_zone", region_col, "timestamp"]]
-            .drop_duplicates()
-            .merge(
-                reg_agg[["grid_clean_fraction", "co2_tonne_per_mwh"]].reset_index(),
-                on=[region_col, "timestamp"],
-            )
-            .set_index(["gen_load_zone", "timestamp"])
-        )
-        return zone_ts[["grid_clean_fraction", "co2_tonne_per_mwh"]]
-
+        key = region_col
     else:
-        # Zone-level fallback.
-        agg = df_gen.groupby(["gen_load_zone", "timestamp"], sort=False).agg(
-            total_gen_mw=("DispatchGen_MW", "sum"),
-            clean_gen_mw=("clean_gen_mw", "sum"),
-            co2_tonne_per_hr=("co2_per_hr", "sum"),
-        )
-        safe_total = agg["total_gen_mw"].clip(lower=1e-9)
-        agg["grid_clean_fraction"] = (agg["clean_gen_mw"] / safe_total).clip(0.0, 1.0)
-        agg["co2_tonne_per_mwh"] = (agg["co2_tonne_per_hr"] / safe_total).clip(lower=0.0)
-        return agg[["grid_clean_fraction", "co2_tonne_per_mwh"]]
+        df_gen["_region"] = df_gen["gen_load_zone"]
+        key = "_region"
+
+    agg = df_gen.groupby([key, "TIMEPOINT"], sort=False).agg(
+        total_gen_mw=("gen_mw", "sum"),
+        clean_gen_mw=("clean_gen_mw", "sum"),
+        co2_tonne_per_hr=("co2_per_hr", "sum"),
+    )
+    safe_total = agg["total_gen_mw"].clip(lower=1e-9)
+    agg["grid_clean_fraction"] = (agg["clean_gen_mw"] / safe_total).clip(0.0, 1.0)
+    agg["co2_tonne_per_mwh"] = (agg["co2_tonne_per_hr"] / safe_total).clip(lower=0.0)
+
+    # Map regional metrics back to every (zone, timepoint) of the zones in each region.
+    zone_tp = (
+        df_gen[["gen_load_zone", key, "TIMEPOINT"]]
+        .drop_duplicates()
+        .merge(agg[["grid_clean_fraction", "co2_tonne_per_mwh"]].reset_index(), on=[key, "TIMEPOINT"])
+        .rename(columns={"gen_load_zone": "LOAD_ZONE"})
+    )
+    zone_tp["timestamp"] = zone_tp["TIMEPOINT"].map(lambda t: m.tp_timestamp[t])
+    zone_tp = zone_tp.sort_values(["LOAD_ZONE", "TIMEPOINT"], key=lambda c: c.map(str) if c.name == "LOAD_ZONE" else c)
+    return zone_tp.set_index(["LOAD_ZONE", "TIMEPOINT"])[["timestamp", "grid_clean_fraction", "co2_tonne_per_mwh"]]
 
 
 def _write_grid_metrics_computed(m, outdir, grid_df):
-    """Write grid_clean_fraction_computed.csv and grid_co2_intensity_computed.csv."""
-    base = grid_df.reset_index()[
-        ["gen_load_zone", "timestamp", "grid_clean_fraction", "co2_tonne_per_mwh"]
-    ].rename(columns={"gen_load_zone": "LOAD_ZONE", "timestamp": "TIMEPOINT"})
-
-    base[["LOAD_ZONE", "TIMEPOINT", "grid_clean_fraction"]].to_csv(
+    """Write grid_clean_fraction_computed.csv and grid_co2_intensity_computed.csv, keyed by timepoint id, so the
+    first can be used as the next pass's grid_clean_fraction.csv (§108 (b))."""
+    base = grid_df.reset_index()
+    base[["LOAD_ZONE", "TIMEPOINT", "grid_clean_fraction", "timestamp"]].to_csv(
         os.path.join(outdir, "grid_clean_fraction_computed.csv"),
         index=False,
         float_format="%.6f",
     )
-    base[["LOAD_ZONE", "TIMEPOINT", "co2_tonne_per_mwh"]].to_csv(
+    base[["LOAD_ZONE", "TIMEPOINT", "co2_tonne_per_mwh", "timestamp"]].to_csv(
         os.path.join(outdir, "grid_co2_intensity_computed.csv"),
         index=False,
         float_format="%.8f",
     )
+
+
+def _onsite_co2_per_hr(m, td, t):
+    """tCO2/h from td's private on-site techs and its linked generators at t."""
+    private = sum(
+        value(m.DispatchOnsiteTech[td, tech, t])
+        * value(m.td_onsite_tech_emissions[tech])
+        * (1.0 - value(m.td_onsite_tech_capture_rate[tech]))
+        for tech in m.TD_ONSITE_TECHS
+    )
+    linked = sum(
+        value(m.DispatchEmissions[g, t, f])
+        for g in _onsite_gens(m, td) if g in m.FUEL_BASED_GENS
+        for f in m.FUELS_FOR_GEN[g] if (g, t, f) in m.GEN_TP_FUELS
+    )
+    return private + linked
 
 
 def _write_td_emissions(m, outdir, grid_df):
@@ -2658,32 +2801,22 @@ def _write_td_emissions(m, outdir, grid_df):
 
     Attributes CO2 to each TD from:
       - Grid draw:  TDGridDraw[td, t] × zone_co2_intensity[z, t]
-      - Onsite gen: DispatchOnsiteTech[td, tech, t] × net_emissions_rate[tech]
+      - On-site:    private techs' net emissions rate × dispatch, plus the linked generators' DispatchEmissions
 
     Columns: tracked_demand, timepoint, timestamp,
              grid_co2_tonne_per_hr, onsite_co2_tonne_per_hr, total_co2_tonne_per_hr
     """
-    co2_lookup = grid_df["co2_tonne_per_mwh"].to_dict()   # (zone, timestamp) -> tCO2/MWh
+    co2_lookup = grid_df["co2_tonne_per_mwh"].to_dict()   # (zone, timepoint) -> tCO2/MWh
 
     rows = []
     for td in m.TRACKED_DEMANDS:
         z = _td_zone(m, td)
         for t in m.TIMEPOINTS:
-            ts = str(m.tp_timestamp[t])
-            key = (z, ts) if z is not None else None
-            co2_intensity = co2_lookup.get(key, 0.0) if key else 0.0
-
+            co2_intensity = co2_lookup.get((z, t), 0.0) if z is not None else 0.0
             grid_co2 = value(m.TDGridDraw[td, t]) * co2_intensity
-
-            onsite_co2 = sum(
-                value(m.DispatchOnsiteTech[td, tech, t])
-                * value(m.td_onsite_tech_emissions[tech])
-                * (1.0 - value(m.td_onsite_tech_capture_rate[tech]))
-                for tech in m.TD_ONSITE_TECHS
-            ) if m.TD_ONSITE_TECHS else 0.0
-
+            onsite_co2 = _onsite_co2_per_hr(m, td, t)
             rows.append((
-                td, t, ts,
+                td, t, str(m.tp_timestamp[t]),
                 round(grid_co2, 8),
                 round(onsite_co2, 8),
                 round(grid_co2 + onsite_co2, 8),
@@ -2705,16 +2838,29 @@ def _write_cfe_computed(m, outdir, grid_df):
     """
     Write tracked_demand_cfe_computed.csv.
 
-    Re-computes CFE fractions using actual dispatch-derived clean fractions
-    (from grid_df) rather than the exogenous grid_clean_fraction parameter.
-    Provides a post-hoc check on how well the optimized plan performs given
-    the real grid mix.
+    Re-computes CFE fractions with the dispatch-derived clean fractions (grid_df) instead of the exogenous
+    grid_clean_fraction parameter, with the same ledger as the model (§108 (b)): per hour, on-site clean served
+    (direct use + clean discharge) plus the grid's clean share of the draw not used for clean charging, capped at
+    consumption, less export at the clean fraction.
 
     Columns: tracked_demand, period, time_block,
              cfe_target, cfe_computed_fraction, computed_clean_MWh,
-             total_MWh, computed_shortfall_MWh
+             total_MWh, computed_shortfall_MWh, rec_MWh
     """
-    cf_lookup = grid_df["grid_clean_fraction"].to_dict()   # (zone, timestamp) -> fraction
+    cf_lookup = grid_df["grid_clean_fraction"].to_dict()   # (zone, timepoint) -> fraction
+
+    def clean_at(td, z, t):
+        cf = cf_lookup.get((z, t), 0.0)
+        onsite = value(_onsite_clean(m, td, t))
+        charge_grid = 0.0
+        if (td, t) in m.TD_CFE_STORAGE_TPS:
+            onsite += value(m.TDCleanDischarge[td, t]) - value(m.TDCleanChargeOnsite[td, t])
+            charge_grid = value(m.TDCleanChargeGrid[td, t])
+        grid = max(0.0, value(m.TDGridDraw[td, t]) * cf - charge_grid)
+        served = min(value(m.TDDispatch[td, t]), onsite + grid)
+        if (td, t) in m.TD_EXPORT_TIMEPOINTS:
+            served -= cf * value(m.TDGridExport[td, t])
+        return served
 
     rows = []
     for td, p, blk in m.TD_CFE_TARGET_PERIODS:
@@ -2727,26 +2873,12 @@ def _write_cfe_computed(m, outdir, grid_df):
             value(m.TDDispatch[td, t]) * value(m.tp_weight_in_year[t])
             for t in tps
         )
-
         rec_mwh = (
             value(m.TDBlockRECPurchase[td, p, blk])
             if (td, p, blk) in m.TD_REC_SUPPLY else 0.0
         )
-
         computed_clean_mwh = rec_mwh + sum(
-            (
-                value(m.TDGridDraw[td, t])
-                * cf_lookup.get((z, str(m.tp_timestamp[t])), 0.0)
-                + (sum(
-                    value(m.DispatchOnsiteTech[td, tech, t])
-                    for tech in m.TD_ONSITE_TECHS
-                    if m.td_onsite_tech_is_clean[tech]
-                ) if m.TD_ONSITE_TECHS else 0.0)
-                + (value(m.TDStorageDischarge[td, t])
-                   * cf_lookup.get((z, str(m.tp_timestamp[t])), 0.0)
-                   if td in m.TD_STORAGE else 0.0)
-            ) * value(m.tp_weight_in_year[t])
-            for t in tps
+            clean_at(td, z, t) * value(m.tp_weight_in_year[t]) for t in tps
         )
 
         target = value(m.td_cfe_target[td, p, blk])
@@ -2826,19 +2958,14 @@ def _write_45v_assessment(m, outdir, grid_df):
 
             grid_co2 = sum(
                 value(m.TDGridDraw[td, t])
-                * co2_lookup.get((z, str(m.tp_timestamp[t])), 0.0)
+                * co2_lookup.get((z, t), 0.0)
                 * value(m.tp_weight_in_year[t])
                 for t in tps
             ) if z else 0.0
 
             onsite_co2 = sum(
-                value(m.DispatchOnsiteTech[td, tech, t])
-                * value(m.td_onsite_tech_emissions[tech])
-                * (1.0 - value(m.td_onsite_tech_capture_rate[tech]))
-                * value(m.tp_weight_in_year[t])
-                for tech in m.TD_ONSITE_TECHS
-                for t in tps
-            ) if m.TD_ONSITE_TECHS else 0.0
+                _onsite_co2_per_hr(m, td, t) * value(m.tp_weight_in_year[t]) for t in tps
+            )
 
             total_co2 = grid_co2 + onsite_co2
 

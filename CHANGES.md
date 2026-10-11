@@ -3966,3 +3966,37 @@ limits, not clean in matching, coverage default/unit/site/tCO₂ with the actual
 a binding cap made cheaper by an exemption, the size-missing error, gas-turbine cap membership, headroom weight).
 `test_td_unloaded.py` now allows only registered shared edits (each with its SHARED_CHANGES row) and proves each
 byte-identical unloaded against the tag's copy.
+
+**(b) Hourly matching: clean counted once; computed fractions keyed by timepoint.**
+1. **Clean ledger.** For each TD with CFE targets and each timepoint:
+   - `TDGridCleanToLoad` + clean grid charging ≤ grid clean fraction × grid draw;
+   - clean served (on-site clean − clean charged from it + clean discharge + grid clean to load) ≤ consumption.
+
+   TDs with a battery carry a clean sub-ledger of its state of charge: clean charge from on-site clean or the
+   grid's clean share; the rest of the charge must come from non-clean sources (so clean can't be relabelled).
+   Clean discharge is bounded by the clean level, which loses the battery's own efficiency. Clean through the
+   battery counts once, when it comes out. Export is debited at the grid clean fraction, which is conservative:
+   drawing and exporting in the same hour gains nothing.
+
+   Block credit = grid clean to load (with the stage-9 caps) + RECs + on-site clean served.
+   - Toy: hourly blocks were credited up to 114% of consumption (§107 gap 3). They now sit at the 90% target, with
+     night hours met by clean discharge. The toy's cost rises 2.0% (143.3M → 146.2M).
+   - New output: `tracked_demand_clean_ledger.csv`.
+2. **Grid metrics from the model.** `grid_clean_fraction_computed.csv` and `grid_co2_intensity_computed.csv`:
+   - computed from `DispatchGen` and `DispatchEmissions` per hour, unweighted, instead of `dispatch.csv`;
+   - keyed by timepoint id (`TIMEPOINT`), with `timestamp` as an extra column, so the first file is a valid
+     `grid_clean_fraction.csv` for the next pass (§107 gap 5);
+   - zero-weight stress hours get their own intensity (they read 0 before). Light stress days (§69) still read 0:
+     the model has no fuel use there;
+   - storage and every TD's linked on-site generators are left out of the grid mix.
+
+   The post-solve CFE check, the hourly emissions and the 45V assessment use the same keys, the ledger, and the
+   linked generators' emissions.
+3. **Tests:** the three strict xfails for gaps 3 and 5 are now tests and pass. New tests:
+   - clean through the battery counts once, at discharge (night hours);
+   - a second pass reads `grid_clean_fraction_computed.csv` as its input.
+
+   One strict xfail remains: the stress-day load (gap 1, step 2(d)).
+
+Results after (b): `tracked_demands/tests` 49 passed, 1 xfailed on pandas 3.0.6 (Python 3.11) and 1.4.4
+(Python 3.10).

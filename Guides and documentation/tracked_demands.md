@@ -1250,8 +1250,12 @@ the same bytes in every output file as the toy without them (`tracked_demands/te
 
 ## 12. Interactions with Today's Model (Oct 2026 Audit)
 
-> **Status after §108 (step 2, Oct 2026).** Closed so far: on-site fuel plant and carbon caps (12.2 carbon row,
-> 12.5) by section 15.1–15.2. The rest of this section is the step-1 audit as written.
+> **Status after §108 (step 2, Oct 2026).** Closed so far:
+> - on-site fuel plant and carbon caps (12.2 carbon row, 12.5): sections 15.1–15.2;
+> - the hourly double credit through the battery, the timestamp keying of the computed clean fraction, and the
+>   stress-hour CO₂ intensity (12.4): section 15.4.
+>
+> The rest of this section is the step-1 audit as written.
 
 Line numbers are for `tom/tracked-demands-v2` at the step-1 commit. "TD" = tracked demand. Items marked
 **(gap)** are open; four are pinned by strict xfail tests.
@@ -1391,7 +1395,9 @@ source isn't at `/opt/switch-src`). The int64 guard from `s0_workflow/tests/conf
 - `test_td_toy_suite.py`: the legacy groups A–F on the toy, plus dispatch bounds, predetermined builds, MIP sizes,
   the soft grid cap and annual grid caps.
 - `test_td_matching.py`: a data centre solving with hourly matching on (one block per timepoint), annual and off;
-  zero-weight stress hours outside CFE blocks; four strict xfails for the gaps in 12.4.
+  zero-weight stress hours outside CFE blocks; clean through the battery counted once; a second pass reading the
+  computed clean fraction; one strict xfail left (the stress-day load, until step 2(d)).
+- `test_td_onsite_gens.py` (§108): linked on-site generators and carbon-cap coverage.
 - `test_td_unloaded.py`: the opt-in proof (section 11): only new files and notes change against the base; nothing
   loads the module by default; unloaded output bytes identical; loaded with no TD, the same plan and objective.
 
@@ -1503,3 +1509,33 @@ lifecycle intensity. Under current law, a facility must begin construction befor
 §70511, amending §45V(c)(3)(C); [Clifford Chance, Nov 2025](https://www.cliffordchance.com/content/dam/cliffordchance/briefings/2025/11/one-big-beautiful-bill-act-notable-terminations-of-tax-credits-for-solar-wind-hydrogen-and-clean-vehicles.pdf)).
 The assessment doesn't apply this date: a period's electrolyser must have started construction in time for its
 result to mean anything.
+
+### 15.4 Hourly matching: the clean ledger
+
+For each TD with CFE targets and each timepoint t (G = grid draw, gcf = `grid_clean_fraction`):
+
+| Quantity | Limit |
+|---|---|
+| `TDGridCleanToLoad` + `TDCleanChargeGrid` | ≤ gcf × G |
+| `TDCleanChargeOnsite` | ≤ on-site clean output |
+| `TDCleanChargeOnsite` + `TDCleanChargeGrid` | ≤ battery charge |
+| battery charge − clean charge | ≤ (1 − gcf) × G + non-clean on-site output + linked generators (no relabelling) |
+| `TDCleanDischarge` | ≤ battery discharge |
+| `TDCleanLevel` | ≤ battery level; tracks clean charge in and clean discharge out at the battery's efficiency |
+| clean served = on-site clean − `TDCleanChargeOnsite` + `TDCleanDischarge` + `TDGridCleanToLoad` | ≤ `TDDispatch` |
+
+The block credit is `TDBlockGridCleanMWh` (≤ Σ weight × `TDGridCleanToLoad`, and the stage-9 caps) + RECs + Σ weight
+× (on-site clean served − gcf × export). So clean energy counts once, when it's consumed, and never above
+consumption in any hour. Clean that goes into the battery counts when it comes out, less the battery's losses. The
+export debit is conservative: a TD can't raise its grid clean credit by drawing and exporting in the same hour, and
+an hour of real export loses gcf × export.
+
+`tracked_demand_clean_ledger.csv` lists the ledger by TD and timepoint. `tracked_demand_cfe_detail.csv` uses the same
+terms as the constraint. `tracked_demand_cfe_computed.csv` re-scores each hour with the solved grid's clean fraction:
+on-site clean served plus max(0, G × gcf_actual − clean grid charge), capped at consumption, less export.
+
+**Computed grid metrics.** `grid_clean_fraction_computed.csv` and `grid_co2_intensity_computed.csv` are computed from
+the model's `DispatchGen` and `DispatchEmissions` per hour, keyed by timepoint id, with `timestamp` as an extra
+column. The first is a valid `grid_clean_fraction.csv` for the next pass (10.1's iteration works). Storage and every
+TD's linked on-site generators are left out of the grid mix. Zero-weight stress hours have their own values. Light
+stress days (§69) read 0 intensity, as the model has no fuel use there.
