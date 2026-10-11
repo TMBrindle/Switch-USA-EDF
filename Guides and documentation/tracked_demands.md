@@ -1431,7 +1431,7 @@ DC1,N-DC1-recip,recip,4.5,.
 |---|---|---|
 | `td_onsite_prime_mover` | `other` | `turbine`, `recip`, `fuel_cell`, `boiler`, `other` |
 | `td_onsite_gtc_class` | from the prime mover | gas-turbine cap category: `combined_cycle`, `combustion_turbine`, `aeroderivative`, `reciprocating_engine` or `none`. Not given: `reciprocating_engine` for a recip, `none` for a fuel cell, boiler or other; a turbine must give it. |
-| `td_onsite_unit_mw` | `gen_unit_size`, else rated | unit nameplate for per-unit applicability tests |
+| `td_onsite_unit_mw` | `gen_unit_size`, else rated | unit nameplate for per-unit applicability tests (carbon-cap thresholds with `td_cap_threshold_basis: unit`, the NY 15 MWe rule) |
 | `td_onsite_rated_mw` | `gen_capacity_limit_mw` | rated MW for site tests and potential to emit |
 
 `tracked_demands.csv` gains `td_export_limit_share`:
@@ -1476,17 +1476,32 @@ count, reciprocating engines don't"). Each linked generator has a category:
 | `recip` | `reciprocating_engine` |
 | `diesel`, `fuel_cell` | none (never in the cap) |
 
-It joins the cap only if that category is in the case's coverage, i.e. what `build_rate/brc/turbine_cap.py` used
-when it built the case:
-- `build_rate.gas_turbine_cap.coverage` (`[combined_cycle, combustion_turbine]` in `pg/settings/build_rate.yml`) for
-  the `cumulative_in_service` and `new_additions_per_period` forms, so the legacy cap and the S0 regression row;
-- `allowance_coverage` (`[combined_cycle, combustion_turbine, aeroderivative]`) for the `cumulative_additions` form,
-  which every S0 production case uses (`s0_production.gas_turbine_cap.form: allowance`).
+It joins the cap only if that category is in the case's coverage, i.e. the list `build_rate/brc/turbine_cap.py`
+(`gtc_settings`) used when it built the case. Which list that is depends on the case's form, the `gtc_form` column of
+the case's `gas_turbine_cap_params.csv`:
 
-So on-site aeroderivatives and industrial CTs are outside the cap under the plain `coverage` list, and inside it in
-S0 production cases. Frame CTs and CCs are in it under both. A covered generator takes the weight the case gives a
-new build of its class (cumulative_additions: class weight × the new-build nameplate factor, e.g. CT 1.090, CC
-0.65 × 1.049; other forms: 1, or the turbine share for CC with `cc_accounting: turbine_share`).
+| Form (`gtc_form`) | Coverage read from (`build_rate.gas_turbine_cap` in `pg/settings/build_rate.yml`) | Value there | Covered linked generator's weight |
+|---|---|---|---|
+| `cumulative_in_service` | `coverage` | `[combined_cycle, combustion_turbine]` | 1; CC at `cc_turbine_share` with `cc_accounting: turbine_share` |
+| `new_additions_per_period` | `coverage` | `[combined_cycle, combustion_turbine]` | as above |
+| `cumulative_additions` | `allowance_coverage` when set, else `coverage` | `[combined_cycle, combustion_turbine, aeroderivative]` | `class_weights` × `capacity_basis.new_build_to_allowance`: CT and aeroderivative 1.090, CC 0.65 × 1.049 |
+
+S0 v3.1 production cases (S0prod_A and the rest) have form `cumulative_additions`. pg_to_switch writes that form
+when the scenario row's `s0_production.gas_turbine_cap.form` is `allowance`. `allowance` is the name of the
+production setting; the form the case carries, and the one the writer and the run check read, is
+`cumulative_additions`. The legacy-form cases and the plain `build_rate.yml` default (`cumulative_in_service`) use
+`coverage`.
+
+So on-site aeroderivatives and industrial CTs are inside the cap in S0 production cases and outside it under the
+other two forms. Frame CTs and CCs are inside it under all three. The case-build writer reads the form from the case
+and the lists from `build_rate.yml` (15.9).
+
+**Unit size: `td_onsite_unit_mw`, not `gen_unit_size`.** Cap-coverage tests take a linked generator's unit size
+from `td_onsite_unit_mw` in `tracked_demand_onsite_gens.csv`. Only if that is blank do they fall back to
+`gen_unit_size`, and then to the rated MW. The case-build writer leaves `gen_unit_size` blank and writes the spec's
+`unit_mw` into `td_onsite_unit_mw`. The reason: a `gen_unit_size` puts the generator in Switch's
+`DISCRETELY_SIZED_GENS`, so it is built in whole units (an integer `BuildUnits`), and the stage becomes a MILP. The
+unit size is needed only for the applicability tests, which are fixed before the solve, so the build stays continuous.
 
 Private on-site techs (`tracked_demand_onsite_techs.csv`) stay for non-fuel plant (solar, wind, geothermal); one with
 a fuel cost or emissions prints a warning.
@@ -1660,7 +1675,7 @@ New `tracked_demands.csv` columns:
 | `td_connection_cost_share_demand` | 1 | share of the annual cost paid by the demand (bill reporting only) |
 | `td_connection_endogenous` | 0 | 1: the size is a decision up to `td_grid_interconnect_mw` (≤ peak load); location-fixed TDs only |
 | `td_connection_uses_headroom` | 0 | 1: the connection added this stage draws interconnection headroom in the TD's zone |
-| `td_headroom_weight` | 1 | headroom MW per MW of connection |
+| `td_headroom_weight` | 1 | headroom MW per MW of connection. Used only when the draw is on (`td_connection_uses_headroom = 1` and `--td-headroom-draw on`); otherwise ignored, whatever its value |
 
 `tracked_demand_params.csv` sets `td_connection_life_years` (default 40). The cost is annualised at the model's
 interest rate and charged on the whole connection every period (`TDConnectionCost`, in total system cost).
@@ -1716,7 +1731,9 @@ It also gives the case's `CO2_PROGRAM` names mapped to rule families. From the c
 | tax credits | `gen_tax_credits.csv` (pg_to_switch's `tax_credit_values`, by period), matched on `tax_credit_key`; a spec `tax_credit_values` block overrides |
 | zone upgrade $/kW | ReEDS conventional reinforcement median (`interconnection_headroom/data/reference/reeds_reinforcement_by_zone.csv`, 2024$) |
 | reserve credit, ic weight | rows added to `prm_gen_credit.csv`, `ic_weights.csv` when present |
-| gas-turbine cap | the case's coverage and form: `build_rate.gas_turbine_cap` in the spec's `build_rate_settings` file (default `pg/settings/build_rate.yml`), the spec's `gas_turbine_cap:` keys over it, and the form from the case's `gas_turbine_cap_params.csv`. Covered linked generators go into `gas_turbine_cap_gens.csv`; the coverage goes into `tracked_demand_gtc_coverage.csv`. A class already in the case's file but outside that coverage stops the writer (wrong settings file). |
+| gas-turbine cap | the form from the case's `gas_turbine_cap_params.csv` (`gtc_form`), and the lists and weights from `build_rate.gas_turbine_cap` in the spec's `build_rate_settings` file (default `pg/settings/build_rate.yml`), with the spec's `gas_turbine_cap:` keys over it. Coverage is `allowance_coverage` under `cumulative_additions` (S0 production cases), else `coverage` (table in 15.1). Covered linked generators go into `gas_turbine_cap_gens.csv`; the coverage goes into `tracked_demand_gtc_coverage.csv`. A class already in the case's file but outside that coverage stops the writer (wrong settings file). |
+| unit size | the spec's `unit_mw` → `td_onsite_unit_mw`; `gen_unit_size` stays blank so the build stays continuous (15.1) |
+| headroom weight | `connection.headroom_weight` → `td_headroom_weight` (default 1). Ignored unless `connection.uses_headroom` is set and the draw is on, so the 1 written with the draw off has no effect |
 | zone states (NY rule) | `hierarchy.csv` |
 
 `tracked_demands_scenario_options.txt` gives the option to add (`--include-module study_modules.tracked_demands`,

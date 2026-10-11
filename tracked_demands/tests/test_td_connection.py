@@ -156,3 +156,20 @@ def test_headroom_charge_over_a_chain(tmp_path):
     assert s["headroom_charge_connect_stage_usd"] > 0
     assert s["headroom_charge_total_usd"] == pytest.approx(
         s["headroom_charge_connect_stage_usd"] + s["headroom_charge_later_stages_usd"])
+
+
+
+def test_headroom_weight_inert_without_draw(tmp_path):
+    """td_headroom_weight is used only when the draw is on: with td_connection_uses_headroom = 0 any weight gives the
+    same solve and no draw (the case writer writes the spec's weight, default 1, either way)."""
+    def run(w):
+        return td_case(tmp_path, f"w{w}", onsite=False, storage=False, before=("interconnection_headroom",),
+                       after=lambda inp: (ic_files(inp), set_td(
+                           inp, td_default_min_power_mw=0.5, td_default_max_power_mw=0.5, td_grid_interconnect_mw=0.5,
+                           td_energy_requirement_mwh_per_year=0.0, td_connection_uses_headroom=0,
+                           td_headroom_weight=w)))
+    runs = [run(1), run(7)]
+    assert cost(runs[1]) == pytest.approx(cost(runs[0]), rel=1e-12)
+    for r in runs:
+        c = read(r, "tracked_demand_connection_costs.csv")
+        assert (c["headroom_draw_mw"] == 0).all() and (c["headroom_charge_usd"] == 0).all()

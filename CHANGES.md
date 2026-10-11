@@ -4215,3 +4215,20 @@ in the decisions register). It replaces "turbines count, reciprocating engines d
      don't match the case.
 
    No shared files changed. `tracked_demands/tests`: 110 passed on pandas 3.0.6 (Python 3.11) and 1.4.4 (Python 3.10).
+
+**(g) Follow-ups from the VM runner's dry check** (12 Oct; 3bb51e9 on the S0 v3.1 2035 stage of S0prod_A passed every
+pre-solve check with no writer warnings: aero in the cap at 1.09, recips out). Documentation only:
+1. **Cap form wording.** That case's cap has form `cumulative_additions` (`gtc_form`), and the case's coverage is
+   `allowance_coverage`. `allowance` is the name of the `s0_production` setting that makes pg_to_switch write that
+   form, not a form itself. The guide (15.1, now a table by form; 15.9) and the decisions register now say how
+   coverage is read for each form. The code already read the form from the case.
+2. **Unit size.** Linked generators keep `gen_unit_size` blank. A unit size there makes Switch build in whole units
+   (integer `BuildUnits`) and turns the stage into a MILP. Cap-coverage tests read the unit size from
+   `td_onsite_unit_mw` (`tracked_demand_onsite_gens.csv`), then `gen_unit_size`, then the rated MW. Guide 15.1 and
+   15.9.
+3. **Headroom weight with the draw off.** `td_headroom_weight` enters only `TDHeadroomDrawMW`, which exists only for
+   tracked demands with `td_connection_uses_headroom = 1` while `--td-headroom-draw` is on. With the draw off the
+   weight is ignored, so the writer keeps writing the spec's value (default 1). Writing 0 would silently cancel the
+   draw if someone later turned it on by hand. Documented in the guide's column table and 15.9.
+   `test_headroom_weight_inert_without_draw` solves with weights 1 and 7 and the draw off: same objective and no
+   draw. `tracked_demands/tests`: 111 passed on pandas 3.0.6 and 1.4.4.
