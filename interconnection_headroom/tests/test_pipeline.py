@@ -590,7 +590,7 @@ def test_headroom_without_slack_is_hard(tmp_path):
     assert "infeasible" in out or "feasible solution was not found" in out
 
 
-def _toy_run(tmp_path, zones, tranches_df, uprates_df):
+def _toy_run(tmp_path, zones, tranches_df, uprates_df, extra=None):
     """Copy the 3-zone toy, make it an LP (no unit sizes / minimum builds, so duals exist), add the
     module and the given IC inputs, solve with HiGHS. Returns the run folder."""
     import os
@@ -614,6 +614,8 @@ def _toy_run(tmp_path, zones, tranches_df, uprates_df):
     zones.to_csv(run / "inputs/ic_zones.csv", index=False)
     tranches_df.to_csv(run / "inputs/ic_tranches.csv", index=False)
     uprates_df.to_csv(run / "inputs/ic_uprates.csv", index=False)
+    for name, df in (extra or {}).items():
+        df.to_csv(run / "inputs" / name, index=False)
     r = subprocess.run(["switch", "solve", "--solver", "appsi_highs", "--suffixes", "dual"], cwd=run,
                        capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(run)})
     assert r.returncode == 0, r.stderr[-2000:] + r.stdout[-2000:]
@@ -758,6 +760,76 @@ def test_switch_toy_atts_host_mode(tmp_path):
         sum(sp.loc[k, "generation_mw_enabled"] * cost[k] for k in cost) + n.headroom_from_curve_mw * 50000.0)
 
 
+def _wind_price_toy(tmp_path, factor):
+    """North: a cheap step, a dearer step and a steep wall; wind weight 0.25; no uprates or release.
+    factor None = v3.1 (no ic_price_factors.csv)."""
+    zones = pd.DataFrame({"IC_ZONE": ["N", "C", "S"], "ic_zone_load_zone": ["North", "Central", "South"],
+                          "ic_base_capacity_mw": [4.0, 10.0, 10.0], "ic_start_saturation": [0.3, 0.3, 0.3],
+                          "ic_release_cost_per_mw": [50000.0, 50000.0, 100000.0]})
+    steps = pd.DataFrame({"IC_TRANCHE": ["N_nu1", "N_nu2", "N_nu3", "C_nu1", "S_nu1"],
+                          "ic_tranche_zone": ["N", "N", "N", "C", "S"],
+                          "ic_tranche_width": [0.1, 0.2, 5, 5, 5],
+                          "ic_tranche_cost_per_mw": [20000.0, 40000.0, 5e7, 50000.0, 100000.0],
+                          "ic_tranche_available_year": [0] * 5})
+    ups = pd.DataFrame(columns=["IC_UPRATE", "ic_uprate_zone", "ic_uprate_type", "ic_uprate_max_mw",
+                                "ic_uprate_cost_per_mw", "ic_uprate_available_year", "ic_uprate_mode"])
+    extra = {"ic_weights.csv": pd.DataFrame({"ic_key": ["Solar", "Wind", "NaturalGas"], "ic_weight": [1.0, 0.25, 1.0]})}
+    if factor is not None:
+        extra["ic_price_factors.csv"] = pd.DataFrame({"ic_key": ["Wind"], "ic_price_factor": [factor]})
+    run = _toy_run(tmp_path / f"f{factor}", zones, steps, ups, extra)
+    out = {k: pd.read_csv(run / f"outputs/{k}.csv") for k in ("ic_tranches_built", "ic_spend", "ic_headroom")}
+    out["steps"], out["zones"] = steps, zones
+    return out
+
+
+@pytest.mark.skipif(shutil.which("switch") is None, reason="switch_model not installed")
+@pytest.mark.parametrize("factor", [None, 0.8, 1.0, 1.3])
+def test_switch_toy_wind_price_factor(tmp_path, factor):
+    """v3.2 flag: wind uses 0.25 MW of room per MW but pays factor x the step price per MW (its own share of
+    each step, ICStepPriced). Steps still fill in cost order; wind's share is covered by free headroom
+    or its priced steps; the premium is (factor / 0.25 - 1) x the step price on that share, so wind's
+    total charge is factor x the step price per MW of nameplate. None = v3.1: no priced share, no premium."""
+    o = _wind_price_toy(tmp_path, factor)
+    tb = o["ic_tranches_built"].merge(o["steps"].rename(columns={"IC_TRANCHE": "ic_tranche"}), on="ic_tranche")
+    h = o["zones"].set_index("IC_ZONE").ic_base_capacity_mw
+    tb["cap"] = tb.ic_tranche_width * tb.ic_zone.map(h)
+    for (zone, period), g in tb.groupby(["ic_zone", "period"]):
+        g = g.sort_values("ic_tranche_cost_per_mw")
+        used, cap = g.used_mw.to_numpy(), g["cap"].to_numpy()
+        for k in range(1, len(g)):                       # a dearer step only once the cheaper ones are full
+            if used[k] > 1e-6:
+                assert used[k - 1] == pytest.approx(cap[k - 1], abs=1e-6), (zone, period, k)
+        assert (g.priced_used_mw <= g.used_mw + 1e-7).all()
+    hr = o["ic_headroom"].set_index(["load_zone", "period"])
+    sp = o["ic_spend"].query("type == 'reactive_upgrades'").set_index(["ic_zone", "period"])
+    if factor is None:
+        assert (tb.priced_used_mw == 0).all() and (sp.priced_premium_overnight == 0).all()
+        assert (hr.priced_new_capacity_mw_weighted == 0).all()
+        return
+    assert hr.loc[("North", 2030)].priced_new_capacity_mw_weighted > 0    # wind is built in North
+    mult = factor / 0.25
+    for (zone, period), s in sp.iterrows():
+        g = tb[(tb.ic_zone == zone) & (tb.period == period)]
+        priced_cost = (g.priced_used_mw * g.ic_tranche_cost_per_mw).sum()
+        # premium = (f / w - 1) x step price on wind's share (no release here)
+        assert s.priced_premium_overnight == pytest.approx((mult - 1) * priced_cost, rel=1e-6, abs=1e-3)
+        assert s.priced_mw_weighted == pytest.approx(g.priced_used_mw.sum(), abs=1e-6)
+    for (lz, period), r in hr.iterrows():
+        z = {"North": "N", "Central": "C", "South": "S"}[lz]
+        g = tb[(tb.ic_zone == z) & (tb.period == period)]
+        free = r.initial_headroom_mw + r.freed_headroom_mw + r.headroom_slack_mw
+        # wind's room is covered by free headroom or its own priced steps, and it takes no more than it needs
+        assert r.priced_new_capacity_mw_weighted <= free + g.priced_used_mw.sum() + 1e-6
+        assert g.priced_used_mw.sum() <= max(0.0, r.priced_new_capacity_mw_weighted - 0.0) + 1e-6
+    # North 2030: wind pays factor x the step price per MW of nameplate for the room it buys on the curve
+    g = tb[(tb.ic_zone == "N") & (tb.period == 2030)]
+    wind_mw_on_curve = g.priced_used_mw.sum() / 0.25
+    total_wind_charge = mult * (g.priced_used_mw * g.ic_tranche_cost_per_mw).sum()
+    if wind_mw_on_curve > 1e-6:
+        price = (g.priced_used_mw * g.ic_tranche_cost_per_mw).sum() / g.priced_used_mw.sum()   # mean step price
+        assert total_wind_charge / wind_mw_on_curve == pytest.approx(factor * price, rel=1e-6)
+
+
 # ---------------------------------------------------------------------------
 # Switch-USA-EDF integration (icsc/switch_case.py, prepare_next_stage.py)
 # ---------------------------------------------------------------------------
@@ -866,11 +938,31 @@ def test_switch_case_write_with_zone_map(tmp_path, monkeypatch):
     p = pd.read_csv(out / "ic_params.csv")
     assert p["ic_reactive_cost_per_mw_network"].iat[0] > 0
     assert (out / "ic_weights.csv").exists()
+    assert not (out / "ic_price_factors.csv").exists()     # v3.2 wind price flag off by default (v3.1 inputs)
+    # v3.2 flag on: wind gen_techs priced at the factor, everything else as before
+    out3 = tmp_path / "case3"
+    out3.mkdir()
+    on = {**settings, "interconnection_headroom": {**settings["interconnection_headroom"], "price_factors": {"wind": 1.0}}}
+    sc.write_case_inputs(gi, on, out3)
+    pf = pd.read_csv(out3 / "ic_price_factors.csv")
+    assert pf.to_dict("records") == [{"ic_key": "LandbasedWind_Class3", "ic_price_factor": 1.0}]
+    for f in ("ic_zones.csv", "ic_tranches.csv", "ic_uprates.csv", "ic_weights.csv", "ic_params.csv"):
+        assert (out3 / f).read_text() == (out / f).read_text(), f
+    bad = {**settings, "interconnection_headroom": {**settings["interconnection_headroom"], "price_factors": {"wind": 0.2}}}
+    with pytest.raises(ValueError, match="below the tech weight"):
+        sc.write_case_inputs(gi, bad, tmp_path)
     # disabled -> writes nothing
     out2 = tmp_path / "case2"
     out2.mkdir()
     sc.write_case_inputs(gi, {"interconnection_headroom": {"enabled": False}}, out2)
     assert not any(out2.iterdir())
+
+
+def test_wind_price_factor_default_is_v31():
+    """v3.2 flag defaults to the v3.1 behaviour until approved (config.yaml saturation.price_factors)."""
+    from icsc import switch_case as sc
+    assert sc.pipeline_config()["saturation"]["price_factors"] == {"wind": None}
+    assert sc.pipeline_config()["saturation"]["tech_weights"]["wind"] == 0.25
 
 
 def test_prepare_next_stage_chains_headroom(tmp_path):

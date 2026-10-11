@@ -55,6 +55,19 @@ Per load zone (summing its IC zones): tech-weighted new capacity <= initial head
 retired capacity + steps + released headroom + hosted headroom. Everything is linear. The release term is exact for
 small uprates and slightly conservative for large ones.
 
+**Wind price factor (v3.2 flag; off by default, which is the v3.1 behaviour).** By default every MW pays its
+tech weight × the step price, so wind (weight 0.25) pays a quarter of solar's price per MW.
+`interconnection_headroom.price_factors: {wind: f}` (`config.yaml` `saturation.price_factors`; `ic_price_factors.csv`)
+keeps wind's 0.25 MW of room per MW but charges f × the step price per MW of nameplate.
+- Wind gets its own share of each step and of the release (`ICStepPriced`, `ICReleasePriced`, each at most
+  the step's fill). Wind's weighted new capacity must be covered by free headroom (initial, freed, hosted)
+  or by that share.
+- The share pays (f / 0.25 − 1) × the step price on top of the step's own cost.
+- Steps still fill in cost order. Within a period, wind takes the cheapest steps it reaches, so where wind
+  and other technologies share a zone's steps, wind's charge is at the low end.
+- Candidate f = 1.0, with sensitivities 0.8 and 1.3 (`interconnection_headroom/docs/wind_price_check.md`).
+- Outputs: `priced_*` columns in `ic_spend.csv`, `ic_headroom.csv` and `ic_tranches_built.csv`.
+
 ## Outputs
 
 | File | Contents |

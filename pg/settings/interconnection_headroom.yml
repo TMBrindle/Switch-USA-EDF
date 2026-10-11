@@ -19,4 +19,7 @@ interconnection_headroom:
   exclude_network_reinforcement: true
   # Optional overrides of interconnection_headroom/config.yaml (keep them equal unless testing):
   # tech_weights: {solar: 1.0, wind: 0.75, storage: 0.5, gas: 1.0, other: 1.0}
+  # v3.2 flag (off = v3.1): wind pays this x the step price per MW while using its 0.25 room weight
+  # (interconnection_headroom/docs/wind_price_check.md); candidate 1.0, sensitivities 0.8 and 1.3
+  # price_factors: {wind: 1.0}
   # retirement_reuse_share: 0.8

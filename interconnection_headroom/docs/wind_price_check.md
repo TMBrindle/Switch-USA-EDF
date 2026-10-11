@@ -202,3 +202,15 @@ No. Use one national factor.
 - **Costs are per kW of nameplate**, not per kW of accredited or delivered capacity. That basis matches the Switch charge.
 - **The active wind sample is small** (185, of which 121 are in SPP, MISO and PJM). The factor should be treated as a central value with the 0.8–1.3 sensitivity, not as an estimate to two digits.
 - **The fit with the status split** was run only to diagnose the wind effect. The production fit is unchanged.
+
+## Status (v3.2 branch `tom/s0-v3.2`)
+
+Option (ii) is implemented in the faithful form behind a flag that is **off by default**, so cases build
+exactly the v3.1 inputs:
+- `config.yaml`: `saturation.price_factors: {wind: null}`. Set it per case with
+  `interconnection_headroom.price_factors: {wind: 1.0}`.
+- When a factor is set, `switch_case.py` writes `ic_price_factors.csv`.
+- The module gives wind its own share of each step (`ICStepPriced`) and of the release.
+
+The toy test (`test_switch_toy_wind_price_factor`) solves at no factor, 0.8, 1.0 and 1.3. It checks that the
+steps fill in cost order and that wind pays factor × the step price per MW of nameplate.

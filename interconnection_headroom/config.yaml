@@ -54,6 +54,12 @@ saturation:
   #   storage < 1: charging can relieve, not only load, the network
   #   gas = 1: a CCGT/CT injects close to nameplate at peak
   tech_weights: {solar: 1.0, wind: 0.25, storage: 0.5, gas: 1.0, other: 1.0}
+  # v3.2 flag: price per MW of nameplate, x the step price, for technologies priced apart from their room
+  # weight (study_modules.interconnection_headroom, ic_price_factors.csv; docs/wind_price_check.md).
+  # null = v3.1: every MW pays its tech weight x the step price (wind 0.25). Candidate wind: 1.0
+  # (wind uses 0.25 MW of room per MW, pays 1.0 x the step price per MW); sensitivities 0.8 and 1.3.
+  # Must be >= the tech's weight. Override per case: interconnection_headroom.price_factors.
+  price_factors: {wind: null}
   # Fraction of retired capacity assumed to free reusable headroom
   retirement_reuse_share: 0.1
   # Lower bound on headroom proxy (MW) so near-empty zones don't explode the ratio

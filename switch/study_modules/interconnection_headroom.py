@@ -39,6 +39,22 @@ Constraint per load zone and period (sums over the IC zones in the load zone):
 Costs: generation-side reactive upgrades (sum c_k x ICStep + release cost) and deliberate
 uprates (MW added x $/MW), both annualised over ic_asset_life_years.
 
+Separately priced technologies (v3.2, ic_price_factors.csv; absent = v3.1: every MW pays its weight x
+the step price). A key with ic_price_factor f (wind: candidate 1.0) still uses its weight w of room per
+MW, but pays f x the step price per MW of nameplate, i.e. f / w x the price per MW of room. Its share
+of each step (ICStepPriced[k] <= ICStep[k]) and of the release (ICReleasePriced <= ICRelease) is its
+own variable, charged (f / w - 1) x c_k on top of the step's own c_k:
+
+  priced new capacity (weighted)  <=  initial headroom + reuse x freed + hosted MW + slack
+                                       + sum_k ICStepPriced[k] + ICReleasePriced
+  added cost  = sum_k (f / w - 1) x c_k x ICStepPriced[k] + (f / w - 1) x release cost x ICReleasePriced
+
+Free headroom (initial, freed, hosted) carries no step price, so the priced technology pays no adder
+on it. The steps still fill in cost order (c_k non-decreasing, and so is (f / w) x c_k). Within a
+period the LP gives the priced technology the cheapest steps it reaches, so in a period where it shares
+a zone's steps with others its charge is the lower end of what queue order could give. All priced keys
+must share one f / w (one priced group), and f >= w (else the adder would be negative).
+
 Reporting (post_solve):
   ic_spend.csv      overnight and annual $ by zone, period and type
   ic_network.csv    network capacity: base; added by stretch uprates (deliberate_mw_added);
@@ -73,6 +89,8 @@ ic_params.csv           ic_retirement_reuse_share, ic_storage_weight, ic_default
                         ic_slack_cost_per_mw (diagnostic slack on the headroom limit, $/MW;
                         absent or "." = hard constraint)                           [optional]
 ic_zone_params.csv      LOAD_ZONE, ic_initial_headroom_mw                           [optional]
+ic_price_factors.csv    ic_key, ic_price_factor ($ per MW of nameplate / step price; gen_tech first,
+                        then gen_energy_source)                                      [optional, v3.2]
 
 Status: draft. Tested on the Switch 2.0.9 3zone_toy example; not yet run on a full case.
 """
@@ -159,6 +177,37 @@ def define_components(m):
 
     m.gen_ic_weight = Param(m.GENERATION_PROJECTS, within=NonNegativeReals,
                             initialize=gen_ic_weight)
+
+    # ---- separately priced technologies (v3.2; ic_price_factors.csv) -------
+    m.IC_PRICE_KEYS = Set(dimen=1)
+    m.ic_price_factor = Param(m.IC_PRICE_KEYS, within=NonNegativeReals)
+
+    def gen_price_factor(m, g):
+        if m.gen_ic_weight[g] <= 0:
+            return None
+        for k in (m.gen_tech[g], m.gen_energy_source[g]):
+            if k in m.IC_PRICE_KEYS:
+                return value(m.ic_price_factor[k])
+        return None
+
+    m.IC_PRICED_GENS = Set(
+        dimen=1, initialize=lambda m: [g for g in m.GENERATION_PROJECTS if gen_price_factor(m, g) is not None])
+
+    def priced_room_multiplier(m):
+        # price per MW of room / step price: f / w, one value for the whole priced group
+        ratios = {round(gen_price_factor(m, g) / value(m.gen_ic_weight[g]), 9) for g in m.IC_PRICED_GENS}
+        if not ratios:
+            return 1.0
+        if len(ratios) > 1:
+            raise ValueError(f"interconnection_headroom: priced technologies need one price factor / weight, "
+                             f"got {sorted(ratios)}")
+        r = ratios.pop()
+        if r < 1.0:
+            raise ValueError(f"interconnection_headroom: ic_price_factor below the room weight (factor / weight "
+                             f"= {r}); the step adder would be negative")
+        return r
+
+    m.ic_priced_room_multiplier = Param(within=NonNegativeReals, initialize=priced_room_multiplier)
 
     # ---- index sets ----------------------------------------------------------
     m.IC_ZONES_IN_LOAD_ZONE = Set(
@@ -258,6 +307,39 @@ def define_components(m):
                    if y in m.BLD_YRS_FOR_GEN_PERIOD[g, p] else 0))
             for (g, y) in m.IC_EXISTING_BLD_YRS if m.gen_load_zone[g] == z))
 
+    # ---- separately priced technologies: their share of the steps and the release --------
+    m.IC_PRICED_LOAD_ZONES = Set(
+        dimen=1, initialize=lambda m: [z for z in m.IC_ACTIVE_LOAD_ZONES
+                                       if any(m.gen_load_zone[g] == z for g in m.IC_PRICED_GENS)])
+    m.IC_PRICED_TRANCHE_PERIODS = Set(
+        dimen=2, initialize=lambda m: [(t, p) for (t, p) in m.IC_TRANCHE_PERIODS
+                                       if m.ic_zone_load_zone[m.ic_tranche_zone[t]] in m.IC_PRICED_LOAD_ZONES])
+    m.IC_PRICED_ZONES = Set(
+        dimen=1, initialize=lambda m: [i for i in m.IC_ZONES if m.ic_zone_load_zone[i] in m.IC_PRICED_LOAD_ZONES])
+    m.ICBuildStepPriced = Var(m.IC_PRICED_TRANCHE_PERIODS, within=NonNegativeReals)
+    m.ICStepPriced = Expression(
+        m.IC_TRANCHES, m.PERIODS,
+        rule=lambda m, t, p: sum(m.ICBuildStepPriced[t, pp] for pp in m.PERIODS
+                                 if pp <= p and (t, pp) in m.IC_PRICED_TRANCHE_PERIODS))
+    m.IC_Step_Priced_Limit = Constraint(
+        m.IC_PRICED_TRANCHE_PERIODS,
+        rule=lambda m, t, p: m.ICStepPriced[t, p] <= m.ICStep[t, p])
+    m.ICBuildReleasePriced = Var(m.IC_PRICED_ZONES, m.PERIODS, within=NonNegativeReals)
+    m.ICReleasePriced = Expression(
+        m.IC_ZONES, m.PERIODS,
+        rule=lambda m, i, p: sum(m.ICBuildReleasePriced[i, pp] for pp in m.PERIODS if pp <= p)
+        if i in m.IC_PRICED_ZONES else 0.0)
+    m.IC_Release_Priced_Limit = Constraint(
+        m.IC_PRICED_ZONES, m.PERIODS,
+        rule=lambda m, i, p: m.ICReleasePriced[i, p] <= m.ICRelease[i, p])
+    m.ICNewPricedWeighted = Expression(
+        m.LOAD_ZONES, m.PERIODS,
+        rule=lambda m, z, p: sum(
+            m.gen_ic_weight[g] * sum(
+                m.BuildGen[g, y] - m.SuspendGen[g, y, p]
+                for y in m.BLD_YRS_FOR_GEN_PERIOD[g, p] if (g, y) in m.NEW_GEN_BLD_YRS)
+            for g in m.GENS_IN_ZONE[z] if g in m.IC_PRICED_GENS))
+
     m.ICHeadroomBought = Expression(
         m.LOAD_ZONES, m.PERIODS,
         rule=lambda m, z, p: sum(
@@ -279,12 +361,28 @@ def define_components(m):
         + m.ICHeadroomBought[z, p]
         + m.ICHeadroomSlack[z, p])
 
+    # the priced technology's new capacity must be covered by free headroom or its own share of the
+    # curve (the slack is defined for every active load zone)
+    m.IC_Priced_Headroom_Limit = Constraint(
+        m.IC_PRICED_LOAD_ZONES, m.PERIODS,
+        rule=lambda m, z, p: m.ICNewPricedWeighted[z, p]
+        <= m.ic_initial_headroom_mw[z]
+        + m.ic_retirement_reuse_share * m.ICFreedHeadroom[z, p]
+        + sum(m.ICHostedHeadroom[i, p] for i in m.IC_ZONES_IN_LOAD_ZONE[z])
+        + sum(sum(m.ICStepPriced[t, p] for t in m.IC_TRANCHES_IN_ZONE[i]) + m.ICReleasePriced[i, p]
+              for i in m.IC_ZONES_IN_LOAD_ZONE[z])
+        + m.ICHeadroomSlack[z, p])
+
     # ---- costs (overnight, cumulative to period p) -------------------------
     m.ICReactiveOvernight = Expression(
         m.IC_ZONES, m.PERIODS,
         rule=lambda m, i, p: sum(m.ICStep[t, p] * m.ic_tranche_cost_per_mw[t]
                                  for t in m.IC_TRANCHES_IN_ZONE[i])
-        + m.ICRelease[i, p] * m.ic_release_cost_per_mw[i])
+        + m.ICRelease[i, p] * m.ic_release_cost_per_mw[i]
+        # priced technologies: (f / w - 1) x the step price on their share
+        + (m.ic_priced_room_multiplier - 1.0) * (
+            sum(m.ICStepPriced[t, p] * m.ic_tranche_cost_per_mw[t] for t in m.IC_TRANCHES_IN_ZONE[i])
+            + m.ICReleasePriced[i, p] * m.ic_release_cost_per_mw[i]))
     m.ICUprateOvernight = Expression(
         m.IC_ZONES, m.PERIODS,
         rule=lambda m, i, p: sum(m.ICUprateCapacity[u, p] * m.ic_uprate_cost_per_mw[u]
@@ -332,6 +430,9 @@ def load_inputs(m, switch_data, inputs_dir):
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "ic_zone_params.csv"),
         optional=True, index=m.IC_ZONES_WITH_INITIAL, param=(m.ic_initial_headroom_mw,))
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "ic_price_factors.csv"),
+        optional=True, index=m.IC_PRICE_KEYS, param=(m.ic_price_factor,))
 
 
 def post_solve(m, outdir):
@@ -353,10 +454,18 @@ def post_solve(m, outdir):
             steps = sum(value(m.ICStep[t, p]) for t in m.IC_TRANCHES_IN_ZONE[i])
             rel = value(m.ICRelease[i, p])
             react_mw = (react / k_react) if k_react > 0 else None
+            # v3.2: the priced technology's share of the curve and its adder (both inside react)
+            priced_mw = (sum(value(m.ICStepPriced[t, p]) for t in m.IC_TRANCHES_IN_ZONE[i])
+                         + value(m.ICReleasePriced[i, p]))
+            premium = value(m.ic_priced_room_multiplier - 1.0) * (
+                sum(value(m.ICStepPriced[t, p]) * value(m.ic_tranche_cost_per_mw[t]) for t in m.IC_TRANCHES_IN_ZONE[i])
+                + value(m.ICReleasePriced[i, p]) * value(m.ic_release_cost_per_mw[i]))
             spend.append({"ic_zone": i, "load_zone": z, "period": p, "type": "reactive_upgrades",
                           "overnight_cost": react, "annual_cost": react * ann,
                           "network_mw_added": react_mw,
                           "generation_mw_enabled": steps + rel,
+                          "priced_mw_weighted": priced_mw,
+                          "priced_premium_overnight": premium,
                           # sanity check on the estimate: network MW implied per MW of generation
                           # enabled. Values well above ~1-2 mean the curve's cost reflects more
                           # than steel (process, local constraints) or is mis-calibrated.
@@ -404,6 +513,7 @@ def post_solve(m, outdir):
             rows.append({
                 "load_zone": z, "period": p,
                 "new_capacity_mw_weighted": value(m.ICNewCapacityWeighted[z, p]),
+                "priced_new_capacity_mw_weighted": value(m.ICNewPricedWeighted[z, p]),
                 "freed_headroom_mw": value(m.ic_retirement_reuse_share * m.ICFreedHeadroom[z, p]),
                 "headroom_bought_mw": value(m.ICHeadroomBought[z, p]),
                 "initial_headroom_mw": value(m.ic_initial_headroom_mw[z]),
@@ -432,8 +542,9 @@ def post_solve(m, outdir):
     # remaining state, for chaining myopic stages (prepare_next_stage.chain_ic_inputs): cumulative
     # values for every period, so a rolling-window stage can hand on its committed period
     pd.DataFrame([{"ic_tranche": t, "ic_zone": m.ic_tranche_zone[t], "period": p,
-                   "used_mw": value(m.ICStep[t, p])} for p in m.PERIODS for t in m.IC_TRANCHES],
-                 columns=["ic_tranche", "ic_zone", "period", "used_mw"]).to_csv(
+                   "used_mw": value(m.ICStep[t, p]), "priced_used_mw": value(m.ICStepPriced[t, p])}
+                  for p in m.PERIODS for t in m.IC_TRANCHES],
+                 columns=["ic_tranche", "ic_zone", "period", "used_mw", "priced_used_mw"]).to_csv(
         os.path.join(outdir, "ic_tranches_built.csv"), index=False)
     pd.DataFrame([{"ic_uprate": u, "ic_zone": m.ic_uprate_zone[u], "period": p,
                    "built_mw": value(m.ICUprateCapacity[u, p])} for p in m.PERIODS for u in m.IC_UPRATES],

@@ -10,6 +10,8 @@ Settings (pg/settings/interconnection_headroom.yml):
       scenario: atts_s0                   # zones/tranches/uprates_<scenario>.csv from the pipeline
       tranches_dir: interconnection_headroom/outputs
       exclude_network_reinforcement: true # drop PowerGenome tx_capex from gen_connect_cost_per_mw
+      price_factors: {wind: 1.0}          # v3.2 flag (default from config.yaml saturation.price_factors:
+                                          # wind null = v3.1); writes ic_price_factors.csv
 """
 from __future__ import annotations
 
@@ -215,6 +217,20 @@ def switch_frames(zones: pd.DataFrame, tranches: pd.DataFrame, uprates: pd.DataF
     }
 
 
+def price_factors_by_tech(gen_info: pd.DataFrame, weights: dict, factors: dict) -> pd.DataFrame:
+    """One row per gen_tech priced apart from its room weight (v3.2): ic_price_factor = $ per MW of nameplate
+    / the step price. Categories with a null factor (v3.1) are left out; an empty frame means no file."""
+    factors = {k: float(v) for k, v in (factors or {}).items() if v is not None}
+    w = weights_by_tech(gen_info, weights)
+    w = w[w["category"].isin(factors) & (w["ic_weight"] > 0)].copy()
+    w["ic_price_factor"] = w["category"].map(factors)
+    low = w[w["ic_price_factor"] < w["ic_weight"]]
+    if len(low):
+        raise ValueError("interconnection_headroom: price_factors below the tech weight for "
+                         + ", ".join(f"{r.ic_key} ({r.ic_price_factor} < {r.ic_weight})" for r in low.itertuples()))
+    return w[["ic_key", "ic_price_factor"]].reset_index(drop=True)
+
+
 def params_frame(cfg: dict, weights: dict, reuse_share: float) -> pd.DataFrame:
     return pd.DataFrame([{
         "ic_retirement_reuse_share": reuse_share,
@@ -256,6 +272,12 @@ def write_case_inputs(gen_info: pd.DataFrame, settings: dict, out_folder: Path,
                                                                         index=False)
     params_frame(cfg, weights, ic.get("retirement_reuse_share", sat["retirement_reuse_share"])).to_csv(
         out_folder / "ic_params.csv", index=False)
+    # v3.2 flag: no file unless a factor is set, so v3.1 cases build identical inputs
+    pf = price_factors_by_tech(gen_info, weights, {**(sat.get("price_factors") or {}),
+                                                   **(ic.get("price_factors") or {})})
+    if len(pf):
+        pf.to_csv(out_folder / "ic_price_factors.csv", index=False)
+        logger.info("interconnection_headroom: price factors %s", dict(zip(pf.ic_key, pf.ic_price_factor)))
     if diag is not None:
         diag.to_csv(out_folder / "ic_connect_cost_check.csv", index=False)
     logger.info("interconnection_headroom: wrote %d IC zones, %d steps and %d uprate options (%s) to %s",
