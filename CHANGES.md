@@ -3901,11 +3901,13 @@ numpy 1.23.5), Pyomo 6.9.1 both.
 
 **Date:** 2026-10-11 · **Branch:** `tom/tracked-demands-v2`
 **See also:** `Guides and documentation/tracked_demands.md` (sections 12, 15), `SHARED_CHANGES.md` #111,
-`tracked_demands/docs/decisions_2026-10-11.md`
+the decisions register `tracked_demands/docs/design/design_decisions.md` (dated section of 11 Oct)
 
 **Why:** Tom's decisions of 11 Oct on the step-1 questions. Step 2 is done in order (a)–(g), stopping for review
 after (b). Before it, the branch took the `s0-v3.1` tag (3160be1) by merge; the unloaded proof now compares against
-the tag.
+the tag. After (b), `hk/td-design-docs` (the April design documents) was merged. The 11 Oct decisions are now a dated
+section of its register, with "Superseded" markers at the April items they replace (spec #8 for fuel techs,
+spec #10 and §5.12, register §6 and open item 5).
 
 **(a) On-site fuel plant as ordinary generators; carbon-cap coverage.**
 1. **Linked generators.** `tracked_demand_onsite_gens.csv` (`TRACKED_DEMAND, GENERATION_PROJECT`, optional

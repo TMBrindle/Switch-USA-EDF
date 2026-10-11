@@ -11,7 +11,10 @@ were written before the module was built and are not kept up to date.
 
 **Source:** `docs/plans/planned_mods/MOD-002_tracked_demands/` in the VM's untracked `docs/` folder (main tree of
 Switch-USA-PG-ReEDS). That folder is not in the repository. Every copy found on the VM was identical. The files
-are copied unchanged; none held personal names or other personal identifiers.
+are copied unchanged; none held personal names or other personal identifiers. Since then (11 Oct 2026, on
+`tom/tracked-demands-v2`), `design_decisions.md` has a dated section of the 11 October decisions at the end, and
+one-line "Superseded" markers were added at the April items those decisions replace (in `design_decisions.md` and
+`spec_v1.md` §5.12 and §8). The April text is otherwise unchanged.
 
 **Original names.** `spec_v1.md` was `tracked_demands_final_spec_v1.md`, and `HANDOFF.md` still refers to it
 by that name. `design_decisions.md` was `tracked_demands_design_decisions.md`, and `HANDOFF.md` was

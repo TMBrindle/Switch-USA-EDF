@@ -346,6 +346,9 @@ TDGridDrawByZone[z,t] added to Zone_Power_Withdrawals
 ```
 
 ### 5.12 Carbon cap integration (configurable, default off)
+
+> **Superseded 11 Oct 2026** (decision D2, `design_decisions.md`; CHANGES §108): per-programme coverage with size
+> thresholds, counted by default.
 When `td_onsite_emissions_in_system_cap = True`:
 on-site emissions added to system AnnualEmissions.
 
@@ -391,9 +394,9 @@ See Section 7 detail in previous spec version for full column listings.
 | 5 | Demand flexibility | Decision variable with timepoint-indexed min/max bounds; shaped envelopes supported |
 | 6 | H2 storage | Both explicit storage and wide-bounds approximation available |
 | 7 | Battery storage | Dedicated behind-the-meter. Grid participation deferred. |
-| 8 | On-site generation | Tech menu up to CCGT+CCS. Capture rate, min stable output, subsidies. |
+| 8 | On-site generation | Tech menu up to CCGT+CCS. Capture rate, min stable output, subsidies. **Superseded for fuel-burning techs 11 Oct 2026 (D3):** linked ordinary generators |
 | 9 | Subsidies | Period-indexed $/MWh. Covers 45Q, EOR. Endogenous CO2 pricing deferred. |
-| 10 | On-site emissions in cap | Configurable per TD, default False |
+| 10 | On-site emissions in cap | Configurable per TD, default False. **Superseded 11 Oct 2026 (D2):** per programme, counted by default, with thresholds |
 | 11 | Grid flexibility | Pre-specified events or blocks, penalty default $500/MWh |
 | 12 | Solve mode | Perfect foresight primary |
 | 13 | Load integration | Additional load via Zone_Power_Withdrawals |

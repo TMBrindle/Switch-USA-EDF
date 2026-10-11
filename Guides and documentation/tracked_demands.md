@@ -1407,8 +1407,9 @@ cd Switch-USA-EDF && SWITCH_SRC=/opt/switch-src pytest -q tracked_demands/tests
 
 ## 15. Step 2: On-Site Generators, Cap Coverage, Matching (§108)
 
-Tom's decisions of 11 Oct 2026 are in `tracked_demands/docs/decisions_2026-10-11.md` (to be moved into the decisions
-register). Step 2 runs (a)–(g); this section grows with it.
+Tom's decisions of 11 Oct 2026 are the dated section at the end of the decisions register,
+`tracked_demands/docs/design/design_decisions.md`, which came with the April design documents from
+`hk/td-design-docs`. Step 2 runs (a)–(g); this section grows with it.
 
 ### 15.1 On-site fuel plant as ordinary generators
 
