@@ -3845,3 +3845,78 @@ cdd0491; all stages are optimal.
 - **The `s0-v3.1` tag.** It needs the full sha256 of the hourly load file (2e85711f…), the targets hash the run used,
   and the runner's yml diff. Proposed: tag the commit that also carries the canonical targets file, so the tag
   reproduces the run.
+
+## 100. S0 v3.2: Wind Interconnection Price, Storage Credit Phase-Down, WA Two-Tranche (Flags); CA Tranche and p1 Solar Proposals
+
+**Date:** 2026-10-11. **Branch:** `tom/s0-v3.2`, from tag `s0-v3.1` (3160be1). The credits branch keeps §95–§99; this
+entry is numbered after them so the two branches merge without a clash.
+
+**Defaults:** every flag defaults to the v3.1 behaviour, so a v3.1 case builds the same inputs until Tom approves.
+
+**Untouched:** the build-rate module (decisions R1–R11 pending) and the DOE levers.
+
+**Write-up:** `Guides and documentation/s0_v3.2.md`.
+
+**Brought in:**
+- From d51c68f: `interconnection_headroom/docs/wind_price_check.md` and `scripts/wind_price_check.py` (§99).
+- From 6adc228, the §90 credit writer: `s0_workflow/tax_credits.py`, `credit_tally.py`, `scripts/credit_tally.py` and
+  the `gen_tax_credits_file` hook. It is inert for S0: no production terms are set, and `gen_tax_credits.csv` is
+  byte-identical to the s0-v3.1 writer's.
+- `s0_workflow/scripts/check_vre_profiles.py` and its test.
+- Not brought in: §90's S-set settings and tests (they stay on the credits branch).
+
+**a. Wind interconnection price factor.**
+- **Flag:** `interconnection_headroom.price_factors` (`config.yaml` `saturation.price_factors: {wind: null}`).
+- **What it does:** with a factor f set, wind keeps its 0.25 room weight but pays f × the step price per MW of
+  nameplate, through its own share of each step and of the release (`ICStepPriced`, `ICReleasePriced` in
+  `study_modules.interconnection_headroom`). The share adds (f / w − 1) × the step price on top.
+- **Files:** `switch_case.py` writes `ic_price_factors.csv` only when f is set. A factor below the weight stops the
+  build.
+- **Outputs:** `priced_*` columns.
+- **Candidate:** 1.0, with sensitivities 0.8 and 1.3.
+- **Tests:** a toy run at none, 0.8, 1.0 and 1.3 (steps fill in cost order; wind pays f × the step price per MW),
+  plus writer tests (no file by default, the other files unchanged, low factor refused).
+
+**b. Battery storage credit with the OBBBA phase-down.**
+- **Flag:** `s0_production.storage_credit.mode`: `flat` (v3.1, ×0.7 in every period) or `obbba`.
+- **What `obbba` does:** the `tax_credits` axis's ×0.7 becomes ×1.0, and a 30% 48E investment term goes to the credit
+  writer (`kind: investment`).
+- **Effect:** new-build battery capex becomes × (1 − 0.30 × phase), where the phase is 1 through 2033, then 0.75
+  (2034), 0.5 (2035) and 0 (from 2036). The `phase_basis` setting chooses `period_label` or `span_mean`. The build
+  writes `investment_credit_report.csv`.
+- **Battery capex by stage, × ATB:**
+  - flat: 0.70 in every stage;
+  - obbba, label: 0.70 / 0.70 / 0.85 / 1.00 / 1.00;
+  - obbba, span mean: 0.70 / 0.70 / 0.745 / 1.00 / 1.00;
+  - add ×1.2 for the tariff.
+- **Tests:** in `test_storage_credit.py`. The regression-row resolution test now lists the flag at its inert value.
+
+**c. WA import charge, two-tranche.**
+- **Flag:** `ca_wa_carbon.wa_import_charge`: `per_mwh` (v3.1) or `two_tranche`.
+- **What it does:** `study_modules.trans_hurdle_cost` gains named tranches (`trans_import_tranches*.csv`) in the CA
+  LP form, costed in `TxImportTrancheCost`. WA's border imports go to tranche "WA": free `wa_two_tranche.free_mwh_per_yr`,
+  then price × 0.437. CA's files are unchanged.
+- **Equivalence:** free 0 reproduces v3.1 (toy test).
+- **Proposed value:** a charged block equal to WA's unspecified volume, 13.2 TWh/yr. The source is the Commerce
+  CY2023 fuel mix: unspecified 14.85% of 89.14 TWh, read from search results, so check it against the report. The
+  free tranche = WA's modelled 2028 imports − 13.2 TWh, which needs the runner's 2028 WA import flow.
+
+**d. CA free tranche (proposal).**
+- **Source:** MRR's specified/unspecified split is the charge's own basis. CEC's TSEG counts firmed-and-shaped
+  renewables as imports.
+- **Count:** large hydro, geothermal and biomass.
+- **Trajectory:** flat to 2030, then scaled by an exogenous WECC-ex-CA clean-generation index. The endogenous α form
+  is a sensitivity.
+- **Candidates (2028 CA imports sit at the kink in S0 v3.1, so they follow the tranche):**
+  - D1 49.4 TWh (v3.1);
+  - D2 52.7 TWh (+ geothermal and biomass; recommended);
+  - D3 about 39 TWh (MRR-indicative; pending CARB data).
+
+**e. p1 (WA) solar (proposal).**
+- **Finding:** p1's new-build PV cluster profiles diverge from each other, from p1's existing PV and from the other
+  WA zones, by a different amount each weather year (cluster 1 0.21–0.87 of peers, cluster 2 0.14–0.46). There is no
+  time-zone shift and no missing data.
+- **Likely cause:** profile rows joined to the wrong reV cells in most weather years, by position instead of gid.
+- **Test and fix:** compare per-cell yearly mean CF with the supply-curve `mean_cf` on the VM, then rebuild the p1
+  profiles with a gid join.
+- **Weather years:** S0 uses all seven (2007–2013).

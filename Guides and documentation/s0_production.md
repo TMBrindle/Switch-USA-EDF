@@ -690,6 +690,10 @@ from cdd0491 with the setting explicit; the default writes the same files byte f
 
 ### Import charge: v3.2 items (from the S0 v3.1 run)
 
+v3.2 status (`tom/s0-v3.2`, CHANGES §100): the WA two-tranche option (`wa_import_charge`), the storage-credit
+phase-down (`storage_credit`) and the wind interconnection price factor are built behind flags that are off by
+default. The CA tranche calibration and the p1 solar fix are proposals. Both are in `s0_v3.2.md`.
+
 1. **Free tranche calibration.** The 49.4 TWh/yr tranche bound in every stage of the S0 v3.1 run. Still to settle:
    - the source: CARB MRR (specified vs unspecified MWh) versus CEC's power mix, and whether geothermal counts
      (+2.6 TWh);
