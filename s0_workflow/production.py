@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -93,6 +94,7 @@ def apply_settings(case_settings: dict) -> None:
             apply_rggi(s, s0, case, year)
             apply_ca_wa_carbon(s, s0, case, year)
             apply_storage_credit(s, s0, case, year)
+            apply_pv_profile_repair(s, s0, case, year)
             apply_retirement_option(s, s0)
             apply_forced_tx(s, s0, case, year)
             if prm.apply_settings(s, s0):
@@ -598,6 +600,69 @@ def apply_storage_credit(s: dict, s0: dict, case=None, year=None) -> None:
                         "phase_basis": r["phase_basis"]}
     logger.info("s0_production %s/%s: storage credit %.0f%% with the OBBBA phase-down %s (%s), via the credit writer",
                 case, year, 100 * (1 - m_mw), r["phase_down"], r["phase_basis"])
+
+
+PV_REPAIR_MODES = ("off", "neighbour_fill")
+_PV_REPAIR_CHECKED = {}
+
+
+def pv_repair_settings(s0: dict) -> dict:
+    r = {"mode": "off", "profiles_dir": None, "verify": "manifest", "sites": None,
+         **((s0 or {}).get("pv_profile_repair") or {})}
+    if r["mode"] not in PV_REPAIR_MODES:
+        raise ValueError(f"s0_production.pv_profile_repair.mode must be one of {PV_REPAIR_MODES}, not {r['mode']!r}")
+    if r["verify"] not in ("manifest", "full"):
+        raise ValueError(f"s0_production.pv_profile_repair.verify must be manifest or full, not {r['verify']!r}")
+    return r
+
+
+def apply_pv_profile_repair(s: dict, s0: dict, case=None, year=None) -> None:
+    """s0_production.pv_profile_repair (v3.2 flag; CHANGES §111). off (v3.1): PowerGenome reads the profiles in
+    RESOURCE_GROUP_PROFILES (pg/settings/env.yml) as they are; a folder written by the repair is refused there, so the
+    two can't be mixed up. neighbour_fill: RESOURCE_GROUP_PROFILES points at the repaired folder
+    (s0_workflow/scripts/repair_pv_profiles.py) once its manifest checks out: the repaired file unchanged since the
+    repair and no site-year with capacity still all zero (verify: full rescans the file, with the sites table)."""
+    from s0_workflow import pv_profile_repair as pr
+    r = pv_repair_settings(s0)
+    cur = s.get("RESOURCE_GROUP_PROFILES")
+    if r["mode"] == "off":
+        if cur and (Path(cur) / pr.MANIFEST).exists():
+            raise ValueError(f"s0_production.pv_profile_repair is off but RESOURCE_GROUP_PROFILES ({cur}) is a repaired "
+                             f"folder; set mode: neighbour_fill or point it at the original profiles")
+        return
+    if not r["profiles_dir"]:
+        raise ValueError("s0_production.pv_profile_repair: neighbour_fill needs profiles_dir (the repaired folder)")
+    d = Path(r["profiles_dir"])
+    d = d if d.is_absolute() else REPO / d
+    key = (str(d.resolve()), r["verify"])
+    if key not in _PV_REPAIR_CHECKED:
+        sites = None
+        if r["verify"] == "full":
+            if not r["sites"]:
+                raise ValueError("s0_production.pv_profile_repair: verify full needs sites (the sites table)")
+            sp = Path(r["sites"])
+            sites = pd.read_csv(sp if sp.is_absolute() else REPO / sp, dtype={"site": str})
+        _PV_REPAIR_CHECKED[key] = pr.check_folder(d, sites, full=r["verify"] == "full")
+    man = _PV_REPAIR_CHECKED[key]
+    s["RESOURCE_GROUP_PROFILES"] = str(d.resolve())
+    logger.info("s0_production %s/%s: PV profiles from the repaired folder %s (%d site-years filled, %d sites; "
+                "0 zero site-years with capacity)", case, year, d, man["site_years_filled"], man["sites_zero_before"])
+
+
+def write_pv_repair_log(folder: Path, s0: dict, log) -> None:
+    """neighbour_fill: copy the repair's per-site-year log into the case folder (pv_profile_repair_log.csv), so every
+    filled site travels with the inputs."""
+    from s0_workflow import pv_profile_repair as pr
+    r = pv_repair_settings(s0)
+    if r["mode"] == "off":
+        return
+    d = Path(r["profiles_dir"])
+    d = d if d.is_absolute() else REPO / d
+    man = pr.check_folder(d)
+    shutil.copy2(d / man["log"], Path(folder) / pr.LOG)
+    log(f"pv_profile_repair (neighbour_fill): {man['site_years_filled']} site-years filled at {man['sites_zero_before']} "
+        f"sites from the nearest unaffected site in the same weather year, scaled by the 2012-13 means; "
+        f"{man['clipped_hours']} hours clipped at 1; log {pr.LOG}; folder {d}")
 
 
 def apply_ca_wa_carbon(s: dict, s0: dict, case=None, year=None) -> None:
@@ -1195,6 +1260,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     write_imports_carbon_cost(out_folder, s0, scen_settings_dict, log)     # imports generators in CA/WA (§66)
     write_va_rggi(out_folder, s0, scen_settings_dict, log)                 # Virginia in ETS 1 (§66)
     fuel_prices.write_case_inputs(out_folder, s0, scen_settings_dict, log)  # STEO -> AEO2026 gas and coal (§67)
+    write_pv_repair_log(out_folder, s0, log)                                # repaired PV profiles (§111)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))

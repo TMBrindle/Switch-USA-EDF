@@ -4001,3 +4001,82 @@ is tight, set `PG_READ_ONCE=0`.
 
 **Runner check:** build BILL central (or S0prod_A) with and without `PG_READ_ONCE=0` and compare `SHA256SUMS` of every
 stage folder. Then report the timing and the read-once log line.
+
+## 111. S0 v3.2: Zeroed reV Solar Profiles: Neighbour-Fill Repair (Flag), Re-Extraction Route, CF-Basis Re-Assessment
+
+**Date:** 2026-10-11. **Branch:** `tom/s0-v3.2` only. Numbered §111 because §109 and §110 are already taken on this
+branch.
+
+**The finding (dashboards session):**
+- In `solar_rev_profiles_20240801.parquet` (RESOURCE_GROUP_PROFILES), 5,390 reV sites (about 8%; blocks of 539 every
+  6,468 columns) are all zero in weather years 2007–2011 and normal in 2012–13. Wind is unaffected.
+- Model PV CF is understated in 101 of 134 zones: p1 30%, p5 24%, p11 21%, p14 18%, p26 and p79 about 12%, and 1–8%
+  elsewhere.
+- Data: branch `data/rev-cf-mismatch` (`rev_cf_mismatch_118.csv`; `zeroed_pv_sites.csv` and `zones_affected.csv` to
+  follow).
+
+**1. Repair behind a flag (`s0_production.pv_profile_repair.mode`: off (default, v3.1) or `neighbour_fill`).**
+
+`s0_workflow/scripts/repair_pv_profiles.py` (library `s0_workflow/pv_profile_repair.py`) writes a repaired copy of the
+profiles folder. The source folder is only read.
+- **Fill rule:** each all-zero site-year of a site that has output in other years is filled from the nearest unaffected
+  site (great circle) in the same weather year, so the alignment with load and wind is kept. The fill is scaled by the
+  ratio of the two sites' 2012–13 means and clipped to [0, 1]; clipped hours are counted.
+- **Batches:** the file is processed in row batches (pyarrow) and never loaded whole. The output keeps the schema,
+  column order and non-site columns.
+- **Repaired folder:** the repaired file under its original name, hard links (else copies) of the folder's other files,
+  `pv_profile_repair_log.csv` (one row per zeroed site-year: neighbour, distance, scale, clipped hours, status) and
+  `pv_profile_repair_manifest.json`.
+- **Sites table:** `--sites` (site, latitude, longitude, capacity_mw), or built from the CPA metadata and site mapping.
+
+**The build with `neighbour_fill`** (`production.apply_pv_profile_repair`):
+- It checks the manifest: the file must be unchanged since the repair, and no site-year with capacity may still be all
+  zero. With `verify: full` and the sites table, it rescans the file instead. Either failure stops the build.
+- It then points `RESOURCE_GROUP_PROFILES` at the folder. PowerGenome takes that setting from `pg/settings/env.yml`
+  (`pg_data.yml`).
+- It copies the fill log into each case folder.
+- With the flag off, a repaired folder in `RESOURCE_GROUP_PROFILES` is refused, so the two can't be mixed up.
+
+**Test:** `test_pv_profile_repair.py`, on hand-built profiles. It checks:
+- the nearest neighbour, the same-year fill and the scale;
+- reference years and unaffected columns unchanged;
+- results independent of batch size and row groups;
+- a site with capacity that is zero in every year fails the check;
+- clipping is counted;
+- the build flag's on, off, mismatch and changed-file cases.
+
+**2. Re-extraction (proposal).**
+- **Source of the profiles:** Greg Schivley produced them in May 2025 by running reV on the Princeton sites with NSRDB
+  weather (`pg_data.yml`).
+- **Proper fix:** regenerate 2007–2011 for the 5,390 sites. NREL publishes the reV utility-PV supply curves with hourly
+  profiles for about 60,000 sites on OEDI: submission 6001 (2023), representative profiles for 1998–2023, and the 2024
+  ReEDS hourly CF dataset for 2007–13 and 2016–23.
+- **NSRDB weather:** on AWS Open Data (`s3://nrel-pds-nsrdb`, public, `--no-sign-request`).
+- **Needed from the VM:**
+  - the parquet's column ids and `solar_site_mapping_20240801.parquet`, to tie columns to reV `sc_point_gid`;
+  - the 2012–13 means of about 20 affected and 20 unaffected sites, to check that an OEDI profile reproduces this file's
+    reV configuration (tracking, DC/AC ratio, losses) before substituting it;
+  - the PowerGenome data provenance for 20240801 (Greg or the PowerGenome team), since a re-export of 2007–2011 from the
+    original run is the cleanest route.
+- Neither OEDI nor NSRDB was reachable from the cloud session, so none of this was tried.
+
+**3. Re-assessing the reV CF basis** (`s0_workflow/scripts/rev_cf_reassess.py` on the 118 list). Model PV CF divided by
+(1 − the zone's understatement):
+
+| Zone | Before | After |
+|---|---|---|
+| p11 | 0.77 | 0.98 |
+| p26 | 0.89 | 1.01 |
+| p79 | 0.76 | 0.86 |
+| p5 | 0.61 | 0.81 |
+| p1 | 0.54 | 0.77 (0.177 vs reV 0.232) |
+
+- p14, with an 18% understatement, isn't in the list, so its corrected ratio is above about 1.03.
+- **No uniform AC/DC basis difference.** p1's residual 0.77 matches 1/1.3 (DC vs AC with an inverter loading ratio of
+  1.3). But a basis difference would apply to every zone, and p11, p26 and p14 reconcile fully once corrected.
+- **Still open, until `zones_affected.csv` arrives:** the residual in p1, p5 and the PJM zones (p125 0.69, p122 0.76,
+  p124 0.80, whose shares aren't quoted).
+- **Next checks for p1:** its share on the sampled days rather than the full record (S0 samples all seven years; five
+  are zeroed), and the model CF over the full record instead of the sampled hours.
+- **Wind:** unchanged by this finding (onshore median 0.92, floating offshore 0.81). The hub-height and losses question
+  stays open.

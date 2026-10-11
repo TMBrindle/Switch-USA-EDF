@@ -327,6 +327,17 @@ s0_production:
   #          battery capex x (1 - 0.30 x phase), phase 1 for build years through 2033, then 0.75 (2034), 0.5 (2035),
   #          0 (2036 on). phase_basis: period_label (the period's label year, as the production credits) or
   #          span_mean (the mean over the period's build years, period_spans)
+  # v3.2 flag (CHANGES §111): repair of the reV solar profiles zeroed in weather years 2007-2011 (5,390 sites).
+  #   off             (v3.1) PowerGenome reads RESOURCE_GROUP_PROFILES (pg/settings/env.yml) as it is
+  #   neighbour_fill  RESOURCE_GROUP_PROFILES = profiles_dir, a folder written by s0_workflow/scripts/repair_pv_profiles.py
+  #                   (each zeroed site-year from the nearest unaffected site in the same weather year x the 2012-13
+  #                   mean ratio); the build checks its manifest (verify: manifest) or rescans it (verify: full, with
+  #                   sites) and stops if any site-year with capacity is still all zero
+  pv_profile_repair:
+    mode: "off"
+    profiles_dir: ~                # e.g. pg_data/profiles_pvfix
+    verify: manifest
+
   storage_credit:
     mode: flat
     phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}
