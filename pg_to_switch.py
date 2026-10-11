@@ -102,9 +102,11 @@ from conversion_functions import (
 
 from conversion_functions import LogFormatterTwoLine as LogFormatter
 
-# cache some functions to speed up repeated execution
+# cache some functions to speed up repeated execution. make_generator_variability is NOT cached (v3.2, CHANGES §101):
+# it takes about 2.3 s per stage but wrote about 6.5 GB of cache per build that was never reused, and its key changed
+# with generator columns that never reach the written files (e.g. credit settings), so cases with byte-identical
+# inputs missed each other's entries. The call and its output are unchanged; only the memoisation is gone.
 memory = Memory("cache", verbose=0)
-make_generator_variability = memory.cache(make_generator_variability)
 kmeans_time_clustering = memory.cache(kmeans_time_clustering)
 
 

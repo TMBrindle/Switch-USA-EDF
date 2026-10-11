@@ -3920,3 +3920,29 @@ entry is numbered after them so the two branches merge without a clash.
 - **Test and fix:** compare per-cell yearly mean CF with the supply-curve `mean_cf` on the VM, then rebuild the p1
   profiles with a gid join.
 - **Weather years:** S0 uses all seven (2007–2013).
+
+## 101. S0 v3.2: `make_generator_variability` No Longer Cached
+
+**Date:** 2026-10-11. **Branch:** `tom/s0-v3.2` only.
+
+**The change:** `pg_to_switch.py` called PowerGenome's `make_generator_variability` through a joblib cache
+(`memory.cache`, the `cache/` folder). It now calls the function directly. `kmeans_time_clustering` keeps its cache.
+
+**Why (the runner's measurements):**
+- The cache saved about 2.3 s per stage but wrote about 6.5 GB per build.
+- No entry was ever reused. The key hashes the whole generator table, including columns that never reach the written
+  files (credit settings, for example). So S4 and S2, whose 2028 inputs are byte-identical, got different keys.
+
+**Inputs unchanged:**
+- A joblib cache only memoises. A hit returns the stored output of an identical call, and a miss runs the function.
+  So calling the function directly gives the same `variable_capacity_factors.csv` and every other file. The call
+  itself (`make_generator_variability(period_gens)`) is unchanged.
+- This couldn't be checked by a build here (no PowerGenome data in the cloud).
+- **Runner check:** every v3.2 flag defaults to v3.1, so a v3.2 build of S0prod_A 2028 should hash identically to the
+  archived s0-v3.1 2028 inputs (`SHA256SUMS.txt`).
+
+**Clean-up:** existing cache entries for the function, under `cache/joblib/` in folders named after
+`make_generator_variability`, can be deleted. Nothing reads them now.
+
+**Test:** `s0_workflow/tests/test_variability_cache.py` checks that the function isn't wrapped by the cache, that the
+single call site uses it directly, and that `kmeans_time_clustering` is still cached.
