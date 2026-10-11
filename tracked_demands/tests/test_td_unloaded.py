@@ -22,7 +22,7 @@ import pytest
 
 from td_toy import REPO, read, cost, td_case, toyutil
 
-BASE_FALLBACK = "9d68751"   # tom/s0-v3.1 when this branch was cut (CHANGES §94)
+BASE_FALLBACK = "9d68751"   # tom/s0-v3.1 when this branch was cut (CHANGES §107)
 ALLOWED_NEW = ("tracked_demands/", "switch/study_modules/tracked_demands.py",
                "Guides and documentation/tracked_demands.md")
 ALLOWED_MODIFIED = ("CHANGES.md", "SHARED_CHANGES.md", ".gitignore")

@@ -4,7 +4,7 @@ Hourly clean-energy matching for specific loads (data centres pursuing 24/7 CFE,
 on-site generation and storage and flexibility obligations. The Switch module is
 `../switch/study_modules/tracked_demands.py`. It is opt-in and not in `switch/modules.txt`. The guide is
 `../Guides and documentation/tracked_demands.md`; read sections 11–13 before using it in a case. Owner: Tom
-Brindle (EDF). History: CHANGES §94.
+Brindle (EDF). History: CHANGES §107.
 
 ## Layout
 

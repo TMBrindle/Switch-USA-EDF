@@ -3686,14 +3686,14 @@ purchases above 0.001 t. This was wrong in two ways:
   options are on `tom/s0-prod-scripts` (§86).
 - **Credit work** (`full_ira_lev`, the 10-year tally): held until D7 is settled. It doesn't affect S0.
 
-## 94. Tracked Demands on the S0 v3.1 Line: Port and Audit (Step 1)
+## 107. Tracked Demands on the S0 v3.1 Line: Port and Audit (Step 1)
 
 **Date:** 2026-10-09 · **Branch:** `tom/tracked-demands-v2` (new, from `tom/s0-v3.1` at 9d68751)
 **See also:** `Guides and documentation/tracked_demands.md` (sections 11–14), `tracked_demands/README.md`,
 `SHARED_CHANGES.md` #109–#110
 
 **Why:** bring the tracked-demands module (May 2026, `tom/tracked-demands` e60d215/d18fef1) onto the current line,
-opt-in, and audit it against today's model before a first real case. §90–§93 are on other branches.
+opt-in, and audit it against today's model before a first real case. §90–§106 belong to other work (the S0 line keeps §90–§100).
 
 **Port:**
 1. `switch/study_modules/tracked_demands.py` from e60d215 (identical at d18fef1). **Not** added to

@@ -1,6 +1,6 @@
 """Hourly clean-energy matching on the toy data centre: on (hourly blocks), annual, off; zero-weight stress hours.
 
-Tests marked xfail(strict=True) record gaps found in the step-1 audit (CHANGES §94). Each passes, and so fails the
+Tests marked xfail(strict=True) record gaps found in the step-1 audit (CHANGES §107). Each passes, and so fails the
 suite, once the gap is fixed, so the marker has to be removed with the fix.
 """
 from __future__ import annotations
@@ -41,15 +41,15 @@ def test_zero_weight_hours_are_outside_cfe_blocks(tmp_path):
     assert d.loc[["h8", "h9"], "clean_MWh"].abs().max() < TOL
 
 
-# ------------------------------------------------------------------------------------------------ known gaps (§94)
-@pytest.mark.xfail(strict=True, reason="§94 gap 3: on-site clean output that charges the battery is credited when "
+# ------------------------------------------------------------------------------------------------ known gaps (§107)
+@pytest.mark.xfail(strict=True, reason="§107 gap 3: on-site clean output that charges the battery is credited when "
                                        "generated and again (at the grid fraction) when discharged")
 def test_hourly_clean_credit_not_above_consumption(runs):
     d = read(runs["hourly"], "tracked_demand_cfe_detail.csv")
     assert (d["clean_MWh"] <= d["total_MWh"] * (1 + 1e-6)).all()
 
 
-@pytest.mark.xfail(strict=True, reason="§94 gap 1: a flexible tracked load drops to its minimum on zero-weight "
+@pytest.mark.xfail(strict=True, reason="§107 gap 1: a flexible tracked load drops to its minimum on zero-weight "
                                        "stress days (free: no weight), so stress days don't see it")
 def test_tracked_load_present_on_stress_days(tmp_path):
     run = td_case(tmp_path, "stressflex", matching=None, stress=True, min_mw=0.0, onsite=False, storage=False)
@@ -57,7 +57,7 @@ def test_tracked_load_present_on_stress_days(tmp_path):
     assert d.loc[[8, 9], "TDDispatch_MW"].min() > 0.5
 
 
-@pytest.mark.xfail(strict=True, reason="§94 gap 5: grid_clean_fraction_computed.csv is keyed by timestamp, "
+@pytest.mark.xfail(strict=True, reason="§107 gap 5: grid_clean_fraction_computed.csv is keyed by timestamp, "
                                        "grid_clean_fraction.csv by timepoint id, so a second pass can't read it")
 def test_computed_clean_fraction_keys_are_timepoints(runs):
     comp = read(runs["hourly"], "grid_clean_fraction_computed.csv")
@@ -65,7 +65,7 @@ def test_computed_clean_fraction_keys_are_timepoints(runs):
     assert set(comp["TIMEPOINT"]) <= set(tps["timepoint_id"])
 
 
-@pytest.mark.xfail(strict=True, reason="§94 gap 5: stress-hour CO2 intensity is computed from weighted emissions, "
+@pytest.mark.xfail(strict=True, reason="§107 gap 5: stress-hour CO2 intensity is computed from weighted emissions, "
                                        "so it reads 0 on zero-weight hours")
 def test_stress_hour_co2_intensity_not_zero(tmp_path):
     run = td_case(tmp_path, "stressco2", matching=None, stress=True, onsite=False, storage=False)

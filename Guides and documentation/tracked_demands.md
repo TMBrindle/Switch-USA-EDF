@@ -1,7 +1,7 @@
 # Tracked Demands Module — User Guide
 
 **Module:** `switch/study_modules/tracked_demands.py` (opt-in; not in `switch/modules.txt`)  
-**Branch:** `tom/tracked-demands-v2` (from `tom/s0-v3.1` at 9d68751; CHANGES §94)  
+**Branch:** `tom/tracked-demands-v2` (from `tom/s0-v3.1` at 9d68751; CHANGES §107)  
 **Switch version:** 2.0.9 (Pyomo 6.9.1, the newest Switch 2.0.9 allows)  
 **Last updated:** 2026-10-09 (step 1: port and audit). Sections 1–10 and the appendices are the May 2026 guide,
 corrected where the port changed something; sections 11–14 are new.
