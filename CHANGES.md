@@ -4080,3 +4080,38 @@ profiles folder. The source folder is only read.
   are zeroed), and the model CF over the full record instead of the sampled hours.
 - **Wind:** unchanged by this finding (onshore median 0.92, floating offshore 0.81). The hub-height and losses question
   stays open.
+
+**Update with the dashboards' data** (`data/rev-cf-mismatch` 9383b09; copied to `s0_workflow/data/pv_profile_repair/`:
+`zeroed_pv_sites.csv`, `zones_affected.csv`, `README_zeroed_pv_profiles.md`, `rev_cf_mismatch_118.csv`):
+- **What's zeroed:** 68,923 site columns (`0`–`68922`, the `Site` of `solar_site_mapping_20240801.parquet`; no reV gid in
+  the file). 5,390 columns in 10 blocks of 539 are zero for whole years, but not the same years: block 0 is zero in
+  2007–2011, blocks 1–2 in 2007, 2010 and 2011, block 3 in 2007 and 2009–2011, blocks 4–9 in 2010–2011. In total that
+  is 14,553 site-years.
+- **Missing data, not mismatched sites:** re-matching by ID can't recover these years.
+- **p1:** its damage sits in cluster 2 (81 zeroed sites, 32.0 GW eligible).
+
+**Repair changes for this data:**
+- **Per-year neighbours:** the neighbour is now the nearest site with data in that weather year and in 2012–13, so a
+  site zero only in 2010–11 can fill a block 0 site's 2007–2009. Before, only sites with data in every year counted.
+- **Metadata defaults:** the sites table is built from `solar_lcoe_ReEDS.csv` and the site mapping, with columns
+  `CPA_ID`, `Site`, `latitude`, `longitude` and `cpa_mw` matched case-insensitively. A missing column stops the build
+  and lists the columns there are.
+- **Cross-check:** `--zeroed` compares the fills with `zeroed_pv_sites.csv`; the result goes in the manifest.
+- **Fill quality:** the manifest records distance quantiles, the number of distinct neighbours, the most site-years
+  filled from one neighbour and the scale range. Fills more than 100 km away are warned (`--warn-km`), because the
+  blocks are contiguous columns and may be contiguous areas: p1's cluster 2 could be filled from distant edge sites.
+- **Test:** `test_neighbour_is_chosen_per_weather_year`.
+
+**Re-assessment with `zones_affected.csv`** (`rev_cf_reassess_118.csv`):
+- **The 27 PV pairs:** after dividing by (1 − understatement), 19 of 27 are inside 0.85–1.15 (before: 0), with a
+  median of 0.88 and p11 0.98, p26 1.02.
+- **A small common gap:** across all 101 affected zones, the profile CF over years with data is a median 0.95 of the
+  supply-curve CF (IQR 0.92–0.98). That points to a small, common basis or losses difference (about 5%). It is not
+  the 23% that an AC/DC basis (1/1.3) would give.
+- **p1 and p5 stay outliers:** 0.77 (0.178 against 0.231) and 0.84 on full-record years with data. Sampling isn't the
+  cause in p1: the modelled CF over the full record (0.125) equals the CF on the sampled hours (0.124).
+- **Next check for p1 and p5:** each site's per-year mean against `cf_years_with_data`, for partial-year gaps that the
+  whole-year test misses, plus the 2012–13 means of p1's block 0 sites, whose only years with data are those two.
+- **The PJM gaps aren't from zeroed sites:** p125 (0.69), p122 (0.76) and p124 (0.80) aren't among the 101 zones. They
+  need the full-record profile CF of those zones from the dashboards session, to separate day sampling from the
+  profiles.

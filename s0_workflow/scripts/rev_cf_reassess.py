@@ -4,7 +4,7 @@
 
 rev_cf_mismatch_118.csv (data/rev-cf-mismatch): zone, technology, model_cf, rev_cf, ratio (= model / reV), by stage.
 zones_affected.csv: zone, pv_cf_understatement (share of the true CF the zeroed sites remove, e.g. 0.30 for p1: the
-model CF is (1 - u) x what it would be without the zeroed years). Without it, the shares the dashboards session quoted
+model CF is (1 - u) x what it would be without the zeroed years), or the dashboards' cf_understated_pct (percent). Without it, the shares the dashboards session quoted
 for six zones are used (p1 0.30, p5 0.24, p11 0.21, p14 0.18, p26 0.12, p79 0.12) and every other PV zone is shown
 uncorrected (it lost 1-8%).
 Output per pair: corrected model CF = model_cf / (1 - u) (PV only), corrected ratio, and the remaining gap.
@@ -19,6 +19,8 @@ QUOTED = {"p1": 0.30, "p5": 0.24, "p11": 0.21, "p14": 0.18, "p26": 0.12, "p79": 
 
 
 def reassess(m: pd.DataFrame, zones: pd.DataFrame | None = None) -> pd.DataFrame:
+    if zones is not None and "pv_cf_understatement" not in zones and "cf_understated_pct" in zones:
+        zones = zones.assign(pv_cf_understatement=zones.cf_understated_pct / 100.0)     # data/rev-cf-mismatch 9383b09
     u = dict(zip(zones.zone, zones.pv_cf_understatement)) if zones is not None else QUOTED
     out = m.copy()
     pv = out.technology.eq("solar_pv")

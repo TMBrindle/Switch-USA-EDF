@@ -1,0 +1,119 @@
+zone,state,region,technology,stage,model_cf,rev_cf,ratio,ratio_2028,ratio_2030,ratio_2035,stages_outside_0.85_1.15,status,pv_understatement,understatement_source,model_cf_corrected,ratio_corrected,in_band_after
+p1,WA,NorthernGrid,solar_pv,2030.0,0.1242,0.2316,0.5366,0.4857,0.5366,0.5743,3,outside band,0.29799,zones_affected,0.17692055668722667,0.763905685178008,False
+p5,OR,NorthernGrid,solar_pv,2030.0,0.1528,0.2496,0.6122,0.657,0.6122,0.6351,3,outside band,0.244411,zones_affected,0.20222634262806893,0.8102016932214301,False
+p125,DE,PJM,solar_pv,2030.0,0.1808,0.2602,0.695,0.8238,0.695,0.7005,3,outside band,,not given (1-8%),0.1808,0.6948501152959262,False
+p79,WI,MISO,solar_pv,2030.0,0.2019,0.2673,0.7552,0.8481,0.7552,0.7304,3,outside band,0.12465,zones_affected,0.2306505969040955,0.8628903737526955,True
+p122,PA,PJM,solar_pv,2030.0,0.1957,0.2561,0.7643,0.8456,0.7643,0.7612,3,outside band,,not given (1-8%),0.1957,0.7641546270987896,False
+p11,CA,CAISO,solar_pv,2030.0,0.2416,0.3123,0.7735,0.7932,0.7735,0.7052,3,outside band,0.208127,zones_affected,0.3050994288225511,0.9769434160184152,True
+p45,IA,MISO,solar_pv,2030.0,0.2208,0.2781,0.7942,0.8877,0.7942,0.7977,2,outside band,0.03728,zones_affected,0.22935017450556755,0.824703971612972,False
+p124,VA,PJM,solar_pv,2030.0,0.2112,0.2628,0.8037,0.8815,0.8037,0.7932,2,outside band,,not given (1-8%),0.2112,0.8036529680365297,False
+p42,MN,MISO,solar_pv,2030.0,0.21,0.2565,0.8188,0.915,0.8188,0.8093,2,outside band,0.046568,zones_affected,0.22025692445816794,0.8587014598758984,True
+p41,NE,SPP,solar_pv,2030.0,0.2282,0.2786,0.8192,0.8896,0.8192,0.827,2,outside band,0.028090999999999998,zones_affected,0.2347956444481942,0.8427697216374522,False
+p53,KS,SPP,solar_pv,2030.0,0.2352,0.2853,0.8245,0.8997,0.8245,0.8376,2,outside band,0.028916,zones_affected,0.24220355808560332,0.8489434212604392,False
+p73,MO,MISO,solar_pv,2030.0,0.2238,0.2698,0.8296,0.9065,0.8296,0.7782,2,outside band,0.056746,zones_affected,0.237263769885948,0.8794061152184878,True
+p44,MN,MISO,solar_pv,2030.0,0.2222,0.2668,0.8329,0.899,0.8329,0.8416,2,outside band,0.03418,zones_affected,0.23006357292249074,0.8623072448369219,True
+p67,TX,ERCOT,solar_pv,2030.0,0.2154,0.2586,0.8331,0.9961,0.8331,0.8184,2,outside band,0.073015,zones_affected,0.2323662195181152,0.8985545998380325,True
+p51,OK,SPP,solar_pv,2030.0,0.2293,0.2751,0.8334,0.9202,0.8334,0.8329,2,outside band,0.030748,zones_affected,0.23657418297821414,0.8599570446318217,True
+p107,IN,MISO,solar_pv,2030.0,0.2222,0.2661,0.8349,0.8543,0.8349,0.813,2,outside band,0.080123,zones_affected,0.2415540338545262,0.9077566097501925,True
+p69,IA,MISO,solar_pv,2030.0,0.2258,0.2691,0.8392,0.8894,0.8392,0.8098,2,outside band,0.043502,zones_affected,0.23606949517928946,0.8772556491240783,True
+p43,MN,MISO,solar_pv,2030.0,0.221,0.2601,0.8496,0.9276,0.8496,0.8298,2,outside band,0.039457,zones_affected,0.23007819535408616,0.8845759144716885,True
+p83,IL,MISO,solar_pv,2030.0,0.2281,0.2679,0.8514,0.8865,0.8514,0.8321,1,outside band,0.056353999999999994,zones_affected,0.24172200168283445,0.9022844407720583,True
+p80,IL,PJM,solar_pv,2030.0,0.228,0.2678,0.8516,0.8925,0.8516,0.8305,1,outside band,0.047375999999999995,zones_affected,0.23933892070743545,0.8937226314691392,True
+p55,MO,SPP,solar_pv,2030.0,0.2324,0.2724,0.8533,0.9246,0.8533,0.8253,1,outside band,0.034201,zones_affected,0.24062977907411376,0.8833692330180388,True
+p76,WI,MISO,solar_pv,2030.0,0.2275,0.2638,0.8625,0.9012,0.8625,0.8461,1,outside band,0.03336,zones_affected,0.23535132003641482,0.892158150251762,True
+p70,IA,MISO,solar_pv,2030.0,0.2354,0.2726,0.8634,0.9044,0.8634,0.8477,1,outside band,0.01605,zones_affected,0.23923979877026272,0.8776221524954612,True
+p74,MI,MISO,solar_pv,2030.0,0.2195,0.2529,0.8678,0.9169,0.8678,0.848,1,outside band,0.049396,zones_affected,0.23090582408658075,0.9130321237112722,True
+p88,MS,SERTP,solar_pv,2030.0,0.2276,0.2599,0.8756,0.9764,0.8756,0.8354,1,outside band,0.058434,zones_affected,0.24172495608380082,0.9300690884332466,True
+p85,AR,MISO,solar_pv,2030.0,0.2344,0.2656,0.8825,0.9566,0.8825,0.8453,1,outside band,0.038433999999999996,zones_affected,0.24376901845531143,0.9178050393648773,True
+p26,UT,NorthernGrid,solar_pv,2030.0,0.2598,0.2933,0.8857,0.8586,0.8857,0.8468,1,outside band,0.127775,zones_affected,0.29785892401616554,1.0155435527315566,True
+p95,SC,SERTP,wind_offshore_fixed,2030.0,0.2786,0.3846,0.7243,0.8776,0.7243,0.9266,1,outside band,,wind: unaffected,0.2786,0.7243889755590224,False
+p1,WA,NorthernGrid,wind_offshore_fixed,2030.0,0.289,0.3902,0.7406,0.8791,0.7406,0.8544,1,outside band,,wind: unaffected,0.289,0.7406458226550486,False
+p102,FL,FRCC,wind_offshore_fixed,2030.0,0.2292,0.3035,0.7552,1.0267,0.7552,0.7762,2,outside band,,wind: unaffected,0.2292,0.7551894563426689,False
+p97,NC,SERTP,wind_offshore_fixed,2030.0,0.3147,0.4112,0.7653,0.915,0.7653,1.0802,1,outside band,,wind: unaffected,0.3147,0.7653210116731517,False
+p98,NC,SERTP,wind_offshore_fixed,2030.0,0.3341,0.4276,0.7813,0.9452,0.7813,1.0623,1,outside band,,wind: unaffected,0.3341,0.7813376987839102,False
+p101,FL,FRCC,wind_offshore_fixed,2030.0,0.2487,0.3164,0.786,0.7921,0.786,0.83,3,outside band,,wind: unaffected,0.2487,0.7860303413400759,False
+p76,WI,MISO,wind_offshore_fixed,2030.0,0.3651,0.4616,0.7909,0.8515,0.7909,0.9154,1,outside band,,wind: unaffected,0.3651,0.7909445407279029,False
+p99,VA,PJM,wind_offshore_fixed,2030.0,0.3848,0.4532,0.8491,0.914,0.8491,1.0253,1,outside band,,wind: unaffected,0.3848,0.8490732568402471,False
+p91,FL,SERTP,wind_offshore_fixed,2030.0,0.2727,0.3145,0.867,0.8668,0.867,0.8141,1,outside band,,wind: unaffected,0.2727,0.8670906200317965,True
+p125,DE,PJM,wind_offshore_fixed,2030.0,0.3946,0.4541,0.8691,0.9192,0.8691,0.6945,1,outside band,,wind: unaffected,0.3946,0.8689715921603172,True
+p79,WI,MISO,wind_offshore_fixed,2030.0,0.4157,0.4758,0.8737,0.8296,0.8737,0.9618,1,outside band,,wind: unaffected,0.4157,0.8736864228667508,True
+p75,WI,MISO,wind_offshore_fixed,2030.0,0.4172,0.4773,0.8742,0.7912,0.8742,0.9737,1,outside band,,wind: unaffected,0.4172,0.8740833857112927,True
+p123,MD,PJM,wind_offshore_fixed,2030.0,0.3984,0.4536,0.8781,0.8367,0.8781,0.8107,2,outside band,,wind: unaffected,0.3984,0.8783068783068783,True
+p66,TX,MISO,wind_offshore_fixed,2030.0,0.316,0.3542,0.8919,0.9027,0.8919,0.8167,1,outside band,,wind: unaffected,0.316,0.8921513269339356,True
+p126,NJ,PJM,wind_offshore_fixed,2030.0,0.414,0.4595,0.901,0.8727,0.901,0.7005,1,outside band,,wind: unaffected,0.414,0.9009793253536452,True
+p67,TX,ERCOT,wind_offshore_fixed,2030.0,0.3265,0.3557,0.918,0.9608,0.918,0.7889,1,outside band,,wind: unaffected,0.3265,0.917908349732921,True
+p65,TX,ERCOT,wind_offshore_fixed,2030.0,0.385,0.4184,0.9202,0.9459,0.9202,0.8236,1,outside band,,wind: unaffected,0.385,0.9201720841300192,True
+p64,TX,ERCOT,wind_offshore_fixed,2030.0,0.391,0.423,0.9245,0.9826,0.9245,0.8336,1,outside band,,wind: unaffected,0.391,0.9243498817966904,True
+p90,AL,SERTP,wind_offshore_fixed,2030.0,0.3097,0.3205,0.9663,1.1555,0.9663,0.9153,1,outside band,,wind: unaffected,0.3097,0.9663026521060841,True
+p128,NY,NYISO,wind_offshore_fixed,2030.0,0.4753,0.4841,0.9818,0.8295,0.9818,0.8249,2,outside band,,wind: unaffected,0.4753,0.9818219376161951,True
+p132,CT,ISONE,wind_offshore_fixed,2030.0,0.4942,0.4954,0.9976,0.8223,0.9976,0.802,2,outside band,,wind: unaffected,0.4942,0.9975777149777957,True
+p74,MI,MISO,wind_offshore_fixed,2030.0,0.5122,0.4774,1.0729,0.8326,1.0729,1.079,1,outside band,,wind: unaffected,0.5122,1.0728948470883954,True
+p127,NY,NYISO,wind_offshore_fixed,2030.0,0.4962,0.4291,1.1565,0.9629,1.1565,1.1592,2,outside band,,wind: unaffected,0.4962,1.156373805639711,False
+p5,OR,NorthernGrid,wind_offshore_fixed,2030.0,0.4606,0.3949,1.1661,1.1329,1.1661,1.2837,2,outside band,,wind: unaffected,0.4606,1.166371233223601,False
+p43,MN,MISO,wind_offshore_fixed,2030.0,0.4524,0.387,1.1689,0.8735,1.1689,1.1738,2,outside band,,wind: unaffected,0.4524,1.1689922480620156,False
+p10,CA,CAISO,wind_offshore_fixed,,0.3656,,,,,,0,no ratio (cluster rebuild did not match),,wind: unaffected,0.3656,,False
+p101,FL,FRCC,wind_offshore_floating,2030.0,0.2487,0.3808,0.6531,,0.6531,0.6949,2,outside band,,wind: unaffected,0.2487,0.6530987394957983,False
+p102,FL,FRCC,wind_offshore_floating,2030.0,0.2292,0.3375,0.6792,,0.6792,0.6981,2,outside band,,wind: unaffected,0.2292,0.679111111111111,False
+p95,SC,SERTP,wind_offshore_floating,2030.0,0.2786,0.3943,0.7064,,0.7064,0.9043,1,outside band,,wind: unaffected,0.2786,0.7065686025868628,False
+p1,WA,NorthernGrid,wind_offshore_floating,2030.0,0.289,0.3841,0.7525,,0.7525,0.8682,1,outside band,,wind: unaffected,0.289,0.7524082270242124,False
+p11,CA,CAISO,wind_offshore_floating,2030.0,0.3377,0.4402,0.7672,,0.7672,0.6458,2,outside band,,wind: unaffected,0.3377,0.76715129486597,False
+p97,NC,SERTP,wind_offshore_floating,2030.0,0.3147,0.406,0.7752,,0.7752,1.0961,1,outside band,,wind: unaffected,0.3147,0.7751231527093595,False
+p76,WI,MISO,wind_offshore_floating,2030.0,0.3651,0.4607,0.7925,,0.7925,0.917,1,outside band,,wind: unaffected,0.3651,0.7924896896027783,False
+p98,NC,SERTP,wind_offshore_floating,2030.0,0.3341,0.4167,0.8018,,0.8018,1.0903,1,outside band,,wind: unaffected,0.3341,0.8017758579313655,False
+p58,LA,MISO,wind_offshore_floating,2030.0,0.3078,0.3764,0.8178,,0.8178,0.7745,2,outside band,,wind: unaffected,0.3078,0.8177470775770457,False
+p10,CA,CAISO,wind_offshore_floating,2030.0,0.3656,0.4427,0.8258,,0.8258,0.734,2,outside band,,wind: unaffected,0.3656,0.8258414276033431,False
+p37,ND,MISO,wind_offshore_floating,2030.0,0.3248,0.3894,0.8341,,0.8341,0.8136,2,outside band,,wind: unaffected,0.3248,0.8341037493579866,False
+p99,VA,PJM,wind_offshore_floating,2030.0,0.3848,0.4589,0.8386,,0.8386,1.0127,1,outside band,,wind: unaffected,0.3848,0.8385269121813032,False
+p75,WI,MISO,wind_offshore_floating,2030.0,0.4172,0.4971,0.8394,,0.8394,0.9344,1,outside band,,wind: unaffected,0.4172,0.8392677529672099,False
+p126,NJ,PJM,wind_offshore_floating,2030.0,0.414,0.4722,0.8768,,0.8768,0.6816,1,outside band,,wind: unaffected,0.414,0.8767471410419313,True
+p128,NY,NYISO,wind_offshore_floating,2030.0,0.4753,0.4899,0.9702,,0.9702,0.8151,1,outside band,,wind: unaffected,0.4753,0.9701979995917535,True
+p132,CT,ISONE,wind_offshore_floating,2030.0,0.4942,0.4846,1.0198,,1.0198,0.8196,1,outside band,,wind: unaffected,0.4942,1.0198101527032604,True
+p1,WA,NorthernGrid,wind_onshore,2030.0,0.2127,0.2923,0.7277,0.7161,0.7277,0.8761,2,outside band,,wind: unaffected,0.2127,0.7276770441327404,False
+p68,MN,MISO,wind_onshore,2030.0,0.3634,0.4789,0.7589,1.004,0.7589,0.8547,1,outside band,,wind: unaffected,0.3634,0.7588223011067029,False
+p97,NC,SERTP,wind_onshore,2030.0,0.2329,0.2932,0.7944,0.905,0.7944,0.785,2,outside band,,wind: unaffected,0.2329,0.7943383356070941,False
+p45,IA,MISO,wind_onshore,2030.0,0.3848,0.4834,0.7961,0.9497,0.7961,0.89,1,outside band,,wind: unaffected,0.3848,0.7960281340504758,False
+p96,SC,SERTP,wind_onshore,2030.0,0.2576,0.3233,0.7969,0.8949,0.7969,0.9204,1,outside band,,wind: unaffected,0.2576,0.7967831735230436,False
+p9,CA,CAISO,wind_onshore,2030.0,0.2706,0.3328,0.8132,0.8767,0.8132,0.7894,2,outside band,,wind: unaffected,0.2706,0.8131009615384616,False
+p23,WY,WestConnect,wind_onshore,2030.0,0.3308,0.404,0.819,0.9993,0.819,0.9004,1,outside band,,wind: unaffected,0.3308,0.8188118811881188,False
+p69,IA,MISO,wind_onshore,2030.0,0.3753,0.4561,0.823,1.0913,0.823,0.8938,1,outside band,,wind: unaffected,0.3753,0.8228458671344004,False
+p98,NC,SERTP,wind_onshore,2030.0,0.311,0.3768,0.8253,0.8297,0.8253,0.956,2,outside band,,wind: unaffected,0.311,0.8253715498938429,False
+p65,TX,ERCOT,wind_onshore,2030.0,0.3392,0.4089,0.8294,1.0442,0.8294,0.8806,1,outside band,,wind: unaffected,0.3392,0.8295426754707753,False
+p95,SC,SERTP,wind_onshore,2030.0,0.2513,0.3014,0.834,0.8652,0.834,0.8543,1,outside band,,wind: unaffected,0.2513,0.8337757133377572,False
+p32,SD,WestConnect,wind_onshore,2030.0,0.3607,0.4288,0.841,1.1713,0.841,0.8518,2,outside band,,wind: unaffected,0.3607,0.8411847014925373,False
+p27,AZ,WestConnect,wind_onshore,2030.0,0.2348,0.279,0.8418,0.8765,0.8418,0.9419,1,outside band,,wind: unaffected,0.2348,0.8415770609318995,False
+p35,MT,SPP,wind_onshore,2030.0,0.3651,0.4331,0.8432,1.1254,0.8432,0.8569,1,outside band,,wind: unaffected,0.3651,0.8429923805125836,False
+p30,AZ,WestConnect,wind_onshore,2030.0,0.2131,0.2513,0.8479,1.0351,0.8479,0.8817,1,outside band,,wind: unaffected,0.2131,0.8479904496617588,False
+p44,MN,MISO,wind_onshore,2030.0,0.4081,0.4801,0.8499,0.9067,0.8499,0.9221,1,outside band,,wind: unaffected,0.4081,0.8500312434909394,True
+p14,ID,NorthernGrid,wind_onshore,2030.0,0.2492,0.2925,0.8519,1.0133,0.8519,0.8072,1,outside band,,wind: unaffected,0.2492,0.851965811965812,True
+p124,VA,PJM,wind_onshore,2030.0,0.3587,0.4193,0.8555,0.8509,0.8555,0.7334,1,outside band,,wind: unaffected,0.3587,0.8554734080610542,True
+p17,MT,NorthernGrid,wind_onshore,2030.0,0.272,0.3171,0.8576,0.9369,0.8576,0.8214,1,outside band,,wind: unaffected,0.272,0.8577735730053612,True
+p4,WA,NorthernGrid,wind_onshore,2030.0,0.2494,0.2882,0.8655,0.9922,0.8655,0.8145,1,outside band,,wind: unaffected,0.2494,0.8653712699514227,True
+p3,WA,NorthernGrid,wind_onshore,2030.0,0.2892,0.3337,0.8666,0.9782,0.8666,0.7825,1,outside band,,wind: unaffected,0.2892,0.8666466886424933,True
+p121,MD,PJM,wind_onshore,2030.0,0.3785,0.4309,0.8783,0.8712,0.8783,0.8131,1,outside band,,wind: unaffected,0.3785,0.8783940589463912,True
+p101,FL,FRCC,wind_onshore,2030.0,0.2789,0.3031,0.9199,0.8415,0.9199,0.8962,1,outside band,,wind: unaffected,0.2789,0.9201583635763775,True
+p13,NV,NorthernGrid,wind_onshore,2030.0,0.2702,0.2936,0.9202,0.7256,0.9202,0.9762,1,outside band,,wind: unaffected,0.2702,0.9202997275204359,True
+p59,TX,WestConnect,wind_onshore,2030.0,0.2968,0.3211,0.9244,0.808,0.9244,0.879,1,outside band,,wind: unaffected,0.2968,0.9243226409218313,True
+p125,DE,PJM,wind_onshore,2030.0,0.3736,0.4,0.9338,0.9178,0.9338,0.7995,1,outside band,,wind: unaffected,0.3736,0.9339999999999999,True
+p46,WI,MISO,wind_onshore,2030.0,0.3864,0.4126,0.9366,0.8315,0.9366,0.9986,1,outside band,,wind: unaffected,0.3864,0.9365002423654871,True
+p5,OR,NorthernGrid,wind_onshore,2030.0,0.302,0.3204,0.9426,0.8439,0.9426,0.9858,1,outside band,,wind: unaffected,0.302,0.9425717852684145,True
+p99,VA,PJM,wind_onshore,2030.0,0.3558,0.3626,0.9815,0.8321,0.9815,0.9791,1,outside band,,wind: unaffected,0.3558,0.9812465526751242,True
+p81,IL,MISO,wind_onshore,2030.0,0.4304,0.4375,0.9837,1.192,0.9837,0.9808,1,outside band,,wind: unaffected,0.4304,0.9837714285714286,True
+p8,CA,NorthernGrid,wind_onshore,2030.0,0.2918,0.2951,0.9887,0.7495,0.9887,0.8674,1,outside band,,wind: unaffected,0.2918,0.9888173500508304,True
+p12,NV,NorthernGrid,wind_onshore,2030.0,0.2576,0.2604,0.9895,0.6553,0.9895,0.9387,1,outside band,,wind: unaffected,0.2576,0.9892473118279569,True
+p106,IN,MISO,wind_onshore,2030.0,0.4146,0.4112,1.0084,1.1612,1.0084,0.9905,1,outside band,,wind: unaffected,0.4146,1.0082684824902723,True
+p25,UT,NorthernGrid,wind_onshore,2030.0,0.2837,0.2796,1.0145,0.7133,1.0145,1.0407,1,outside band,,wind: unaffected,0.2837,1.0146638054363375,True
+p33,CO,WestConnect,wind_onshore,2030.0,0.3585,0.3529,1.0156,0.7701,1.0156,1.0111,1,outside band,,wind: unaffected,0.3585,1.0158685179937659,True
+p16,ID,NorthernGrid,wind_onshore,2030.0,0.2836,0.2789,1.0169,0.753,1.0169,1.0445,1,outside band,,wind: unaffected,0.2836,1.016851918250269,True
+p34,CO,WestConnect,wind_onshore,2030.0,0.3435,0.3348,1.026,0.8338,1.026,0.9921,1,outside band,,wind: unaffected,0.3435,1.0259856630824373,True
+p86,LA,MISO,wind_onshore,2030.0,0.3579,0.3478,1.0289,0.8455,1.0289,1.0122,1,outside band,,wind: unaffected,0.3579,1.0290396779758482,True
+p74,MI,MISO,wind_onshore,2030.0,0.4677,0.4486,1.0425,0.7695,1.0425,1.0806,1,outside band,,wind: unaffected,0.4677,1.0425769059295587,True
+p26,UT,NorthernGrid,wind_onshore,2030.0,0.3355,0.3181,1.0544,0.6212,1.0544,1.1192,1,outside band,,wind: unaffected,0.3355,1.0546997799434141,True
+p15,ID,NorthernGrid,wind_onshore,2030.0,0.3039,0.2795,1.0873,0.672,1.0873,1.0545,1,outside band,,wind: unaffected,0.3039,1.087298747763864,True
+p21,WY,NorthernGrid,wind_onshore,2030.0,0.3557,0.3173,1.1209,0.8401,1.1209,1.1846,2,outside band,,wind: unaffected,0.3557,1.12102111566341,True
+p85,AR,MISO,wind_onshore,2030.0,0.405,0.3485,1.1622,0.9039,1.1622,1.115,1,outside band,,wind: unaffected,0.405,1.162123385939742,False
+p73,MO,MISO,wind_onshore,2030.0,0.4702,0.4004,1.1745,1.0353,1.1745,1.0704,1,outside band,,wind: unaffected,0.4702,1.1743256743256745,False
+p55,MO,SPP,wind_onshore,2030.0,0.4862,0.4104,1.1849,0.9824,1.1849,1.117,1,outside band,,wind: unaffected,0.4862,1.1846978557504875,False
+p51,OK,SPP,wind_onshore,2030.0,0.536,0.4475,1.1978,0.941,1.1978,1.1692,2,outside band,,wind: unaffected,0.536,1.1977653631284917,False
+p56,AR,SPP,wind_onshore,2030.0,0.511,0.422,1.2107,0.9942,1.2107,1.1878,2,outside band,,wind: unaffected,0.511,1.2109004739336493,False
+p84,MO,MISO,wind_onshore,2030.0,0.4536,0.3742,1.2121,1.0185,1.2121,1.1429,1,outside band,,wind: unaffected,0.4536,1.2121859967931587,False
+p123,MD,PJM,wind_onshore,,0.3537,,,,,,0,no ratio (cluster rebuild did not match),,wind: unaffected,0.3537,,False

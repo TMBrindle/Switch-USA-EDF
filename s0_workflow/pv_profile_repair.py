@@ -67,15 +67,15 @@ def scan(path: Path, columns: list[str], first_year=2007, hours=8760, batch_rows
     sm = np.zeros((len(years), len(columns)))
     row = 0
     for b in f.iter_batches(batch_size=batch_rows, columns=columns):
-        a = np.column_stack([b.column(i).to_numpy(zero_copy_only=False) for i in range(b.num_columns)]).astype(float)
-        a = np.nan_to_num(a)
+        a = np.column_stack([b.column(i).to_numpy(zero_copy_only=False) for i in range(b.num_columns)])
+        a = np.nan_to_num(a.astype(np.float32, copy=False))
         start = 0
         while start < len(a):
             y = (row + start) // hours
             take = min(len(a) - start, hours - (row + start) % hours)
             part = a[start:start + take]
             mx[y] = np.maximum(mx[y], part.max(axis=0))
-            sm[y] += part.sum(axis=0)
+            sm[y] += part.sum(axis=0, dtype=np.float64)
             start += take
         row += len(a)
     return {"years": years, "max": pd.DataFrame(mx, index=years, columns=columns),
@@ -100,7 +100,8 @@ def _xyz(lat, lon):
 
 
 def plan(stats: dict, sites: pd.DataFrame, ref_years=(2012, 2013)) -> pd.DataFrame:
-    """One row per zeroed site-year: neighbour, distance and scale (or the reason it can't be filled)."""
+    """One row per zeroed site-year: the nearest site WITH DATA IN THAT WEATHER YEAR (and in the reference years), the
+    distance and the scale; or the reason it can't be filled. A site zero only in 2010-11 can fill another's 2008."""
     from scipy.spatial import cKDTree
     mx, sm, hours = stats["max"], stats["sum"], stats["hours"]
     ref = [y for y in ref_years if y in mx.index]
@@ -110,34 +111,56 @@ def plan(stats: dict, sites: pd.DataFrame, ref_years=(2012, 2013)) -> pd.DataFra
     cols = [c for c in mx.columns if str(c) in s.index]
     zero = mx[cols] <= 0
     ref_mean = sm.loc[ref, cols].sum() / (hours * len(ref))
-    ref_ok = (~zero.loc[ref]).all()                                       # output in every reference year
-    clean = [c for c in cols if not zero[c].any() and ref_mean[c] > 0]
-    if not clean:
-        raise ValueError("no unaffected site to fill from")
-    tree = cKDTree(_xyz(s.loc[[str(c) for c in clean], "latitude"], s.loc[[str(c) for c in clean], "longitude"]))
+    ref_ok = (~zero.loc[ref]).all() & (ref_mean > 0)                       # data in every reference year
+    xyz = pd.DataFrame(_xyz(s.loc[[str(c) for c in cols], "latitude"], s.loc[[str(c) for c in cols], "longitude"]),
+                       index=cols)
+    trees = {}
+    for y in mx.index:
+        cand = [c for c in cols if ref_ok[c] and not zero.at[y, c]]
+        if cand:
+            trees[int(y)] = (cKDTree(xyz.loc[cand].to_numpy()), cand)
     rows = []
     for c in cols:
         yz = [int(y) for y in zero.index[zero[c]]]
-        if not yz:
-            continue
-        reason = ""
-        if len(yz) == len(zero.index):
-            reason = "all weather years zero: no reference mean"
-        elif not ref_ok[c] or ref_mean[c] <= 0:
-            reason = f"zero in a reference year {ref}"
-        if reason:
-            rows += [{"site": str(c), "year": y, "neighbour": None, "distance_km": np.nan, "scale": np.nan,
-                      "site_ref_mean": ref_mean[c], "neighbour_ref_mean": np.nan, "status": "unfilled: " + reason}
-                     for y in yz]
-            continue
-        d, i = tree.query(_xyz([s.at[str(c), "latitude"]], [s.at[str(c), "longitude"]])[0])
-        n = clean[int(i)]
-        km = 2 * EARTH_KM * np.arcsin(min(1.0, d / 2))
-        rows += [{"site": str(c), "year": y, "neighbour": str(n), "distance_km": round(float(km), 2),
-                  "scale": float(ref_mean[c] / ref_mean[n]), "site_ref_mean": float(ref_mean[c]),
-                  "neighbour_ref_mean": float(ref_mean[n]), "status": "filled"} for y in yz]
+        for y in yz:
+            base = {"site": str(c), "year": y, "site_ref_mean": float(ref_mean[c])}
+            reason = ("all weather years zero: no reference mean" if len(yz) == len(zero.index)
+                      else f"zero in a reference year {ref}" if not ref_ok[c]
+                      else f"no site with data in {y}" if y not in trees else "")
+            if reason:
+                rows.append({**base, "neighbour": None, "distance_km": np.nan, "scale": np.nan,
+                             "neighbour_ref_mean": np.nan, "status": "unfilled: " + reason})
+                continue
+            tree, cand = trees[y]
+            d, i = tree.query(xyz.loc[c].to_numpy())
+            n = cand[int(i)]
+            rows.append({**base, "neighbour": str(n), "distance_km": round(float(2 * EARTH_KM * np.arcsin(min(1.0, d / 2))), 2),
+                         "scale": float(ref_mean[c] / ref_mean[n]), "neighbour_ref_mean": float(ref_mean[n]),
+                         "status": "filled"})
     return pd.DataFrame(rows, columns=["site", "year", "neighbour", "distance_km", "scale", "site_ref_mean",
                                        "neighbour_ref_mean", "status"])
+
+
+def compare_with_list(fills: pd.DataFrame, zeroed: pd.DataFrame) -> dict:
+    """Agreement with the dashboards' zeroed_pv_sites.csv (site, years_zero "2007;2008;..."; one row per site and zone)."""
+    z = zeroed.assign(site=zeroed.site.astype(str)).drop_duplicates("site")
+    listed = {(s, int(y)) for s, ys in zip(z.site, z.years_zero.astype(str)) for y in ys.split(";") if y.strip()}
+    found = set(zip(fills.site.astype(str), fills.year.astype(int)))
+    return {"listed_site_years": len(listed), "found_site_years": len(found), "in_both": len(listed & found),
+            "listed_not_found": sorted(f"{s}:{y}" for s, y in listed - found)[:50],
+            "found_not_listed": sorted(f"{s}:{y}" for s, y in found - listed)[:50]}
+
+
+def fill_summary(fills: pd.DataFrame) -> dict:
+    f = fills[fills.status == "filled"]
+    if f.empty:
+        return {}
+    uses = f.groupby("neighbour").size()
+    q = f.distance_km.quantile([0.5, 0.9, 0.99]).round(1)
+    return {"distance_km_median": float(q.loc[0.5]), "distance_km_p90": float(q.loc[0.9]),
+            "distance_km_p99": float(q.loc[0.99]), "distance_km_max": float(f.distance_km.max()),
+            "distinct_neighbours": int(uses.size), "max_site_years_from_one_neighbour": int(uses.max()),
+            "scale_median": float(f.scale.median()), "scale_min": float(f.scale.min()), "scale_max": float(f.scale.max())}
 
 
 def write_repaired(src: Path, out: Path, fills: pd.DataFrame, first_year=2007, hours=8760, batch_rows=2190) -> dict:
@@ -197,7 +220,8 @@ def sha256(p: Path, chunk=1 << 24) -> str:
 
 
 def repair_folder(src_dir: Path, out_dir: Path, profile_name: str, sites: pd.DataFrame, first_year=2007, hours=8760,
-                  ref_years=(2012, 2013), batch_rows=2190, link_others=True, with_hash=False, log=print) -> dict:
+                  ref_years=(2012, 2013), batch_rows=2190, link_others=True, with_hash=False, log=print,
+                  zeroed: pd.DataFrame | None = None, warn_km: float = 100.0) -> dict:
     """Write out_dir: the repaired profile file (same name), the source folder's other files (hard links, else copies),
     the fill log and the manifest. Returns the manifest."""
     src_dir, out_dir = Path(src_dir), Path(out_dir)
@@ -212,6 +236,20 @@ def repair_folder(src_dir: Path, out_dir: Path, profile_name: str, sites: pd.Dat
     fills = plan(stats, sites, ref_years)
     log(f"pv_profile_repair: {before.site.nunique()} sites, {len(before)} site-years all zero with capacity; "
         f"{(fills.status == 'filled').sum()} site-years filled, {(fills.status != 'filled').sum()} unfillable")
+    summ = fill_summary(fills)
+    if summ:
+        log(f"pv_profile_repair: fill distance median {summ['distance_km_median']} km, p90 {summ['distance_km_p90']} km, "
+            f"max {summ['distance_km_max']} km; {summ['distinct_neighbours']} distinct neighbours, at most "
+            f"{summ['max_site_years_from_one_neighbour']} site-years from one; scale {summ['scale_min']:.3f}-"
+            f"{summ['scale_max']:.3f}")
+        far = fills[(fills.status == "filled") & (fills.distance_km > warn_km)]
+        if len(far):
+            log(f"pv_profile_repair: WARNING {len(far)} site-years filled from more than {warn_km} km away "
+                f"({far.site.nunique()} sites); see the log")
+    agree = compare_with_list(fills, zeroed) if zeroed is not None else None
+    if agree:
+        log(f"pv_profile_repair: zeroed list {agree['listed_site_years']} site-years, found {agree['found_site_years']}, "
+            f"in both {agree['in_both']}")
     clipped = write_repaired(src, out_dir / profile_name, fills, first_year, hours, batch_rows)
     fills["clipped_hours"] = [clipped.get((r.site, int(r.year)), 0) for r in fills.itertuples()]
     fills.to_csv(out_dir / LOG, index=False)
@@ -235,7 +273,8 @@ def repair_folder(src_dir: Path, out_dir: Path, profile_name: str, sites: pd.Dat
            "site_years_filled": int((fills.status == "filled").sum()),
            "site_years_unfillable": int((fills.status != "filled").sum()),
            "zero_site_years_with_capacity_after": int(len(after)),
-           "clipped_hours": int(fills.clipped_hours.sum()), "other_files_linked": linked, "other_files_copied": copied,
+           "clipped_hours": int(fills.clipped_hours.sum()), "fill_summary": summ, "zeroed_list_check": agree,
+           "other_files_linked": linked, "other_files_copied": copied,
            "log": LOG}
     if with_hash:
         man["source"]["sha256"] = sha256(src)

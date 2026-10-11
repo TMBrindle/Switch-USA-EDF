@@ -168,3 +168,39 @@ def test_rev_cf_reassess():
     z = ra.reassess(m, pd.DataFrame({"zone": ["p9"], "pv_cf_understatement": [0.2]})).set_index(["zone", "technology"])
     assert z.at[("p9", "solar_pv"), "ratio_corrected"] == pytest.approx(1.0)
     assert z.at[("p1", "solar_pv"), "ratio_corrected"] == pytest.approx(0.1242 / 0.2316)        # not in the table
+
+
+def test_neighbour_is_chosen_per_weather_year(tmp_path):
+    """As in the real file, blocks lose different years: a site zero only in 2010-11 fills a neighbour's 2008 (it has
+    data then) but not its 2010, which comes from the next site with data in 2010."""
+    src = tmp_path / "p"
+    src.mkdir()
+    day = np.sin(np.linspace(0, np.pi, H))
+    prof = lambda f, i: day * f * (0.8 + 0.05 * i)                                         # noqa: E731
+    cols = {s: np.concatenate([prof(f, i) for i in range(7)]) for s, f in (("a", 0.5), ("b", 0.6), ("c", 0.7))}
+    cols["a"][: 5 * H] = 0.0                                   # block 0: zero 2007-2011
+    cols["b"][3 * H: 5 * H] = 0.0                              # blocks 4-9: zero 2010-2011
+    pd.DataFrame(cols).astype("float32").to_parquet(src / NAME, index=False)
+    sites = pd.DataFrame({"site": ["a", "b", "c"], "latitude": [40.0, 40.01, 41.0], "longitude": [-100.0] * 3,
+                          "capacity_mw": [1.0] * 3})
+    zeroed = pd.DataFrame({"site": ["a", "b"], "years_zero": ["2007;2008;2009;2010;2011", "2010;2011"]})
+    man = pr.repair_folder(src, tmp_path / "o", NAME, sites, first_year=2007, hours=H, batch_rows=5,
+                           log=lambda m: None, zeroed=zeroed)
+    log = pd.read_csv(tmp_path / "o" / pr.LOG, dtype={"site": str, "neighbour": str}).set_index(["site", "year"])
+    assert log.at[("a", 2008), "neighbour"] == "b" and log.at[("a", 2010), "neighbour"] == "c"
+    assert log.at[("b", 2010), "neighbour"] == "c"             # a has no data in 2010 either
+    assert man["zeroed_list_check"]["in_both"] == 7 and not man["zeroed_list_check"]["listed_not_found"]
+    assert man["fill_summary"]["distinct_neighbours"] == 2 and man["zero_site_years_with_capacity_after"] == 0
+    out = pd.read_parquet(tmp_path / "o" / NAME)
+    scale = cols["a"][5 * H:].mean() / cols["b"][5 * H:].mean()
+    np.testing.assert_allclose(out["a"][H:2 * H], cols["b"][H:2 * H] * scale, rtol=1e-5)
+
+
+def test_cli_sites_default_columns():
+    from s0_workflow.scripts import repair_pv_profiles as cli
+    meta = pd.DataFrame({"cpa_id": [1, 2], "Latitude": [40.0, 42.0], "LONGITUDE": [-100.0, -102.0], "CPA_MW": [0.0, 0.0]})
+    sm = pd.DataFrame({"CPA_ID": [1, 2], "Site": [5, 5]})
+    s = cli.sites_from(meta, sm).set_index("site")                                         # names matched in any case
+    assert s.at["5", "latitude"] == 41.0 and s.at["5", "capacity_mw"] == 0.0               # plain mean at 0 MW
+    with pytest.raises(SystemExit, match="no column 'cpa_mw'"):
+        cli.sites_from(meta.rename(columns={"CPA_MW": "mw"}), sm)
