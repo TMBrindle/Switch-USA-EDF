@@ -92,6 +92,7 @@ def apply_settings(case_settings: dict) -> None:
             apply_levels_by_period(s, s0, case, year)
             apply_rggi(s, s0, case, year)
             apply_ca_wa_carbon(s, s0, case, year)
+            apply_storage_credit(s, s0, case, year)
             apply_retirement_option(s, s0)
             apply_forced_tx(s, s0, case, year)
             if prm.apply_settings(s, s0):
@@ -535,6 +536,56 @@ def ca_wa_price(year: int, r: dict | None = None) -> float | None:
     if int(year) < int(r["first_year"]):
         return None
     return _interp(r["prices"][r["path"]], year)
+
+
+STORAGE_CREDIT_DEFAULTS = {
+    "mode": "flat",                                    # v3.1: x0.7 via atb_modifiers.batteries in every period
+    "term": "storage_itc_48e",
+    "techs": ["Utility-Scale Battery Storage"],
+    "phase_down": {2034: 0.75, 2035: 0.5, 2036: 0.0},  # OBBBA: full for construction starting through 2033
+    "phase_basis": "period_label",
+}
+BATTERY_MODIFIER = "batteries"
+
+
+def storage_credit_settings(s0: dict) -> dict:
+    r = {**STORAGE_CREDIT_DEFAULTS, **((s0 or {}).get("storage_credit") or {})}
+    if r["mode"] not in ("flat", "obbba"):
+        raise ValueError(f"s0_production.storage_credit.mode must be flat or obbba, not {r['mode']!r}")
+    return r
+
+
+def apply_storage_credit(s: dict, s0: dict, case=None, year=None) -> None:
+    """s0_production.storage_credit (v3.2 flag; CHANGES §100). flat (v3.1): the tax_credits axis's battery capex
+    multiplier (x0.7, the 30% 48E ITC) applies in every period. obbba: that multiplier becomes a 1.0 and the same
+    credit (itc_rate = 1 - multiplier) goes to the credit writer as an investment term with the OBBBA phase-down, so
+    new-build battery capex is x (1 - itc_rate x phase) by period (s0_workflow/tax_credits.py). An axis value with no
+    storage credit (x1.0: no_wind_solar_storage, repealed) stays without one."""
+    r = storage_credit_settings(s0)
+    if r["mode"] == "flat":
+        return
+    mod = (s.get("atb_modifiers") or {}).get(BATTERY_MODIFIER)
+    if not isinstance(mod, dict):
+        return
+    ms = {k: mod.get(k) for k in ("capex_mw", "capex_mwh")}
+    for k, v in ms.items():
+        if not (isinstance(v, (list, tuple)) and len(v) == 2 and v[0] == "mul"):
+            raise ValueError(f"s0_production.storage_credit obbba: atb_modifiers.{BATTERY_MODIFIER}.{k} is {v!r}, "
+                             f"not [mul, x]; can't read the storage credit from it")
+    m_mw, m_mwh = float(ms["capex_mw"][1]), float(ms["capex_mwh"][1])
+    if abs(m_mw - m_mwh) > 1e-9:
+        raise ValueError(f"s0_production.storage_credit obbba: battery capex_mw x{m_mw} and capex_mwh x{m_mwh} differ")
+    if m_mw >= 1.0:
+        return                                          # no storage credit on this axis value
+    # new dicts, not edits: the settings of a case's years can share these objects
+    s["atb_modifiers"] = {**s["atb_modifiers"], BATTERY_MODIFIER: {**mod, "capex_mw": ["mul", 1.0],
+                                                                   "capex_mwh": ["mul", 1.0]}}
+    s["tax_credit_terms"] = dict(s.get("tax_credit_terms") or {})
+    s["tax_credit_terms"][r["term"]] = {"kind": "investment", "itc_rate": round(1.0 - m_mw, 9), "techs": list(r["techs"]),
+                        "phase_down": {int(k): float(v) for k, v in r["phase_down"].items()},
+                        "phase_basis": r["phase_basis"]}
+    logger.info("s0_production %s/%s: storage credit %.0f%% with the OBBBA phase-down %s (%s), via the credit writer",
+                case, year, 100 * (1 - m_mw), r["phase_down"], r["phase_basis"])
 
 
 def apply_ca_wa_carbon(s: dict, s0: dict, case=None, year=None) -> None:

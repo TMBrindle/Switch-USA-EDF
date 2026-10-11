@@ -509,7 +509,7 @@ def generator_fuel_and_load_files(
     #########
     # create Switch input files from these tables
 
-    gen_build_costs_file(gens_by_build_year, out_folder)
+    gen_build_costs_file(gens_by_build_year, out_folder, scen_settings_dict)
 
     # This uses gens_by_model_year, to increase the chance that a generator
     # cluster that exists in an early year will also be modeled in a later year,
@@ -885,7 +885,7 @@ def make_tp_date(timepoints_df, timeseries_df):
     return pd.Series(tp_dates, index=timepoints_df.index)
 
 
-def gen_build_costs_file(gens_by_build_year, out_folder):
+def gen_build_costs_file(gens_by_build_year, out_folder, scen_settings_dict=None):
     """
     Input:
         * gens_by_build_year: from gen_tables, based on gc.create_all_gens
@@ -910,6 +910,14 @@ def gen_build_costs_file(gens_by_build_year, out_folder):
     gen_build_costs = pd.DataFrame(
         {col: gens_by_build_year.eval(expr) for col, expr in defs.items()}
     )
+
+    # investment credits (tax_credit_terms with kind: investment; v3.2, CHANGES §100, s0_workflow/tax_credits.py):
+    # new-build capex x (1 - itc_rate x phase), by period. No term (v3.1 settings): nothing changes.
+    if scen_settings_dict and "technology" in gens_by_build_year:
+        from s0_workflow import tax_credits as s0_tax_credits
+
+        s0_tax_credits.apply_investment_terms(
+            gen_build_costs, gens_by_build_year["technology"], scen_settings_dict, out_folder)
 
     gen_build_costs.to_csv(out_folder / "gen_build_costs.csv", index=False, na_rep=".")
 
@@ -1203,6 +1211,16 @@ def gen_tax_credits_file(
                 tech_substr.lower(), regex=False
             )
             gens.loc[mask, "gen_ptc_value_per_mwh"] += dollar_per_mwh
+
+    # statutory credit terms (tax_credit_terms; CHANGES §90, s0_workflow/tax_credits.py): each period's credits
+    # levelised over the generator's capital-recovery life at the capital annualisation rate, added to the
+    # hand-entered tax_credit_values above (a project-period credited both ways must agree, or the build stops)
+    from s0_workflow import tax_credits as s0_tax_credits
+
+    gens["_hand_value"] = gens["gen_ptc_value_per_mwh"]
+    first_settings = next(iter(scen_settings_dict.values()), None) or {}
+    if s0_tax_credits.apply_terms(gens, scen_settings_dict, out_folder, first_settings):
+        any_credits_defined = True
 
     if not any_credits_defined:
         # nothing to write; study_modules.gen_tax_credits treats a missing/
