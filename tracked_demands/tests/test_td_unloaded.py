@@ -35,6 +35,7 @@ SHARED_EDITS = {
     "switch/study_modules/prepare_next_stage.py": (112, (), "chain"),
     "switch/study_modules/prm_regional.py": (113, (), "prm"),
     "switch/study_modules/gen_zone_ratio.py": (114, ("gen_zone_ratio",), "ratio"),
+    "switch/study_modules/interconnection_headroom.py": (115, ("interconnection_headroom",), "ic"),
 }
 GITIGNORE_ADDED = {"!tracked_demands/", "!tracked_demands/**", "tracked_demands/outputs/"}
 
@@ -81,6 +82,10 @@ def test_shared_edits_have_their_row():
 
 def _toy_edit(kind):
     def edit(inp):
+        if kind == "ic":
+            # interconnection_headroom's own toy inputs (binding headroom in every zone)
+            for f in ("ic_zones.csv", "ic_tranches.csv", "ic_uprates.csv", "ic_params.csv", "ic_weights.csv"):
+                shutil.copy(REPO / "interconnection_headroom/tests/switch_toy" / f, inp / f)
         if kind == "ratio":
             # binding annual and hourly ratio limits on North
             pd.DataFrame([{"LOAD_ZONE": "North", "PERIOD": p, "max_annual_ratio": 0.9, "min_peak_share": 0.6}

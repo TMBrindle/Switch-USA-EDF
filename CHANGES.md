@@ -4077,3 +4077,38 @@ matches the generation side, which already counts those generators as zone gener
   - the summary's load rises by exactly the tracked withdrawal;
   - a max annual ratio holds;
   - a binding hourly max share counts the tracked load, allowing generation above 0.9 × demand alone.
+
+**(f) Grid connection** (Tom's decision D4; SHARED_CHANGES #115).
+1. **Cost.** Overnight $/kW is `td_connection_cost_per_kw` if set, else the zone's network-upgrade cost
+   (`tracked_demand_zone_upgrade_costs.csv`) × `td_connection_cost_multiplier` (default 1).
+   - It is annualised over `td_connection_life_years` (`tracked_demand_params.csv`, default 40, as headroom
+     assets) at the model's interest rate.
+   - Charged on the whole connection in every period, in total system cost (`TDConnectionCost`).
+   - The case writer (g) fills the zone costs from ReEDS conventional reinforcement (median $/kW by zone).
+2. **Bill share.** `td_connection_cost_share_demand` (default 1) splits the annual cost between the demand and other
+   customers in `tracked_demand_connection_costs.csv`. It is reporting only; the solve is unchanged (tested).
+   - This line had no ratepayer-bill output (§85's "bill decomposition" is the transmission-bill scenario pair), so
+     the split is a new output.
+3. **Endogenous size.** `td_connection_endogenous = 1`: `TDGridConnectionMW` lies between the carried connection
+   and `td_grid_interconnect_mw` (the upper bound, which must not exceed the peak load, so the PRM requirement
+   stays linear).
+   - Location-fixed TDs only.
+   - Not in the region peak (a parameter), like a still-free siting.
+4. **Headroom draw.** `td_connection_uses_headroom = 1`, off by default. The connection added this stage ×
+   `td_headroom_weight` (default 1) is added to interconnection_headroom's headroom use in the TD's zone, through a
+   placeholder (as in (e)).
+   - Charge: the zone's headroom value ($/kW-yr from the limit's dual, as `ic_headroom.csv`) × 1000 × MW drawn.
+   - Reported per period, in $/yr and NPV, for the stage where it connects (`headroom_charge_usd`).
+   - In later chain stages the carried draw is charged at that stage's value (`carried_headroom_charge_usd`).
+     `tracked_demand_headroom_ledger.csv` accumulates the stages; `tracked_demand_headroom_summary.csv` gives
+     connect-stage, later-stage and total charges by TD.
+   - The bought headroom itself carries forward through the existing `chain_ic_inputs`.
+5. **Counterfactual.** `--td-headroom-draw off` drops every draw. `tracked_demands/scripts/headroom_counterfactual.py`
+   runs a case with and without the draw and compares the objective difference with the attributed charge: equal on
+   one linear piece of the headroom curve (tested, within 1e-4), understated when the draw crosses onto a dearer
+   piece (the shadow price is marginal).
+6. **Carried.** `tracked_demand_connection_existing` (connection MW and cumulative draw) and the ledger.
+7. **Tests** (`test_td_connection.py`, 9): cost by source, share, endogenous size, draw and charge, counterfactual,
+   chain.
+
+   interconnection_headroom's own suite is unchanged (24 passed, 7 skipped).

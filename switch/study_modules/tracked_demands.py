@@ -40,6 +40,7 @@ from pyomo.environ import (
 )
 
 import switch_model.reporting as reporting
+from switch_model.financials import capital_recovery_factor as crf
 from switch_model.utilities import apply_input_aliases
 
 dependencies = (
@@ -52,6 +53,17 @@ dependencies = (
 
 
 def define_arguments(argparser):
+    argparser.add_argument(
+        "--td-headroom-draw",
+        default="on",
+        choices=("on", "off"),
+        dest="td_headroom_draw",
+        help=(
+            "on (default): tracked demands with td_connection_uses_headroom draw interconnection headroom. "
+            "off: no draw (the counterfactual for checking the attributed headroom cost; "
+            "tracked_demands/scripts/headroom_counterfactual.py runs both)."
+        ),
+    )
     argparser.add_argument(
         "--td-cfe-region-col",
         default="h2ptcreg",
@@ -132,6 +144,59 @@ def _export_share(m, td):
     """Export limit share of td: inf (no limit), 0 (no export) or a share."""
     v = _float_or_none(value(m.td_export_limit_share[td]))
     return float("inf") if v is None else v
+
+
+def _connection(m, td):
+    """The TD's grid connection (MW): the decision TDGridConnectionMW, or td_grid_interconnect_mw."""
+    if td in m.TD_ENDOGENOUS_CONNECTION:
+        return m.TDGridConnectionMW[td]
+    return m.td_grid_interconnect_mw[td]
+
+
+def _fixed_connection(m, td):
+    if td in m.TD_ENDOGENOUS_CONNECTION:
+        raise ValueError(
+            f"tracked_demands: {td} is location-flexible, so its connection size can't be a decision "
+            f"(td_connection_endogenous needs td_location_fixed = 1)"
+        )
+    return m.td_grid_interconnect_mw[td]
+
+
+def _prm_requirement(m, td, p):
+    """min(connection, peak) x (1 - curtailable share); with an endogenous connection (bounded above by
+    td_grid_interconnect_mw, which must not exceed the peak) it is connection x (1 - share)."""
+    if td in m.TD_ENDOGENOUS_CONNECTION:
+        peak = max(value(m.td_max_power_mw[td, t]) for t in m.TPS_IN_PERIOD[p])
+        if value(m.td_grid_interconnect_mw[td]) > peak + 1e-9:
+            raise ValueError(
+                f"tracked_demands: {td} has an endogenous connection with upper bound td_grid_interconnect_mw "
+                f"{value(m.td_grid_interconnect_mw[td]):g} MW above its peak load {peak:g} MW in {p}; set the bound "
+                f"at or below the peak so the PRM requirement min(connection, peak) stays linear"
+            )
+        return m.TDGridConnectionMW[td] * (1 - m.td_stress_curtailable_share[td])
+    return m.td_prm_requirement_mw[td, p]
+
+
+def _connection_cost_per_kw(m, td):
+    """(overnight $/kW, source) of td's connection: its own cost, else the zone's upgrade cost x multiplier."""
+    own = _float_or_none(value(m.td_connection_cost_per_kw[td]))
+    if own is not None:
+        return own, "own"
+    z = _td_zone(m, td)
+    zone = _float_or_none(value(m.td_zone_upgrade_cost_per_kw[z])) if z is not None else None
+    if zone is None:
+        return 0.0, "none"
+    mult = value(m.td_connection_cost_multiplier[td])
+    return zone * mult, ("zone" if mult == 1 else "zone_x_multiplier")
+
+
+def _existing_connection(m, td):
+    return value(m.td_connection_existing_mw[td]) if td in m.TD_CONNECTION_EXISTING else 0.0
+
+
+def _new_connection(m, td):
+    """Connection added in this stage (MW)."""
+    return _connection(m, td) - _existing_connection(m, td)
 
 
 def _stress_load(m, td, t):
@@ -550,10 +615,50 @@ def define_components(m):
         ),
     )
 
+    # ── Grid connection (CHANGES §108 (f)) ────────────────────────────────────
+    # Size: td_grid_interconnect_mw (fixed, default) or, with
+    # td_connection_endogenous = 1, a decision TDGridConnectionMW between the
+    # connection carried from earlier stages and td_grid_interconnect_mw (an
+    # upper bound, default the TD's maximum power, so min(connection, peak) is
+    # the connection). Cost: overnight $/kW = td_connection_cost_per_kw, else
+    # the zone's network-upgrade cost (tracked_demand_zone_upgrade_costs.csv)
+    # x td_connection_cost_multiplier, annualised over td_connection_life_years
+    # at the model's interest rate, on the whole connection in every period
+    # (like on-site plant). td_connection_cost_share_demand splits it for bill
+    # reporting only. Optional headroom draw (td_connection_uses_headroom): the
+    # connection added this stage x td_headroom_weight is added to
+    # interconnection_headroom's headroom use in the TD's zone.
+    m.td_connection_endogenous = Param(m.TRACKED_DEMANDS, within=Boolean, default=False)
+    m.td_connection_cost_per_kw = Param(m.TRACKED_DEMANDS, within=Any, default=".")
+    m.td_connection_cost_multiplier = Param(m.TRACKED_DEMANDS, within=NonNegativeReals, default=1.0)
+    m.td_connection_cost_share_demand = Param(m.TRACKED_DEMANDS, within=PercentFraction, default=1.0)
+    m.td_connection_uses_headroom = Param(m.TRACKED_DEMANDS, within=Boolean, default=False)
+    m.td_headroom_weight = Param(m.TRACKED_DEMANDS, within=NonNegativeReals, default=1.0)
+    m.td_zone_upgrade_cost_per_kw = Param(m.LOAD_ZONES, within=Any, default=".")
+    m.td_connection_life_years = Param(within=NonNegativeReals, default=40.0)
+    # carried from earlier stages (chain_inputs)
+    m.TD_CONNECTION_EXISTING = Set(dimen=1, within=m.TRACKED_DEMANDS)
+    m.td_connection_existing_mw = Param(m.TD_CONNECTION_EXISTING, within=NonNegativeReals, default=0.0)
+    m.td_headroom_draw_existing_mw = Param(m.TD_CONNECTION_EXISTING, within=NonNegativeReals, default=0.0)
+
+    m.TD_ENDOGENOUS_CONNECTION = Set(
+        dimen=1,
+        initialize=lambda m: [td for td in m.TRACKED_DEMANDS if value(m.td_connection_endogenous[td])],
+    )
+    m.TDGridConnectionMW = Var(
+        m.TD_ENDOGENOUS_CONNECTION,
+        within=NonNegativeReals,
+        bounds=lambda m, td: (
+            value(m.td_connection_existing_mw[td]) if td in m.TD_CONNECTION_EXISTING else 0.0,
+            value(m.td_grid_interconnect_mw[td]),
+        ),
+        doc="Grid connection built for the TD (MW), when its size is a decision.",
+    )
+
     # Grid interconnection capacity limit.
     m.TD_Grid_Interconnect_Limit = Constraint(
         m.TD_TIMEPOINTS,
-        rule=lambda m, td, t: m.TDGridDraw[td, t] <= m.td_grid_interconnect_mw[td],
+        rule=lambda m, td, t: m.TDGridDraw[td, t] <= _connection(m, td),
     )
 
     # ── Stress days (§108 (d)) ────────────────────────────────────────────────
@@ -604,7 +709,7 @@ def define_components(m):
     # Export through the same connection (§108).
     m.TD_Grid_Export_Limit = Constraint(
         m.TD_EXPORT_TIMEPOINTS,
-        rule=lambda m, td, t: m.TDGridExport[td, t] <= m.td_grid_interconnect_mw[td],
+        rule=lambda m, td, t: m.TDGridExport[td, t] <= _connection(m, td),
     )
 
     # Annual export <= share x gross generation of the linked generators (§108;
@@ -620,6 +725,33 @@ def define_components(m):
             and _export_share(m, td) != float("inf")
             else Constraint.Skip
         ),
+    )
+
+    # ── Grid connection cost (§108 (f)) ───────────────────────────────────────
+    m.TDConnectionCost = Expression(
+        m.PERIODS,
+        rule=lambda m, p: sum(
+            _connection(m, td) * 1000.0 * _connection_cost_per_kw(m, td)[0]
+            * crf(m.interest_rate, m.td_connection_life_years)
+            for td in m.TRACKED_DEMANDS
+            if _connection_cost_per_kw(m, td)[0] > 0
+        ),
+        doc="Annualised cost of the tracked demands' grid connections ($/yr).",
+    )
+    m.Cost_Components_Per_Period.append("TDConnectionCost")
+
+    # headroom draw: connection added this stage x weight, in the TD's zone, every period
+    m.TD_HEADROOM_TDS = Set(
+        dimen=1,
+        initialize=lambda m: [
+            td for td in m.TRACKED_DEMANDS
+            if value(m.td_connection_uses_headroom[td]) and _headroom_draw_on(m)
+        ],
+    )
+    m.TDHeadroomDrawMW = Expression(
+        m.TD_HEADROOM_TDS,
+        rule=lambda m, td: m.td_headroom_weight[td] * _new_connection(m, td),
+        doc="Weighted MW of interconnection headroom drawn by the TD's connection added this stage.",
     )
 
     # ── Soft grid cap (Stage 1 extension) ────────────────────────────────────
@@ -1451,7 +1583,7 @@ def define_components(m):
         m.TD_FLEX_ZONE_TIMEPOINTS,
         rule=lambda m, td, z, t: (
             m.TDGridDrawInZone[td, z, t]
-            <= m.TDZoneAllocation[td, z, m.tp_period[t]] * m.td_grid_interconnect_mw[td]
+            <= m.TDZoneAllocation[td, z, m.tp_period[t]] * _fixed_connection(m, td)
         ),
     )
 
@@ -1886,7 +2018,7 @@ def define_components(m):
         for td in m.TRACKED_DEMANDS:
             if value(m.td_location_fixed[td]):
                 if _td_zone(m, td) == z:
-                    out = out + m.td_prm_requirement_mw[td, p]
+                    out = out + _prm_requirement(m, td, p)
             elif (td, z, p) in m.TD_FLEX_ZONE_PERIODS:
                 out = out + m.TDZoneAllocation[td, z, p] * m.td_prm_requirement_mw[td, p]
         return out
@@ -1896,6 +2028,8 @@ def define_components(m):
     def _prm_fixed_load_rule(m, z, p):
         out = 0.0
         for td in m.TRACKED_DEMANDS:
+            if td in m.TD_ENDOGENOUS_CONNECTION:
+                continue    # a decision, so not in the region peak (a parameter); see the guide, 15.7
             if value(m.td_location_fixed[td]):
                 if _td_zone(m, td) == z:
                     out += value(m.td_prm_requirement_mw[td, p])
@@ -1917,6 +2051,10 @@ def define_components(m):
     # zone's tracked-demand withdrawal, net of export and including linked
     # generators (which gen_zone_ratio counts as zone generation).
     m.TDGenRatioLoad = BuildAction(rule=_fill_gen_ratio_load)
+
+    # interconnection_headroom's headroom use (§108 (f)): fill its placeholder
+    # with the tracked demands' headroom draw in each zone
+    m.TDHeadroomDraw = BuildAction(rule=_fill_headroom_draw)
 
 
 # ── Stage 12 helpers: cap coverage ────────────────────────────────────────────
@@ -2060,6 +2198,30 @@ def _state_mw_threshold(m, td, g, pr, gens, th_mw):
     return th_mw, f", {st} rule not met"
 
 
+def _headroom_draw_on(m):
+    return str(getattr(m.options, "td_headroom_draw", "on")).strip() != "off"
+
+
+def _fill_headroom_draw(m):
+    if not len(m.TD_HEADROOM_TDS):
+        return
+    if not hasattr(m, "ICTrackedDemandDrawMW"):
+        raise ValueError(
+            "tracked_demands: td_connection_uses_headroom is set but interconnection_headroom isn't loaded"
+        )
+    for td in m.TD_HEADROOM_TDS:
+        if not value(m.td_location_fixed[td]):
+            raise ValueError(f"tracked_demands: {td} draws headroom, so it must be location-fixed")
+        z = _td_zone(m, td)
+        if z not in m.IC_ACTIVE_LOAD_ZONES:
+            print(f"tracked_demands: {td} draws headroom in {z}, which has no headroom limit; the draw does nothing")
+    for z in m.LOAD_ZONES:
+        draw = [m.TDHeadroomDrawMW[td] for td in m.TD_HEADROOM_TDS if _td_zone(m, td) == z]
+        if draw:
+            for p in m.PERIODS:
+                m.ICTrackedDemandDrawMW[z, p].set_value(sum(draw))
+
+
 def _fill_gen_ratio_load(m):
     if not hasattr(m, "GenRatioTrackedLoadMW"):
         return
@@ -2120,7 +2282,8 @@ def pre_solve(m):
     """Checks before the solve: stress-day loads the grid connection alone can't serve (§108 (d)), and linked
     on-site generators against the other modules' settings (§108 (a))."""
     for td in m.TRACKED_DEMANDS:
-        if str(value(m.td_stress_mode[td])).strip() != "max" or not len(m.TD_STRESS_TPS):
+        if (str(value(m.td_stress_mode[td])).strip() != "max" or not len(m.TD_STRESS_TPS)
+                or td in m.TD_ENDOGENOUS_CONNECTION):
             continue
         has_onsite = bool(_onsite_gens(m, td)) or len(m.TD_ONSITE_TECHS) > 0 or td in m.TD_STORAGE
         need = (1 - value(m.td_stress_curtailable_share[td])) * max(
@@ -2181,6 +2344,8 @@ def pre_solve(m):
 
 
 CARRY_FILES = (
+    "tracked_demand_connection_existing.csv",
+    "tracked_demand_headroom_ledger.csv",
     "tracked_demand_onsite_existing.csv",
     "tracked_demand_storage_existing.csv",
     "tracked_demand_h2_existing.csv",
@@ -2261,6 +2426,20 @@ def chain_inputs(in_path, out_path, next_in_path, case_name, commit=None):
         a["td_fixed_allocation"] = a["td_fixed_allocation"].clip(0, 1).round(9)
         a[["TRACKED_DEMAND", "LOAD_ZONE", "td_fixed_allocation"]].to_csv(
             chained("tracked_demand_siting_fixed.csv"), index=False)
+
+    c = out("tracked_demand_connection_costs.csv")
+    if c is not None and len(c):
+        p = commit if commit is not None else c["period"].max()
+        c = c[c["period"] == p]
+        pd.DataFrame({
+            "TRACKED_DEMAND": c["tracked_demand"],
+            "td_connection_existing_mw": c["connection_mw"].clip(lower=0).round(6),
+            "td_headroom_draw_existing_mw": (c["headroom_draw_mw"] + c["carried_headroom_draw_mw"]).clip(
+                lower=0).round(6),
+        }).to_csv(chained("tracked_demand_connection_existing.csv"), index=False)
+    led = out("tracked_demand_headroom_ledger.csv")
+    if led is not None and len(led):
+        led.to_csv(chained("tracked_demand_headroom_ledger.csv"), index=False)
 
     cov = earlier("tracked_demand_cap_coverage_fixed.csv")
     e = out("tracked_demand_onsite_emissions.csv")
@@ -2378,6 +2557,12 @@ def load_inputs(m, switch_data, inputs_dir):
             m.td_export_limit_share,
             m.td_stress_mode,
             m.td_stress_curtailable_share,
+            m.td_connection_endogenous,
+            m.td_connection_cost_per_kw,
+            m.td_connection_cost_multiplier,
+            m.td_connection_cost_share_demand,
+            m.td_connection_uses_headroom,
+            m.td_headroom_weight,
         ),
         optional_params=(
             m.td_default_min_power_mw,
@@ -2387,7 +2572,22 @@ def load_inputs(m, switch_data, inputs_dir):
             m.td_export_limit_share,
             m.td_stress_mode,
             m.td_stress_curtailable_share,
+            m.td_connection_endogenous,
+            m.td_connection_cost_per_kw,
+            m.td_connection_cost_multiplier,
+            m.td_connection_cost_share_demand,
+            m.td_connection_uses_headroom,
+            m.td_headroom_weight,
         ),
+    )
+    # §108 (f): zone network-upgrade cost ($/kW overnight), connection life
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_zone_upgrade_costs.csv"),
+        optional=True, param=(m.td_zone_upgrade_cost_per_kw,),
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_params.csv"),
+        optional=True, param=(m.td_connection_life_years,),
     )
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "tracked_demand_stress_profile.csv"),
@@ -2617,6 +2817,12 @@ def load_inputs(m, switch_data, inputs_dir):
         optional=True, index=m.TD_SITING_FIXED, param=(m.td_fixed_allocation,),
     )
     switch_data.load_aug(
+        filename=carry("tracked_demand_connection_existing.csv"),
+        optional=True, index=m.TD_CONNECTION_EXISTING,
+        param=(m.td_connection_existing_mw, m.td_headroom_draw_existing_mw),
+        optional_params=(m.td_connection_existing_mw, m.td_headroom_draw_existing_mw),
+    )
+    switch_data.load_aug(
         filename=carry("tracked_demand_cap_coverage_fixed.csv"),
         optional=True, index=m.TD_CAP_COVERAGE_FIXED, param=(m.td_cap_covered,),
     )
@@ -2710,6 +2916,10 @@ def post_solve(m, outdir):
         ),
     )
 
+    # ── Grid connection outputs (§108 (f)) ────────────────────────────────────
+
+    _write_connection_outputs(m, outdir)
+
     # ── Stage 12 outputs (§108) ───────────────────────────────────────────────
 
     if m.TD_ONSITE_GENS:
@@ -2784,6 +2994,83 @@ def post_solve(m, outdir):
             _write_cfe_computed(m, outdir, grid_df)
         if m.TD_H2_STORAGE:
             _write_45v_assessment(m, outdir, grid_df)
+
+
+def _headroom_value(m, z, p):
+    """interconnection_headroom's headroom value in zone z, period p ($/kW-yr; its dual / NPV weight / 1000), or None."""
+    if not hasattr(m, "IC_Headroom_Limit") or (z, p) not in m.IC_Headroom_Limit or not hasattr(m, "dual"):
+        return None
+    c = m.IC_Headroom_Limit[z, p]
+    if c not in m.dual:
+        return None
+    return abs(m.dual[c]) / value(m.bring_annual_costs_to_base_year[p]) / 1000.0
+
+
+def _stage_name(m):
+    parts = os.path.normpath(str(getattr(m.options, "inputs_dir", "") or "")).split(os.sep)
+    return parts[-2] if len(parts) >= 2 else ""
+
+
+def _write_connection_outputs(m, outdir):
+    """tracked_demand_connection_costs.csv (cost, bill split, headroom charge by TD and period) and
+    tracked_demand_headroom_ledger.csv (the headroom charge of every stage so far, §108 (f))."""
+    rows, ledger = [], []
+    stage = _stage_name(m)
+    for td in m.TRACKED_DEMANDS:
+        z = _td_zone(m, td)
+        conn = value(_connection(m, td))
+        existing = _existing_connection(m, td)
+        per_kw, source = _connection_cost_per_kw(m, td)
+        annual = conn * 1000.0 * per_kw * crf(value(m.interest_rate), value(m.td_connection_life_years))
+        share = value(m.td_connection_cost_share_demand[td])
+        new_draw = value(m.TDHeadroomDrawMW[td]) if td in m.TD_HEADROOM_TDS else 0.0
+        carried = value(m.td_headroom_draw_existing_mw[td]) if td in m.TD_CONNECTION_EXISTING else 0.0
+        for p in m.PERIODS:
+            hv = _headroom_value(m, z, p) if z is not None else None
+            new_cost = new_draw * hv * 1000.0 if hv is not None else None
+            carried_cost = carried * hv * 1000.0 if hv is not None else None
+            rows.append({
+                "tracked_demand": td, "load_zone": z, "period": p, "stage": stage,
+                "connection_mw": conn, "existing_connection_mw": existing, "new_connection_mw": conn - existing,
+                "endogenous": int(td in m.TD_ENDOGENOUS_CONNECTION),
+                "cost_per_kw_overnight": per_kw, "cost_source": source,
+                "annual_cost_usd": annual, "cost_share_demand": share,
+                "paid_by_demand_usd": annual * share, "paid_by_other_customers_usd": annual * (1 - share),
+                "headroom_draw_mw": new_draw, "headroom_value_usd_per_kw_yr": hv,
+                "headroom_charge_usd": new_cost,
+                # in objective units (NPV, base year), comparable with a counterfactual's objective difference
+                "headroom_charge_npv_usd": (new_cost * value(m.bring_annual_costs_to_base_year[p])
+                                            if new_cost is not None else None),
+                "carried_headroom_draw_mw": carried, "carried_headroom_charge_usd": carried_cost,
+            })
+            if td in m.TD_HEADROOM_TDS or carried > 0:
+                ledger.append({
+                    "tracked_demand": td, "load_zone": z, "stage": stage, "period": p,
+                    "years": value(m.period_length_years[p]),
+                    "draw_mw_connected_this_stage": new_draw, "draw_mw_carried": carried,
+                    "headroom_value_usd_per_kw_yr": hv,
+                    "charge_usd_per_yr_connect_stage": new_cost, "charge_usd_per_yr_carried": carried_cost,
+                })
+    pd.DataFrame(rows).to_csv(os.path.join(outdir, "tracked_demand_connection_costs.csv"), index=False)
+
+    # the ledger: earlier stages' rows (carried in) then this stage's
+    case = os.path.basename(os.path.normpath(str(getattr(m.options, "outputs_dir", "") or outdir)))
+    prev = os.path.join(m.options.inputs_dir, f"tracked_demand_headroom_ledger.chained.{case}.csv")
+    frames = [pd.read_csv(prev)] if os.path.exists(prev) else []
+    if ledger:
+        frames.append(pd.DataFrame(ledger))
+    if frames:
+        led = pd.concat(frames, ignore_index=True)
+        led.to_csv(os.path.join(outdir, "tracked_demand_headroom_ledger.csv"), index=False)
+        # totals over the period's years, undiscounted: the stage where each TD connected, and all later stages
+        led = led.assign(
+            connect=led["charge_usd_per_yr_connect_stage"].fillna(0) * led["years"],
+            later=led["charge_usd_per_yr_carried"].fillna(0) * led["years"],
+        )
+        tot = led.groupby("tracked_demand")[["connect", "later"]].sum().rename(columns={
+            "connect": "headroom_charge_connect_stage_usd", "later": "headroom_charge_later_stages_usd"})
+        tot["headroom_charge_total_usd"] = tot.sum(axis=1)
+        tot.reset_index().to_csv(os.path.join(outdir, "tracked_demand_headroom_summary.csv"), index=False)
 
 
 def _write_onsite_gen_outputs(m, outdir):

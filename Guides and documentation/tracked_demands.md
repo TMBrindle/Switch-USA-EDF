@@ -1255,7 +1255,8 @@ the same bytes in every output file as the toy without them (`tracked_demands/te
 > - the hourly double credit through the battery, the timestamp keying of the computed clean fraction, and the
 >   stress-hour CO₂ intensity (12.4): section 15.4;
 > - stage-chain carry-forward (12.3): section 15.5;
-> - the tracked load on stress days and in the PRM requirement (12.2 prm row, 12.4): section 15.6.
+> - the tracked load on stress days and in the PRM requirement (12.2 prm row, 12.4): section 15.6;
+> - gen_zone_ratio (12.2): section 15.7; grid connection cost, size and headroom (12.2 headroom row): section 15.8.
 >
 > The rest of this section is the step-1 audit as written.
 
@@ -1615,3 +1616,48 @@ that has no on-site supply, stops the run with the options to fix it.
 - Load order: tracked_demands before prm_regional (S0 scenario lines put `extra_modules` first); the module stops
   otherwise.
 - The legacy `planning_reserves` pair doesn't see tracked demands.
+
+### 15.7 gen_zone_ratio
+
+The load side of every zone and group ratio and hourly share adds each tracked demand's zone withdrawal: grid draw
+− export + its linked on-site generators. This matches the generation side, which counts those generators. On-site
+solar and other private techs are on neither side. gen_zone_ratio declares a placeholder only when `tracked_demands`
+is on the module list, and the module fills it (SHARED_CHANGES #114).
+
+### 15.8 Grid connection
+
+New `tracked_demands.csv` columns:
+
+| Column | Default | Meaning |
+|---|---|---|
+| `td_connection_cost_per_kw` | `.` | own overnight $/kW (wins) |
+| `td_connection_cost_multiplier` | 1 | × the zone's network-upgrade $/kW (`tracked_demand_zone_upgrade_costs.csv`: `LOAD_ZONE, td_zone_upgrade_cost_per_kw`) |
+| `td_connection_cost_share_demand` | 1 | share of the annual cost paid by the demand (bill reporting only) |
+| `td_connection_endogenous` | 0 | 1: the size is a decision up to `td_grid_interconnect_mw` (≤ peak load); location-fixed TDs only |
+| `td_connection_uses_headroom` | 0 | 1: the connection added this stage draws interconnection headroom in the TD's zone |
+| `td_headroom_weight` | 1 | headroom MW per MW of connection |
+
+`tracked_demand_params.csv` sets `td_connection_life_years` (default 40). The cost is annualised at the model's
+interest rate and charged on the whole connection every period (`TDConnectionCost`, in total system cost).
+
+**Outputs.**
+- `tracked_demand_connection_costs.csv`, by TD and period: connection MW (existing, new), $/kW and its source,
+  annual cost, `paid_by_demand_usd` / `paid_by_other_customers_usd`, headroom draw, headroom value ($/kW-yr), charge
+  ($/yr and NPV), and carried draw and charge.
+- `tracked_demand_headroom_ledger.csv`: every stage so far.
+- `tracked_demand_headroom_summary.csv`: connect-stage, later-stage and total charge (undiscounted, × period years).
+
+**Headroom draw.** The draw enters interconnection_headroom's headroom limit (SHARED_CHANGES #115). The charge is
+the limit's shadow price × MW drawn. To check it against the cost increase:
+
+```
+python tracked_demands/scripts/headroom_counterfactual.py RUN_DIR --outputs-dir OUT -- <switch solve args>
+```
+
+This runs the case with and without `--td-headroom-draw off` and writes `tracked_demand_headroom_counterfactual.csv`
+(objective difference vs attributed NPV). They agree while the draw stays on one linear piece of the headroom curve.
+The charge understates a draw that moves onto a dearer piece.
+
+In a chain, the connection and its cumulative draw carry forward (`tracked_demand_connection_existing`). Only the
+connection added in a stage draws new headroom; the carried draw is charged at each later stage's headroom value.
+An endogenous connection, like a still-free siting, is not in the PRM region peak.

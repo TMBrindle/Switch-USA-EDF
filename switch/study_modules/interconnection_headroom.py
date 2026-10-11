@@ -271,9 +271,19 @@ def define_components(m):
         m.IC_ACTIVE_LOAD_ZONES, m.PERIODS, within=NonNegativeReals,
         bounds=lambda m, z, p: (0, None) if ic_slack_cost(m) is not None else (0, 0))
 
+    # tracked demands' grid connections that draw headroom (CHANGES §108 (f)): a placeholder (0), declared only
+    # when the tracked-demands module is on the module list, which fills it once its own components exist
+    if any(str(n).split(".")[-1] == "tracked_demands" for n in getattr(m, "module_list", ())):
+        m.ICTrackedDemandDrawMW = Expression(m.LOAD_ZONES, m.PERIODS, initialize=0.0)
+
+    def headroom_used(m, z, p):
+        if hasattr(m, "ICTrackedDemandDrawMW"):
+            return m.ICNewCapacityWeighted[z, p] + m.ICTrackedDemandDrawMW[z, p]
+        return m.ICNewCapacityWeighted[z, p]
+
     m.IC_Headroom_Limit = Constraint(
         m.IC_ACTIVE_LOAD_ZONES, m.PERIODS,
-        rule=lambda m, z, p: m.ICNewCapacityWeighted[z, p]
+        rule=lambda m, z, p: headroom_used(m, z, p)
         <= m.ic_initial_headroom_mw[z]
         + m.ic_retirement_reuse_share * m.ICFreedHeadroom[z, p]
         + m.ICHeadroomBought[z, p]
