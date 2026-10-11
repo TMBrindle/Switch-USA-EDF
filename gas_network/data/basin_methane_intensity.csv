@@ -1,0 +1,403 @@
+basin,segment,year,low,central,high,unit,source,flag,notes,path
+appalachia,upstream_total,2024,0.3,0.6,1.0,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,measurement,"data 2023-2025; MethaneSAT 0.6% of marketed (2024-25); AMI 0.52% (0.30-0.62) (unconv. 0.09%, conv. 18.3%); TROPOMI 0.8%; MethaneAIR ~1% (2023)",observed
+appalachia,upstream_total,2024,0.0529,0.1062,0.1777,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+appalachia,production,2024,0.209,0.418,0.696,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+appalachia,gathering_boosting,2024,0.071,0.143,0.238,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+appalachia,processing,2024,0.02,0.04,0.066,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+appalachia,production,2023,,0.035,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, basins 160A+160; reporters >25,000 t CO2e only; ratio measured/this = 10.0x on upstream_total",observed
+appalachia,gathering_boosting,2023,,0.025,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, basins 160A+160",observed
+appalachia,upstream_total,2023,,0.06,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 10.0x this,observed
+appalachia,upstream_total,2028,0.257,0.515,0.858,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.858,current_rules
+appalachia,upstream_total,2028,0.0454,0.091,0.1523,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.858,current_rules
+appalachia,upstream_total,2028,0.3,0.6,1.0,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+appalachia,upstream_total,2028,0.0529,0.1062,0.1777,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+appalachia,upstream_total,2030,0.239,0.477,0.795,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.795,current_rules
+appalachia,upstream_total,2030,0.0421,0.0843,0.141,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.795,current_rules
+appalachia,upstream_total,2030,0.3,0.6,1.0,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+appalachia,upstream_total,2030,0.0529,0.1062,0.1777,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+appalachia,upstream_total,2035,0.197,0.394,0.657,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+appalachia,upstream_total,2035,0.0347,0.0696,0.1163,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+appalachia,upstream_total,2035,0.3,0.6,1.0,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+appalachia,upstream_total,2035,0.0529,0.1062,0.1777,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+appalachia,upstream_total,2040,0.197,0.394,0.657,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+appalachia,upstream_total,2040,0.0347,0.0696,0.1163,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+appalachia,upstream_total,2040,0.3,0.6,1.0,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+appalachia,upstream_total,2040,0.0529,0.1062,0.1777,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+appalachia,upstream_total,2045,0.197,0.394,0.657,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+appalachia,upstream_total,2045,0.0347,0.0696,0.1163,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+appalachia,upstream_total,2045,0.3,0.6,1.0,pct_gross_gas,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+appalachia,upstream_total,2045,0.0529,0.1062,0.1777,kg_ch4_per_mmbtu_delivered,MSAT;AMI;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2024,0.4,0.7,1.0,pct_gross_gas,VARON25;TROPOMI;MAIR,measurement,data 2019-2024; Varon 0.6->0.4% (2022->2023); TROPOMI 0.7% (2019-24); MethaneAIR ~1% (2023). Label includes TX D5/D6 conventional/tight (23-25% non-shale),observed
+haynesville,upstream_total,2024,0.0706,0.124,0.1777,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+haynesville,production,2024,0.278,0.487,0.696,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+haynesville,gathering_boosting,2024,0.095,0.167,0.238,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+haynesville,processing,2024,0.026,0.046,0.066,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+haynesville,production,2023,,0.068,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, basins 260 East Texas + 230 Arkla; reporters >25,000 t CO2e only; ratio measured/this = 7.1x on upstream_total",observed
+haynesville,gathering_boosting,2023,,0.03,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, basins 260 East Texas + 230 Arkla",observed
+haynesville,upstream_total,2023,,0.098,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 7.1x this,observed
+haynesville,upstream_total,2028,0.343,0.601,0.858,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.858,current_rules
+haynesville,upstream_total,2028,0.0606,0.1063,0.1523,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.858,current_rules
+haynesville,upstream_total,2028,0.4,0.7,1.0,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2028,0.0706,0.124,0.1777,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2030,0.318,0.557,0.795,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.795,current_rules
+haynesville,upstream_total,2030,0.0561,0.0984,0.141,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.795,current_rules
+haynesville,upstream_total,2030,0.4,0.7,1.0,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2030,0.0706,0.124,0.1777,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2035,0.263,0.46,0.657,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+haynesville,upstream_total,2035,0.0463,0.0812,0.1163,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+haynesville,upstream_total,2035,0.4,0.7,1.0,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2035,0.0706,0.124,0.1777,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2040,0.263,0.46,0.657,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+haynesville,upstream_total,2040,0.0463,0.0812,0.1163,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+haynesville,upstream_total,2040,0.4,0.7,1.0,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2040,0.0706,0.124,0.1777,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2045,0.263,0.46,0.657,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+haynesville,upstream_total,2045,0.0463,0.0812,0.1163,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+haynesville,upstream_total,2045,0.4,0.7,1.0,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+haynesville,upstream_total,2045,0.0706,0.124,0.1777,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2024,1.5,2.5,3.5,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,measurement,"data 2023-2025; MethaneSAT 2.4-2.6% (1.9-3.5) of marketed (2024-25); MethaneAIR 2.4% (1.5-3.2) (2023); Varon 3.2% (2023; TX 3.6, NM 2.1); TROPOMI 2.3% (2019-24)",observed
+permian,upstream_total,2024,0.2679,0.451,0.638,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+permian,production,2024,1.044,1.74,2.436,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+permian,gathering_boosting,2024,0.357,0.595,0.833,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+permian,processing,2024,0.099,0.165,0.231,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+permian,production,2023,,0.139,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, basin 430; reporters >25,000 t CO2e only; ratio measured/this = 10.3x on upstream_total",observed
+permian,gathering_boosting,2023,,0.103,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, basin 430",observed
+permian,upstream_total,2023,,0.242,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 10.3x this,observed
+permian,upstream_total,2028,1.287,2.146,3.004,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.858,current_rules
+permian,upstream_total,2028,0.2294,0.3857,0.5447,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.858,current_rules
+permian,upstream_total,2028,1.5,2.5,3.5,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2028,0.2679,0.451,0.638,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2030,1.193,1.988,2.783,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.795,current_rules
+permian,upstream_total,2030,0.2123,0.3567,0.5035,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.795,current_rules
+permian,upstream_total,2030,1.5,2.5,3.5,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2030,0.2679,0.451,0.638,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2035,0.985,1.642,2.299,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.657,current_rules
+permian,upstream_total,2035,0.175,0.2937,0.4139,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.657,current_rules
+permian,upstream_total,2035,1.5,2.5,3.5,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2035,0.2679,0.451,0.638,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2040,0.985,1.642,2.299,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.657,current_rules
+permian,upstream_total,2040,0.175,0.2937,0.4139,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.657,current_rules
+permian,upstream_total,2040,1.5,2.5,3.5,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2040,0.2679,0.451,0.638,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2045,0.985,1.642,2.299,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.657,current_rules
+permian,upstream_total,2045,0.175,0.2937,0.4139,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 0.657,current_rules
+permian,upstream_total,2045,1.5,2.5,3.5,pct_gross_gas,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+permian,upstream_total,2045,0.2679,0.451,0.638,kg_ch4_per_mmbtu_delivered,MSAT;MAIR;VARON25;TROPOMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2024,0.9,1.5,2.4,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,measurement,data 2023-2025; Varon 1.0% (2023); TROPOMI 0.9%; MethaneAIR ~2.0% (low conf.); MethaneSAT ~2.4% (low conf.). Shale value: see eagle_ford_conventional for the 525 Bcf of D1/D2/D4 conventional gas,observed
+eagle_ford,upstream_total,2024,0.1597,0.2679,0.4325,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+eagle_ford,production,2024,0.626,1.044,1.67,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+eagle_ford,gathering_boosting,2024,0.214,0.357,0.571,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+eagle_ford,processing,2024,0.059,0.099,0.158,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+eagle_ford,production,2023,,0.269,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, basin 220 Gulf Coast (LA, TX), incl. conventional; reporters >25,000 t CO2e only; ratio measured/this = 4.0x on upstream_total",observed
+eagle_ford,gathering_boosting,2023,,0.103,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, basin 220 Gulf Coast (LA, TX), incl. conventional",observed
+eagle_ford,upstream_total,2023,,0.372,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 4.0x this,observed
+eagle_ford,upstream_total,2028,0.772,1.287,2.06,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.858,current_rules
+eagle_ford,upstream_total,2028,0.1369,0.2294,0.3699,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.858,current_rules
+eagle_ford,upstream_total,2028,0.9,1.5,2.4,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2028,0.1597,0.2679,0.4325,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2030,0.716,1.193,1.908,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.795,current_rules
+eagle_ford,upstream_total,2030,0.1268,0.2123,0.3422,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.795,current_rules
+eagle_ford,upstream_total,2030,0.9,1.5,2.4,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2030,0.1597,0.2679,0.4325,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2035,0.591,0.985,1.576,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.657,current_rules
+eagle_ford,upstream_total,2035,0.1046,0.175,0.2817,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.657,current_rules
+eagle_ford,upstream_total,2035,0.9,1.5,2.4,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2035,0.1597,0.2679,0.4325,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2040,0.591,0.985,1.576,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.657,current_rules
+eagle_ford,upstream_total,2040,0.1046,0.175,0.2817,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.657,current_rules
+eagle_ford,upstream_total,2040,0.9,1.5,2.4,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2040,0.1597,0.2679,0.4325,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2045,0.591,0.985,1.576,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.657,current_rules
+eagle_ford,upstream_total,2045,0.1046,0.175,0.2817,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 0.657,current_rules
+eagle_ford,upstream_total,2045,0.9,1.5,2.4,pct_gross_gas,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+eagle_ford,upstream_total,2045,0.1597,0.2679,0.4325,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR;MSAT,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2024,1.6,2.4,3.1,pct_gross_gas,VARON25;TROPOMI;MAIR,measurement,data 2019-2024; Barnett: Varon 2.5% (2023); TROPOMI 3.1%; MethaneAIR ~1.6% (low conf.). 36% of the label is D3 Upper Gulf Coast conventional (not measured),observed
+barnett_other_tx,upstream_total,2024,0.286,0.4325,0.5627,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+barnett_other_tx,production,2024,1.114,1.67,2.158,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+barnett_other_tx,gathering_boosting,2024,0.381,0.571,0.738,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+barnett_other_tx,processing,2024,0.105,0.158,0.204,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+barnett_other_tx,production,2023,,0.515,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, basins 420 Fort Worth + 415 Strawn; reporters >25,000 t CO2e only; ratio measured/this = 4.1x on upstream_total",observed
+barnett_other_tx,gathering_boosting,2023,,0.072,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, basins 420 Fort Worth + 415 Strawn",observed
+barnett_other_tx,upstream_total,2023,,0.587,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 4.1x this,observed
+barnett_other_tx,upstream_total,2028,1.373,2.06,2.661,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.858,current_rules
+barnett_other_tx,upstream_total,2028,0.2449,0.3699,0.4808,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.858,current_rules
+barnett_other_tx,upstream_total,2028,1.6,2.4,3.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2028,0.286,0.4325,0.5627,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2030,1.272,1.908,2.465,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.795,current_rules
+barnett_other_tx,upstream_total,2030,0.2267,0.3422,0.4445,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.795,current_rules
+barnett_other_tx,upstream_total,2030,1.6,2.4,3.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2030,0.286,0.4325,0.5627,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2035,1.051,1.576,2.036,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+barnett_other_tx,upstream_total,2035,0.1868,0.2817,0.3656,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+barnett_other_tx,upstream_total,2035,1.6,2.4,3.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2035,0.286,0.4325,0.5627,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2040,1.051,1.576,2.036,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+barnett_other_tx,upstream_total,2040,0.1868,0.2817,0.3656,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+barnett_other_tx,upstream_total,2040,1.6,2.4,3.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2040,0.286,0.4325,0.5627,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2045,1.051,1.576,2.036,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+barnett_other_tx,upstream_total,2045,0.1868,0.2817,0.3656,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+barnett_other_tx,upstream_total,2045,1.6,2.4,3.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+barnett_other_tx,upstream_total,2045,0.286,0.4325,0.5627,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2024,1.4,1.7,2.1,pct_gross_gas,VARON25;TROPOMI;MAIR,measurement,data 2019-2024; Anadarko: Varon 2.0% (2023); TROPOMI 1.6%; MethaneAIR ~1.4% (low conf.); Arkoma not measured separately,observed
+midcon_anadarko,upstream_total,2024,0.2497,0.3042,0.3773,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+midcon_anadarko,production,2024,0.974,1.183,1.462,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+midcon_anadarko,gathering_boosting,2024,0.333,0.405,0.5,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+midcon_anadarko,processing,2024,0.092,0.112,0.138,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+midcon_anadarko,production,2023,,0.251,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, basins 360/345/350/355/375/400; reporters >25,000 t CO2e only; ratio measured/this = 4.2x on upstream_total",observed
+midcon_anadarko,gathering_boosting,2023,,0.152,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, basins 360/345/350/355/375/400",observed
+midcon_anadarko,upstream_total,2023,,0.403,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 4.2x this,observed
+midcon_anadarko,upstream_total,2028,1.202,1.459,1.802,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.858,current_rules
+midcon_anadarko,upstream_total,2028,0.2139,0.2604,0.3228,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.858,current_rules
+midcon_anadarko,upstream_total,2028,1.4,1.7,2.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2028,0.2497,0.3042,0.3773,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2030,1.113,1.352,1.67,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.795,current_rules
+midcon_anadarko,upstream_total,2030,0.198,0.241,0.2987,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.795,current_rules
+midcon_anadarko,upstream_total,2030,1.4,1.7,2.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2030,0.2497,0.3042,0.3773,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2035,0.92,1.117,1.379,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+midcon_anadarko,upstream_total,2035,0.1632,0.1986,0.246,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+midcon_anadarko,upstream_total,2035,1.4,1.7,2.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2035,0.2497,0.3042,0.3773,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2040,0.92,1.117,1.379,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+midcon_anadarko,upstream_total,2040,0.1632,0.1986,0.246,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+midcon_anadarko,upstream_total,2040,1.4,1.7,2.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2040,0.2497,0.3042,0.3773,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2045,0.92,1.117,1.379,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+midcon_anadarko,upstream_total,2045,0.1632,0.1986,0.246,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 0.657,current_rules
+midcon_anadarko,upstream_total,2045,1.4,1.7,2.1,pct_gross_gas,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+midcon_anadarko,upstream_total,2045,0.2497,0.3042,0.3773,kg_ch4_per_mmbtu_delivered,VARON25;TROPOMI;MAIR,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2024,1.5,2.2,2.9,pct_gross_gas,TROPOMI,measurement,"data 2019-2024; single study (TROPOMI 2.2%); range = +/-30% (relative uncertainty Varon 2023 reports for the Permian, 4.6+/-1.3%) ASSUMPTION",observed
+san_juan,upstream_total,2024,0.2679,0.3957,0.5253,kg_ch4_per_mmbtu_delivered,TROPOMI,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+san_juan,production,2024,1.044,1.531,2.018,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+san_juan,gathering_boosting,2024,0.357,0.524,0.69,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+san_juan,processing,2024,0.099,0.145,0.191,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+san_juan,production,2023,,0.734,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, basin 580; reporters >25,000 t CO2e only; ratio measured/this = 2.4x on upstream_total",observed
+san_juan,gathering_boosting,2023,,0.183,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, basin 580",observed
+san_juan,upstream_total,2023,,0.917,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 2.4x this,observed
+san_juan,upstream_total,2028,1.287,1.888,2.489,pct_gross_gas,TROPOMI,projection,2024 x 0.858,current_rules
+san_juan,upstream_total,2028,0.2294,0.3385,0.449,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 0.858,current_rules
+san_juan,upstream_total,2028,1.5,2.2,2.9,pct_gross_gas,TROPOMI,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2028,0.2679,0.3957,0.5253,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2030,1.193,1.749,2.306,pct_gross_gas,TROPOMI,projection,2024 x 0.795,current_rules
+san_juan,upstream_total,2030,0.2123,0.3132,0.4152,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 0.795,current_rules
+san_juan,upstream_total,2030,1.5,2.2,2.9,pct_gross_gas,TROPOMI,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2030,0.2679,0.3957,0.5253,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2035,0.985,1.445,1.905,pct_gross_gas,TROPOMI,projection,2024 x 0.657,current_rules
+san_juan,upstream_total,2035,0.175,0.2579,0.3415,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 0.657,current_rules
+san_juan,upstream_total,2035,1.5,2.2,2.9,pct_gross_gas,TROPOMI,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2035,0.2679,0.3957,0.5253,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2040,0.985,1.445,1.905,pct_gross_gas,TROPOMI,projection,2024 x 0.657,current_rules
+san_juan,upstream_total,2040,0.175,0.2579,0.3415,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 0.657,current_rules
+san_juan,upstream_total,2040,1.5,2.2,2.9,pct_gross_gas,TROPOMI,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2040,0.2679,0.3957,0.5253,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2045,0.985,1.445,1.905,pct_gross_gas,TROPOMI,projection,2024 x 0.657,current_rules
+san_juan,upstream_total,2045,0.175,0.2579,0.3415,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 0.657,current_rules
+san_juan,upstream_total,2045,1.5,2.2,2.9,pct_gross_gas,TROPOMI,projection,2024 x 1.000,no_further_reductions
+san_juan,upstream_total,2045,0.2679,0.3957,0.5253,kg_ch4_per_mmbtu_delivered,TROPOMI,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2024,1.0,3.2,4.7,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,measurement,"data 2014-2025; production-weighted (GHGRP 2023 gas for sales): Denver 1,087 Bcf at 1.08/1.2/1.3 (Sherwin 2021; MethaneAIR 2023); Piceance 429 + Uinta 229 at 1.7/7.0/9.0 (TROPOMI Uinta-Piceance 1.7; MethaneAIR >7; Lin 6-8; MethaneSAT ~9); Green River/Powder/Wind/Overthrust/Raton 808 Bcf unmeasured recently: 0.18 (Robertson 2017) / 5x GHGRP 0.575% = 2.9 (ASSUMPTION: median measured/GHGRP ratio of the other basins) / 10x = 5.75",observed
+rockies_other,upstream_total,2024,0.1777,0.5815,0.8675,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+rockies_other,production,2024,0.696,2.227,3.271,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+rockies_other,gathering_boosting,2024,0.238,0.762,1.119,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+rockies_other,processing,2024,0.066,0.211,0.31,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+rockies_other,production,2023,,0.439,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, basins 540/595/575/535/515/530/507/455; reporters >25,000 t CO2e only; ratio measured/this = 6.1x on upstream_total",observed
+rockies_other,gathering_boosting,2023,,0.088,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, basins 540/595/575/535/515/530/507/455",observed
+rockies_other,upstream_total,2023,,0.527,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 6.1x this,observed
+rockies_other,upstream_total,2028,0.858,2.746,4.034,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.858,current_rules
+rockies_other,upstream_total,2028,0.1523,0.4967,0.7393,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.858,current_rules
+rockies_other,upstream_total,2028,1.0,3.2,4.7,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2028,0.1777,0.5815,0.8675,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2030,0.795,2.544,3.737,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.795,current_rules
+rockies_other,upstream_total,2030,0.141,0.4592,0.6828,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.795,current_rules
+rockies_other,upstream_total,2030,1.0,3.2,4.7,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2030,0.1777,0.5815,0.8675,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2035,0.657,2.102,3.087,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.657,current_rules
+rockies_other,upstream_total,2035,0.1163,0.3776,0.5603,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.657,current_rules
+rockies_other,upstream_total,2035,1.0,3.2,4.7,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2035,0.1777,0.5815,0.8675,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2040,0.657,2.102,3.087,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.657,current_rules
+rockies_other,upstream_total,2040,0.1163,0.3776,0.5603,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.657,current_rules
+rockies_other,upstream_total,2040,1.0,3.2,4.7,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2040,0.1777,0.5815,0.8675,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2045,0.657,2.102,3.087,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.657,current_rules
+rockies_other,upstream_total,2045,0.1163,0.3776,0.5603,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 0.657,current_rules
+rockies_other,upstream_total,2045,1.0,3.2,4.7,pct_gross_gas,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+rockies_other,upstream_total,2045,0.1777,0.5815,0.8675,kg_ch4_per_mmbtu_delivered,SHERWIN;MAIR;LIN21;MSAT;TROPOMI;ROB17;GHGRP,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2024,1.5,2.1,4.2,pct_gross_gas,MAIR;PEISCHL16,measurement,"data 2014-2023; MethaneAIR ~2.1% (2023, low conf.); low = -30% ASSUMPTION; high = Peischl 2016 lower bound 4.2% of CH4 produced (2014, before ND capture targets)",observed
+bakken,upstream_total,2024,0.2679,0.3773,0.7711,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+bakken,production,2024,1.044,1.462,2.923,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+bakken,gathering_boosting,2024,0.357,0.5,1.0,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+bakken,processing,2024,0.099,0.138,0.277,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+bakken,production,2023,,0.262,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, basin 395 Williston; reporters >25,000 t CO2e only; ratio measured/this = 6.3x on upstream_total",observed
+bakken,gathering_boosting,2023,,0.071,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, basin 395 Williston",observed
+bakken,upstream_total,2023,,0.333,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 6.3x this,observed
+bakken,upstream_total,2028,1.287,1.802,3.605,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 0.858,current_rules
+bakken,upstream_total,2028,0.2294,0.3228,0.6577,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 0.858,current_rules
+bakken,upstream_total,2028,1.5,2.1,4.2,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2028,0.2679,0.3773,0.7711,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2030,1.193,1.67,3.339,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 0.795,current_rules
+bakken,upstream_total,2030,0.2123,0.2987,0.6077,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 0.795,current_rules
+bakken,upstream_total,2030,1.5,2.1,4.2,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2030,0.2679,0.3773,0.7711,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2035,0.985,1.379,2.759,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 0.657,current_rules
+bakken,upstream_total,2035,0.175,0.246,0.499,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 0.657,current_rules
+bakken,upstream_total,2035,1.5,2.1,4.2,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2035,0.2679,0.3773,0.7711,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2040,0.985,1.379,2.759,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 0.657,current_rules
+bakken,upstream_total,2040,0.175,0.246,0.499,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 0.657,current_rules
+bakken,upstream_total,2040,1.5,2.1,4.2,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2040,0.2679,0.3773,0.7711,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2045,0.985,1.379,2.759,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 0.657,current_rules
+bakken,upstream_total,2045,0.175,0.246,0.499,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 0.657,current_rules
+bakken,upstream_total,2045,1.5,2.1,4.2,pct_gross_gas,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+bakken,upstream_total,2045,0.2679,0.3773,0.7711,kg_ch4_per_mmbtu_delivered,MAIR;PEISCHL16,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2024,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,measurement,"data 2018; federal offshore aircraft survey, 2.9% (2.2-3.8) of gross; shallow-water ~6-7%, deep-water ~0.2%; PNAS 2023 0.60 Tg/yr >2x inventories; separate from onshore Gulf Coast",observed
+fed_gom,upstream_total,2024,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+fed_gom,production,2024,1.531,2.018,2.645,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+fed_gom,gathering_boosting,2024,0.524,0.69,0.905,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+fed_gom,processing,2024,0.145,0.191,0.251,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+fed_gom,upstream_total,2028,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2028,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2028,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2028,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2030,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2030,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2030,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2030,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2035,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2035,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2035,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2035,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2040,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2040,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2040,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2040,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2045,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2045,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,current_rules
+fed_gom,upstream_total,2045,2.2,2.9,3.8,pct_gross_gas,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2045,0.3957,0.5253,0.6948,kg_ch4_per_mmbtu_delivered,GN20;GN23,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2024,0.9,1.2,1.5,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,measurement,"data 2021-2023; weighted by CER 2024 production (AB 59.7%, BC 38.6%, other 1.7% at AB rate): AB conventional 1.75% (Conrad 2023, ~1.5x NIR), BC 0.42% (Johnson 2023); low = AB at NIR level (1.75/1.5); high = AB at Chan 2020 1.9x NIR. Low confidence",observed
+w_canada,upstream_total,2024,0.1597,0.2136,0.2679,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+w_canada,production,2024,0.626,0.835,1.044,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+w_canada,gathering_boosting,2024,0.214,0.286,0.357,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+w_canada,processing,2024,0.059,0.079,0.099,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+w_canada,upstream_total,2028,0.724,0.966,1.207,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.805,current_rules
+w_canada,upstream_total,2028,0.1283,0.1715,0.2149,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.805,current_rules
+w_canada,upstream_total,2028,0.9,1.2,1.5,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2028,0.1597,0.2136,0.2679,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2030,0.636,0.848,1.061,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.707,current_rules
+w_canada,upstream_total,2030,0.1126,0.1505,0.1886,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.707,current_rules
+w_canada,upstream_total,2030,0.9,1.2,1.5,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2030,0.1597,0.2136,0.2679,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2035,0.417,0.556,0.694,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.463,current_rules
+w_canada,upstream_total,2035,0.0736,0.0983,0.123,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.463,current_rules
+w_canada,upstream_total,2035,0.9,1.2,1.5,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2035,0.1597,0.2136,0.2679,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2040,0.417,0.556,0.694,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.463,current_rules
+w_canada,upstream_total,2040,0.0736,0.0983,0.123,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.463,current_rules
+w_canada,upstream_total,2040,0.9,1.2,1.5,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2040,0.1597,0.2136,0.2679,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2045,0.417,0.556,0.694,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.463,current_rules
+w_canada,upstream_total,2045,0.0736,0.0983,0.123,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 0.463,current_rules
+w_canada,upstream_total,2045,0.9,1.2,1.5,pct_gross_gas,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+w_canada,upstream_total,2045,0.1597,0.2136,0.2679,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;CHAN20;CER,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2024,0.6,0.9,1.25,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,assumption,data 2021-2025; ASSUMPTION: eastern-crossing imports are a 50/50 mix of WCSB gas (TC Mainline) and US/Appalachian gas re-exported via Dawn; average of w_canada and appalachia. Eastern Canadian production is negligible,observed
+e_canada,upstream_total,2024,0.1062,0.1597,0.2226,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,assumption,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+e_canada,upstream_total,2028,0.499,0.748,1.039,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.831,current_rules
+e_canada,upstream_total,2028,0.0882,0.1326,0.1847,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.831,current_rules
+e_canada,upstream_total,2028,0.6,0.9,1.25,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2028,0.1062,0.1597,0.2226,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2030,0.451,0.676,0.939,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.751,current_rules
+e_canada,upstream_total,2030,0.0796,0.1197,0.1667,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.751,current_rules
+e_canada,upstream_total,2030,0.6,0.9,1.25,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2030,0.1062,0.1597,0.2226,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2035,0.336,0.504,0.7,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.560,current_rules
+e_canada,upstream_total,2035,0.0593,0.0891,0.124,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.560,current_rules
+e_canada,upstream_total,2035,0.6,0.9,1.25,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2035,0.1062,0.1597,0.2226,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2040,0.336,0.504,0.7,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.560,current_rules
+e_canada,upstream_total,2040,0.0593,0.0891,0.124,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.560,current_rules
+e_canada,upstream_total,2040,0.6,0.9,1.25,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2040,0.1062,0.1597,0.2226,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2045,0.336,0.504,0.7,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.560,current_rules
+e_canada,upstream_total,2045,0.0593,0.0891,0.124,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 0.560,current_rules
+e_canada,upstream_total,2045,0.6,0.9,1.25,pct_gross_gas,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+e_canada,upstream_total,2045,0.1062,0.1597,0.2226,kg_ch4_per_mmbtu_delivered,CONRAD23;JOHNSON23;MSAT;AMI,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2024,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,assumption,"data 2021-2024; 2024 imports Trinidad 10.4 Bcf, Norway 5.0 Bcf (EIA). Norway ~0.015% (operator-reported, Foulds 2022 measured within 16%). Trinidad: no source found; ASSUMPTION = US national measured 1.9 (1.6-2.6). Liquefaction/shipping/regas CH4 not included. LOW CONFIDENCE",observed
+lng_imports,upstream_total,2024,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,assumption,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+lng_imports,upstream_total,2028,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2028,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2028,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2028,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2030,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2030,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2030,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2030,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2035,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2035,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2035,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2035,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2040,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2040,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2040,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2040,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2045,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2045,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,current_rules
+lng_imports,upstream_total,2045,1.1,1.3,1.8,pct_gross_gas,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+lng_imports,upstream_total,2045,0.1956,0.2317,0.3224,kg_ch4_per_mmbtu_delivered,EIA_LNG;NOR;EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2024,1.6,1.9,2.6,pct_gross_gas,EST26;MAIR;OMARA24,measurement,"data 2021-2024; national measured average: 1.9% (TROPOMI 2024, Estrada/Runkle 2026); 1.6% (MethaneAIR 2023); 2.6% (Omara 2021). Label is mostly LA South conventional and small states",observed
+other,upstream_total,2024,0.286,0.3407,0.4695,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,measurement,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+other,production,2024,1.114,1.322,1.81,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.696 (Alvarez 2018); basin split not measured,observed
+other,gathering_boosting,2024,0.381,0.452,0.619,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.238 (Alvarez 2018); basin split not measured,observed
+other,processing,2024,0.105,0.125,0.171,pct_gross_gas,ALV18,derived,measured upstream_total x national measured segment share 0.066 (Alvarez 2018); basin split not measured,observed
+other,production,2023,,0.154,,pct_gross_gas,GHGRP,inventory,"Subpart W onshore production CH4 / gas for sales, national, all basins; reporters >25,000 t CO2e only; ratio measured/this = 8.4x on upstream_total",observed
+other,gathering_boosting,2023,,0.071,,pct_gross_gas,GHGRP,inventory,"Subpart W G&B CH4 / basin gas for sales, national, all basins",observed
+other,upstream_total,2023,,0.225,,pct_gross_gas,GHGRP,inventory,production + G&B; measured central is 8.4x this,observed
+other,upstream_total,2028,1.373,1.631,2.231,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 0.858,current_rules
+other,upstream_total,2028,0.2449,0.2916,0.4015,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 0.858,current_rules
+other,upstream_total,2028,1.6,1.9,2.6,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2028,0.286,0.3407,0.4695,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2030,1.272,1.511,2.067,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 0.795,current_rules
+other,upstream_total,2030,0.2267,0.2698,0.3713,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 0.795,current_rules
+other,upstream_total,2030,1.6,1.9,2.6,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2030,0.286,0.3407,0.4695,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2035,1.051,1.248,1.708,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 0.657,current_rules
+other,upstream_total,2035,0.1868,0.2223,0.3056,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 0.657,current_rules
+other,upstream_total,2035,1.6,1.9,2.6,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2035,0.286,0.3407,0.4695,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2040,1.051,1.248,1.708,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 0.657,current_rules
+other,upstream_total,2040,0.1868,0.2223,0.3056,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 0.657,current_rules
+other,upstream_total,2040,1.6,1.9,2.6,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2040,0.286,0.3407,0.4695,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2045,1.051,1.248,1.708,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 0.657,current_rules
+other,upstream_total,2045,0.1868,0.2223,0.3056,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 0.657,current_rules
+other,upstream_total,2045,1.6,1.9,2.6,pct_gross_gas,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+other,upstream_total,2045,0.286,0.3407,0.4695,kg_ch4_per_mmbtu_delivered,EST26;MAIR;OMARA24,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2024,1.5,3.9,10.0,pct_gross_gas,OMARA22;AMI,assumption,data 2019; NOT a model basin: the 525 Bcf of D1/D2/D4 conventional Gulf Coast gas under the Eagle Ford label. No Gulf Coast measurement split exists. Low = Eagle Ford value (no difference); high = Omara 2022 low-production well sites >10%; central = geometric midpoint ASSUMPTION. AMI: Appalachian conventional 18.3% vs unconventional 0.09%. LOW CONFIDENCE,observed
+eagle_ford_conventional,upstream_total,2024,0.2679,0.7138,1.9544,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,assumption,converted: kg = 17.59 x L/(1-L); x_CH4 0.95 ASSUMPTION,observed
+eagle_ford_conventional,upstream_total,2028,1.287,3.347,8.583,pct_gross_gas,OMARA22;AMI,projection,2024 x 0.858,current_rules
+eagle_ford_conventional,upstream_total,2028,0.2294,0.6091,1.6513,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 0.858,current_rules
+eagle_ford_conventional,upstream_total,2028,1.5,3.9,10.0,pct_gross_gas,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2028,0.2679,0.7138,1.9544,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2030,1.193,3.101,7.951,pct_gross_gas,OMARA22;AMI,projection,2024 x 0.795,current_rules
+eagle_ford_conventional,upstream_total,2030,0.2123,0.5629,1.5194,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 0.795,current_rules
+eagle_ford_conventional,upstream_total,2030,1.5,3.9,10.0,pct_gross_gas,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2030,0.2679,0.7138,1.9544,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2035,0.985,2.562,6.568,pct_gross_gas,OMARA22;AMI,projection,2024 x 0.657,current_rules
+eagle_ford_conventional,upstream_total,2035,0.175,0.4624,1.2365,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 0.657,current_rules
+eagle_ford_conventional,upstream_total,2035,1.5,3.9,10.0,pct_gross_gas,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2035,0.2679,0.7138,1.9544,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2040,0.985,2.562,6.568,pct_gross_gas,OMARA22;AMI,projection,2024 x 0.657,current_rules
+eagle_ford_conventional,upstream_total,2040,0.175,0.4624,1.2365,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 0.657,current_rules
+eagle_ford_conventional,upstream_total,2040,1.5,3.9,10.0,pct_gross_gas,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2040,0.2679,0.7138,1.9544,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2045,0.985,2.562,6.568,pct_gross_gas,OMARA22;AMI,projection,2024 x 0.657,current_rules
+eagle_ford_conventional,upstream_total,2045,0.175,0.4624,1.2365,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 0.657,current_rules
+eagle_ford_conventional,upstream_total,2045,1.5,3.9,10.0,pct_gross_gas,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+eagle_ford_conventional,upstream_total,2045,0.2679,0.7138,1.9544,kg_ch4_per_mmbtu_delivered,OMARA22;AMI,projection,2024 x 1.000,no_further_reductions
+fed_gom,upstream_total,2023,,0.35,,pct_gross_gas,GHGRP,inventory,"Subpart W offshore 49,863 t CH4 / 753 Bcf gas handled (BOEM-based); measured central is 8x this",observed
+fed_gom,upstream_total,2022,,1.36,,pct_gross_gas,GHGI22,inventory,GHGI 2022 offshore 23 kt (gas systems) + 182 kt (petroleum systems) / EIA federal GOM gross withdrawals 785 Bcf; measured is 2.1x this,observed
+all,processing,2022,,0.07,,pct_gross_gas,GHGI22,inventory,GHGI 2022 processing 541 kt / marketed 39.3 Tcf; Subpart W RY2023 processing 95 kt (0.013%),observed
+all,transmission_storage,2022,0.0056,0.0376,0.0483,kg_ch4_per_mmbtu_delivered,GHGI22;GHGRP;ALV18;EIA_PROD,inventory,"PATH segment: central GHGI 2022 1,413 kt (incl. LNG terminals ~1%) / dry production 2022; low = Subpart W RY2023 reporters 219 kt / 2023 dry; high = central x 1.29 (Alvarez 2018 T&S 1.8 vs GHGI 1.4 Tg). Scales with haul distance and compression (not modelled)",observed
+all,transmission_storage,2022,,0.214,,pct_gross_gas,GHGI22;EIA_PROD,inventory,"PATH segment, as % of CH4 in dry gas moved",observed
+all,distribution,2022,0.0553,0.0622,,kg_ch4_per_mmbtu_delivered,GHGI22;GHGRP;EIA_PROD,inventory,"PATH segment, NOT on the path of most power plants: GHGI 2022 544 kt / residential+commercial deliveries 2022 (8.44 Tcf); low = Subpart W RY2023 448 kt / 2023 res+com; urban measurement studies not collected (high blank)",observed
