@@ -3686,7 +3686,7 @@ purchases above 0.001 t. This was wrong in two ways:
   options are on `tom/s0-prod-scripts` (§86).
 - **Credit work** (`full_ira_lev`, the 10-year tally): held until D7 is settled. It doesn't affect S0.
 
-## 93. Gas Network Stage 1: Basin Attribution of Delivered Gas by Zone (`gas_network/`, no model change)
+## 101. Gas Network Stage 1: Basin Attribution of Delivered Gas by Zone (`gas_network/`, no model change)
 
 **Date:** 2026-10-09 · **Branch:** `tom/gas-network` (from `tom/s0-v3.1` 9d68751; §90–92 live on later commits of other
 branches). New self-contained package `gas_network/`; no existing file's behaviour changes, and no Switch module or
@@ -3739,7 +3739,7 @@ Output: `gas_network/outputs/zone_basin_shares.csv`, plus a region cross-check, 
 - reproduction of the Step 1 scratch numbers and of the corrected ones;
 - the Texas/NM splits, the Table 64 parse and anomaly, sha256 pins, and a fresh run matching the committed outputs.
 
-## 94. Gas Network Stage 1 Fixes: Additive Projection with Mass-Balance Repair, Colorado San Juan, District Mixing; Capacity Research
+## 102. Gas Network Stage 1 Fixes: Additive Projection with Mass-Balance Repair, Colorado San Juan, District Mixing; Capacity Research
 
 **Date:** 2026-10-11 · **Branch:** `tom/gas-network`. Still no model change. Guide: "Guides and documentation/gas_network.md"
 (Colorado San Juan split, Projections, Checking the methods, Things that did not reconcile).
@@ -3794,9 +3794,9 @@ Output: `gas_network/outputs/zone_basin_shares.csv`, plus a region cross-check, 
 **Tests:** 24 (6 new: move rules, the traced-total identity under overdraw, balancing on a toy network, the Colorado
 split with its NM validation, district mixing, sensitivity/metadata outputs). All pass on pandas 3.0.6 and 1.4.4.
 
-## 96. Gas Stage 1 Close-out (Unmet Local Use, Degeneracy) and Gas Stage 2a: Standalone Annual Network LP
+## 103. Gas Stage 1 Close-out (Unmet Local Use, Degeneracy) and Gas Stage 2a: Standalone Annual Network LP
 
-**Date:** 2026-10-11 · **Branch:** `tom/gas-network`. No Switch link; no model code changed. §96–99 are reserved for
+**Date:** 2026-10-11 · **Branch:** `tom/gas-network`. No Switch link; no model code changed. §104–106 are reserved for
 gas Stage 2. Guide: "Guides and documentation/gas_network.md", sections "Stage 1 status, unmet local use and balancing
 degeneracy" and "Stage 2a".
 

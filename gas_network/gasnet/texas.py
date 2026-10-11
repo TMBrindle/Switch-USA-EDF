@@ -1,6 +1,6 @@
 """Texas as three NGMM hubs (TX_E, TX_N, TX_W).
 
-Routing assumption (CHANGES §93): EIA publishes Texas as one state. Each interstate arc is assigned to a sub-hub by
+Routing assumption (CHANGES §101): EIA publishes Texas as one state. Each interstate arc is assigned to a sub-hub by
 NGMM's border mapping (config texas.border_hub; Oklahoma split by NGMM's 2023 history). Each sub-hub's disposition is
 its share of Texas consumption (NGMM TexasConsShares; lease and plant fuel with its own production; pipeline and
 distribution use with its supply), its interstate deliveries, Mexico exports (NGMM 2024 split) and LNG exports (TX_E).

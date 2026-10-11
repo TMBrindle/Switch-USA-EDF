@@ -1,6 +1,6 @@
 """gas_network Stage 1: basin attribution of delivered gas by Switch load zone (no model change).
 
-See "Guides and documentation/gas_network.md" and CHANGES §93.
+See "Guides and documentation/gas_network.md" and CHANGES §101.
 """
 from __future__ import annotations
 

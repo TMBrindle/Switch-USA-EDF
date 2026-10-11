@@ -4,7 +4,7 @@
 
 base_year: 2024            # EIA Natural Gas Annual state-to-state movements (latest year published)
 model_years: [2028, 2030, 2035, 2040, 2045]
-projection_method: additive   # additive (default) | ratio (sensitivity); CHANGES §94
+projection_method: additive   # additive (default) | ratio (sensitivity); CHANGES §102
 balance: true               # rebalance projected arcs so no hub is overdrawn (gasnet/balance.py)
 aeo_index_base_year: 2025  # ASSUMPTION: AEO2026 growth from its first table year (2025) is applied to the 2024 base
 
@@ -12,7 +12,7 @@ aeo_index_base_year: 2025  # ASSUMPTION: AEO2026 growth from its first table yea
 # a fuel with "gas" in its name appears in GenFuelUseRate.csv and is not listed here.
 gas_fuels: [naturalgas, naturalgas_ccs90, naturalgas_ccs100]
 
-basins:   # id: label (Tom's list, CHANGES §93)
+basins:   # id: label (Tom's list, CHANGES §101)
   appalachia: Appalachia
   haynesville: Haynesville
   permian: Permian

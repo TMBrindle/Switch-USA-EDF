@@ -1,7 +1,7 @@
 # gas_network (inside Switch-USA-EDF)
 
 Natural-gas pipeline capacity and flows for Switch-USA-EDF, following EIA's NEMS Natural Gas Market Module.
-Stage 1 (CHANGES §93) attributes each zone's delivered gas to production basins; it changes nothing in the model.
+Stage 1 (CHANGES §101) attributes each zone's delivered gas to production basins; it changes nothing in the model.
 Guide: `../Guides and documentation/gas_network.md`. Design and later stages: `docs/design_note_step1.md`.
 House rules: `../interconnection_headroom/CLAUDE.md` (sourced numbers only, marked assumptions, CHANGES section).
 

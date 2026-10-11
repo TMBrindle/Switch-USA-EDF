@@ -1,4 +1,4 @@
-"""Mass-balance repair of a projected network (CHANGES §94).
+"""Mass-balance repair of a projected network (CHANGES §102).
 
 Scaling arcs independently (by Table 64 bundles and regional growth) does not conserve gas at through-hubs: by 2045
 TN, MO, OH, WV, MN, NH and GOM ship out more than they receive and produce ("overdraw", several Tcf). Overdrawn gas
@@ -57,7 +57,7 @@ def balance(inp, base: dict, net: dict, nodes, tie_break: bool = False) -> tuple
     reg = inp.region
     # The L1 problem can have tied optima. Default: the accepted Stage 1 formulation (ddac626). tie_break=True sorts
     # the arcs and adds tiny index-based costs: a second optimum, used only to measure how non-unique the projected
-    # shares are (outputs/balance_degeneracy.csv, §96).
+    # shares are (outputs/balance_degeneracy.csv, §103).
     fl = net["flows"].reset_index(drop=True).copy()
     if tie_break:
         fl = fl.sort_values(["src", "dst", "kind"]).reset_index(drop=True)

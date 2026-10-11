@@ -1,4 +1,4 @@
-"""Known limitation: production areas are labelled whole by their main basin (CHANGES §94).
+"""Known limitation: production areas are labelled whole by their main basin (CHANGES §102).
 
 Quantified with the proved-reserves report YE2024: Table 9 shale-play production by subdivision against Table 8 total
 production. The non-shale part of an area is conventional/tight gas. Whether labelling it with the area's main basin

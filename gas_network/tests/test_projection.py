@@ -1,4 +1,4 @@
-"""Projection methods (§94): additive vs ratio rule, mass-balance repair, the traced-total identity, Colorado San Juan
+"""Projection methods (§102): additive vs ratio rule, mass-balance repair, the traced-total identity, Colorado San Juan
 split, district mixing, metadata and sensitivity outputs."""
 import numpy as np
 import pandas as pd

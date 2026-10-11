@@ -1,4 +1,4 @@
-"""Stage 2a (§96): capacity status rule, the annual LP, arc error, and the real-data run."""
+"""Stage 2a (§103): capacity status rule, the annual LP, arc error, and the real-data run."""
 import numpy as np
 import pandas as pd
 import pytest

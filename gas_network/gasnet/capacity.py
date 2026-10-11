@@ -1,4 +1,4 @@
-"""Stage 2a arc capacity by year (CHANGES §96), MMcf/d on the Stage 1 hub topology.
+"""Stage 2a arc capacity by year (CHANGES §103), MMcf/d on the Stage 1 hub topology.
 
 Base (end of 2025):
   * Interstate: EIA U.S. State-to-State Capacity, January 2026, sheet "Pipeline State2State Capacity" (per pipeline and
@@ -8,7 +8,7 @@ Base (end of 2025):
     and exports demand there (their capacity is not limiting in Stage 2a; flagged in the guide).
   * Intra-Texas: NGMM texas_capacity.txt 2024 rows (includes Matterhorn Express in TX_W->TX_E 10,880).
 Additions (data/reference/capacity_projects.csv, from the EIA pipeline projects tracker, August 2026):
-  status rule (Tom, §96): Completed / Part Completed / Construction count from November of the in-service year;
+  status rule (Tom, §103): Completed / Part Completed / Construction count from November of the in-service year;
   Approved only with include_approved (sensitivity); everything else excluded. Annual capacity in the in-service year
   = 2/12 of the addition (November-December); full from the next year.
 """

@@ -1,6 +1,6 @@
 # Gas network, Stage 1: where each zone's gas comes from
 
-`gas_network/` (CHANGES §93) estimates, for every Switch load zone and model year, the share of its delivered natural
+`gas_network/` (CHANGES §101) estimates, for every Switch load zone and model year, the share of its delivered natural
 gas that comes from each production basin. It changes nothing in the model. Its use is upstream-methane reporting:
 basin shares × the zone's gas burn × basin methane intensity. The intensities come from a separate research task and
 go into `gas_network/data/basin_intensity.csv` (a template, empty for now). Later stages (a seasonal gas network in
@@ -14,7 +14,7 @@ Run from `gas_network/`. Tested on pandas 3.0.6 (Python 3.12) and pandas 1.4.4 (
 python -m gasnet.cli fetch      # download the pinned inputs into data/raw/ (git-ignored) and check their sha256
 python -m gasnet.cli run        # writes outputs/ (refuses if a raw file differs from its pin)
 python -m gasnet.cli report <switch outputs dir> [--inputs-dir <inputs dir>]   # writes basin_gas_mmbtu.csv there
-python -m gasnet.cli stage2a    # Stage 2a annual network LP -> outputs/stage2a/ (§96)
+python -m gasnet.cli stage2a    # Stage 2a annual network LP -> outputs/stage2a/ (§103)
 python -m pytest -q             # 30 tests; the raw-data ones skip if data/raw is empty
 python -m gasnet.cli pin        # only after a deliberate data refresh: rewrites data/SOURCES.yml
 ```
@@ -153,7 +153,7 @@ Resulting weights:
 - p63: TX_N 79%, TX_E 21%;
 - p57, p64–p67: all TX_E.
 
-**Colorado San Juan split** (§94).
+**Colorado San Juan split** (§102).
 - **Source.** Observed county production is not reachable from cloud sessions: ECMC (ecmc.state.co.us,
   ecmc.colorado.gov, cogcc.state.co.us), the Colorado State Publications Library copies of its annual county tables
   (spl.cde.state.co.us), data.colorado.gov and ONRR are all refused by the egress policy. The split therefore uses
@@ -173,7 +173,7 @@ Resulting weights:
 - **Utah and Arizona.** No HSM production is in province 22. San Juan County, UT is Paradox Basin (province 21,
   6 Bcf), so no split is needed.
 
-**Projections** (ASSUMPTION; §94). AEO2026's tables start in 2025 and EIA's state flows end in 2024. Each quantity
+**Projections** (ASSUMPTION; §102). AEO2026's tables start in 2025 and EIA's state flows end in 2024. Each quantity
 keeps its 2024 base and moves with AEO2026 from 2025 to the model year.
 - **Production** by basin, × AEO series(y)/AEO series(2025):
   - Table 60 plays for Appalachia (Marcellus/Utica), Haynesville, Permian, Eagle Ford, Barnett and Bakken;
@@ -352,7 +352,7 @@ region columns as sensitivity.
      8A, Anadarko Granite Wash in 10, Upper Gulf Coast in 3 (already "other TX"), and 7B.
    - Montana is all Bakken; Kentucky is all Appalachia.
 
-## Stage 1 status, unmet local use and balancing degeneracy (§96)
+## Stage 1 status, unmet local use and balancing degeneracy (§103)
 
 **Status** (Tom, 2026-10-11): Stage 1 is accepted at ddac626. **2024 shares are the reference; projected years are
 indicative.** `zone_basin_shares.meta.json` carries `year_status` and the two tables below.
@@ -403,7 +403,7 @@ Reading it:
 The accepted ddac626 formulation stays the default, and is one of the optima. This is part of why the projected years
 are indicative.
 
-## Stage 2a: standalone annual gas network LP (§96)
+## Stage 2a: standalone annual gas network LP (§103)
 
 `python -m gasnet.cli stage2a` → `outputs/stage2a/`. No Switch link, and no model code changed.
 

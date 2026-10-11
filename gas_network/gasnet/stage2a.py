@@ -1,4 +1,4 @@
-"""Stage 2a: standalone annual gas network LP (CHANGES §96). No Switch link; no model code touched.
+"""Stage 2a: standalone annual gas network LP (CHANGES §103). No Switch link; no model code touched.
 
 Nodes: the 52 Stage 1 hubs (47 states + DC, TX_E/TX_N/TX_W, GOM) and one supply node per basin (14). Basin nodes reach
 the hubs where the basin's gas enters through gathering arcs fixed at the hub's share of the basin (production areas

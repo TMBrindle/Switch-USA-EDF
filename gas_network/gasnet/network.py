@@ -5,7 +5,7 @@ dry production by production area (data/reference/production_areas.csv; Texas di
 split by the proved-reserves report's 2024 production) and international receipts (Canada by crossing, LNG, Mexico).
 Flows: EIA gross directional state-to-state receipts, Texas pairs moved to sub-hubs, plus intra-Texas transfers.
 
-Projection (ASSUMPTION, CHANGES §93): every quantity keeps its 2024 base and moves with the AEO2026 growth from 2025
+Projection (ASSUMPTION, CHANGES §101): every quantity keeps its 2024 base and moves with the AEO2026 growth from 2025
 (the first AEO2026 table year) to the model year:
   production by basin  x  AEO series(y) / AEO series(2025)          (config basin_aeo_index)
   Canada imports       x  Table 64 Canada arc(y) / (2025)            (by crossing state's region; WA, ID own rows)
@@ -64,7 +64,7 @@ SAN_JUAN_COUNTIES = {"CO": {"La Plata", "Archuleta", "Montezuma", "San Juan"},
 def hsm_san_juan(nems_dir: Path, state: str) -> dict:
     """San Juan Basin vs other gas in a state, from the AEO2026 HSM onshore *producing* project files (EIA, NEMS
     1bfbb2a): GP1 = each project's first projection-year gas from wells already producing (MMcf). Model-based county
-    volumes; observed county production (ECMC) is not reachable from cloud sessions (CHANGES §94).
+    volumes; observed county production (ECMC) is not reachable from cloud sessions (CHANGES §102).
     San Juan = USGS province 22 projects in the basin's counties. Returns {'san_juan', 'other', 'province22_elsewhere'}."""
     d = pd.concat([pd.read_csv(nems_dir / f"on_projects_{k}.csv", skiprows=1, low_memory=False,
                                usecols=["state", "cnty_name", "play", "GP1"]) for k in ("producing_gas", "producing_oil")])

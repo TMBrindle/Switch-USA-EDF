@@ -1,6 +1,6 @@
 # Upstream methane intensity by production basin (IDEA-01, research only)
 
-Opened 2026-10-11. No code and no model change, so no CHANGES section (§97 stays reserved). The data file is
+Opened 2026-10-11. No code and no model change, so no CHANGES section (§104–106 stay reserved). The data file is
 `data/basin_methane_intensity.csv`. Stage 1/2a outputs are untouched. The older empty template
 `data/basin_intensity.csv` is left as it is.
 
