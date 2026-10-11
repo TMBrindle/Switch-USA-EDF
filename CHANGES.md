@@ -3946,3 +3946,58 @@ entry is numbered after them so the two branches merge without a clash.
 
 **Test:** `s0_workflow/tests/test_variability_cache.py` checks that the function isn't wrapped by the cache, that the
 single call site uses it directly, and that `kmeans_time_clustering` is still cached.
+
+## 102. S0 v3.2: Read-Once Input Cache for the Case Build
+
+**Date:** 2026-10-11. **Branch:** `tom/s0-v3.2` only.
+
+**The runner's finding:** a 5-stage BILL central build takes about 83 min. Most of it goes to hourly demand (about
+22 min) and PowerGenome flexible demand (about 20 min), then generator post-processing (about 11 min) and
+existing-generator clustering (about 10 min). Generator profiles and time sampling take about 20 s per stage.
+
+**What repeats (from `pg_to_switch.py`):** `main` builds all stages in one process, one loop over `to_run`.
+- Each stage calls PowerGenome's `make_final_load_curves`, which reads the hourly load file (`regional_load_fn`).
+- Each stage builds the flexible-demand resources, which read `demand_response_fn` once per resource type.
+  pg_to_switch's own aggregate-zone fix reads the same file again for each type.
+- `GeneratorClusters` reads the EIA-860M workbook (`eia_860m_fn`), the coal tracker (`GEM_coal_tracker_fn`) and the
+  DG profiles (`distributed_gen_fn`).
+- None of these files depends on the stage year. Only what is done with them does.
+- Our own per-stage reads (coal tables, hierarchy, headroom tables, growth caps) are small committed files, each
+  under 300 KB. Nothing year-independent and heavy turned up in pg_to_switch's steps 3–4 besides those PowerGenome
+  reads.
+
+**Change:** a new module, `s0_workflow/read_once.py`. pg_to_switch wraps the stage loop in
+`read_once(input_file_names(case_settings))`.
+- **Scope:** inside the block, `pandas.read_csv`, `read_parquet` and `read_excel` calls on a file named by any `*_fn`
+  setting are parsed once and then served from memory.
+- **Key:** the resolved path, size, mtime, reader and all call arguments.
+- **Copies:** every call gets a deep copy, so in-place edits don't leak between stages.
+- **Bypassed (go straight to pandas):** buffers, file handles, `chunksize` / `iterator`, callable arguments, and files
+  that aren't named.
+- **No disk cache.** The cache is cleared at the end of the build.
+- **Turning it off:** `PG_READ_ONCE=0`.
+- **Build log:** a summary line per file (reads, parses, parse seconds, estimated seconds saved).
+
+**Byte-identical inputs:** `test_read_once.py` runs a five-stage stand-in. Each stage reads and edits in place the
+load and DR zips (by position and by keyword) and an 860M-style workbook (one sheet, and all sheets), then writes
+files.
+- All 30 written files are byte-identical with and without the cache.
+- Each file is parsed once (the workbook once per distinct call), and the rest are served from memory.
+- A cached frame equals pandas' own read exactly: values, dtypes, index and columns.
+- A changed file is re-read.
+- pandas is restored afterwards, even after an error.
+- The build loop is checked to run inside the block.
+
+**Not verified here (no PowerGenome or input data in the cloud; the PowerGenome clone is off limits):**
+- whether PowerGenome reads these files through `pd.read_csv` / `read_excel` / `read_parquet`, rather than
+  `ExcelFile`, pyarrow or polars directly, or a `from pandas import read_csv` bound at import;
+- how much of the 22 + 20 min is parsing, as opposed to per-year processing, which still runs every stage.
+
+The build log's read-once line shows both on the VM: no line, or zero memory hits, means PowerGenome reads another
+way. So the 30 min target is not confirmed.
+
+**Memory:** the parsed load file stays in memory for the whole build, and each read makes a transient copy. If memory
+is tight, set `PG_READ_ONCE=0`.
+
+**Runner check:** build BILL central (or S0prod_A) with and without `PG_READ_ONCE=0` and compare `SHA256SUMS` of every
+stage folder. Then report the timing and the read-once log line.

@@ -25,6 +25,7 @@ from s0_workflow import production as s0prod
 from s0_workflow import coal_fleet as s0coal
 from s0_workflow import day_selection as s0days
 from s0_workflow import prm as s0prm
+from s0_workflow import read_once as s0_read_once
 import pandas as pd
 import numpy as np
 import scipy
@@ -3950,69 +3951,73 @@ def main(
     #%% [skip]
     """
     # Run through the different cases and save files in a new folder for each.
-    for c, scen_settings_dict, stage in to_run:
-        # %%
-        # c is case_id for this case
-        # scen_settings_dict has all settings for this case, organized by year
-        all_years = scen_settings_dict.keys()
-        logger.info(
-            "-" * 60
-            + f"\nstarting case {c} ({', '.join(str(y) for y in all_years)})\n"
-            + "-" * 60
-        )
-        out_folder = results_folder / (
-            year_name(all_years) if stage.get("legacy") else stage["name"]
-        ) / c
-        out_folder.mkdir(parents=True, exist_ok=True)
+    # Read-once input cache (§102, s0_workflow/read_once.py): the large input files the settings name (hourly load,
+    # flexible demand, 860M, DG profiles, ...) are parsed once per build and served from memory in later stages;
+    # each caller gets a copy, so the written inputs are unchanged. PG_READ_ONCE=0 turns it off.
+    with s0_read_once.read_once(s0_read_once.input_file_names(case_settings), logger.info):
+        for c, scen_settings_dict, stage in to_run:
+            # %%
+            # c is case_id for this case
+            # scen_settings_dict has all settings for this case, organized by year
+            all_years = scen_settings_dict.keys()
+            logger.info(
+                "-" * 60
+                + f"\nstarting case {c} ({', '.join(str(y) for y in all_years)})\n"
+                + "-" * 60
+            )
+            out_folder = results_folder / (
+                year_name(all_years) if stage.get("legacy") else stage["name"]
+            ) / c
+            out_folder.mkdir(parents=True, exist_ok=True)
 
-        first_year_settings = first_value(scen_settings_dict)
-        final_year_settings = final_value(scen_settings_dict)
+            first_year_settings = first_value(scen_settings_dict)
+            final_year_settings = final_value(scen_settings_dict)
 
-        # uncomment to debug interactively at this point
-        # print("Run this whole script in Interactive pane, then run")
-        # print("import save_vars; save_vars.load_frame()")
-        # print("to troubleshoot in VS Code editor.")
-        # import save_vars; save_vars.save_frame(); breakpoint()
+            # uncomment to debug interactively at this point
+            # print("Run this whole script in Interactive pane, then run")
+            # print("import save_vars; save_vars.load_frame()")
+            # print("to troubleshoot in VS Code editor.")
+            # import save_vars; save_vars.save_frame(); breakpoint()
 
-        # %%
-        # generate Switch input tables from the PowerGenome settings/data
-        generator_fuel_and_load_files(
-            scen_settings_dict,
-            out_folder,
-            pudl_engine,
-            pudl_out,
-            pg_engine,
-            pg_unit_bug,
-        )
-        load_zones_file(
-            final_year_settings,
-            out_folder=out_folder,
-        )
-        other_tables(
-            scen_settings_dict=scen_settings_dict,
-            out_folder=out_folder,
-        )
-        zone_map = first_value(scen_settings_dict).get("_zone_map")
-        state_zone_map = first_value(scen_settings_dict).get("_state_zone_map")
-        if zone_map:
-            remap_policies(out_folder, zone_map, state_zone_map=state_zone_map)
-        transmission_tables(
-            scen_settings_dict,
-            out_folder,
-            pg_engine,
-        )
-        model_adjustment_scripts(
-            scen_settings_dict=scen_settings_dict,
-            settings_file=settings_file,
-            out_folder=out_folder,
-        )
-        write_gen_zone_ratio_files(scen_settings_dict, out_folder)
-        # S0 production steps (gas capex premium, coal CF caps, wind loss, NY ACP, headroom
-        # slack, retirement rule); before build rate so its checks see the final inputs
-        s0prod.write_case_inputs(out_folder, scen_settings_dict)
-        write_build_rate_files(scen_settings_dict, out_folder)
-        if not stage.get("legacy"):
-            s0prod.write_stage_info(out_folder, stage)
+            # %%
+            # generate Switch input tables from the PowerGenome settings/data
+            generator_fuel_and_load_files(
+                scen_settings_dict,
+                out_folder,
+                pudl_engine,
+                pudl_out,
+                pg_engine,
+                pg_unit_bug,
+            )
+            load_zones_file(
+                final_year_settings,
+                out_folder=out_folder,
+            )
+            other_tables(
+                scen_settings_dict=scen_settings_dict,
+                out_folder=out_folder,
+            )
+            zone_map = first_value(scen_settings_dict).get("_zone_map")
+            state_zone_map = first_value(scen_settings_dict).get("_state_zone_map")
+            if zone_map:
+                remap_policies(out_folder, zone_map, state_zone_map=state_zone_map)
+            transmission_tables(
+                scen_settings_dict,
+                out_folder,
+                pg_engine,
+            )
+            model_adjustment_scripts(
+                scen_settings_dict=scen_settings_dict,
+                settings_file=settings_file,
+                out_folder=out_folder,
+            )
+            write_gen_zone_ratio_files(scen_settings_dict, out_folder)
+            # S0 production steps (gas capex premium, coal CF caps, wind loss, NY ACP, headroom
+            # slack, retirement rule); before build rate so its checks see the final inputs
+            s0prod.write_case_inputs(out_folder, scen_settings_dict)
+            write_build_rate_files(scen_settings_dict, out_folder)
+            if not stage.get("legacy"):
+                s0prod.write_stage_info(out_folder, stage)
 
     scenario_files(results_folder, case_settings, myopic, case_stages)
 
