@@ -328,3 +328,75 @@ def test_gas_turbine_cap_settings_must_match_the_case(tmp_path):
     run = _gtc_case(tmp_path, "gtcbad", case_classes=("aeroderivative",))
     with pytest.raises(ValueError, match=r"outside the coverage"):
         write_case_inputs(run / "inputs", _spec(GTC_GENS[:1]), run / "inputs_td")
+
+
+# ------------------------------------------------------------------------------------------------ gas capex premium
+CENTRAL_LOG = ("gas capex: ATB Moderate + central premium (span_mean): CC 2028 +37.0%, CC 2035 +18.4%, "
+               "CT 2028 +45.0%, CT 2035 +22.6%")
+PREMIUM_GENS = [_gen("g_aero", technology="aero"), _gen("g_titan", technology="industrial_ct"),
+                _gen("g_frame", technology="frame_ct"), _gen("g_cc", technology="cc"),
+                _gen("g_recip", technology="recip"), _gen("g_fc", technology="fuel_cell"),
+                _gen("g_recip_ct", technology="recip", premium_class="ct"),      # a recip premium sensitivity
+                _gen("g_recip_10", technology="recip", premium=0.1)]
+
+
+def _s0_case(tmp_path, name, log_line):
+    """The toy with S0's 2028 (2026-28) and 2035 (2031-35) periods and the case build's gas-capex log line."""
+    def edit(inp):
+        pd.DataFrame({"INVESTMENT_PERIOD": [2028, 2035], "period_start": [2026, 2031],
+                      "period_end": [2028, 2035]}).to_csv(inp / "periods.csv", index=False)
+        if log_line:
+            (inp / "s0_production_log.txt").write_text(f"\n2026-10-12T10:00:00\ncase S0prod_A\n{log_line}\n")
+    return toyutil.toy_inputs(tmp_path, name, modules=("tracked_demands",), edit=edit)
+
+
+def _capex(out):
+    bc = pd.read_csv(out / "gen_build_costs.csv")
+    bc = bc[bc["GENERATION_PROJECT"].str.startswith("g_")]
+    return {(g, int(y)): c / 900e3 for g, y, c in zip(bc["GENERATION_PROJECT"], bc.iloc[:, 1], bc["gen_overnight_cost"])}
+
+
+def test_gas_capex_premium_central(tmp_path):
+    from tracked_demands.case_writer import write_case_inputs
+    run = _s0_case(tmp_path, "prem", CENTRAL_LOG)
+    out = write_case_inputs(run / "inputs", _spec(PREMIUM_GENS), run / "inputs_td")
+    expect = {"g_aero": (0.45, 0.226), "g_titan": (0.45, 0.226), "g_frame": (0.45, 0.226), "g_cc": (0.37, 0.184),
+              "g_recip": (0, 0), "g_fc": (0, 0), "g_recip_ct": (0.45, 0.226), "g_recip_10": (0.1, 0.1)}
+    got = _capex(out)
+    for g, (p28, p35) in expect.items():
+        assert got[(g, 2028)] == pytest.approx(1 + p28) and got[(g, 2035)] == pytest.approx(1 + p35), g
+    log = (out / "tracked_demands_writer_log.txt").read_text()
+    assert "gas capex: mode premium, path central, span_mean (s0_production.yml)" in log
+    assert "g_frame: gas capex premium (central CT path, span_mean, premium class ct): 2028 +45.0%, 2035 +22.6%" in log
+    assert "g_recip: no gas capex premium (mode premium, premium class none)" in log
+    assert "g_recip_10: gas capex premium (spec premium 0.1" in log
+
+
+def test_gas_capex_atb_moderate_no_premium(tmp_path):
+    """A case built with gas_capex atb_moderate (the regression row's on_pgdays): the spec says so; no premium."""
+    from tracked_demands.case_writer import write_case_inputs
+    run = _s0_case(tmp_path, "atb", "gas capex: atb_moderate (new CC/CT at ATB 2024 Moderate)")
+    with pytest.raises(ValueError, match="don't match the case's build"):
+        write_case_inputs(run / "inputs", _spec(PREMIUM_GENS[:4]), run / "a")
+    out = write_case_inputs(run / "inputs", _spec(PREMIUM_GENS[:4], gas_capex={"mode": "atb_moderate"}), run / "b")
+    assert all(v == pytest.approx(1.0) for v in _capex(out).values())
+    assert "g_frame: no gas capex premium (mode atb_moderate, premium class ct)" in \
+        (out / "tracked_demands_writer_log.txt").read_text()
+
+
+def test_gas_capex_without_s0_build_or_with_a_mismatch(tmp_path):
+    from tracked_demands.case_writer import write_case_inputs
+    run = _s0_case(tmp_path, "none", None)          # not an s0_production case: no premium
+    out = write_case_inputs(run / "inputs", _spec(PREMIUM_GENS[:1]), run / "a")
+    assert all(v == pytest.approx(1.0) for v in _capex(out).values())
+    low = _s0_case(tmp_path, "low", CENTRAL_LOG.replace("central", "low"))
+    with pytest.raises(ValueError, match="don't match the case's build"):
+        write_case_inputs(low / "inputs", _spec(PREMIUM_GENS[:1]), low / "a")
+    # the logged premiums are checked too
+    bad = _s0_case(tmp_path, "bad", CENTRAL_LOG.replace("22.6", "30.0"))
+    with pytest.raises(ValueError, match="differs from the case's"):
+        write_case_inputs(bad / "inputs", _spec(PREMIUM_GENS[:1]), bad / "a")
+    with pytest.raises(ValueError, match="linked generators only"):
+        write_case_inputs(run / "inputs", _spec(PREMIUM_GENS[:1]) | {"tracked_demands": [
+            {**_spec(PREMIUM_GENS[:1])["tracked_demands"][0],
+             "storage": {"power_cost_per_mw_yr": 1, "energy_cost_per_mwh_yr": 1, "premium_class": "ct"}}]}, run / "b")

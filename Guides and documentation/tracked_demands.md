@@ -1732,6 +1732,7 @@ It also gives the case's `CO2_PROGRAM` names mapped to rule families. From the c
 | zone upgrade $/kW | ReEDS conventional reinforcement median (`interconnection_headroom/data/reference/reeds_reinforcement_by_zone.csv`, 2024$) |
 | reserve credit, ic weight | rows added to `prm_gen_credit.csv`, `ic_weights.csv` when present |
 | gas-turbine cap | the form from the case's `gas_turbine_cap_params.csv` (`gtc_form`), and the lists and weights from `build_rate.gas_turbine_cap` in the spec's `build_rate_settings` file (default `pg/settings/build_rate.yml`), with the spec's `gas_turbine_cap:` keys over it. Coverage is `allowance_coverage` under `cumulative_additions` (S0 production cases), else `coverage` (table in 15.1). Covered linked generators go into `gas_turbine_cap_gens.csv`; the coverage goes into `tracked_demand_gtc_coverage.csv`. A class already in the case's file but outside that coverage stops the writer (wrong settings file). |
+| gas capex premium | `s0_production.gas_capex` (mode, path, year_basis, premium_paths) from the spec's `s0_production_settings` file (default `pg/settings/s0_production.yml`), with the spec's `gas_capex:` keys over it, checked against the case's own `s0_production_log.txt` (see below) |
 | unit size | the spec's `unit_mw` → `td_onsite_unit_mw`; `gen_unit_size` stays blank so the build stays continuous (15.1) |
 | headroom weight | `connection.headroom_weight` → `td_headroom_weight` (default 1). Ignored unless `connection.uses_headroom` is set and the draw is on, so the 1 written with the draw off has no effect |
 | zone states (NY rule) | `hierarchy.csv` |
@@ -1754,6 +1755,34 @@ log says so with a WARNING. Only `frame_ct` and `cc` are sourced (the repo's Pow
 combined-cycle rows); the rest are placeholders. The technology also sets the gas-turbine cap category (15.1); the
 spec's old `gtc_class` / `gtc_weight` keys are ignored with a warning.
 Nothing is copied from existing plants.
+
+**Gas capex premium on linked generators.** A spec's `overnight_cost_per_kw` is capex without the S0 gas capex
+premium, which is how the input research delivers it. When the case was built with `gas_capex.mode: premium`, the
+writer multiplies each linked generator's overnight cost in each period by (1 + premium). The premium is the case's
+path for the generator's premium class, averaged over the period's in-service years as the case build did it
+(`premium_for_period` from `s0_workflow/production.py`: `span_mean`, or the period's last year with `period_label`).
+On the central path that gives CT 0.45 and CC 0.37 for 2028, and CT 0.226 and CC 0.184 for 2035 (span 2031–35).
+
+| Technology | Premium class (default) |
+|---|---|
+| `aero`, `industrial_ct`, `frame_ct` | `ct` |
+| `cc` | `cc` |
+| `recip`, `diesel`, `fuel_cell` (and storage) | none |
+
+- A generator's `premium_class: ct | cc | none` overrides the default, e.g. a recip premium sensitivity.
+- `premium:` (a fraction, or a `{year: fraction}` table averaged the same way) replaces the path for that generator.
+- Private on-site techs and storage carry no premium; setting one there stops the writer.
+- Modes `atb_moderate` and `gridlab` give no premium.
+
+**Check against the case build.** The writer reads the last `gas capex:` line of the case's
+`s0_production_log.txt` and compares it with the resolved settings:
+- **Mode, path or year basis differ:** the writer stops (wrong settings), or warns when the spec's `gas_capex:` set
+  them deliberately (a sensitivity).
+- **Logged premiums** (to 0.1%) must equal the writer's for each class and period.
+- **No such log:** the case wasn't built with s0_production, so no premium unless the spec sets one (warned).
+- **Regression row** (`on_pgdays`, `gas_capex: atb_moderate`): give the spec `gas_capex: {mode: atb_moderate}`.
+
+The log records each generator's premium by period, or why it has none.
 
 **Limited-export exemption.** It is off in every rule family; turn it on per programme in the spec:
 `cap_coverage: {"ETS 1": {family: RGGI, limited_export_exemption: 1}}`.

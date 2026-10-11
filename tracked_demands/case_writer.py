@@ -30,6 +30,7 @@ The writer prints the scenario-line options (tracked_demands_scenario_options.tx
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -42,6 +43,7 @@ RULES = REPO / "tracked_demands" / "data" / "cap_coverage_rules.yml"
 REINFORCEMENT = REPO / "interconnection_headroom" / "data" / "reference" / "reeds_reinforcement_by_zone.csv"
 HIERARCHY = REPO / "hierarchy.csv"
 BUILD_RATE_SETTINGS = REPO / "pg" / "settings" / "build_rate.yml"
+S0_PRODUCTION_SETTINGS = REPO / "pg" / "settings" / "s0_production.yml"
 UC_DEFAULTS = REPO / "tracked_demands" / "data" / "onsite_uc_defaults.yml"
 # Switch's unit-commitment and ramp columns (gen_info.csv), set from the spec or onsite_uc_defaults.yml, never copied
 # from a template plant
@@ -53,6 +55,10 @@ TECH_PRIME_MOVER = {"recip": "recip", "diesel": "recip", "aero": "turbine", "ind
 # industrial CTs (Titan 130 class) count with aeroderivatives (Tom, 12 Oct 2026)
 GTC_CATEGORY = {"frame_ct": "combustion_turbine", "cc": "combined_cycle", "aero": "aeroderivative",
                 "industrial_ct": "aeroderivative", "recip": "reciprocating_engine", "diesel": None, "fuel_cell": None}
+# technology -> S0 gas capex premium class (s0_production.gas_capex.premium_paths: ct, cc); None: no premium. A
+# spec's `premium_class` (ct | cc | none) or `premium` (a fraction, or a {year: fraction} table) overrides it
+PREMIUM_CLASS = {"aero": "ct", "industrial_ct": "ct", "frame_ct": "ct", "cc": "cc",
+                 "recip": None, "diesel": None, "fuel_cell": None, "battery": None}
 
 # spec names -> candidate names a case may use (case-insensitive); the first present in the case wins
 SOURCE_ALIASES = {
@@ -305,6 +311,78 @@ def gtc_new_build_weight(cfg: dict, cat: str) -> float:
     return 1.0
 
 
+# --------------------------------------------------------------------------------------------- gas capex premium
+def gas_capex_settings(out: Path, spec: dict, log) -> dict:
+    """The case's s0_production.gas_capex, as the case build used it: the spec's `s0_production_settings` file
+    (default pg/settings/s0_production.yml), with the spec's `gas_capex:` keys over it.
+
+    The case build logs its gas-capex step in the case's s0_production_log.txt; that line is checked against the
+    settings (mode, path, year basis, and each logged premium). No log: the case wasn't built with s0_production,
+    so there is no premium unless the spec's `gas_capex:` sets one (warned)."""
+    path = Path(spec.get("s0_production_settings", S0_PRODUCTION_SETTINGS))
+    base = ((yaml.safe_load(path.read_text()) or {}).get("s0_production") or {}).get("gas_capex") or {}
+    over = spec.get("gas_capex") or {}
+    gc = {**base, **over, "_source": path.name + (" + spec" if over else "")}
+    case_log = out / "s0_production_log.txt"
+    lines = [ln for ln in case_log.read_text().splitlines() if ln.startswith("gas capex:")] \
+        if case_log.exists() else []
+    if not lines:
+        if not over:
+            gc = {"mode": "none", "_source": "no s0_production_log.txt in the case"}
+        else:
+            log(f"WARNING: the case has no s0_production gas-capex log line; using the spec's gas_capex {over}")
+        return gc
+    last = lines[-1]
+    m = re.match(r"gas capex: ATB Moderate \+ (\w+) premium \((\w+)\)", last)
+    case_mode = "premium" if m else last.split(":", 1)[1].split()[0]
+    mode = gc.get("mode", "atb_moderate")
+    if case_mode != mode or (m and (m.group(1), m.group(2)) != (gc.get("path", "central"),
+                                                                 gc.get("year_basis", "span_mean"))):
+        msg = (f"gas capex settings ({mode}, path {gc.get('path')}, {gc.get('year_basis')}; {gc['_source']}) don't "
+               f"match the case's build: {last!r}")
+        if not over:
+            raise ValueError(f"case_writer: {msg}; give the spec the case's s0_production_settings or gas_capex")
+        log(f"WARNING: {msg}; the spec's gas_capex is used (a sensitivity: linked generators differ from the "
+            f"case's own gas plant)")
+        return gc
+    gc["_case_logged"] = {(c.lower(), int(y)): float(f) / 100
+                          for c, y, f in re.findall(r"\b(CC|CT) (\d{4}) \+([\d.]+)%", last)}
+    return gc
+
+
+def gas_capex_premium(gc: dict, g: dict, techname: str, per: pd.DataFrame, log) -> dict:
+    """{period: premium fraction} for a linked generator: the case's premium path for its premium class, averaged
+    over each period as the case build did (span_mean or period_label); a spec `premium` overrides the path."""
+    from s0_workflow.production import premium_for_period
+    cls = g.get("premium_class", PREMIUM_CLASS.get(techname))
+    cls = None if cls in (None, "none") else str(cls)
+    if cls not in (None, "ct", "cc"):
+        raise ValueError(f"case_writer: premium_class of {g['name']} must be ct, cc or none, not {cls!r}")
+    basis = gc.get("year_basis", "span_mean")
+    if g.get("premium") is not None:
+        p = g["premium"]
+        table = p if isinstance(p, dict) else {int(per.index.min()): float(p)}
+        what = f"spec premium {p}"
+    elif gc.get("mode") == "premium" and cls is not None:
+        tables = (gc.get("premium_paths") or {}).get(gc.get("path", "central"))
+        if not tables:
+            raise ValueError(f"case_writer: s0_production.gas_capex.premium_paths has no path {gc.get('path')!r}")
+        table = tables[cls]
+        what = f"{gc.get('path', 'central')} {cls.upper()} path"
+    else:
+        log(f"{g['name']}: no gas capex premium (mode {gc.get('mode')}, premium class {cls or 'none'})")
+        return {}
+    out = {int(y): premium_for_period(table, r["period_start"], r["period_end"], basis) for y, r in per.iterrows()}
+    for y, f in out.items():
+        logged = (gc.get("_case_logged") or {}).get((cls, y))
+        if g.get("premium") is None and logged is not None and abs(f - logged) > 0.0006:   # logged to 0.1%
+            raise ValueError(f"case_writer: {g['name']} {cls.upper()} premium {f:.1%} in {y} differs from the "
+                             f"case's {logged:.1%} (s0_production_log.txt)")
+    log(f"{g['name']}: gas capex premium ({what}, {basis}, premium class {cls or 'none'}): "
+        + ", ".join(f"{y} +{f:.1%}" for y, f in out.items()))
+    return out
+
+
 # --------------------------------------------------------------------------------------------- writer
 def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
     inp = Path(inputs_dir)
@@ -320,6 +398,12 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
     zones = set(_read(out / "load_zones.csv")["LOAD_ZONE"])
     credits_override = spec.get("tax_credit_values")
     gtc_cfg = gtc_case_settings(out, spec, log)
+    gas_capex = gas_capex_settings(out, spec, log)
+    per = _read(out / "periods.csv").set_index("INVESTMENT_PERIOD")
+    log(f"gas capex: mode {gas_capex.get('mode')}" + (f", path {gas_capex.get('path', 'central')}, "
+                                                       f"{gas_capex.get('year_basis', 'span_mean')}"
+                                                       if gas_capex.get("mode") == "premium" else "")
+        + f" ({gas_capex['_source']})")
 
     rows = {k: [] for k in ("td", "zones", "blocks", "targets", "techs", "subsidies", "caps", "storage", "links",
                             "gi", "bc", "credit", "prm", "gtc", "ic")}
@@ -351,6 +435,10 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
             rows["targets"].append(t)
             log(f"{name}: {len(b)} timepoints in {t['time_block'].nunique()} blocks "
                 f"({d['matching'].get('mode', 'hourly')}), stress hours left out")
+        for t in [*(d.get("onsite_techs") or []), *([d["storage"]] if d.get("storage") else [])]:
+            if t.get("premium") is not None or t.get("premium_class") not in (None, "none"):
+                raise ValueError(f"case_writer: {name}: the gas capex premium applies to linked generators only "
+                                 f"(onsite_gens), not to {t.get('name', 'storage')}")
         for t in d.get("onsite_techs", []) or []:
             src = case_energy_source(gen_info, t["energy_source"]) if t.get("energy_source") else "."
             rows["techs"].append({"td_onsite_tech": t["name"],
@@ -400,9 +488,11 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
             for f in UC_FIELDS:
                 row["gen_" + f] = uc.get(f, float("nan"))
             rows["gi"].append(row)
+            premium = gas_capex_premium(gas_capex, g, techname, per, log)
             for p in periods:
                 rows["bc"].append({"_i0": gid, "_i1": p,
-                                   "gen_overnight_cost": float(g["overnight_cost_per_kw"]) * 1000.0,
+                                   "gen_overnight_cost": float(g["overnight_cost_per_kw"]) * 1000.0
+                                   * (1 + premium.get(p, 0.0)),
                                    "gen_fixed_om": float(g.get("fixed_om_per_kw_yr", 0.0)) * 1000.0})
             cat = GTC_CATEGORY.get(techname) if techname else ("reciprocating_engine" if pm == "recip" else None)
             if techname and techname not in GTC_CATEGORY:

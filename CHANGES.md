@@ -4232,3 +4232,30 @@ pre-solve check with no writer warnings: aero in the cap at 1.09, recips out). D
    draw if someone later turned it on by hand. Documented in the guide's column table and 15.9.
    `test_headroom_weight_inert_without_draw` solves with weights 1 and 7 and the draw off: same objective and no
    draw. `tracked_demands/tests`: 111 passed on pandas 3.0.6 and 1.4.4.
+
+**(g) Gas capex premium on linked generators** (12 Oct). The input research gives on-site capex without the S0 gas
+capex premium. The case writer now adds the premium the way the case build did (`s0_workflow/production.py`
+`apply_gas_capex`), and only to linked generators:
+1. **Settings.** `s0_production.gas_capex` (mode, path, year_basis, premium_paths) is read from the spec's
+   `s0_production_settings` file (default `pg/settings/s0_production.yml`), with the spec's `gas_capex:` keys over it.
+2. **Premium.** With mode `premium`, each period's overnight cost is × (1 + premium) for the generator's
+   `premium_class`, averaged with `production.premium_for_period` (`span_mean` over the period's in-service years, or
+   `period_label`). Central path: 2028 CT 0.45 / CC 0.37; 2035 CT 0.226 / CC 0.184. `atb_moderate` and `gridlab` add
+   none.
+3. **Premium class.** Defaults by technology: aero, industrial_ct, frame_ct → ct; cc → cc; recip, diesel, fuel_cell,
+   battery → none. Per generator, `premium_class` overrides the default (e.g. a recip sensitivity) and `premium` (a
+   fraction or a `{year: fraction}` table) replaces the path. Private on-site techs and storage carry no premium;
+   setting one there stops the writer.
+4. **Check against the case.** The last `gas capex:` line of the case's `s0_production_log.txt` must match mode, path
+   and year basis, or the writer stops. A deliberate spec `gas_capex:` override only warns, as a sensitivity. Its
+   logged premiums (to 0.1%) must equal the writer's. With no log (not an s0_production case) there is no premium
+   unless the spec sets one. For the regression row (`on_pgdays`, atb_moderate) the spec gives
+   `gas_capex: {mode: atb_moderate}`.
+5. **Log.** The writer log gives each generator's premium by period, or why it has none.
+6. **Tests** (`test_td_case_writer.py`):
+   - a premium case on the central path (2028 and 2035), with all default classes, a recip with premium_class ct and
+     a recip with premium 0.1;
+   - an atb_moderate case: stops without the spec's mode, no premium with it;
+   - no s0 log; a path mismatch; a logged premium that differs; a premium on storage.
+
+   Guide 15.9 and the example spec are updated. No shared files changed.
