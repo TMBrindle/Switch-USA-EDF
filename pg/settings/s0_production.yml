@@ -324,12 +324,25 @@ s0_production:
   ca_wa_carbon:
     mode: linked
     path: central                  # central (CARB ISOR Jan 2026 Table 21) | low (floor) | high (Bushnell, Feb 2026)
+    # S0 v3.1 (tag s0-v3.1): explicit, as the launch run set it (the code default is the same, §93). Free tranche
+    # 49.4 TWh/yr, PLACEHOLDER on CEC's basis; it bound in every stage of the S0 v3.1 run. Calibration in v3.2
+    import_charge: two_tranche
     # imports generators inside CA / WA zones (CHANGES §66): output pays price x factor (tCO2/MWh) per MWh
     # (gen_om_by_period.csv). Mexico into p11 (CA): unspecified import, 0.428. Canada into p1 and p3 (WA): specified
     # low-emission hydro, largely BC Hydro (Powerex, an asset-controlling supplier): 0, an assumption. No primary-source
     # ACS factor could be cited (CARB's ACS page was not reachable; Powerex reports 0.0233 t/MWh for data year 2019,
     # about $1.2/MWh at the 2030 price: a candidate value once confirmed against CARB's table).
     import_gens: {p11: 0.428, p1: 0.0, p3: 0.0}
+    # import charge (CHANGES §86, §91; Guides and documentation/s0_production.md "The import charge in v3.1"). Not set
+    # here, so the code default applies (s0_workflow/production.py CA_WA_DEFAULTS): two_tranche (§93; CA imports free
+    # up to 49.4 TWh/yr, PLACEHOLDER on CEC's basis, then price x 0.428; WA as v3). 96b4780's average share:
+    # import_charge: unspecified_share (CA 0.136, WA 1.0). v3's charge on every MWh: import_charge: all_default.
+    # Options, set on a case or axis:
+    #   import_charge: unspecified_share      # default factor x share, specified_factor on the rest
+    #   unspecified_share: {CA: 0.136, WA: 1.0}      # or {CA: {2028: .., 2035: ..}}; CEC 2023 (10,373 / 76,400 GWh)
+    #   specified_factor: 0.0                 # or source_table (the exporting zone's factor)
+    #   import_charge: source_table           # the exporting zone's factor on every MWh
+    #   source_table: <csv: zone, tco2_per_mwh[, period]>   # s0_workflow/scripts/zone_import_factors.py
 
   # fuel prices (CHANGES §67; s0_workflow/fuel_prices.py; Guides and documentation/s0_production.md "Fuel prices"; axis and
   # column fuel_prices): natural gas and coal delivered to the electric power sector, 2024 $/MMBtu

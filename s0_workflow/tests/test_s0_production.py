@@ -553,7 +553,11 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
                   REPO / "pg/settings/s0_production.yml")
     # the one difference: the retired reserve-import allowance (§87), inert here (prm design legacy: no prm_regional
     # inputs are written, so the case builds as before)
-    assert cr._diff_paths(now, before) == ["s0_production.prm.imports.new_tx_allowance: 0.0 -> None"]
+    # and the S0 v3.1 launch setting made explicit in the yml (§94; inert here: ca_wa_carbon.mode legacy writes no
+    # import cost)
+    assert cr._diff_paths(now, before) == ["s0_production.ca_wa_carbon.import_charge: None -> 'two_tranche'",
+                                           "s0_production.prm.imports.new_tx_allowance: 0.0 -> None"]
+    assert now["s0_production"]["ca_wa_carbon"]["mode"] == "legacy"
     assert now["s0_production"]["prm"]["design"] == "legacy" and now["s0_production"]["tx_policy"]["mode"] == "legacy"
     on_pgdays = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))[
         "settings_management"]["all_years"]["s0_production"]["on_pgdays"]["s0_production"]

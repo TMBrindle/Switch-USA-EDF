@@ -528,20 +528,179 @@ One linked-market carbon price for California (`ETS 2`) and Washington (`ETS 3`)
   not transmission flows, so they don't pay the import cost.
 - **`legacy`:** the presets' $33.43 and no import cost. That is the regression case, which stays byte-identical. Non-S0
   cases are unchanged.
+- **S0 v3.1 (§93):** the two-tranche CA charge. CA imports are free up to 49.4 TWh/yr and every MWh above pays the
+  full rate; see "Two-tranche CA import charge" below. The text above describes v3's charge
+  (`import_charge: all_default`).
 
-### Known bias in v3.1: the import charge (§89)
+### Import charge options (§86)
 
-v3.1 keeps the v3 (§65) charge: price × 0.428 (CA) / 0.437 (WA) tCO2 on EVERY MWh imported over lines into CA/WA
-zones.
-- **CARB's rule:** only unspecified imports pay the default factor. Specified imports (hydro, nuclear, contracted
-  renewables) carry their own factors, mostly near 0.
-- **Bias:** the charge overstates the carbon cost of imports, so it biases the model toward in-state gas. Attribution
-  run A8 put the effect at about +20 Mt of CA/WA in-state emissions in 2035.
-- **Data:** CEC's power mix puts the unspecified share of CA imports at about 24% (2022) and 14% (2023). These are
-  CEC categories, not CARB MRR's.
-- **Fix:** tested options (`ca_wa_carbon.import_charge`: `unspecified_share`, `source_table`; CHANGES §86) exist on
-  `tom/s0-prod-scripts` (1eab5cd, 1038ab8) with the default unchanged. They are not on this branch: the calibration
-  (the MRR specified/unspecified MWh) hasn't been checked, and the choice is Tom's.
+`ca_wa_carbon.import_charge` sets the charge on transmission imports into CA and WA zones. The S0 v3.1 default is
+`two_tranche` (§93, Tom's decision). It was `all_default` in v3 and `unspecified_share` at 96b4780.
+
+| Option | Charge into CA | 2035 central into CA |
+|---|---|---|
+| `two_tranche` (S0 v3.1, §92–§93) | free up to 49.4 TWh/yr of CA imports per period; price × 0.428 on every MWh above | $0 below the tranche, $29.02/MWh above |
+| `all_default` (v3, §65) | the state default factor on every MWh (CA 0.428, WA 0.437) | $29.02/MWh |
+| `unspecified_share` (96b4780, §91) | share × default + (1 − share) × `specified_factor` per MWh (a number, default 0, or `source_table`) | $3.95/MWh (share 0.136, specified 0) |
+| `source_table` | the exporting zone's factor, from a table | depends on the exporter |
+
+WA has v3's per-MWh charge (0.437) under every option except `unspecified_share` with a WA share below 1.
+
+- **Why:** under CARB's rules only unspecified imports pay the 0.428 default. Specified imports (owned or contracted,
+  directly delivered) carry their source's factor: hydro, nuclear and renewables ≈ 0, coal and gas their own rates.
+  The §65 charge puts 0.428 on every MWh. Attribution run A8 showed this raises CA/WA in-state emissions by about
+  20 Mt in 2035, because imports cost more than in-state gas.
+- **Unspecified share data** (CEC Total System Electric Generation; CEC power-mix categories, **not** CARB MRR's).
+  CARB's MRR files on specified versus unspecified MWh could not be fetched (ww2.arb.ca.gov is blocked from here), so
+  this calibration needs checking against them.
+
+  | Year | Unspecified imports, GWh | Total imports, GWh | Share | Note |
+  |---|---|---|---|---|
+  | 2022 | 20,428 | ≈ 83,963 | ≈ 0.243 | Imports derived: total system 287,220 − in-state 203,257 (secondary source) |
+  | 2023 | 10,373 | 76,400 | 0.136 | Default: the latest year with both figures |
+  | 2024 | 4,051 | n/a | n/a | Total imports not found; the share is still falling |
+
+  - CARB inventory 2020: specified-import emissions ≈ 9.8 MMTCO2e, unspecified ≈ 8.8. That is about half of import
+    emissions, from far fewer MWh.
+  - WA: no Washington figure was found, so CA's share is used. **This is an assumption.**
+  - `unspecified_share` takes a number or a `{year: share}` path per state (linear between keys).
+- **Exporting-zone factors:** `source_table` is a CSV with columns `zone`, `tco2_per_mwh` and an optional `period`.
+  A row with a period wins over a row without one. Every exporting zone needs a row, or the build stops.
+  - `s0_workflow/scripts/zone_import_factors.py` derives the table from a solved reference case's
+    `dispatch_zonal_annual_summary.csv`:
+    - `average`: emissions ÷ generation;
+    - `fossil`: the rate of the emitting fleet, a proxy for the marginal rate.
+  - Factors from a solve are model output for that case, not observed data.
+  - **Limitation:** the exporting zone is the adjacent zone, so flows that pass through it take its rate.
+- **Not changed:**
+  - `import_gens` (Mexico into p11, Canada into p1/p3) keep their own factors.
+  - Exports and CA↔WA flows pay nothing.
+  - `legacy` writes no import cost.
+  - `study_modules/trans_hurdle_cost.py` is unchanged: every option is a different number in the same
+    `trans_import_cost.csv`.
+
+**Trade-offs:**
+
+- **Linearity:** all three options give a fixed $/MWh per import direction and period. The objective stays linear and
+  the model size doesn't change.
+- **Circularity of endogenous intensities:**
+  - **Average rate:** charging imports at the exporter's in-solve average rate (emissions ÷ generation, both
+    variables) multiplies the flow by a ratio of variables. That is bilinear and non-convex, and outside an LP.
+  - **Marginal rate:** the marginal rate is a dual of the same solve, so it can't enter its own primal.
+  - **What works instead:** a lagged or iterated table. Solve, derive factors, rebuild, re-solve, and repeat until
+    they settle. Each round is a full solve (80–100 GB at production size), and convergence isn't guaranteed.
+    Charging the exporter's rate also lowers imports from dirty zones, which changes those zones' rates.
+- **Policy fidelity:**
+  - `unspecified_share` follows CARB's rule (default factor on the unspecified part, regardless of source) on
+    average.
+  - `source_table` models every import as specified. That lets the model pick clean exporters, which is resource
+    shuffling: CARB counts it as specified only with a contract and direct delivery.
+- **Margins:**
+  - A flat share treats each marginal import MWh as historically mixed. In reality, extra imports beyond contracted
+    volumes are unspecified unless new contracts are signed.
+  - A marginal-correct form would cap the specified volume (an annual specified-MWh allowance per state at the
+    specified factor, the rest at 0.428). It needs a new variable and constraint in `trans_hurdle_cost.py`, so it is
+    **not implemented**.
+
+### Average-share import charge (§91; 96b4780's default, now an option)
+
+**`import_charge: unspecified_share`** with `specified_factor: 0`. In CA, only the unspecified share of transmission
+imports pays the default factor:
+- each delivered MWh pays price × 0.428 × **0.136** tCO2;
+- at the 2035 central price: $67.8 × 0.428 × 0.136 = **$3.95/MWh**, against $29.02/MWh in v3.
+
+**The CA share, 0.136: a PLACEHOLDER.**
+- **Source:** CEC, 2023 Total System Electric Generation: unspecified imports 10,373 GWh of 76,400 GWh total imports.
+  2023 is the latest year with both figures; 2022 was about 0.243 (20,428 of about 83,963 GWh, with total imports
+  derived by subtraction), and 2024 unspecified imports were 4,051 GWh (total not found), so the share is falling.
+- **Not CARB MRR:** this is CEC's power-mix category, not CARB's Mandatory Reporting count of specified versus
+  unspecified MWh. The MRR data couldn't be reached from the build environment (the CARB site was unreachable).
+  Replace the share with MRR's latest year (`ca_wa_carbon.unspecified_share.CA`, a number or `{year: share}`) when it
+  is checked.
+- **Cross-check:** CARB's 2020 inventory has specified-import emissions of about 9.8 MMTCO2e and unspecified about
+  8.8 MMTCO2e.
+
+**WA is as in v3.** The share is 1.0, so every MWh imported into WA zones still pays 0.437 tCO2; that factor is itself
+unverified. No Ecology data on WA's specified versus unspecified imports was found, so WA keeps the v3 (overstated)
+charge.
+
+**Remaining bias:**
+1. **Average share, not margin.** A flat share treats every extra import MWh as historically mixed. In reality,
+   imports beyond contracted (specified) volumes are unspecified and pay the full 0.428 unless new contracts are
+   signed. The charge on additional imports is therefore understated, and imports may be overstated relative to a
+   specified-volume cap.
+2. **Specified imports pay nothing.** The 0 factor ignores specified coal and gas imports, which carry their own
+   factors: about 5.9 TWh coal and 8.0 TWh gas in 2022 (CEC). This understates the carbon cost of imports.
+3. **WA is overstated**, as in v3 (above).
+4. **The share is held flat** at 2023's value in every period, while the trend is falling; held flat, it overstates
+   the charge.
+5. **Imports generators:** Mexico into p11 still pays 0.428 on every MWh (`import_gens`, unspecified); Canada into
+   p1/p3 pays 0.
+
+**Back to v3:** `import_charge: all_default`.
+
+
+### Two-tranche CA import charge (§92; the S0 v3.1 default, §93)
+
+**`import_charge: two_tranche`.** The S0 v3.1 default from §93, on `tom/s0-v3.1-two-tranche` (the runner launched
+from cdd0491 with the setting explicit; the default writes the same files byte for byte) and
+`tom/s0-v3.1-credits`. It is not on `tom/s0-v3.1` (96b4780).
+
+**Why it was adopted (Tom):**
+- CA imports into the model in 2028 were 21 TWh under v3's charge (0.428 on every MWh) and 117 TWh under the average
+  share (96b4780). CEC's 2023 figure is 76 TWh.
+- The model's import basis is therefore comparable to CEC's, and v3's 21 TWh was suppressed by the charge.
+- A tranche on CEC's basis is consistent with the model's flows, and the marginal import pays the full rate, as
+  under CARB's rule for imports beyond contracted (specified) volumes.
+
+**How it works:**
+- In each period, CA's delivered imports over all links into CA zones (from zones outside CA and WA; annual MWh, by
+  timepoint weights) are free up to a free tranche.
+- Every MWh above the tranche pays price × 0.428:
+
+  ExcessImportsCA[p] ≥ Σ_t w_t × imports_t − FreeTranche, ExcessImportsCA ≥ 0,
+  cost = price × 0.428 × ExcessImportsCA
+
+- This is linear and convex, and the marginal import above the tranche pays the full rate.
+- **Files:** `study_modules.trans_hurdle_cost` (`trans_import_tranche.csv`, `trans_import_tranche_dirs.csv`); the
+  cost component is `TxImportTrancheCost`.
+- **Run outputs:** `trans_import_tranche_results.csv` (delivered, free, excess, rate, cost) and
+  `trans_import_tranche_info.csv` (mode, tranche size, source).
+- **Unchanged:** WA keeps v3's per-MWh charge, and the Mexico generator is as before.
+
+**Free tranche: a PLACEHOLDER, 49.4 TWh/yr, held flat.**
+- **Source:** CEC 2023 Total System Electric Generation, specified non-emitting imports (hydro, nuclear, wind,
+  solar): 76,400 GWh total, less 23,679 thermal and unspecified, 2,569 geothermal and 753 biomass, gives 49,399 GWh
+  (64.7%).
+- **On CEC's basis.** The model's import basis is comparable (above). Still to do (v3.2): the MRR or CEC source, the
+  treatment of geothermal (counting it raises the tranche to 52.0 TWh), and explaining the remaining zone-border
+  differences.
+- **Later refinement:** contract expiries (v4).
+
+**Remaining bias (two-tranche):**
+1. **The tranche is a placeholder.** It is CEC 2023's specified non-emitting imports on CEC's basis, derived by
+   subtraction, not checked against CARB's MRR data; counting geothermal would add 2.6 TWh.
+2. **Held flat.** Contracts expire and new ones are signed; this is a v4 refinement.
+3. **All CA imports count toward the tranche,** whatever the exporting zone. A clean import from a zone with no CA
+   contracts uses the free tranche as a contracted one would.
+4. **Specified emitting imports** (coal and gas, about 14 TWh in 2022) are not separately charged; above the tranche
+   every MWh pays the unspecified 0.428.
+5. **WA keeps v3's per-MWh charge** (0.437 on every MWh, unverified factor), so WA imports stay overstated.
+6. **The Mexico imports generator** (p11) pays 0.428 on every MWh, outside the tranche.
+
+### Import charge: v3.2 items (from the S0 v3.1 run)
+
+1. **Free tranche calibration.** The 49.4 TWh/yr tranche bound in every stage of the S0 v3.1 run. Still to settle:
+   - the source: CARB MRR (specified vs unspecified MWh) versus CEC's power mix, and whether geothermal counts
+     (+2.6 TWh);
+   - a trajectory over time instead of flat (contract expiries and new contracts);
+   - whether the tranche should scale with WECC clean supply.
+2. **Unspecified imports are zero, against about 27 TWh historically.** Check the hurdle level (cost_hurdle_intra,
+   about $4–5/MWh) and the charge level above the tranche (price × 0.428) against observed flows, and whether the
+   binding tranche plus the full charge leave no room for the historical unspecified volume.
+3. **WA emissions rise from 1.3 to 2.9 Mt by 2045.** WA keeps v3's per-MWh import charge (0.437 on every MWh,
+   unverified factor), which pushes WA towards in-state gas, the same mechanism as CA before the fix. Review the WA
+   charge (an Ecology data source, a two-tranche form) and check the WA results.
 
 ## Forced transmission (§54)
 

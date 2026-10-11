@@ -3686,6 +3686,166 @@ purchases above 0.001 t. This was wrong in two ways:
   options are on `tom/s0-prod-scripts` (§86).
 - **Credit work** (`full_ira_lev`, the 10-year tally): held until D7 is settled. It doesn't affect S0.
 
+## 86. CA/WA Import Charge Options (v3.1 candidate) — FOR TOM'S REVIEW
+
+**Date:** 2026-10-08 · **Branch:** `tom/s0-prod-scripts` only (nothing on `tom/s0-v3-scenarios`). **Defaults are
+unchanged.** Nothing in `switch/` or `build_rate/` changed (build-rate freeze respected).
+
+**Why:**
+- The §65 charge puts price × 0.428 tCO2/MWh (WA 0.437) on every MWh imported into CA/WA zones.
+- Under CARB's rules only unspecified imports pay the default. Specified imports carry their source's factor.
+- Attribution run A8 showed this raises CA/WA in-state emissions by about 20 Mt in 2035.
+
+**New setting:** `s0_production.ca_wa_carbon.import_charge` (`s0_workflow/production.py`):
+- `all_default`: the default, the §65 behaviour. The file is byte-identical (tested).
+- `unspecified_share`: share × default + (1 − share) × `specified_factor`.
+  - The share is a number or a `{year: share}` path per state. The default is 0.136, from CEC 2023: unspecified
+    10,373 of 76,400 GWh imports.
+  - `specified_factor` is 0, a number, or `source_table`.
+- `source_table`: the exporting zone's factor from a CSV (`zone, tco2_per_mwh[, period]`).
+- New script `s0_workflow/scripts/zone_import_factors.py` derives the table from a solved case: average or
+  emitting-fleet rate by zone and period. The table is lagged, not computed in the solve.
+- `pg/settings/s0_production.yml` documents the options as comments only, so the resolved S0 settings don't change.
+
+**Data:** CEC Total System Electric Generation:
+- 2022: about 24% unspecified. Imports are derived by subtraction.
+- 2023: 13.6%.
+- 2024: 4,051 GWh unspecified. Total imports not found.
+- CEC's categories are not CARB MRR's. **The MRR specified/unspecified MWh files could not be fetched**
+  (ww2.arb.ca.gov is blocked from here), so the calibration needs checking against them.
+- WA uses CA's share, **an assumption**.
+
+**Trade-offs and recommendation:** see the guide, "Import charge options".
+
+**Tests:** `test_import_charge_settings`, `test_import_charge_options_on_real_transmission` (every option on the real
+transmission network; a missing exporter stops the build) and `test_zone_import_factors_script` (hand-built fixture).
+
+## 91. CA/WA Import Charge: Unspecified Imports Only (v3.1 Launch Requirement, D4)
+
+**Date:** 2026-10-09 · **Branch:** `tom/s0-v3.1`, on top of 9d68751. Tom's D4: hold launch for at least a partial
+fix and document the remaining bias.
+
+**What:**
+- §86's import-charge options are cherry-picked: `ca_wa_carbon.import_charge`, `zone_import_factors.py` and their
+  tests.
+- The S0 default becomes `unspecified_share` with `specified_factor: 0`.
+- The default is set in code (`production.CA_WA_DEFAULTS`), not in `s0_production.yml`. So the resolved settings,
+  the regression row and the expected-reuse table don't change.
+- The regression row (`ca_wa_carbon.mode: legacy`) writes no import cost and builds as before.
+
+**Shares:**
+- **CA 0.136, a PLACEHOLDER.** Source: CEC 2023 Total System Electric Generation, unspecified imports 10,373 of 76,400
+  GWh, the latest year with both figures. This is CEC's category, not CARB MRR's: the MRR data couldn't be reached
+  from the build environment (the CARB site was unreachable), so replace it with MRR's latest year when checked.
+- **WA 1.0, as v3** (every MWh at 0.437). No Ecology data was found.
+
+**Charge:**
+- Into CA at the 2035 central price: $67.8 × 0.428 × 0.136 = **$3.95/MWh**, against $29.02 in v3.
+- Into WA: $29.63/MWh, as in v3.
+
+**Remaining bias** (guide, "The import charge in v3.1"):
+- The average share understates the charge on additional (unspecified) imports.
+- Specified coal and gas imports pay 0 (an understatement).
+- WA is still overstated.
+- The share is held flat while the trend is falling (an overstatement).
+- The Mexico imports generator pays 0.428 on every MWh.
+
+**Tests:**
+- The settings and factors.
+- The real transmission network: the default equals explicit `unspecified_share`; CA directions at 0.136 of v3; WA
+  directions as v3; $3.9465/MWh in 2035.
+- A Switch toy: the case writer's charge on the zone that imports most; cost = delivered MWh × 53.4 × 0.428 × 0.136,
+  inside the hurdle component. Imports rise from 10,246 to 49,440 MWh/yr against v3's charge, and the total cost is
+  no higher.
+- The legacy (regression) case writes no import cost.
+
+## 92. Two-Tranche CA Import Charge (Option, v3.2 Candidate)
+
+**Date:** 2026-10-09 · **Branch:** `tom/s0-v3.1-two-tranche` (from 96b4780). `tom/s0-v3.1` stays at 96b4780, which
+is the launch commit.
+
+**Why a separate branch:**
+- S0 input files and the regression row are unchanged: the writer's default path is the same, and the settings
+  resolve as before.
+- The mechanism needs a new variable and constraint in `switch/study_modules/trans_hurdle_cost.py`. Stage reuse with
+  `--code-check model` treats any change under `switch/` as new model code, so on `tom/s0-v3.1` it would block reuse
+  of stages solved at 96b4780.
+
+**What:**
+- **Setting:** `ca_wa_carbon.import_charge: two_tranche`. CA imports over all links into CA zones are free up to
+  `two_tranche.free_mwh_per_yr` per period, and each MWh above pays price × 0.428.
+- **Unchanged:** WA keeps v3's per-MWh charge; the Mexico generator is as before; `unspecified_share` (the S0
+  default) and `all_default` remain.
+- **Run outputs:** mode, size and source in `trans_import_tranche_info.csv` (inputs, copied to the outputs), and
+  `trans_import_tranche_results.csv`.
+- **Free tranche:** a 49.4 TWh/yr PLACEHOLDER (CEC 2023 specified non-emitting imports, CEC basis, held flat).
+  Calibration (model basis, MRR or CEC source, geothermal) is for v3.2.
+
+**Tests** (`test_ca_wa_carbon.py`):
+- **Writer, real network:** CA directions go to the tranche; WA is as v3; the info file is written; the default and
+  legacy cases write no tranche files.
+- **Switch toy:**
+  - zero charge with a large tranche;
+  - the full rate on every MWh with a zero tranche;
+  - rate × (imports − tranche) above it;
+  - no charge at the kink, with the same total cost as a non-binding tranche;
+  - total cost continuous just below the kink, and monotone in the tranche.
+- **Not done (v3.2):** the real-network check of the tranche against the model's 2028 CA imports. That needs
+  S0prod_A's 2028 outputs from the VM.
+
+## 93. Two-Tranche CA Import Charge Is the S0 v3.1 Default
+
+**Date:** 2026-10-10 · **Branches:** `tom/s0-v3.1-two-tranche` (a new commit after cdd0491, which the runner launched
+from with the setting explicit), merged into `tom/s0-v3.1-credits` for the S-set. `tom/s0-v3.1` (96b4780) is not
+changed.
+
+**Decision (Tom):** two_tranche is the S0 v3.1 default.
+- Under the average share (96b4780) the model imported 117 TWh into CA in 2028; v3 imported 21 TWh, and CEC 2023
+  reports 76 TWh.
+- So the model's import basis is comparable to CEC's, and v3's figure was suppressed by the charge.
+- The 49.4 TWh tranche on CEC's basis stays a PLACEHOLDER (source, geothermal and the border review are for v3.2).
+
+**What:**
+- `CA_WA_DEFAULTS.import_charge` is `two_tranche`, set in code. The resolved settings and the regression row are
+  unchanged (legacy writes no import cost). `unspecified_share` and `all_default` remain options.
+- **Byte-identical inputs:** the explicit setting writes the same four import files as at cdd0491, and the default
+  writes them too (checked on the real network for 2028–2045, and in `test_two_tranche_writer_on_real_transmission`).
+  The tranche's source string is unchanged, so the info file is identical too.
+- Nothing under `switch/` changed since cdd0491, so stage reuse with `--code-check model` against the runner's stages
+  is unaffected.
+- **Guide:** the option table, the two-tranche section (the reason for adoption and the remaining bias) and the
+  average-share section are updated.
+
+## 94. S0 v3.1 Lock: Reproducibility, CRLF-Safe Pin Test, v3.2 Items
+
+**Date:** 2026-10-10 · **Branch:** `tom/s0-v3.1-two-tranche` (then merged into `tom/s0-v3.1-credits`). S0 v3.1 ran on
+cdd0491; all stages are optimal.
+
+**Done:**
+- **`ca_wa_carbon.import_charge: two_tranche` is explicit in `pg/settings/s0_production.yml`,** as the launch run set
+  it; the code default is the same (§93).
+  - `test_import_charge_settings` checks both.
+  - The regression row's resolved settings gain this key. It is inert there: `ca_wa_carbon.mode` is legacy, so no
+    import cost is written, and the row builds as before.
+  - The runner's copy (`ic_test_fedpol_work\s0_production.two_tranche.yml`) wasn't available here. **Diff it against
+    this file before tagging.**
+- **`test_build_rate_v3_pinned.py` hashes git blob content.** Ids are LF-normalised git blob ids (equal to
+  `git rev-parse 79f4064:<path>` for whole files), so a CRLF (Windows autocrlf) checkout passes. A simulated CRLF
+  checkout passes, and the manifest is regenerated (`file,git_blob_id_lf`).
+- **v3.2 items** (guide, "Import charge: v3.2 items"):
+  - free-tranche calibration (source, trajectory, scaling with WECC clean supply);
+  - unspecified imports at zero against about 27 TWh historically (hurdle and charge levels);
+  - WA emissions rising from 1.3 to 2.9 Mt in 2045.
+
+**Pending, waiting on files from the runner:**
+- **Corrected targets file.** The corrected `switch/Growth_Profiles/edf_epri_med_targets.csv` isn't in the repo.
+  Neither d4897189… nor 92ef5b26… matches any committed version: those are 699839494d15… (4d696df, the version on
+  every S0 branch) and 8df5f0b3913e… (older), checked as sha256 and git blob, LF and CRLF. Whichever of the two the
+  run used is canonical; that file is needed to commit it.
+- **The `s0-v3.1` tag.** It needs the full sha256 of the hourly load file (2e85711f…), the targets hash the run used,
+  and the runner's yml diff. Proposed: tag the commit that also carries the canonical targets file, so the tag
+  reproduces the run.
+
 ## 107. Tracked Demands on the S0 v3.1 Line: Port and Audit (Step 1)
 
 **Date:** 2026-10-09 · **Branch:** `tom/tracked-demands-v2` (new, from `tom/s0-v3.1` at 9d68751)
