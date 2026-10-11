@@ -4115,3 +4115,89 @@ profiles folder. The source folder is only read.
 - **The PJM gaps aren't from zeroed sites:** p125 (0.69), p122 (0.76) and p124 (0.80) aren't among the 101 zones. They
   need the full-record profile CF of those zones from the dashboards session, to separate day sampling from the
   profiles.
+
+## 112. S0 v3.2: Sample-Fidelity Option (Proposal), Time Alignment Notes, p1 CF-Basis Check
+
+**Date:** 2026-10-11. **Branch:** `tom/s0-v3.2`. **Status:** proposals only, nothing implemented; the repair (§111)
+stays as planned.
+
+**Data:** `data/rev-cf-mismatch` fd4a3a1, copied to `s0_workflow/data/pv_profile_repair/`:
+`README_cf_basis_checks.md`, `pv_site_years_p1_p5.csv`, `p1_block0_vs_neighbours.csv` and `pjm_cf_basis.csv`.
+
+**Repair confirmed:**
+- There are no partial-year gaps.
+- p1's 91 block-0 sites have 2012–13 CF at 0.98 of their unaffected neighbours'.
+- Those neighbours' 2007–11 CF is 1.03× their 2012–13 level. So filling the same weather year from a neighbour, scaled
+  by the 2012–13 ratio, keeps that year-to-year difference, and the repair stays as planned.
+
+**1. Sample fidelity (proposal; build after the dashboards' scan, and after the repair).**
+
+*Facts:*
+- The PJM zones p122, p124 and p125 have no zeroed sites. Their sampled days give 0.96–0.99 of the full-record profile
+  CF in 2028, but only 0.80–0.90 in 2030 and 2035.
+- 17–20 of the 25 sampled days come from 2007–2011, the zeroed years.
+- The selector (`s0_workflow/day_selection.py`) matches mean solar and wind CF per transreg and nationally, within
+  absolute tolerances of 0.005 and 0.010, with every cluster counting equally. Nothing holds individual zones.
+- Those targets and daily CFs are computed from profiles that still carry the zeroed years. So the scan should be
+  rerun on repaired profiles before any fidelity fix is sized.
+
+*Options:*
+- **(A) Zone-level rows in the selector** (`time_sampling.cf_fidelity: zone_rows`). Add a row per zone and technology
+  (solar, onshore wind, offshore wind) with eligible capacity above a floor: |sample-weighted mean − full-record mean|
+  ≤ 3% of the full-record mean.
+  - The rows are soft, penalised in the objective; the existing load and transreg rows stay hard.
+  - If residuals stay above 3%, a swap step replaces the worst-contributing sample day with the record day that most
+    reduces the largest relative error, then re-solves. The day count stays at 24 plus tails.
+  - This keeps the load fit and the load–weather co-variation in the sample, but can't promise ±3% in every zone with
+    24 days.
+- **(B) CF rescaling of the sampled profiles** (`time_sampling.cf_fidelity: rescale`). For each variable cluster, the
+  scale is (full-record mean CF) / (sample-weighted mean CF over the representative days; stress days excluded).
+  - Apply it to the cluster's sampled profile, clip at 1, and push the clipped energy onto the unclipped hours (2–3
+    passes).
+  - Bounds: scales outside 0.8–1.25 are applied but warned.
+  - It needs the full-record cluster means, which pg_to_switch has (`period_variability` before sampling), to be written
+    out (`variable_cf_full_record.csv`).
+  - It runs before the wind-loss step, so that factor applies once to both.
+  - Report: `vcf_fidelity.csv`, with the scale per cluster and the clipped share.
+  - Energy matches exactly per cluster. The cost is distorted hourly levels on the sampled days (peaks scale too), and it
+    does nothing for load–weather co-variation.
+
+*Recommendation:* (B) as the guaranteed backstop. It is deterministic and simple to test, and it closes whatever (A)
+leaves. Add (A) if the scan shows large zone residuals concentrated where load also matters. Set both at ±3% against
+the full record, on repaired profiles.
+
+**2. Time alignment (for the dashboards' load check).**
+- The profiles are in UTC; the model's hours are UTC−5 (`model_definition.yml` `utc_offset: -5`). PowerGenome shifts
+  the resource profiles.
+- `regional_load_fn` loads are applied as-is, with no offset (`demand.yml`). `make_study_loads.py` (lines 115–121)
+  rolls them from UTC to `utc_offset` when it writes the file, so load and profiles share UTC−5 if the file came from
+  that script.
+- `demand_response_fn` must already be in the model time zone (`flexible_load.yml`). Its builder isn't in this repo,
+  so its basis needs checking.
+- The PRM thermal derate converts temperatures to `temperature_tz: Etc/GMT+6` (UTC−6, ReEDS's convention;
+  `s0_production.yml`, `prm.py`). If the model's hours are UTC−5, the hourly derates are one hour off. That is a small
+  effect, but it should be aligned: `Etc/GMT+5`, or derived from `utc_offset`.
+
+**3. p1 CF basis.**
+- **The gap is p1-wide and uniform.** The 91 block-0 sites sit at 0.763 of their supply-curve CF (std 0.024). Their
+  unaffected, most-correlated neighbours sit at 0.764 (std 0.012). So the gap has nothing to do with the zeroing.
+- **A systematic factor, not geography or mapping.** A factor this uniform is what a different normalisation would
+  give. A CPA→Site mapping error or local cloudiness would scatter it. It is close to 1/1.31.
+- **Specific to p1.** Elsewhere the median is 0.95, p5 0.84, and PJM 0.86–0.89 on the full record. So a single
+  national DC/AC convention can't be the cause.
+- **The 5-day sample doesn't settle the normalisation.** In the committed fedpol case, most PV clusters peak at
+  0.85–0.99 and p1 cluster 1 at 0.84, which doesn't point to a DC-normalised cap of about 0.77 in p1.
+
+*Checks on the VM, in order:*
+1. **Supply-curve columns:** list the columns of `solar_lcoe_ReEDS.csv` that carry basis information (capacity factor
+   AC/DC, `dc_ac_ratio`/ILR, capacity AC/DC MW, tracking, tilt, losses). Compare p1, p5 and PJM rows against the
+   median zone. A different ILR, a DC-basis CF or a different tracking setting on p1's rows settles it.
+2. **Profile normalisation:** each site's 99.9th-percentile hourly CF over 2012–13, by zone. A cap near 1/ILR in p1
+   only means DC-normalised profiles there; near 1.0 everywhere means the profiles agree and the supply-curve CF is the
+   outlier.
+3. **Supply-curve vintage:** check that p1's supply-curve rows and its profiles come from the same reV run (20240801).
+   The patched resource groups (`ReEDS-cpas-patched`) may carry CFs from another run for some zones.
+
+*If the supply-curve CF is the outlier,* the model's p1 profiles are right after the repair and only the 118-pair
+comparison needs the basis noted. *If the profiles are DC-normalised in p1,* rescale p1's profiles by the ILR in the
+repair folder (a second, flagged repair rule).
