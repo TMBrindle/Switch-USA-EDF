@@ -167,6 +167,9 @@ def run(cfg, log=print) -> dict:
                                              float(fb.get("degeneracy_pp", 10)))
     switches.to_csv(out / "share_fallback.csv", index=False)
     z.to_csv(out / "zone_basin_shares.csv", index=False, float_format="%.6f")
+    hold = int(cfg.get("constrained_pipe_hold_year", 2030))
+    limitations.constrained_pipe(z, hold).to_csv(out / "zone_basin_shares_constrained_pipe.csv", index=False,
+                                                 float_format="%.6f")
     meta = limitations.metadata(cfg, default, mix, sj, _label(*default))
     meta["status"] = ("Stage 1 accepted (ddac626). 2024 shares are the reference; projected years are INDICATIVE "
                       "(scaled-and-rebalanced network, not a solved one).")
@@ -187,6 +190,11 @@ def run(cfg, log=print) -> dict:
                 f"{fb.get('degeneracy_pp', 10)} pp between equally good balancing solutions. Shares before the "
                 "fallback: zone_basin_shares_no_fallback.csv.",
         "rows": switches.to_dict(orient="records")}
+    meta["share_paths"] = {
+        "aeo": "zone_basin_shares.csv: AEO2026 production on NGMM's network, which builds +11.1/+22.5 Bcf/d of "
+               "Mid-Atlantic/Ohio -> Eastern Midwest capacity by 2035/2045 (CHANGES §104).",
+        "constrained_pipe": f"zone_basin_shares_constrained_pipe.csv: no interregional capacity beyond existing + under "
+                            f"construction; each zone holds its {hold} shares from {hold} on (CHANGES §105)."}
     json.dump(meta, open(out / "zone_basin_shares.meta.json", "w"), indent=1)
     summ = {"years": list(nets), "zones": int(z.zone.nunique()), "hubs": len(nodes), "basins": basins,
             "default_method": _label(*default), "aeo_datekey": inp.aeo_datekey, "flags": len(flags),
@@ -209,6 +217,13 @@ def main(argv=None):
     sub.add_parser("run")
     sub.add_parser("stage2a")
     sub.add_parser("nemscap")
+    u = sub.add_parser("upstream", help="post-solve upstream CH4 for a Switch run (§105)")
+    u.add_argument("outputs_dir")
+    u.add_argument("--out-dir", help="default <outputs_dir>/upstream_ch4")
+    u.add_argument("--share-path", nargs="*", choices=["aeo", "constrained_pipe"])
+    u.add_argument("--basis", nargs="*", choices=["measured", "inventory"])
+    u.add_argument("--methane-path", nargs="*", choices=["current_rules", "no_further_reductions"])
+    u.add_argument("--gas-fuels", nargs="*", help="override config gas_fuels (case-insensitive)")
     r = sub.add_parser("report")
     r.add_argument("outputs_dir")
     r.add_argument("--inputs-dir")
@@ -236,6 +251,19 @@ def main(argv=None):
         r = nems_capacity.compare(raw, PKG / "data/reference", Path(cfg["paths"]["outputs"]) / "stage2a")
         print(f"NGCAPS flows vs Table 64 weighted abs error {r['flow_match_weighted_abs_error']:.3f}; "
               f"{len(r['rows'])} rows")
+    elif a.cmd == "upstream":
+        from . import upstream
+        if a.gas_fuels:
+            cfg["gas_fuels"] = a.gas_fuels
+        r = upstream.upstream(a.outputs_dir, cfg, share_paths=a.share_path, bases=a.basis,
+                              methane_paths=a.methane_path, out_dir=a.out_dir)
+        tot = r["by_period"]
+        c = tot[(tot.level == "central")]
+        print(f"wrote upstream_ch4_by_zone/by_state/by_period.csv to {r['out_dir']}")
+        for f in r["flags"]:
+            print("FLAG", f)
+        print(c[["period", "share_path", "basis", "methane_path", "total_tch4", "kg_ch4_per_mwh",
+                 "gwp100_pct_of_stack", "gwp20_pct_of_stack"]].round(3).to_string(index=False))
     elif a.cmd == "report":
         d = report.basin_gas_mmbtu(a.outputs_dir, a.shares, cfg["gas_fuels"], a.inputs_dir)
         print(f"wrote {Path(a.outputs_dir) / 'basin_gas_mmbtu.csv'} ({len(d)} rows)")

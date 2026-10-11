@@ -3879,3 +3879,36 @@ CA 1.01 kg CH4/MWh; measured is 3.0–4.2× higher) and a "for publication" chec
 **Tests:** 33 (3 new: fallback rule on a toy case, committed fallback leaves the example zones unchanged, NGMM arc
 identification and the 2045 comparison). Pass on pandas 3.0.6 and 1.4.4; Stage 1 and the comparison reproduce
 byte-identically on 1.4.4.
+
+## 105. Gas Share Paths (aeo / constrained_pipe) and Post-solve Upstream Methane Tool
+
+**Date:** 2026-10-11 · **Branch:** `tom/gas-network`. No Switch link and no change inside the optimisation; the tool
+reads a finished run's outputs. §106 remains reserved for gas Stage 2. Guide: "Guides and documentation/gas_network.md",
+section "Share paths and the post-solve upstream methane tool (§105)".
+
+**Share paths.**
+- `aeo` = `zone_basin_shares.csv` (unchanged): AEO2026 production on NGMM's network, which builds +11.1 / +22.5 Bcf/d
+  of Appalachian takeaway by 2035/2045 (§104).
+- `constrained_pipe` = new `zone_basin_shares_constrained_pipe.csv`: no interregional capacity beyond existing and
+  under construction. Each zone holds its 2030 shares (after the §104 fallback) for 2035–2045
+  (`config.yaml constrained_pipe_hold_year: 2030`; `gasnet/limitations.constrained_pipe`). 2030 is the last year
+  Stage 2a serves on status-rule capacity. A Stage 2a re-route was not used: with capacity fixed, serving demand needs
+  a supply shift away from Appalachia that Stage 2a (supply fixed by basin) cannot choose, and its routing error vs
+  observed flows (19–25 pp in FL/CA in 2024) exceeds the effect. Caveat: the 2030 shares include NGMM's 2028–30
+  builds (+6.1 Bcf/d), which Stage 2a finds unnecessary for 2030.
+- Effect (kg CH4/MWh, measured central, current_rules): FL +8% (2035) / +15% (2045), east TX +8% / +4%; VA, MA and CA
+  within ±1%.
+- `zone_basin_shares.meta.json` gains `share_paths`; no other Stage 1 output changes.
+
+**Upstream methane tool** (`gasnet/upstream.py`, `python -m gasnet.cli upstream <outputs dir>`).
+- Reads `GenFuelUseRate.csv` and `dispatch.csv`; labels `tracked_demand_onsite_fuel_use.csv` burn as on-site without
+  adding it again (on-site generators are ordinary Switch generators), adding only rows missing from the Switch files.
+- Upstream CH4 = gas MMBtu × Σ basin share (aeo | constrained_pipe) × basin intensity (measured | inventory;
+  low/central/high; current_rules | no_further_reductions) + transmission & storage. Distribution excluded.
+- Writes t CH4, t CO2e at GWP100/GWP20, kg CH4/MWh and % of stack CO2 (from the same run) by zone, state and period.
+- `data/basin_methane_intensity.csv` gains one row: W. Canada `inventory_derived` 0.81% (the NIR-level value already
+  used in the worked example).
+
+**Tests:** 38 (5 new: known answer on toy outputs incl. a gas/H2 blend and coal; tracked-demand on-site gas not
+double counted; unlisted gas-like fuel stops; constrained_pipe path; inventory follows the measured path). Pass on
+pandas 3.0.6 and 1.4.4; Stage 1 outputs reproduce byte-identically on 1.4.4.

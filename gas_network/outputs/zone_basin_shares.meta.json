@@ -1024,5 +1024,9 @@
     "reason": "balance degeneracy 11.6 pp > 10 pp"
    }
   ]
+ },
+ "share_paths": {
+  "aeo": "zone_basin_shares.csv: AEO2026 production on NGMM's network, which builds +11.1/+22.5 Bcf/d of Mid-Atlantic/Ohio -> Eastern Midwest capacity by 2035/2045 (CHANGES \u00a7104).",
+  "constrained_pipe": "zone_basin_shares_constrained_pipe.csv: no interregional capacity beyond existing + under construction; each zone holds its 2030 shares from 2030 on (CHANGES \u00a7105)."
  }
 }

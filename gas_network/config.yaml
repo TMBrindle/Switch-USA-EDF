@@ -12,6 +12,11 @@ balance: true               # rebalance projected arcs so no hub is overdrawn (g
 share_fallback:
   unmet_pct_of_local_use: 25
   degeneracy_pp: 10
+# Share paths for projected years (CHANGES §105): 'aeo' = zone_basin_shares.csv (AEO2026 production on NGMM's network,
+# which builds +11.1/+22.5 Bcf/d of Appalachian takeaway by 2035/2045); 'constrained_pipe' = no interregional capacity
+# beyond existing + under construction (status rule): each zone's hold_year shares from hold_year on. hold_year 2030
+# is the last model year Stage 2a serves on status-rule capacity (2035/2045 are infeasible).
+constrained_pipe_hold_year: 2030
 aeo_index_base_year: 2025  # ASSUMPTION: AEO2026 growth from its first table year (2025) is applied to the 2024 base
 
 # Natural-gas fuels in the S0 v3.1 inputs (pg/settings/fuels.yml tech_fuel_map + ccs_fuel_map). report.py fails if

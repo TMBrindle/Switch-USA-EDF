@@ -332,6 +332,8 @@ How to read the tables:
   offshore 0.35%; W. Canada at its NIR-level value (AB 1.75/1.5, BC 0.42/1.7, CER weights). E. Canada and LNG imports
   have no inventory value and keep the measured one (0.01–0.07% of supply in these zones). T&S is the GHGI central in
   both tables, so the T&S share is larger on the inventory basis (0.29 of 0.38 kg/MWh in VA).
+- **For a Switch run:** `python -m gasnet.cli upstream <outputs dir>` (CHANGES §105) applies these intensities to the
+  run's gas burn by zone and period, under both share paths, both bases and both methane paths.
 - **Sensitivity, Eagle Ford conventional at 3.9%:** east TX +0.22 kg/MWh (+8%); FL +0.05 (+2%).
 - **`current_rules` path with 2024 shares and heat rate held, kg CH4/MWh for 2030 → 2035–2045:**
   - FL 1.66 → 1.47;

@@ -16,7 +16,8 @@ python -m gasnet.cli run        # writes outputs/ (refuses if a raw file differs
 python -m gasnet.cli report <switch outputs dir> [--inputs-dir <inputs dir>]   # writes basin_gas_mmbtu.csv there
 python -m gasnet.cli stage2a    # Stage 2a annual network LP -> outputs/stage2a/ (§103)
 python -m gasnet.cli nemscap    # NGMM capacity (AEO2026 restart file) vs Stage 2a min expansion (§104)
-python -m pytest -q             # 33 tests; the raw-data ones skip if data/raw is empty
+python -m gasnet.cli upstream <switch outputs dir> [options]   # post-solve upstream CH4 (§105; below)
+python -m pytest -q             # 38 tests; the raw-data ones skip if data/raw is empty
 python -m gasnet.cli pin        # only after a deliberate data refresh: rewrites data/SOURCES.yml
 ```
 
@@ -27,6 +28,7 @@ python -m gasnet.cli pin        # only after a deliberate data refresh: rewrites
 | File | Contents |
 |---|---|
 | `zone_basin_shares.csv` | `zone, year, basin, share, method, source_vintage, fallback` for the 134 zones, 2024 and 2028/2030/2035/2040/2045, default method (`trace_aeo_additive_balanced`), with the §104 share fallback applied (`method` `fallback_2024`, `fallback` = reason; empty otherwise). Shares sum to 1 per zone and year (rounded to 6 decimals). |
+| `zone_basin_shares_constrained_pipe.csv` | Share path `constrained_pipe` (§105): as `zone_basin_shares.csv` to 2030, then each zone's 2030 shares (`method` `constrained_pipe_hold_2030`) |
 | `zone_basin_shares_no_fallback.csv`, `share_fallback.csv`, `balance_degeneracy_by_zone.csv` | The shares before the fallback (identical to the §103 file); the zone-years that fall back and why; the degeneracy (pp) of every zone and model year (§104) |
 | `zone_basin_shares.meta.json` | Method description and the known limitations, quantified (district labelling, Colorado San Juan, mixing, routing) |
 | `zone_basin_shares_sensitivity_ratio.csv` | Model years under the ratio method (`trace_aeo_ratio_balanced`) |
@@ -646,6 +648,81 @@ zone-year takes the zone's 2024 shares (`method` `fallback_2024`, 2024 `source_v
 - **The file that would have d021826b:** `output/aeo2026/cb2026/d021826b/restart.npz` (or `restart.rlx`) in
   EIAgov/NEMS; it is not published. NGMM's own capacity report pages (`models/ngas/Pages/Capacity Additions.xml`)
   are AIMMS pages stored as Git LFS pointers and hold no data.
+
+## Share paths and the post-solve upstream methane tool (§105)
+
+**Two share paths for projected years.**
+- `aeo` = `zone_basin_shares.csv` (Stage 1 as accepted, with the §104 fallback). It carries AEO2026's production on
+  NGMM's network, which builds +11.1 / +22.5 Bcf/d of Mid-Atlantic/Ohio → Eastern Midwest takeaway by 2035/2045 (§104).
+- `constrained_pipe` = `zone_basin_shares_constrained_pipe.csv`: no interregional capacity beyond what exists or is
+  under construction (status rule). **Method: each zone holds its 2030 shares for 2035, 2040 and 2045**
+  (`config.yaml constrained_pipe_hold_year`). Why 2030 and why a hold:
+  - 2030 is the last model year Stage 2a serves on status-rule capacity (all demand but Vermont's 6 Bcf); 2035 and
+    2045 are infeasible (1.9 / 4.9 Tcf stranded in PA).
+  - A Stage 2a re-route does not give a better answer. With capacity fixed, demand can only be served if production
+    shifts away from Appalachia, and which basins replace it is a supply-and-price question that Stage 2a (supply
+    fixed by basin) cannot answer. Stage 2a's least-cost routing also differs from observed flows by 19–25 pp in FL and
+    CA even in 2024, larger than the effect being measured.
+  - Caveat: Stage 1's 2030 shares already include NGMM's 2028–2030 builds (+6.1 Bcf/d across the Appalachian
+    boundary by 2030), which Stage 2a shows are not needed to serve 2030 demand; the hold is therefore slightly more
+    Appalachian than a strict no-build network would be.
+
+Shares under the two paths (%, basins ≥ 0.5%; 2024–2030 identical):
+
+| Zone | 2035 aeo | 2035/2045 constrained_pipe (= 2030) | 2045 aeo |
+|---|---|---|---|
+| FL p101 | App 62.8, Hay 18.5, Perm 4.9, GOM 4.4, EF 3.3, MidC 3.3, other 2.2 | App 49.3, Hay 27.5, Perm 8.0, GOM 5.0, EF 4.2, other 2.6, MidC 2.4, Barn 0.9 | App 77.1, MidC 6.1, Hay 5.2, Perm 3.3, GOM 3.0, EF 2.2, other 1.8, Bakken 0.5 |
+| east TX (p57, p64–p67, mean) | Perm 34.1, EF 23.8, Hay 23.3, App 8.2, MidC 5.5, Barn 3.6, GOM 1.3 | Perm 43.2, Hay 23.9, EF 22.6, Barn 4.8, MidC 4.4, GOM 0.7 | Perm 37.4, EF 28.5, App 12.7, Hay 11.1, MidC 7.2, GOM 1.1, Barn 1.1 |
+| VA p99 | App 99.8 | App 99.8 | App 99.8 |
+| MA p131 | App 83.4, E. Can 9.4, LNG 7.3 | App 82.9, E. Can 9.5, LNG 7.7 | App 82.7, E. Can 9.7, LNG 7.6 |
+| CA p10 | Perm 38.0, W. Can 28.1, Rock 18.7, other 7.7, SJ 5.6, MidC 1.7 | Perm 36.2, W. Can 31.1, Rock 19.5, other 6.3, SJ 5.8, MidC 0.9 | W. Can 31.4, Perm 31.0, Rock 22.1, other 7.4, SJ 6.2, MidC 1.9 |
+
+**Headline difference** (kg CH4 per MWh of gas generation, measured central, 7,754 Btu/kWh, upstream + T&S, each
+year's own shares and intensities):
+
+| Zone | 2035 aeo → constrained | 2045 aeo → constrained | Same with no_further_reductions (2035; 2045) |
+|---|---|---|---|
+| FL p101 | 1.18 → 1.28 (+0.10, +8%) | 1.11 → 1.28 (+0.16, +15%) | 1.56 → 1.69 (+8%); 1.49 → 1.69 (+14%) |
+| east TX p64 | 1.80 → 1.94 (+0.14, +8%) | 1.87 → 1.94 (+0.08, +4%) | 2.58 → 2.81 (+9%); 2.68 → 2.81 (+5%) |
+| VA p99 | 0.83 → 0.83 (0) | 0.83 → 0.83 (0) | 1.12 → 1.12 (0) |
+| MA p131 | 0.94 → 0.94 (+1%) | 0.94 → 0.94 (0) | 1.22 → 1.23 (0) |
+| CA p10 | 2.19 → 2.17 (−1%) | 2.16 → 2.17 (0) | 3.35 → 3.32 (−1%); 3.32 → 3.32 (0) |
+
+Without AEO's new Appalachian pipe, FL and east TX keep more Haynesville/Permian/Gulf gas, so their upstream methane
+is 4–15% higher; VA and MA are Appalachian either way and CA is not on the Appalachian path. The share path matters less
+than the methane path (current_rules vs no_further_reductions: −24 to −35% in 2045) or the measured/inventory basis
+(3–4×). (These use projected shares; the research note's worked example holds the 2024 shares.)
+
+**Post-solve upstream CH4 tool** (`gasnet/upstream.py`; no model change). On the VM, from `gas_network/`:
+
+```
+python -m gasnet.cli upstream /path/to/case/outputs                       # all options, writes outputs/upstream_ch4/
+python -m gasnet.cli upstream /path/to/case/outputs --out-dir /path/to/dir \
+    --share-path aeo constrained_pipe --basis measured --methane-path current_rules [--gas-fuels NaturalGas ...]
+```
+
+- **Reads** from the Switch outputs folder: `GenFuelUseRate.csv` (generator, timepoint, fuel, MMBtu/h) and
+  `dispatch.csv` (zone, period, `tp_weight_in_year_hrs`, `Energy_GWh_typical_yr`,
+  `DispatchEmissions_tCO2_per_typical_yr`); timepoint ids equal timestamps, as for `report`. When present,
+  `tracked_demand_onsite_fuel_use.csv` (tracked-demands module, `tom/tracked-demands-v2`). On-site generators are
+  ordinary Switch generators, so that burn is already in `GenFuelUseRate.csv`: the file labels it
+  (`onsite_gas_mmbtu`) and is not added again; a row missing from `GenFuelUseRate.csv` is added with no MWh and
+  flagged.
+- **Gas fuels:** `config.yaml gas_fuels`, case-insensitive (`--gas-fuels` overrides); a fuel with "gas" in its name
+  that is not listed stops the run. A generator burning gas with another fuel gets the gas fraction of its MWh and
+  stack CO2.
+- **Method:** zone gas MMBtu (typical year of the period) × Σ basin share × basin intensity + gas MMBtu × transmission
+  & storage (0.0056 / 0.0376 / 0.0483 kg/MMBtu). Distribution is excluded. Shares: the latest share year not after
+  the period. Intensities (`data/basin_methane_intensity.csv`):
+  - `measured` (IDEA-01 default): `upstream_total` kg/MMBtu rows by year and methane path, low/central/high;
+  - `inventory`: GHGRP RY2023 prod + G&B rates (W. Canada: the `inventory_derived` NIR-level row, 0.81%; E. Canada and
+    LNG imports keep measured values), moved over time by the measured path's multipliers; one value for all levels.
+- **Writes** `upstream_ch4_by_zone.csv`, `_by_state.csv`, `_by_period.csv`: one row per zone/state/period ×
+  share path × basis × methane path × level, with gas MMBtu, on-site gas MMBtu, gas MWh, stack tCO2 (from the same
+  run), upstream and T&S t CH4, total t CH4, t CO2e at GWP100 (29.8) and GWP20 (82.5), kg CH4/MWh, and upstream
+  CO2e as % of stack CO2.
+- **Tests** on toy Switch outputs: known answer, gas/hydrogen blend, coal excluded, on-site gas labelled not doubled,
+  an on-site row only in the tracked-demand file, an unlisted gas-like fuel, and the inventory multipliers.
 
 ## Limits
 
