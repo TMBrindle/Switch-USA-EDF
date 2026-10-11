@@ -1,7 +1,7 @@
 """Opt-in: with tracked_demands unloaded, every existing case builds and solves byte-identically.
 
-1. Code: against the branch's base on tom/s0-v3.1, this branch only adds files (the module, its guide, tracked_demands/)
-   and the CHANGES/SHARED_CHANGES notes, plus the .gitignore lines that keep tracked_demands/ in the repo. No
+1. Code: against the s0-v3.1 tag (merged into this branch), this branch only adds files (the module, its guide,
+   tracked_demands/) and the CHANGES/SHARED_CHANGES notes, plus the .gitignore lines that keep tracked_demands/ in the repo. No
    existing module, module list, option file, setting or case-build script changes, so the case build of every
    existing row (the S0 regression row s4x1_S0prod_2035 included) and its solve run the same code as on the base.
 2. Wiring: nothing loads the module by default (switch/modules.txt, options.txt, pg settings, scenario rows, the S0
@@ -22,7 +22,7 @@ import pytest
 
 from td_toy import REPO, read, cost, td_case, toyutil
 
-BASE_FALLBACK = "9d68751"   # tom/s0-v3.1 when this branch was cut (CHANGES §107)
+BASE = "3160be1"   # the s0-v3.1 tag, merged into this branch (CHANGES §108; cut from 9d68751, §107)
 ALLOWED_NEW = ("tracked_demands/", "switch/study_modules/tracked_demands.py",
                "Guides and documentation/tracked_demands.md")
 ALLOWED_MODIFIED = ("CHANGES.md", "SHARED_CHANGES.md", ".gitignore")
@@ -36,7 +36,7 @@ def _git(*args) -> str:
 def _base() -> str:
     if shutil.which("git") is None or not (REPO / ".git").exists():
         pytest.skip("not a git checkout")
-    for ref in ("origin/tom/s0-v3.1", BASE_FALLBACK):
+    for ref in (BASE, "s0-v3.1"):
         try:
             return _git("merge-base", "HEAD", ref).strip()
         except subprocess.CalledProcessError:
