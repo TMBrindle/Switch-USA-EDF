@@ -12,15 +12,18 @@ reachable hosts were eia.gov, github, pypi and zenodo.org. So:
 - **[fetched]** values were computed here from downloaded files.
 - **[snippet]** values come from search-engine summaries of the publication. They could not be opened, so they
   carry the confidence stated.
-- **Two EPA datasets come from third-party archives on Zenodo**, not epa.gov:
-  - GHGRP Subpart W RY2015–2023 `ef_w_*` tables: Zenodo record 19671411, "Extracted Data From: EPA GHG Search in
-    Envirofacts", deposited 2026-04-20.
-  - EPA GHGI 1990–2022 chapter tables: Zenodo record 22925436, `EPA_GHGs_Inventory1990_2022.zip`.
-
-  These are copies of EPA files deposited by someone other than EPA. That may count as working around the block,
-  so **Tom to decide**. Every row that uses them names the record, and dropping them removes only the `inventory`
-  rows. One cross-check: the 2022 Subpart W segment totals from this copy match EPA's published 2022 sector
-  profile (onshore production 90 and G&B 86 MMT CO2e at GWP 25, [snippet]).
+- **Two EPA datasets** (source: EPA) were read in this session from copies on Zenodo, because epa.gov is blocked
+  here. The record of origin is the EPA originals held on the VM in US-Power-Sector-Data
+  `data/raw/gas_network/`, with a manifest (URL, date, sha256). The VM verified both copies against EPA
+  (2026-10-11):
+  - **GHGRP Subpart W RY2015–2023** (EPA Envirofacts `ef_w_*` tables; session copy Zenodo record 19671411). It
+    matches EPA's originals in content: all 661 table-years and all 120 natural gas segment-year totals. Two
+    Zenodo file names differ from EPA's: `ef_w_comp_workovers_frc` is EPA's `EF_W_COMP_WORKOVERS_FRAC`, and
+    `ef_w_dehydrators_dessicant` is EPA's `EF_W_DEHYDRATORS_DESICCANT`. Neither is used here; the values come
+    from `ef_w_emissions_source_ghg` and `ef_w_facility_overview`.
+  - **GHGI 1990–2022** chapter tables (EPA 430-R-24-004; session copy Zenodo record 22925436). Byte-identical to
+    EPA's files.
+  - **Not published by EPA:** RY2024 Subpart W, and a final GHGI 1990–2023.
 
 ## 1. Definitions and units
 
@@ -292,10 +295,9 @@ indicative.
 
 ## 7. GWP and the worked example
 
-- **GWP** (IPCC AR6 WG1 Table 7.15, fossil CH4 including CO2 from oxidation):
-  - GWP100 = 29.8. Confirmed by two secondary sources: Muñoz 2024 ERL and GHG Management Institute.
-  - GWP20 = 82.5. A single secondary source; one calculator site shows 80.8. **To check against the IPCC table
-    (ipcc.ch blocked).**
+- **GWP** (IPCC AR6 WG1 Ch. 7, Table 7.15, p. 1017; confirmed on the VM):
+  - CH4 fossil (including CO2 from oxidation): GWP20 = 82.5 ± 25.8, GWP100 = 29.8 ± 11. Used here.
+  - CH4 non-fossil: GWP20 = 79.7, GWP100 = 27.0. Not used.
 - **AR5 for comparison:** 28 / 84. EPA's GHGI uses GWP100 = 28; GHGRP used AR4 25 until RY2025.
 
 **Worked example: 2024 upstream CH4 per MWh of gas generation**
@@ -349,31 +351,32 @@ zones it varies about 3×, driven by basin mix:
 | OMARA24 / OMARA22 | Omara et al., ESSD (2024) 2021 national 2.6%; Nat. Commun. 13:2085 (2022) low-production sites | snippet |
 | ALV18 | Alvarez et al., Science 361:186 (2018), Table 1; author manuscript https://pmc.ncbi.nlm.nih.gov/articles/PMC6223263 | snippet |
 | NOR | Norwegian offshore emissions 2024 (10,871 t CH4 over 126 bcm); Foulds et al. ACP (2022) | snippet |
-| GHGRP | EPA GHGRP Subpart W RY2015–2023 `ef_w_*` tables via Zenodo record 19671411 (deposited 2026-04-20); RY2024 not public | fetched (third-party archive) |
-| GHGI22 | EPA, Inventory of U.S. GHG Emissions and Sinks 1990–2022 (EPA 430-R-24-004, 18 Apr 2024), Tables 3-45, 3-73, 3-74, via Zenodo record 22925436 | fetched (third-party archive) |
+| EPA_GHGRP_W | EPA, Greenhouse Gas Reporting Program Subpart W, RY2015–2023, Envirofacts `ef_w_*` tables (`ef_w_emissions_source_ghg`, `ef_w_facility_overview`). Record of origin: EPA originals on the VM (US-Power-Sector-Data `data/raw/gas_network/`, manifest with URL, date, sha256); session copy Zenodo 19671411, content-verified against EPA. RY2024 not published | fetched |
+| EPA_GHGI_1990_2022 | EPA, Inventory of U.S. Greenhouse Gas Emissions and Sinks 1990–2022 (EPA 430-R-24-004, 18 Apr 2024): natural gas systems Tables 3-72 to 3-78 (CH4 by segment: 3-73 MMT CO2e, 3-74 kt); petroleum systems CH4 Table 3-45; abandoned wells Table 3-110. Record of origin: EPA files on the VM (as above); session copy Zenodo 22925436, byte-identical | fetched |
 | EIA_PROD | EIA dnav gross/marketed/dry production and consumption by end use, released 2026-09-30 (pinned in `data/SOURCES.yml`) | fetched |
 | EIA_LNG | EIA U.S. LNG imports by country and point of entry, 2024 | fetched |
 | EIA EPA 8.1 | https://www.eia.gov/electricity/annual/html/epa_08_01.html — natural gas 2024 7,754 Btu/kWh | fetched 2026-10-11 |
 | EIA CO2 | https://www.eia.gov/environment/emissions/co2_vol_mass.php — 116.65 lb CO2/MMBtu | fetched 2026-10-11 |
-| GWP | IPCC AR6 WG1 Ch. 7 Table 7.15 via Muñoz 2024 ERL 19:121002 and GHG Management Institute | snippet |
+| GWP | IPCC AR6 WG1 Ch. 7, Table 7.15, p. 1017 | verified on the VM |
 
 **EPA GHGI status.**
 - No EPA 1990–2024 edition exists [snippet, EDF blog 15 Apr 2026]. The US missed the 2025 UNFCCC submission and
   has announced withdrawal effective Feb 2027.
-- The 1990–2023 edition was released only via FOIA (EDF library, blocked). Snippet values from it are
-  inconsistent, so they are not used.
+- No final 1990–2023 edition is published. An unpublished version was released to EDF via FOIA (EDF library, blocked); snippet values
+  from it are inconsistent, so they are not used. The latest published edition is 1990–2022, used here.
 - UMD CGS published an unofficial 1990–2024 inventory; it is blocked, and no numbers could be obtained.
 
 ## 9. Blocked or paywalled, listed rather than worked around
 
-- **IPCC and GWP:** ipcc.ch (AR6 Table 7.15; the GWP20 to confirm); ghgprotocol.org; ghginstitute.org.
+- **IPCC and GWP:** ipcc.ch (AR6 Table 7.15, since confirmed on the VM); ghgprotocol.org; ghginstitute.org.
 - **EPA:**
-  - epa.gov (GHGI pages and Annex 3.5/3.6 spreadsheets, Subpart W sector profile);
+  - epa.gov (GHGI pages and Annex 3.5/3.6 spreadsheets, Subpart W sector profile); the GHGI 1990–2022 tables and
+    Subpart W RY2015–2023 used here are held on the VM;
   - ghgdata.epa.gov (FLIGHT);
-  - data.epa.gov and enviro.epa.gov (Envirofacts, RY2024 Subpart W);
+  - data.epa.gov and enviro.epa.gov (Envirofacts; RY2024 Subpart W is not published in any case);
   - 19january2025snapshot.epa.gov.
 - **EDF and other inventories:**
-  - library.edf.org (GHGI 1990–2023 FOIA PDF);
+  - library.edf.org (unpublished GHGI 1990–2023 released via FOIA);
   - blogs.edf.org, edf.org;
   - cgs.umd.edu (UMD 1990–2024 inventory).
 - **BOEM:** boem.gov, espis.boem.gov (OCS AQS 2021 inventory, OCS Study BOEM 2023-023), data.boem.gov.
@@ -385,18 +388,16 @@ zones it varies about 3×, driven by basin mix:
 - **Journals:** nature.com, pnas.org, pubs.acs.org, copernicus.org (acp/egusphere), doi.org. Every journal value
   above is therefore [snippet] and should be checked against the paper before anything is published.
 - **Files that would firm this up:**
-  - GHGI 1990–2023 Chapter 3 Tables 3-64/3-65 and Annex 3.6;
+  - GHGI 1990–2022 Annex 3.5/3.6 (natural gas activity data and emission factors);
+  - the natural gas systems tables of a final GHGI 1990–2023, once EPA publishes one;
   - UMD 1990–2024 O&G tables;
-  - RY2024 Subpart W;
+  - RY2024 Subpart W, once EPA publishes it;
   - BOEM 2021 OCS AQS database;
   - ECCC NIR 2026 Part 3 / CRT tables by province;
   - the basin tables in Varon 2025, Gautam 2026 and the MethaneSAT ACP paper.
 
 ## 10. Open points for Tom
 
-1. Whether the Zenodo third-party copies of EPA data are acceptable. If not, drop the `inventory` rows sourced
-   `GHGRP` / `GHGI22`.
-2. Whether to use measured `upstream_total` as the default basis for IDEA-01, with inventory as a sensitivity (the
+1. Whether to use measured `upstream_total` as the default basis for IDEA-01, with inventory as a sensitivity (the
    recommendation here).
-3. The GWP20 value: 82.5 (used here) vs 80.8, to settle from the IPCC table.
-4. Rockies (other) weighting for CA flows (Kern River = Green River-heavy), and the 50/50 E. Canada assumption.
+2. Rockies (other) weighting for CA flows (Kern River = Green River-heavy), and the 50/50 E. Canada assumption.
