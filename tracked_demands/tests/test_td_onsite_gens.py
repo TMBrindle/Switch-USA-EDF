@@ -189,24 +189,64 @@ def test_missing_unit_size_is_an_error(tmp_path):
 
 
 # ------------------------------------------------------------------------------------------------ other modules' settings
+def gtc(inp, listed, coverage=None):
+    """The toy's gas-turbine cap: N-NG_GT (combustion_turbine) plus `listed` {gen: class}; `coverage` writes
+    tracked_demand_gtc_coverage.csv (else the module takes the grid generators' classes)."""
+    csv(inp, "gas_turbine_cap.csv", [{"PERIOD": p, "gtc_max_mw": 1e6} for p in (2020, 2030)])
+    csv(inp, "gas_turbine_cap_gens.csv",
+        [{"GENERATION_PROJECT": g, "gtc_class": c, "gtc_weight": 1.0}
+         for g, c in {"N-NG_GT": "combustion_turbine", **listed}.items()])
+    if coverage is not None:
+        csv(inp, "tracked_demand_gtc_coverage.csv", [{"gtc_class": c} for c in coverage])
+
+
 def test_gas_turbine_cap_membership(tmp_path):
-    def gtc(inp, listed):
-        csv(inp, "gas_turbine_cap.csv", [{"PERIOD": p, "gtc_max_mw": 1e6} for p in (2020, 2030)])
-        csv(inp, "gas_turbine_cap_gens.csv",
-            [{"GENERATION_PROJECT": g, "gtc_class": "ct", "gtc_weight": 1.0} for g in ["N-NG_GT"] + listed])
+    """Membership follows the case's cap coverage (Tom, 12 Oct 2026, refining D3)."""
     from td_toy import solve
-    ok = case(tmp_path, "gtc_ok", after=lambda i: (base(i, tech="TD_gas_ct", prime_mover="turbine"), gtc(i, [GEN])),
+    ct = dict(tech="TD_gas_ct", prime_mover="turbine", gtc_class="combustion_turbine")
+    ok = case(tmp_path, "gtc_ok", after=lambda i: (base(i, **ct), gtc(i, {GEN: "combustion_turbine"})),
               before=("build_rate",))
     res = read(ok, "gas_turbine_cap_results.csv")
     built = read(ok, "BuildGen.csv")
     assert len(res) and built[built.iloc[:, 0] == GEN].iloc[:, -1].sum() > 0.5
-    bad = case(tmp_path, "gtc_bad", after=lambda i: (base(i, tech="TD_gas_ct", prime_mover="turbine"), gtc(i, [])),
-               before=("build_rate",), solve=False)
-    with pytest.raises(AssertionError, match=r"on-site turbine N-DC1-gas must be in"):
+    bad = case(tmp_path, "gtc_bad", after=lambda i: (base(i, **ct), gtc(i, {})), before=("build_rate",), solve=False)
+    with pytest.raises(AssertionError,
+                       match=r"N-DC1-gas\s+\(combustion_turbine\)\s+must\s+be\s+in\s+gas_turbine_cap_gens"):
         solve(bad)
-    recip = case(tmp_path, "gtc_recip", after=lambda i: (base(i), gtc(i, [GEN])), before=("build_rate",), solve=False)
-    with pytest.raises(AssertionError, match=r"reciprocating engine N-DC1-gas"):
+    recip = case(tmp_path, "gtc_recip", after=lambda i: (base(i), gtc(i, {GEN: "reciprocating_engine"})),
+                 before=("build_rate",), solve=False)
+    with pytest.raises(AssertionError,
+                       match=r"N-DC1-gas\s+\(reciprocating_engine\)\s+is\s+in\s+gas_turbine_cap_gens.csv,\s+but"):
         solve(recip)
+    wrong = case(tmp_path, "gtc_wrong", after=lambda i: (base(i, **ct), gtc(i, {GEN: "combined_cycle"},
+                                                                          ["combined_cycle", "combustion_turbine"])),
+                 before=("build_rate",), solve=False)
+    with pytest.raises(AssertionError, match=r"has\s+gtc_class\s+'combined_cycle'"):
+        solve(wrong)
+    noclass = case(tmp_path, "gtc_noclass", after=lambda i: (base(i, tech="TD_gas_ct", prime_mover="turbine"),
+                                                             gtc(i, {GEN: "combustion_turbine"})),
+                   before=("build_rate",), solve=False)
+    with pytest.raises(AssertionError, match=r"has\s+no\s+td_onsite_gtc_class"):
+        solve(noclass)
+
+
+@pytest.mark.parametrize("coverage,listed,error", [
+    (["combined_cycle", "combustion_turbine"], False, None),                 # S0 v3.1 coverage key: aero not capped
+    (["combined_cycle", "combustion_turbine"], True, r"is\s+in\s+gas_turbine_cap_gens.csv,\s+but"),
+    (["combined_cycle", "combustion_turbine", "aeroderivative"], True, None),  # allowance_coverage: aero capped
+    (["combined_cycle", "combustion_turbine", "aeroderivative"], False, r"must\s+be\s+in\s+gas_turbine_cap_gens"),
+])
+def test_aeroderivative_follows_the_case_coverage(tmp_path, coverage, listed, error):
+    from td_toy import solve
+    aero = dict(tech="TD_gas_aero", prime_mover="turbine", gtc_class="aeroderivative")
+    run = case(tmp_path, f"aero{len(coverage)}{int(listed)}", before=("build_rate",), solve=error is None,
+               after=lambda i: (base(i, **aero), gtc(i, {GEN: "aeroderivative"} if listed else {}, coverage)))
+    if error:
+        with pytest.raises(AssertionError, match=error):
+            solve(run)
+    else:
+        built = read(run, "BuildGen.csv")
+        assert built[built.iloc[:, 0] == GEN].iloc[:, -1].sum() > 0.5
 
 
 def test_onsite_plant_uses_no_headroom(tmp_path):

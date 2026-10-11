@@ -20,14 +20,18 @@ Everything is taken from the case where the case already says it:
   (interconnection_headroom/data/reference/reeds_reinforcement_by_zone.csv), unless the spec gives one.
 
 Linked on-site generators are added to gen_info.csv and gen_build_costs.csv of the copy (their template: the case's
-existing gas plant in the zone), with reserve credit none (prm_gen_credit.csv), interconnection weight 0
-(ic_weights.csv) and gas-turbine-cap membership for turbines (gas_turbine_cap_gens.csv), when those files exist.
+existing gas plant in the zone), with reserve credit none (prm_gen_credit.csv) and interconnection weight 0
+(ic_weights.csv), when those files exist. Gas-turbine cap membership follows the case's own cap coverage
+(build_rate.gas_turbine_cap: `coverage`, or `allowance_coverage` under the cumulative_additions form that S0
+production cases use): a linked generator joins gas_turbine_cap_gens.csv only if its category (GTC_CATEGORY) is
+covered, at the weight the case gives new builds of that category.
 The writer prints the scenario-line options (tracked_demands_scenario_options.txt).
 """
 from __future__ import annotations
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -37,13 +41,18 @@ REPO = Path(__file__).resolve().parents[1]
 RULES = REPO / "tracked_demands" / "data" / "cap_coverage_rules.yml"
 REINFORCEMENT = REPO / "interconnection_headroom" / "data" / "reference" / "reeds_reinforcement_by_zone.csv"
 HIERARCHY = REPO / "hierarchy.csv"
+BUILD_RATE_SETTINGS = REPO / "pg" / "settings" / "build_rate.yml"
 UC_DEFAULTS = REPO / "tracked_demands" / "data" / "onsite_uc_defaults.yml"
 # Switch's unit-commitment and ramp columns (gen_info.csv), set from the spec or onsite_uc_defaults.yml, never copied
 # from a template plant
 UC_FIELDS = ("min_load_fraction", "min_uptime", "min_downtime", "startup_om", "startup_fuel",
              "ramp_limit_up", "ramp_limit_down")
-TECH_PRIME_MOVER = {"recip": "recip", "diesel": "recip", "aero": "turbine", "frame_ct": "turbine",
-                    "fuel_cell": "fuel_cell"}
+TECH_PRIME_MOVER = {"recip": "recip", "diesel": "recip", "aero": "turbine", "industrial_ct": "turbine",
+                    "frame_ct": "turbine", "cc": "turbine", "fuel_cell": "fuel_cell"}
+# technology -> gas-turbine cap category (build_rate/brc/turbine_cap.py CLASSES); None never counts. Small
+# industrial CTs (Titan 130 class) count with aeroderivatives (Tom, 12 Oct 2026)
+GTC_CATEGORY = {"frame_ct": "combustion_turbine", "cc": "combined_cycle", "aero": "aeroderivative",
+                "industrial_ct": "aeroderivative", "recip": "reciprocating_engine", "diesel": None, "fuel_cell": None}
 
 # spec names -> candidate names a case may use (case-insensitive); the first present in the case wins
 SOURCE_ALIASES = {
@@ -255,6 +264,47 @@ def credit_by_period(inp: Path, key: str, periods, override: dict | None, gen_in
     return out
 
 
+# --------------------------------------------------------------------------------------------- gas-turbine cap
+def gtc_case_settings(out: Path, spec: dict, log) -> dict | None:
+    """The case's gas-turbine cap settings as turbine_cap resolved them (None: no cap in the case).
+
+    build_rate.gas_turbine_cap from the spec's `build_rate_settings` file (default pg/settings/build_rate.yml),
+    with the spec's own `gas_turbine_cap:` keys over it and the case's form (gas_turbine_cap_params.csv), so an S0
+    production case (form cumulative_additions) takes allowance_coverage. The classes already in the case's
+    gas_turbine_cap_gens.csv must all be covered, else the settings aren't the ones the case was built with."""
+    if not (out / "gas_turbine_cap.csv").exists() or not (out / "gas_turbine_cap_gens.csv").exists():
+        return None
+    if str(REPO) not in sys.path:
+        sys.path.insert(0, str(REPO))
+    from build_rate.brc.turbine_cap import gtc_settings
+    path = Path(spec.get("build_rate_settings", BUILD_RATE_SETTINGS))
+    base = ((yaml.safe_load(path.read_text()) or {}).get("build_rate") or {}).get("gas_turbine_cap") or {}
+    gtc = {**base, **(spec.get("gas_turbine_cap") or {}), "enabled": True}
+    params = out / "gas_turbine_cap_params.csv"
+    if "form" not in (spec.get("gas_turbine_cap") or {}) and params.exists():
+        gtc["form"] = str(_read(params)["gtc_form"].iat[0])
+    cfg = gtc_settings({"build_rate": {"gas_turbine_cap": gtc}})
+    present = set(_read(out / "gas_turbine_cap_gens.csv")["gtc_class"].dropna().astype(str))
+    if present - set(cfg["coverage"]):
+        raise ValueError(f"case_writer: the case's gas_turbine_cap_gens.csv has class(es) "
+                         f"{sorted(present - set(cfg['coverage']))} outside the coverage {cfg['coverage']} read from "
+                         f"{path} (form {cfg['form']}); give the spec the case's build_rate_settings or "
+                         f"gas_turbine_cap.coverage")
+    log(f"gas-turbine cap: form {cfg['form']}, coverage {cfg['coverage']} ({path.name})")
+    return cfg
+
+
+def gtc_new_build_weight(cfg: dict, cat: str) -> float:
+    """The weight turbine_cap.write_case_inputs gives a new build of category `cat`."""
+    if cfg["form"] == "cumulative_additions":
+        f = (cfg["capacity_basis"] or {}).get("new_build_to_allowance")
+        f = float(f.get(cat, 1.0)) if isinstance(f, dict) else float(1.0 if f is None else f)
+        return float((cfg["class_weights"] or {}).get(cat, 1.0)) * f
+    if cat == "combined_cycle" and cfg["cc_accounting"] == "turbine_share":
+        return float(cfg["cc_turbine_share"])
+    return 1.0
+
+
 # --------------------------------------------------------------------------------------------- writer
 def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
     inp = Path(inputs_dir)
@@ -269,6 +319,7 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
     periods = [int(p) for p in _read(out / "periods.csv")["INVESTMENT_PERIOD"]]
     zones = set(_read(out / "load_zones.csv")["LOAD_ZONE"])
     credits_override = spec.get("tax_credit_values")
+    gtc_cfg = gtc_case_settings(out, spec, log)
 
     rows = {k: [] for k in ("td", "zones", "blocks", "targets", "techs", "subsidies", "caps", "storage", "links",
                             "gi", "bc", "credit", "prm", "gtc", "ic")}
@@ -353,17 +404,25 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
                 rows["bc"].append({"_i0": gid, "_i1": p,
                                    "gen_overnight_cost": float(g["overnight_cost_per_kw"]) * 1000.0,
                                    "gen_fixed_om": float(g.get("fixed_om_per_kw_yr", 0.0)) * 1000.0})
+            cat = GTC_CATEGORY.get(techname) if techname else ("reciprocating_engine" if pm == "recip" else None)
+            if techname and techname not in GTC_CATEGORY:
+                raise ValueError(f"case_writer: technology {techname!r} of {gid} has no gas-turbine cap category")
             rows["links"].append({"TRACKED_DEMAND": name, "GENERATION_PROJECT": gid,
-                                  "td_onsite_prime_mover": pm,
+                                  "td_onsite_prime_mover": pm, "td_onsite_gtc_class": cat or "none",
                                   "td_onsite_unit_mw": g.get("unit_mw", "."),
                                   "td_onsite_rated_mw": g.get("rated_mw", g.get("capacity_limit_mw", "."))})
             if g.get("tax_credit_key"):
                 for p, v in credit_by_period(out, g["tax_credit_key"], periods, credits_override, gen_info).items():
                     rows["credit"].append({"_i0": gid, "_i1": p, "gen_ptc_value_per_mwh": v})
             rows["prm"].append({"_i0": gid, "prm_credit": "none", "prm_class": "onsite"})
-            if pm == "turbine":
-                rows["gtc"].append({"_i0": gid, "gtc_class": g.get("gtc_class", "ct"),
-                                    "gtc_weight": float(g.get("gtc_weight", 1.0))})
+            if g.get("gtc_class") is not None or g.get("gtc_weight") is not None:
+                log(f"WARNING: {gid}: the spec's gtc_class / gtc_weight are ignored; cap membership and weight follow "
+                    f"the case's gas-turbine cap coverage")
+            if gtc_cfg is not None:
+                if cat in gtc_cfg["coverage"]:
+                    rows["gtc"].append({"_i0": gid, "gtc_class": cat, "gtc_weight": gtc_new_build_weight(gtc_cfg, cat)})
+                log(f"{name}: {gid} ({cat or 'no category'}) "
+                    + ("in" if cat in gtc_cfg["coverage"] else "not in") + " the gas-turbine cap")
             rows["ic"].append(tech)
             log(f"{name}: linked generator {gid} ({techname or pm}, prime mover {pm}, fuel {fuel}, gen_tech {tech}, "
                 f"UC " + ", ".join(f"{k}={v:g}" for k, v in uc.items()) + ")")
@@ -389,6 +448,8 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
         add_rows(out, "gen_build_costs.csv", rows["bc"], 2, log)
         add_rows(out, "prm_gen_credit.csv", rows["prm"], 1, log)
         add_rows(out, "gas_turbine_cap_gens.csv", rows["gtc"], 1, log) if rows["gtc"] else None
+        if gtc_cfg is not None:
+            _write(pd.DataFrame({"gtc_class": list(gtc_cfg["coverage"])}), out / "tracked_demand_gtc_coverage.csv")
         if variants(out, "ic_weights.csv"):
             w = _read(variants(out, "ic_weights.csv")[0])
             add_rows(out, "ic_weights.csv", [{"_i0": t, w.columns[1]: 0.0} for t in sorted(set(rows["ic"]))], 1, log,

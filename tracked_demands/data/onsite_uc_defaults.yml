@@ -21,6 +21,23 @@ aero:
   min_downtime: 1
   ramp_limit_up: 3.78
   ramp_limit_down: 3.78
+industrial_ct:
+  # small industrial gas turbines (Titan 130 class, ~15-25 MW); counted with aeroderivatives in the gas-turbine cap
+  source: "PLACEHOLDER (combustion-turbine row; not sourced for industrial CTs)"
+  min_load_fraction: 0.3
+  min_uptime: 1
+  min_downtime: 1
+  ramp_limit_up: 3.78
+  ramp_limit_down: 3.78
+cc:
+  # pg/extra_inputs/misc_gen_inputs.csv, rows natural_gas_fired_combined_cycle and
+  # naturalgas_1on1_combined_cycle_hframe (min load from the latter; the former leaves it blank)
+  source: "pg/extra_inputs/misc_gen_inputs.csv (combined-cycle rows)"
+  min_load_fraction: 0.3
+  min_uptime: 6
+  min_downtime: 6
+  ramp_limit_up: 0.64
+  ramp_limit_down: 0.64
 recip:
   source: "PLACEHOLDER (not sourced: fast-start engines, no minimum up or down time)"
   min_load_fraction: 0.3

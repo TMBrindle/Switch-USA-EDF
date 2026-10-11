@@ -21,7 +21,9 @@ tracked_demands:
       - {name: solar_onsite, energy_source: solar, capital_cost_per_mw_yr: 90000, clean: true,
          tax_credit_key: UtilityPV, max_mw: 500}
     storage: {power_cost_per_mw_yr: 30000, energy_cost_per_mwh_yr: 20000, max_hours: 8}
-    onsite_gens:                # linked ordinary generators
+    # linked ordinary generators. technology: recip | diesel | aero | industrial_ct | frame_ct | cc | fuel_cell; it sets
+    # the UC defaults and the gas-turbine cap category, which joins the cap only if the case's coverage includes it
+    onsite_gens:
       - {name: p33_DC1_recip, technology: recip, fuel: gas, heat_rate: 8.3, overnight_cost_per_kw: 1500,
          fixed_om_per_kw_yr: 15, variable_om: 6, unit_mw: 4.5, capacity_limit_mw: 300, max_age: 25,
          uc: {min_load_fraction: 0.3, min_uptime: 0, min_downtime: 0}}   # placeholders; startup cost unset (warned)
@@ -29,3 +31,7 @@ cap_coverage:                   # the case's CO2_PROGRAM -> tracked_demands/data
   "ETS 1": RGGI                # limited-export exemption off; {family: RGGI, limited_export_exemption: 1} to set it
   "ETS 2": CA
   "ETS 3": WA
+# gas-turbine cap: the case's coverage is read from build_rate.gas_turbine_cap in this file (default shown), with the
+# form from the case's gas_turbine_cap_params.csv (S0 production: cumulative_additions -> allowance_coverage)
+# build_rate_settings: pg/settings/build_rate.yml
+# gas_turbine_cap: {coverage: [combined_cycle, combustion_turbine]}   # keys over that file, if the case used others

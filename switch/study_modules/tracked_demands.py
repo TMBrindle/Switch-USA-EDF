@@ -461,9 +461,18 @@ def define_components(m):
 
     m.TD_ONSITE_GENS = Set(dimen=2, within=m.TRACKED_DEMANDS * m.GENERATION_PROJECTS)
 
-    # turbine | recip | fuel_cell | boiler | other (turbines count in the
-    # gas-turbine build cap, reciprocating engines don't; checked in pre_solve)
+    # turbine | recip | fuel_cell | boiler | other
     m.td_onsite_prime_mover = Param(m.TD_ONSITE_GENS, within=Any, default="other")
+
+    # gas-turbine cap category (build_rate's classes: combined_cycle |
+    # combustion_turbine | aeroderivative | reciprocating_engine, or none).
+    # A linked generator is in the cap exactly when its category is in the
+    # case's cap coverage (tracked_demand_gtc_coverage.csv, written by the case
+    # writer from build_rate.gas_turbine_cap; checked in pre_solve). "" (not
+    # given): reciprocating_engine for a recip, none for a fuel cell, boiler or
+    # other; a turbine must name it.
+    m.td_onsite_gtc_class = Param(m.TD_ONSITE_GENS, within=Any, default="")
+    m.TD_GTC_COVERAGE = Set(dimen=1, within=Any)
 
     # unit nameplate (MW) for per-unit applicability tests; "." -> gen_unit_size,
     # else the rated MW
@@ -2321,18 +2330,25 @@ def pre_solve(m):
                 f"tracked_demands: on-site generator {g} has interconnection weight {value(m.gen_ic_weight[g])}; "
                 f"give its gen_tech an ic weight of 0 (on-site plant uses no headroom)"
             )
-        # gas-turbine build cap: turbines count, reciprocating engines don't
+        # gas-turbine build cap: a linked generator is in it exactly when its category is in the case's coverage
+        # (Tom, 12 Oct 2026, refining D3)
         if hasattr(m, "GTC_GENS") and len(m.GTC_PERIODS) and len(m.GTC_GENS):
-            pm = str(value(m.td_onsite_prime_mover[td, g])).strip()
-            if pm == "turbine" and g not in m.GTC_GENS:
+            cat = gtc_category(m, td, g)
+            cov = gtc_coverage(m)
+            if cat in cov and g not in m.GTC_GENS:
                 raise ValueError(
-                    f"tracked_demands: on-site turbine {g} must be in gas_turbine_cap_gens.csv (turbines count in "
-                    f"the gas-turbine build cap)"
+                    f"tracked_demands: on-site generator {g} ({cat}) must be in gas_turbine_cap_gens.csv: the case's "
+                    f"gas-turbine cap covers {sorted(cov)}"
                 )
-            if pm == "recip" and g in m.GTC_GENS:
+            if cat not in cov and g in m.GTC_GENS:
                 raise ValueError(
-                    f"tracked_demands: on-site reciprocating engine {g} is in gas_turbine_cap_gens.csv; "
-                    f"reciprocating engines don't count in the gas-turbine build cap"
+                    f"tracked_demands: on-site generator {g} ({cat}) is in gas_turbine_cap_gens.csv, but the case's "
+                    f"gas-turbine cap covers only {sorted(cov)}"
+                )
+            if g in m.GTC_GENS and str(m.gtc_class[g]).strip() != cat:
+                raise ValueError(
+                    f"tracked_demands: on-site generator {g} has gtc_class {m.gtc_class[g]!r} in "
+                    f"gas_turbine_cap_gens.csv but category {cat!r} in tracked_demand_onsite_gens.csv"
                 )
     for tech in m.TD_ONSITE_TECHS:
         if value(m.td_onsite_tech_fuel_cost[tech]) > 0 or value(m.td_onsite_tech_emissions[tech]) > 0:
@@ -2368,6 +2384,35 @@ def _carried_file(m, switch_data, inputs_dir, name):
         if os.path.exists(chained):
             return chained
     return path
+
+
+GTC_CLASSES = ("combined_cycle", "combustion_turbine", "aeroderivative", "reciprocating_engine")
+
+
+def gtc_category(m, td, g):
+    """Gas-turbine cap category of a linked generator: td_onsite_gtc_class, else from its prime mover."""
+    cat = str(value(m.td_onsite_gtc_class[td, g])).strip()
+    if cat in ("", "."):
+        pm = str(value(m.td_onsite_prime_mover[td, g])).strip()
+        if pm == "turbine":
+            raise ValueError(
+                f"tracked_demands: on-site turbine {g} has no td_onsite_gtc_class in tracked_demand_onsite_gens.csv "
+                f"(combined_cycle, combustion_turbine or aeroderivative); the gas-turbine cap needs it"
+            )
+        cat = "reciprocating_engine" if pm == "recip" else "none"
+    if cat not in GTC_CLASSES + ("none",):
+        raise ValueError(f"tracked_demands: on-site generator {g}: td_onsite_gtc_class {cat!r} is not one of "
+                         f"{GTC_CLASSES + ('none',)}")
+    return cat
+
+
+def gtc_coverage(m):
+    """The case's gas-turbine cap coverage: tracked_demand_gtc_coverage.csv, else the classes of the case's own
+    (not linked) generators in gas_turbine_cap_gens.csv."""
+    if len(m.TD_GTC_COVERAGE):
+        return set(m.TD_GTC_COVERAGE)
+    linked = {g for _, g in m.TD_ONSITE_GENS}
+    return {str(m.gtc_class[g]).strip() for g in m.GTC_GENS if g not in linked}
 
 
 def chain_inputs(in_path, out_path, next_in_path, case_name, commit=None):
@@ -2832,8 +2877,13 @@ def load_inputs(m, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, "tracked_demand_onsite_gens.csv"),
         optional=True,
         index=m.TD_ONSITE_GENS,
-        param=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw),
-        optional_params=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw),
+        param=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw, m.td_onsite_gtc_class),
+        optional_params=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw,
+                         m.td_onsite_gtc_class),
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_gtc_coverage.csv"),
+        optional=True, set=m.TD_GTC_COVERAGE,
     )
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "tracked_demand_cap_coverage.csv"),

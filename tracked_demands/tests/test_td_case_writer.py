@@ -268,3 +268,63 @@ def test_writer_on_a_chained_stage(tmp_path):
     assert e.at["N-DC1-recip", "covered_by_cap"] == 0          # 2 MW unit < 25 MWe
     assert e.at["N-DC1-aero", "covered_by_cap"] == 1           # 30 MW unit >= 25 MWe; export 0 but no exemption
     assert "below_mw_threshold" in e.at["N-DC1-recip", "coverage_reason"]
+
+
+# ------------------------------------------------------------------------------------------------ gas-turbine cap
+GTC_GENS = [_gen("g_frame", technology="frame_ct"), _gen("g_cc", technology="cc"), _gen("g_aero", technology="aero"),
+            _gen("g_titan", technology="industrial_ct"), _gen("g_recip", technology="recip"),
+            _gen("g_diesel", technology="diesel", fuel="gas"), _gen("g_fc", technology="fuel_cell")]
+
+
+def _gtc_case(tmp_path, name, form="cumulative_in_service", case_classes=("combustion_turbine",)):
+    def edit(inp):
+        pd.DataFrame([{"PERIOD": p, "gtc_max_mw": 1e6} for p in (2020, 2030)]).to_csv(
+            inp / "gas_turbine_cap.csv", index=False)
+        pd.DataFrame([{"GENERATION_PROJECT": "N-NG_GT", "gtc_class": c, "gtc_weight": 1.0}
+                      for c in case_classes]).to_csv(inp / "gas_turbine_cap_gens.csv", index=False)
+        pd.DataFrame([{"gtc_form": form, "gtc_retirements_free_room": 0, "gtc_since_year": 2025}]).to_csv(
+            inp / "gas_turbine_cap_params.csv", index=False)
+    return toyutil.toy_inputs(tmp_path, name, modules=("build_rate", "tracked_demands"), edit=edit)
+
+
+@pytest.mark.parametrize("coverage,capped", [
+    (["combined_cycle", "combustion_turbine"], {"g_frame": 1.0, "g_cc": 1.0}),
+    (["combined_cycle", "combustion_turbine", "aeroderivative"],
+     {"g_frame": 1.0, "g_cc": 1.0, "g_aero": 1.0, "g_titan": 1.0}),
+])
+def test_gas_turbine_cap_follows_the_case_coverage(tmp_path, coverage, capped):
+    """frame CT -> combustion_turbine, CC -> combined_cycle, aero and industrial CT -> aeroderivative, recip ->
+    reciprocating_engine, diesel and fuel cells never; a linked generator joins only if its category is covered."""
+    from tracked_demands.case_writer import write_case_inputs
+    run = _gtc_case(tmp_path, f"gtc{len(coverage)}")
+    out = write_case_inputs(run / "inputs", _spec(GTC_GENS, gas_turbine_cap={"coverage": coverage}),
+                            run / "inputs_td")
+    g = pd.read_csv(out / "gas_turbine_cap_gens.csv").set_index("GENERATION_PROJECT")
+    mine = g.drop("N-NG_GT")
+    assert mine["gtc_weight"].to_dict() == capped
+    assert mine.at["g_frame", "gtc_class"] == "combustion_turbine" and mine.at["g_cc", "gtc_class"] == "combined_cycle"
+    links = pd.read_csv(out / "tracked_demand_onsite_gens.csv").set_index("GENERATION_PROJECT")["td_onsite_gtc_class"]
+    assert links.to_dict() == {"g_frame": "combustion_turbine", "g_cc": "combined_cycle", "g_aero": "aeroderivative",
+                               "g_titan": "aeroderivative", "g_recip": "reciprocating_engine", "g_diesel": "none",
+                               "g_fc": "none"}
+    assert list(pd.read_csv(out / "tracked_demand_gtc_coverage.csv")["gtc_class"]) == coverage
+    # the module's run-start check accepts the written case
+    toyutil.solve(run, inputs="inputs_td", outputs="outputs_td")
+    assert (run / "outputs_td" / "gas_turbine_cap_results.csv").exists()
+
+
+def test_gas_turbine_cap_s0_production_form(tmp_path):
+    """An S0 production case (form cumulative_additions, read from the case) takes build_rate.yml's
+    allowance_coverage, which includes aeroderivative, and its class weight x nameplate factor."""
+    from tracked_demands.case_writer import write_case_inputs
+    run = _gtc_case(tmp_path, "gtcprod", form="cumulative_additions")
+    out = write_case_inputs(run / "inputs", _spec(GTC_GENS), run / "inputs_td")
+    w = pd.read_csv(out / "gas_turbine_cap_gens.csv").set_index("GENERATION_PROJECT")["gtc_weight"].drop("N-NG_GT")
+    assert w.to_dict() == pytest.approx({"g_frame": 1.090, "g_cc": 0.65 * 1.049, "g_aero": 1.090, "g_titan": 1.090})
+
+
+def test_gas_turbine_cap_settings_must_match_the_case(tmp_path):
+    from tracked_demands.case_writer import write_case_inputs
+    run = _gtc_case(tmp_path, "gtcbad", case_classes=("aeroderivative",))
+    with pytest.raises(ValueError, match=r"outside the coverage"):
+        write_case_inputs(run / "inputs", _spec(GTC_GENS[:1]), run / "inputs_td")

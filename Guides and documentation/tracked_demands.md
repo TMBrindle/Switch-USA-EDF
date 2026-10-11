@@ -1429,7 +1429,8 @@ DC1,N-DC1-recip,recip,4.5,.
 
 | Column | Default | Meaning |
 |---|---|---|
-| `td_onsite_prime_mover` | `other` | `turbine`, `recip`, `fuel_cell`, `boiler`, `other`. Turbines must be in `gas_turbine_cap_gens.csv`; reciprocating engines must not. |
+| `td_onsite_prime_mover` | `other` | `turbine`, `recip`, `fuel_cell`, `boiler`, `other` |
+| `td_onsite_gtc_class` | from the prime mover | gas-turbine cap category: `combined_cycle`, `combustion_turbine`, `aeroderivative`, `reciprocating_engine` or `none`. Not given: `reciprocating_engine` for a recip, `none` for a fuel cell, boiler or other; a turbine must give it. |
 | `td_onsite_unit_mw` | `gen_unit_size`, else rated | unit nameplate for per-unit applicability tests |
 | `td_onsite_rated_mw` | `gen_capacity_limit_mw` | rated MW for site tests and potential to emit |
 
@@ -1459,9 +1460,33 @@ matching.
 |---|---|---|
 | prm_regional | `prm_credit = none` (no reserve credit) | `prm_gen_credit.csv` |
 | interconnection_headroom | interconnection weight 0 (assumption: behind the meter, no headroom) | `ic_weights.csv` row for its `gen_tech` |
-| build_rate (gas-turbine cap on) | turbines in `gas_turbine_cap_gens.csv`; reciprocating engines not | `gas_turbine_cap_gens.csv` |
+| build_rate (gas-turbine cap on) | in `gas_turbine_cap_gens.csv` exactly when its category is in the case's cap coverage, with that `gtc_class` | `gas_turbine_cap_gens.csv`; coverage in `tracked_demand_gtc_coverage.csv` (else the classes of the case's own generators in the cap) |
 
-A run that breaks one stops with the fix to make. The case-build writer (step 2g) will write these rows.
+A run that breaks one stops with the fix to make. The case-build writer (15.9) writes these rows.
+
+**Gas-turbine cap membership follows the case's cap coverage** (refinement of D3, 12 Oct 2026; it replaces "turbines
+count, reciprocating engines don't"). Each linked generator has a category:
+
+| Technology (writer) | Category |
+|---|---|
+| `frame_ct` | `combustion_turbine` |
+| `cc` | `combined_cycle` |
+| `aero` | `aeroderivative` |
+| `industrial_ct` (small industrial CTs, Titan 130 class) | `aeroderivative` |
+| `recip` | `reciprocating_engine` |
+| `diesel`, `fuel_cell` | none (never in the cap) |
+
+It joins the cap only if that category is in the case's coverage, i.e. what `build_rate/brc/turbine_cap.py` used
+when it built the case:
+- `build_rate.gas_turbine_cap.coverage` (`[combined_cycle, combustion_turbine]` in `pg/settings/build_rate.yml`) for
+  the `cumulative_in_service` and `new_additions_per_period` forms, so the legacy cap and the S0 regression row;
+- `allowance_coverage` (`[combined_cycle, combustion_turbine, aeroderivative]`) for the `cumulative_additions` form,
+  which every S0 production case uses (`s0_production.gas_turbine_cap.form: allowance`).
+
+So on-site aeroderivatives and industrial CTs are outside the cap under the plain `coverage` list, and inside it in
+S0 production cases. Frame CTs and CCs are in it under both. A covered generator takes the weight the case gives a
+new build of its class (cumulative_additions: class weight × the new-build nameplate factor, e.g. CT 1.090, CC
+0.65 × 1.049; other forms: 1, or the turbine share for CC with `cc_accounting: turbine_share`).
 
 Private on-site techs (`tracked_demand_onsite_techs.csv`) stay for non-fuel plant (solar, wind, geothermal); one with
 a fuel cost or emissions prints a warning.
@@ -1690,7 +1715,8 @@ It also gives the case's `CO2_PROGRAM` names mapped to rule families. From the c
 | energy-source / fuel names | `gen_info.csv` (e.g. solar → `sun`) and the fuel the zone's existing gas plant burns |
 | tax credits | `gen_tax_credits.csv` (pg_to_switch's `tax_credit_values`, by period), matched on `tax_credit_key`; a spec `tax_credit_values` block overrides |
 | zone upgrade $/kW | ReEDS conventional reinforcement median (`interconnection_headroom/data/reference/reeds_reinforcement_by_zone.csv`, 2024$) |
-| reserve credit, ic weight, gas-turbine cap | rows added to `prm_gen_credit.csv`, `ic_weights.csv`, `gas_turbine_cap_gens.csv` when present |
+| reserve credit, ic weight | rows added to `prm_gen_credit.csv`, `ic_weights.csv` when present |
+| gas-turbine cap | the case's coverage and form: `build_rate.gas_turbine_cap` in the spec's `build_rate_settings` file (default `pg/settings/build_rate.yml`), the spec's `gas_turbine_cap:` keys over it, and the form from the case's `gas_turbine_cap_params.csv`. Covered linked generators go into `gas_turbine_cap_gens.csv`; the coverage goes into `tracked_demand_gtc_coverage.csv`. A class already in the case's file but outside that coverage stops the writer (wrong settings file). |
 | zone states (NY rule) | `hierarchy.csv` |
 
 `tracked_demands_scenario_options.txt` gives the option to add (`--include-module study_modules.tracked_demands`,
@@ -1705,9 +1731,11 @@ are kept.
 
 **Unit commitment of linked generators.** Each generator's `uc:` block sets `min_load_fraction`, `min_uptime`,
 `min_downtime`, `startup_om`, `startup_fuel`, `ramp_limit_up` and `ramp_limit_down` (Switch's `gen_` columns). A
-field left out takes the default for its `technology` (`recip`, `aero`, `frame_ct`, `fuel_cell`, `diesel`) from
-`tracked_demands/data/onsite_uc_defaults.yml`, or stays unset (Switch's default), and the log says so with a
-WARNING. Only `frame_ct` is sourced (the repo's PowerGenome combustion-turbine rows); the rest are placeholders.
+field left out takes the default for its `technology` (`recip`, `aero`, `industrial_ct`, `frame_ct`, `cc`,
+`fuel_cell`, `diesel`) from `tracked_demands/data/onsite_uc_defaults.yml`, or stays unset (Switch's default), and the
+log says so with a WARNING. Only `frame_ct` and `cc` are sourced (the repo's PowerGenome combustion-turbine and
+combined-cycle rows); the rest are placeholders. The technology also sets the gas-turbine cap category (15.1); the
+spec's old `gtc_class` / `gtc_weight` keys are ignored with a warning.
 Nothing is copied from existing plants.
 
 **Limited-export exemption.** It is off in every rule family; turn it on per programme in the spec:

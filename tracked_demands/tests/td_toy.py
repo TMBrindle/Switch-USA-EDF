@@ -130,7 +130,7 @@ def csv(inp: Path, name: str, rows):
 
 def add_onsite_gen(inp: Path, name="N-DC1-gas", td="DC1", zone="North", tech="TD_gas_recip", prime_mover="recip",
                    heat_rate=9.0, overnight=900000.0, cap_limit=".", unit_size=".", unit_mw=".", rated_mw=".",
-                   variable_om=5.0):
+                   variable_om=5.0, gtc_class=None):
     """Append an on-site gas generator to gen_info.csv / gen_build_costs.csv and link it to `td`."""
     inp = Path(inp)
     gi = pd.read_csv(inp / "gen_info.csv", na_values=".")
@@ -157,7 +157,8 @@ def add_onsite_gen(inp: Path, name="N-DC1-gas", td="DC1", zone="North", tech="TD
     links = pd.read_csv(f) if f.exists() else pd.DataFrame()
     links = pd.concat([links, pd.DataFrame([{"TRACKED_DEMAND": td, "GENERATION_PROJECT": name,
                                              "td_onsite_prime_mover": prime_mover, "td_onsite_unit_mw": unit_mw,
-                                             "td_onsite_rated_mw": rated_mw}])])
+                                             "td_onsite_rated_mw": rated_mw,
+                                             **({"td_onsite_gtc_class": gtc_class} if gtc_class else {})}])])
     links.to_csv(f, index=False, na_rep=".")
 
 

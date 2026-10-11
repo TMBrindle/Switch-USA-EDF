@@ -3925,7 +3925,8 @@ spec #10 and §5.12, register §6 and open item 5).
    - reserve credit `prm_credit = none` (prm_regional);
    - interconnection weight 0, through `ic_weights.csv` on the generator's `gen_tech` (assumption: behind the
      meter, no headroom);
-   - in the gas-turbine build cap: turbines must be in `gas_turbine_cap_gens.csv`, reciprocating engines must not.
+   - in the gas-turbine build cap: turbines must be in `gas_turbine_cap_gens.csv`, reciprocating engines must not
+     (refined 12 Oct: membership follows the case's cap coverage; see the end of this section).
 
    No edits to prm_regional, interconnection_headroom or build_rate.
 4. **Cap coverage.** `tracked_demand_cap_coverage.csv`, per `CO2_PROGRAM`:
@@ -4126,7 +4127,8 @@ untouched.
   technology contains the key (pg_to_switch's substring rule); conflicting values stop the writer. A spec
   `tax_credit_values` block overrides it. This replaces hand-set subsidies.
 - **Linked generators** are added to `gen_info` / `gen_build_costs` (template: the zone's gas plant), with
-  `prm_credit none`, ic weight 0, and gas-turbine-cap membership for turbines when those files exist.
+  `prm_credit none`, ic weight 0, and gas-turbine-cap membership for turbines when those files exist (refined 12
+  Oct: by the case's cap coverage; see the end of this section).
 - **Zone upgrade cost** is ReEDS conventional reinforcement, median $/kW (2024$), unless the spec gives one.
 - **Cap coverage** comes from `tracked_demand_cap_coverage.csv` and the state overrides, mapped from
   `tracked_demands/data/cap_coverage_rules.yml` (RGGI, VA, CA, WA, cited) to the case's `CO2_PROGRAM` names. Zone
@@ -4175,3 +4177,41 @@ stage):
      RGGI's 25 MWe, 30 MW aero covered).
 
 `tracked_demands/tests`: 102 passed on pandas 3.0.6 (Python 3.11) and 1.4.4 (Python 3.10).
+
+**(g) Gas-turbine cap membership follows the case's cap coverage** (12 Oct; Tom's refinement of decision D3, recorded
+in the decisions register). It replaces "turbines count, reciprocating engines don't".
+1. **Categories.** The writer maps each linked generator's `technology` to a build_rate class:
+   - `frame_ct` → combustion_turbine; `cc` (new) → combined_cycle;
+   - `aero` and `industrial_ct` (new: small industrial CTs, Titan 130 class) → aeroderivative;
+   - `recip` → reciprocating_engine;
+   - `diesel` and `fuel_cell` → none.
+
+   `onsite_uc_defaults.yml` gains `cc` (the repo's PowerGenome combined-cycle rows: 0.3 min load, 6 h up/down, 0.64
+   ramp) and `industrial_ct` (placeholder, the CT values).
+2. **Coverage from the case.** A linked generator joins `gas_turbine_cap_gens.csv` only if its category is in the
+   case's coverage, as `build_rate/brc/turbine_cap.py` resolved it:
+   - inputs: `build_rate.gas_turbine_cap` from the spec's `build_rate_settings` (default
+     `pg/settings/build_rate.yml`), the spec's `gas_turbine_cap:` keys, and the case's form
+     (`gas_turbine_cap_params.csv`), through `turbine_cap.gtc_settings`;
+   - forms `cumulative_in_service` / `new_additions_per_period` use `coverage` ([combined_cycle,
+     combustion_turbine]); `cumulative_additions`, which every S0 production case uses, uses `allowance_coverage`
+     ([combined_cycle, combustion_turbine, aeroderivative]);
+   - so on-site aero and industrial CTs are outside the cap under `coverage` and inside it in S0 production cases.
+     Frame CT and CC are in under both.
+
+   A covered generator takes the weight the case gives a new build of its class (class weight × new-build nameplate
+   factor under cumulative_additions: CT 1.090, CC 0.682). A class in the case's file outside the resolved coverage
+   stops the writer (the settings aren't the case's). The spec's `gtc_class` / `gtc_weight` are ignored with a
+   warning. The writer also writes `tracked_demand_gtc_coverage.csv` and each link's `td_onsite_gtc_class`.
+3. **Run-start check** (`pre_solve`): with the cap on, a linked generator is in `GTC_GENS` exactly when its category
+   (`td_onsite_gtc_class`, else from the prime mover; a turbine must give one) is in the coverage
+   (`tracked_demand_gtc_coverage.csv`, else the classes of the case's own generators in the cap), with a matching
+   `gtc_class`.
+4. **Tests:**
+   - module (`test_td_onsite_gens.py`): membership in and out, wrong class, a turbine without a class, and an
+     aeroderivative under coverage with and without aeroderivative (4 cases);
+   - writer (`test_td_case_writer.py`): all seven technologies under coverage with and without aeroderivative (the
+     written case solves); the S0 production form reading `allowance_coverage` and its weights; settings that
+     don't match the case.
+
+   No shared files changed. `tracked_demands/tests`: 110 passed on pandas 3.0.6 (Python 3.11) and 1.4.4 (Python 3.10).
