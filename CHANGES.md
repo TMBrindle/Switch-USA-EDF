@@ -4063,3 +4063,17 @@ Results after (b): `tracked_demands/tests` 49 passed, 1 xfailed on pandas 3.0.6 
 
 s0_workflow's PRM, foresight, chain-reuse, light-stress, forced-tx-chain, CA/WA and RGGI tests: 76 passed on both
 versions.
+
+**(e) Tracked load in gen_zone_ratio** (SHARED_CHANGES #114). The load side of every zone and group ratio and hourly
+share now adds each tracked demand's zone withdrawal: grid draw − export + its linked on-site generators. This
+matches the generation side, which already counts those generators as zone generation. Private on-site techs
+(e.g. on-site solar) are on neither side.
+- **Mechanism:** gen_zone_ratio declares a placeholder (`GenRatioTrackedLoadMW`, a named expression, 0) only when
+  `tracked_demands` is on the module list. The tracked-demands module fills it once its components exist (it is
+  built after gen_zone_ratio).
+- **Unloaded:** with the module off the list, nothing is declared and the rules are unchanged; byte-identical on a
+  binding toy.
+- **Tests** (`test_td_zone_ratio.py`):
+  - the summary's load rises by exactly the tracked withdrawal;
+  - a max annual ratio holds;
+  - a binding hourly max share counts the tracked load, allowing generation above 0.9 × demand alone.

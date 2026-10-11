@@ -100,6 +100,15 @@ def define_components(m):
         doc="Max in-zone gen share of contemporaneous load at every timepoint.",
     )
 
+    # ── Tracked demands (CHANGES §108 (e)) ───────────────────────────────────
+    # When the tracked-demands module is on the module list, the load side also
+    # counts each tracked demand's zone withdrawal (grid draw - export + its
+    # linked on-site generators), consistent with the generation side, which
+    # counts those generators. The module is built after this one, so this is a
+    # placeholder (0) that it fills; without it nothing here changes.
+    if _tracked_demands_listed(m):
+        m.GenRatioTrackedLoadMW = Expression(m.LOAD_ZONES, m.TIMEPOINTS, initialize=0.0)
+
     # ── Expressions ──────────────────────────────────────────────────────────
     m.ZoneAnnualGenMWh = Expression(
         m.LOAD_ZONES, m.PERIODS,
@@ -113,7 +122,7 @@ def define_components(m):
     m.ZoneAnnualLoadMWh = Expression(
         m.LOAD_ZONES, m.PERIODS,
         rule=lambda m, z, p: sum(
-            m.zone_demand_mw[z, t] * m.tp_weight_in_year[t]
+            _load_mw(m, z, t) * m.tp_weight_in_year[t]
             for t in m.TPS_IN_PERIOD[p]
         ),
         doc="Annual load (MWh/yr) in a load zone in a period.",
@@ -164,7 +173,7 @@ def define_components(m):
             return Constraint.Skip
         return (
             m.ZoneTimeGenMW[z, t]
-            >= m.gen_zone_min_peak_share[z, m.tp_period[t]] * m.zone_demand_mw[z, t]
+            >= m.gen_zone_min_peak_share[z, m.tp_period[t]] * _load_mw(m, z, t)
         )
 
     m.Zone_Min_Peak_Share = Constraint(
@@ -178,7 +187,7 @@ def define_components(m):
             return Constraint.Skip
         return (
             m.ZoneTimeGenMW[z, t]
-            <= m.gen_zone_max_peak_share[z, m.tp_period[t]] * m.zone_demand_mw[z, t]
+            <= m.gen_zone_max_peak_share[z, m.tp_period[t]] * _load_mw(m, z, t)
         )
 
     m.Zone_Max_Peak_Share = Constraint(
@@ -265,7 +274,7 @@ def define_components(m):
     m.GroupTimeLoadMW = Expression(
         m.GEN_RATIO_GROUPS, getattr(m, "OP_TIMEPOINTS", m.TIMEPOINTS),
         rule=lambda m, g, t: sum(
-            m.zone_demand_mw[z, t] for z in m.ZONES_IN_GEN_RATIO_GROUP[g]
+            _load_mw(m, z, t) for z in m.ZONES_IN_GEN_RATIO_GROUP[g]
         ),
         doc="Total load (MW) summed across all zones in a group at each timepoint.",
     )
@@ -327,6 +336,17 @@ def define_components(m):
         rule=group_max_peak_rule,
         doc="Group gen must not exceed max_peak_share of group load at any timepoint.",
     )
+
+
+def _tracked_demands_listed(m):
+    return any(str(name).split(".")[-1] == "tracked_demands" for name in getattr(m, "module_list", ()))
+
+
+def _load_mw(m, z, t):
+    """Load (MW) of zone z at t: zone_demand_mw, plus the tracked demands' withdrawal when that module is loaded."""
+    if hasattr(m, "GenRatioTrackedLoadMW"):
+        return m.zone_demand_mw[z, t] + m.GenRatioTrackedLoadMW[z, t]
+    return m.zone_demand_mw[z, t]
 
 
 def _load_constraint_csv(switch_data, path, param_map):
@@ -524,8 +544,8 @@ def post_solve(m, outputs_dir):
             max_ps = value(m.gen_zone_max_peak_share[z, p])
 
             shares = [
-                value(m.ZoneTimeGenMW[z, t]) / value(m.zone_demand_mw[z, t])
-                if value(m.zone_demand_mw[z, t]) else None
+                value(m.ZoneTimeGenMW[z, t]) / value(_load_mw(m, z, t))
+                if value(_load_mw(m, z, t)) else None
                 for t in m.TPS_IN_PERIOD[p]
                 if t not in getattr(m, "LIGHT_TPS", ())
             ]

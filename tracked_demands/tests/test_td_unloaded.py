@@ -34,6 +34,7 @@ SHARED_EDITS = {
     "switch/study_modules/carbon_policies_regional.py": (111, ("carbon_policies_regional",), "carbon"),
     "switch/study_modules/prepare_next_stage.py": (112, (), "chain"),
     "switch/study_modules/prm_regional.py": (113, (), "prm"),
+    "switch/study_modules/gen_zone_ratio.py": (114, ("gen_zone_ratio",), "ratio"),
 }
 GITIGNORE_ADDED = {"!tracked_demands/", "!tracked_demands/**", "tracked_demands/outputs/"}
 
@@ -80,6 +81,10 @@ def test_shared_edits_have_their_row():
 
 def _toy_edit(kind):
     def edit(inp):
+        if kind == "ratio":
+            # binding annual and hourly ratio limits on North
+            pd.DataFrame([{"LOAD_ZONE": "North", "PERIOD": p, "max_annual_ratio": 0.9, "min_peak_share": 0.6}
+                          for p in (2020, 2030)]).to_csv(inp / "gen_zone_load_ratio.csv", index=False)
         if kind == "carbon":
             # a binding hard cap on North, so the cap row and its dual shape the solution
             pd.DataFrame([{"CO2_PROGRAM": "RGGI", "PERIOD": p, "LOAD_ZONE": "North",

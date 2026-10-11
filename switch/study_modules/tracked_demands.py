@@ -1913,6 +1913,11 @@ def define_components(m):
 
     m.TDCapCoverage = BuildAction(rule=_apply_cap_coverage)
 
+    # gen_zone_ratio's load side (§108 (e)): fill its placeholder with each
+    # zone's tracked-demand withdrawal, net of export and including linked
+    # generators (which gen_zone_ratio counts as zone generation).
+    m.TDGenRatioLoad = BuildAction(rule=_fill_gen_ratio_load)
+
 
 # ── Stage 12 helpers: cap coverage ────────────────────────────────────────────
 
@@ -2053,6 +2058,14 @@ def _state_mw_threshold(m, td, g, pr, gens, th_mw):
     if at_source or two_units:
         return over, f", {st} rule: {'site is a budget source' if at_source else 'two or more units'}"
     return th_mw, f", {st} rule not met"
+
+
+def _fill_gen_ratio_load(m):
+    if not hasattr(m, "GenRatioTrackedLoadMW"):
+        return
+    for z in m.LOAD_ZONES:
+        for t in m.TIMEPOINTS:
+            m.GenRatioTrackedLoadMW[z, t].set_value(m.TDGridDrawByZone[z, t])
 
 
 def _apply_cap_coverage(m):
