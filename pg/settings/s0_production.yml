@@ -321,12 +321,6 @@ s0_production:
   #           Prices: 2024$/metric t by model year, linear between keys, held after 2045. CARB calls them scenario
   #           assumptions, not market projections.
   #   legacy  the presets' $33.43 and no import cost (the regression case)
-  # v3.2 flag (CHANGES §100): the battery storage credit (48E ITC).
-  #   flat   (v3.1) the tax_credits axis's x0.7 battery capex multiplier (atb_modifiers.batteries) in every period
-  #   obbba  that credit moves to the credit writer (s0_workflow/tax_credits.py, an investment term): new-build
-  #          battery capex x (1 - 0.30 x phase), phase 1 for build years through 2033, then 0.75 (2034), 0.5 (2035),
-  #          0 (2036 on). phase_basis: period_label (the period's label year, as the production credits) or
-  #          span_mean (the mean over the period's build years, period_spans)
   # v3.2 flag (CHANGES §111): repair of the reV solar profiles zeroed in weather years 2007-2011 (5,390 sites).
   #   off             (v3.1) PowerGenome reads RESOURCE_GROUP_PROFILES (pg/settings/env.yml) as it is
   #   neighbour_fill  RESOURCE_GROUP_PROFILES = profiles_dir, a folder written by s0_workflow/scripts/repair_pv_profiles.py
@@ -338,10 +332,18 @@ s0_production:
     profiles_dir: ~                # e.g. pg_data/profiles_pvfix
     verify: manifest
 
+  # v3.2 flag (CHANGES §100): the battery storage credit (48E ITC).
+  #   flat   (v3.1) the tax_credits axis's x0.7 battery capex multiplier (atb_modifiers.batteries) in every period
+  #   obbba  that credit moves to the credit writer (s0_workflow/tax_credits.py, an investment term): new-build
+  #          battery capex x (1 - 0.30 x phase), phase 1 for build years through 2033, then 0.75 (2034), 0.5 (2035),
+  #          0 (2036 on). phase_basis: period_label (the period's label year, as the production credits) or
+  #          span_mean (the mean over the period's build years, period_spans)
+  #          v3.2 setting (Tom, CHANGES §113): span_mean, so the 2035 stage (builds 2031-35) is x0.745 x ATB before
+  #          the tariff. It only acts when mode is obbba; mode stays flat (v3.1) until v3.2 is approved.
   storage_credit:
     mode: flat
     phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}
-    phase_basis: period_label
+    phase_basis: span_mean
   ca_wa_carbon:
     mode: linked
     path: central                  # central (CARB ISOR Jan 2026 Table 21) | low (floor) | high (Bushnell, Feb 2026)

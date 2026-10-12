@@ -4223,3 +4223,20 @@ the full record, on repaired profiles.
 *If the supply-curve CF is the outlier,* the model's p1 profiles are right after the repair and only the 118-pair
 comparison needs the basis noted. *If the profiles are DC-normalised in p1,* rescale p1's profiles by the ILR in the
 repair folder (a second, flagged repair rule).
+
+## 113. S0 v3.2: Storage Credit Phase Basis `span_mean` (Tom's Decision A)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`.
+
+**The setting:** `s0_production.storage_credit.phase_basis: span_mean` is the v3.2 setting. The code default
+(`production.STORAGE_CREDIT_DEFAULTS`) changes to match.
+- **Effect:** with `mode: obbba`, each stage's new-build battery capex uses the mean OBBBA phase over its build years.
+  The 2035 stage (2031–35) pays 1 − 0.30 × 0.85 = **0.745 × ATB** before the ×1.2 tariff. 2028 and 2030 pay 0.70;
+  2040 and 2045 pay 1.00.
+- **The flag itself is unchanged:** `mode: flat` (v3.1, ×0.7 in every period) stays the default until Tom approves v3.2,
+  so builds are unchanged.
+
+**Test:** `test_v32_setting_is_span_mean`. The regression-row resolution test lists the new value.
+
+**Also:** the storage-credit comment in `s0_production.yml` had ended up above the PV-repair block; it is back above
+its key.

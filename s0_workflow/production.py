@@ -557,7 +557,7 @@ STORAGE_CREDIT_DEFAULTS = {
     "term": "storage_itc_48e",
     "techs": ["Utility-Scale Battery Storage"],
     "phase_down": {2034: 0.75, 2035: 0.5, 2036: 0.0},  # OBBBA: full for construction starting through 2033
-    "phase_basis": "period_label",
+    "phase_basis": "span_mean",                        # Tom (§113): 2035 = mean over its build years 2031-35
 }
 BATTERY_MODIFIER = "batteries"
 

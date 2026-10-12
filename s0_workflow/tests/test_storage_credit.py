@@ -167,3 +167,15 @@ def test_credit_writer_hook_keeps_s0_tax_credits_as_v31(tmp_path):
         fn(old.stdout)(gens.copy(), ssd, b)
         assert (a / "gen_tax_credits.csv").read_text() == (b / "gen_tax_credits.csv").read_text()
         assert sorted(x.name for x in a.iterdir()) == ["gen_info.csv", "gen_tax_credits.csv"]
+
+
+def test_v32_setting_is_span_mean(tmp_path):
+    """§113 (Tom): with mode obbba and the yml's own phase basis, the 2035 stage pays 0.745 x ATB (before the tariff)."""
+    s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
+    assert s0["storage_credit"]["phase_basis"] == "span_mean" and s0["storage_credit"]["mode"] == "flat"
+    assert s0prod.STORAGE_CREDIT_DEFAULTS["phase_basis"] == "span_mean"
+    ssd = _stage_settings("obbba")                             # phase basis from the yml
+    _writer()(_gens(), tmp_path, ssd)
+    rep = pd.read_csv(tmp_path / "investment_credit_report.csv").set_index("PERIOD")
+    assert rep.at[2035, "capex_multiplier"] == pytest.approx(0.745)
+    assert rep.capex_multiplier.to_dict() == pytest.approx({2028: 0.7, 2030: 0.7, 2035: 0.745, 2040: 1.0, 2045: 1.0})
