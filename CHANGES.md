@@ -4862,3 +4862,55 @@ commit the result.
   `price_factors: {wind: null}`. That is the same v3.1 value as `config.yaml`'s.
 - The build-rate flags (§121–§125), `pv_profile_repair` and WA are already at v3.1 in the yml, so the patch doesn't
   touch them.
+
+## 131. S0 v3.2: PV Repair Without Coordinates, Neighbours by Daily Correlation
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. Fixes the VM block on runbook E (§117).
+
+**The block:** `repair_pv_profiles.py` stopped at "lat: no column 'latitude'". No coordinate source exists on the VM:
+- none of the 11 copies of `solar_lcoe_ReEDS.csv` has latitude/longitude;
+- neither does `solar_site_mapping_20240801.parquet` (CPA_ID, Site, profile_dist);
+- nor does the profile file.
+
+**Chosen: (b), a coordinate-free neighbour method (`--neighbour-method correlation`), not (a), a coordinate table.**
+- **(a) has no source in hand.** It would need reV supply-curve sc_point files (a download) and a CPA →
+  `sc_point_gid` key that can't be verified from here; a wrong key would fill from the wrong sites silently.
+  Coordinates were also only ever a proxy for what the fill needs: shared weather in the same hours.
+- **(b) uses only files the VM has** and measures shared weather directly, in the years where the zeroed sites have
+  data (2012–13).
+- **(b) has a precedent:** the dashboards chose p1 block-0 neighbours the same way (`p1_block0_vs_neighbours.csv`,
+  fd4a3a1). Their profile correlations were 0.83–0.86, and their 2012–13 levels were within 2% (median ratio 0.98).
+
+**The method (`pv_profile_repair.plan_correlation`):**
+- **Neighbour:** for each zeroed site-year, the site in the same zone whose daily output over 2012–13 (730 days)
+  correlates best (Pearson) with the zeroed site's own, among sites with data in that weather year and in both
+  reference years.
+- **Fallback:** if the zone has no such site, the best-correlated site anywhere (status `filled outside zone`, counted
+  in the manifest).
+- **Scale and clip:** unchanged. The 2012–13 mean ratio, clipped to [0, 1].
+- **Why daily sums:** the diurnal shape is common to every site, so hourly correlation is inflated by it; the day-to-day
+  variation carries the shared clouds. 730 × 68,923 values also fit in memory, where the 17,520 hourly rows would need
+  4.8 GB.
+- **Implementation:** `scan` collects the daily sums in the same pass.
+- **Sites table** (`repair_pv_profiles.sites_zone_from`): site, zone, capacity_mw.
+  - Zone = the zone holding most of the site's CPA MW. `zones` counts the zones a site spans.
+  - Built from the CPA metadata (`--region-col`, default `ipm_region`) and the site mapping.
+
+**Manifest and log:**
+- The manifest records `neighbour_method` and `neighbour_basis`, plus correlation quantiles and site-years filled
+  outside their zone in `fill_summary`.
+- The log has `correlation` and `scope` columns.
+- `distance` remains the default method and is unchanged.
+
+**Runbook (`README_pv_repair.md`):**
+- Uses the correlation method, with output to the dashboards' scratch folder, `--hash` and `--no-links` (copies).
+- Pass checks for the correlation fields: `correlation_p10` ≥ 0.8, review below 0.6, any fill outside the zone
+  reviewed.
+
+**Tests (`test_pv_profile_repair.py`):**
+- The same-zone, same-weather neighbour is chosen over a better-correlated site in another zone.
+- The daily sums equal the hourly data summed by day.
+- Fills outside the zone.
+- Errors for a missing zone column and an unknown method.
+- `sites_zone_from` (majority-MW zone).
+- The CLI end to end with `--hash --no-links`.

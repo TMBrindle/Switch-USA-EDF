@@ -204,3 +204,89 @@ def test_cli_sites_default_columns():
     assert s.at["5", "latitude"] == 41.0 and s.at["5", "capacity_mw"] == 0.0               # plain mean at 0 MW
     with pytest.raises(SystemExit, match="no column 'cpa_mw'"):
         cli.sites_from(meta.rename(columns={"CPA_MW": "mw"}), sm)
+
+
+# ---- §131: neighbours by daily correlation (no coordinates) ----
+
+HC = 24 * 20                              # 20 days per "weather year"
+
+
+def _corr_profiles(tmp_path):
+    """Zone A: weather groups x and y (sites share their group's daily cloud factor); zone B: weather x. Site a1 (group
+    x) is zero 2007-11; its best donor is a2 (group x, zone A), not a3 (group y, zone A) nor b1 (group x, zone B, a
+    closer match but another zone). Site a9 (zone A) is zero in 2007 and the only other zone-A sites lack 2007 too, so
+    it is filled outside its zone."""
+    rng = np.random.default_rng(3)
+    day = np.clip(np.sin(np.linspace(0, np.pi, 24)), 0, None)
+    weather = {g: rng.uniform(0.2, 1.0, 7 * 20) for g in ("x", "y")}
+
+    def prof(g, f, noise):
+        cloud = weather[g] * rng.uniform(1 - noise, 1 + noise, 7 * 20)
+        return (np.tile(day, 7 * 20) * np.repeat(cloud, 24) * f).astype("float32")
+    cols = {"a1": prof("x", 0.7, 0.05), "a2": prof("x", 0.8, 0.10), "a3": prof("y", 0.8, 0.0),
+            "b1": prof("x", 0.8, 0.0)}
+    cols["a1"][: 5 * HC] = 0.0
+    src = tmp_path / "pc"
+    src.mkdir()
+    pd.DataFrame(cols).to_parquet(src / NAME, index=False, row_group_size=97)
+    sites = pd.DataFrame({"site": ["a1", "a2", "a3", "b1"], "zone": ["A", "A", "A", "B"], "capacity_mw": [10.0] * 4})
+    return src, sites, cols
+
+
+def test_correlation_neighbour_same_zone_same_weather(tmp_path):
+    src, sites, cols = _corr_profiles(tmp_path)
+    man = pr.repair_folder(src, tmp_path / "o", NAME, sites, first_year=2007, hours=HC, batch_rows=211,
+                           log=lambda m: None, neighbour_method="correlation")
+    log = pd.read_csv(tmp_path / "o" / pr.LOG, dtype={"site": str, "neighbour": str})
+    assert set(log.neighbour) == {"a2"} and (log.scope == "zone").all() and log.distance_km.isna().all()
+    assert (log.correlation > 0.9).all()
+    assert man["neighbour_method"] == "correlation" and man["zero_site_years_with_capacity_after"] == 0
+    assert man["fill_summary"]["site_years_filled_outside_zone"] == 0 and "distance_km_median" not in man["fill_summary"]
+    out = pd.read_parquet(tmp_path / "o" / NAME)
+    scale = cols["a1"][5 * HC:].mean() / cols["a2"][5 * HC:].mean()
+    np.testing.assert_allclose(out["a1"][2 * HC:3 * HC], np.clip(cols["a2"][2 * HC:3 * HC] * scale, 0, 1), rtol=1e-5)
+    json.loads((tmp_path / "o" / pr.MANIFEST).read_text())                            # strict JSON (no NaN)
+
+
+def test_correlation_daily_sums_match_hourly(tmp_path):
+    src, sites, cols = _corr_profiles(tmp_path)
+    st = pr.scan(src / NAME, list(cols), first_year=2007, hours=HC, batch_rows=211, daily_years=(2012, 2013))
+    want = cols["a3"][5 * HC:].reshape(-1, 24).sum(axis=1)
+    np.testing.assert_allclose(st["daily"]["a3"].to_numpy(), want, rtol=1e-5)
+
+
+def test_correlation_outside_zone_and_errors(tmp_path):
+    src, sites, cols = _corr_profiles(tmp_path)
+    sites = sites.assign(zone=["A", "C", "C", "B"])                  # a1 alone in zone A: filled from another zone
+    man = pr.repair_folder(src, tmp_path / "o", NAME, sites, first_year=2007, hours=HC, batch_rows=500,
+                           log=lambda m: None, neighbour_method="correlation")
+    log = pd.read_csv(tmp_path / "o" / pr.LOG, dtype={"site": str, "neighbour": str})
+    assert (log.status == "filled outside zone").all() and set(log.neighbour) <= {"a2", "b1"}
+    assert man["site_years_filled"] == 5 and man["fill_summary"]["site_years_filled_outside_zone"] == 5
+    with pytest.raises(ValueError, match="zone column"):
+        pr.repair_folder(src, tmp_path / "o2", NAME, sites.drop(columns="zone"), first_year=2007, hours=HC,
+                         log=lambda m: None, neighbour_method="correlation")
+    with pytest.raises(ValueError, match="neighbour_method"):
+        pr.repair_folder(src, tmp_path / "o3", NAME, sites, first_year=2007, hours=HC, log=lambda m: None,
+                         neighbour_method="nearest")
+
+
+def test_cli_correlation_sites_from_metadata(tmp_path):
+    from s0_workflow.scripts import repair_pv_profiles as cli
+    meta = pd.DataFrame({"CPA_ID": [1, 2, 3, 4], "ipm_region": ["p1", "p1", "p2", "p3"], "cpa_mw": [10.0, 30.0, 50.0, 0.0]})
+    sm = pd.DataFrame({"CPA_ID": [1, 2, 3, 4], "Site": [7, 7, 7, 8]})
+    s = cli.sites_zone_from(meta, sm).set_index("site")
+    assert s.at["7", "zone"] == "p2" and s.at["7", "capacity_mw"] == 90.0 and s.at["7", "zones"] == 2   # most MW
+    assert s.at["8", "zone"] == "p3" and s.at["8", "capacity_mw"] == 0.0
+    with pytest.raises(SystemExit, match="no column 'ipm_region'"):
+        cli.sites_zone_from(meta.rename(columns={"ipm_region": "zone_x"}), sm)
+    src, sites, cols = _corr_profiles(tmp_path)
+    pd.DataFrame({"CPA_ID": [1, 2, 3, 4], "region": ["A", "A", "A", "B"], "cpa_mw": [1.0] * 4}).to_csv(
+        tmp_path / "meta.csv", index=False)
+    pd.DataFrame({"CPA_ID": [1, 2, 3, 4], "Site": ["a1", "a2", "a3", "b1"]}).to_csv(tmp_path / "map.csv", index=False)
+    rc = cli.main(["--profiles-dir", str(src), "--out-dir", str(tmp_path / "out"), "--metadata", str(tmp_path / "meta.csv"),
+                   "--site-map", str(tmp_path / "map.csv"), "--region-col", "region", "--neighbour-method", "correlation",
+                   "--hours", str(HC), "--no-links", "--hash"])
+    man = json.loads((tmp_path / "out" / pr.MANIFEST).read_text())
+    assert rc == 0 and man["neighbour_method"] == "correlation" and "sha256" in man["output"]
+    assert (tmp_path / "out_sites.csv").exists()

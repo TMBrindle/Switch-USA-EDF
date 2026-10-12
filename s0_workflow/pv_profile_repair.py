@@ -8,8 +8,14 @@ neighbour_fill, for each site-year that is all zero while the site has output in
     fill = the nearest unaffected site's profile in the SAME weather year (keeping the alignment with load and wind)
            x (the site's mean over the reference years 2012-13 / the neighbour's mean over the same years),
            clipped to [0, 1] (clipped hours are counted in the log)
-Unaffected = output in every weather year and a positive reference mean. Distance: great circle between site centroids
-(sites table: site, latitude, longitude, capacity_mw).
+Unaffected = output in every weather year and a positive reference mean. The neighbour (neighbour_method):
+  distance     the nearest by great circle between site centroids (sites table: site, latitude, longitude, capacity_mw)
+  correlation  (CHANGES §131; no coordinates needed) the site in the same zone whose DAILY output over the reference
+               years correlates best with the site's own (Pearson, 730 days for 2012-13), among sites with data in that
+               weather year; if the zone has none, the best-correlated site anywhere (status "filled outside zone").
+               Sites table: site, zone, capacity_mw. Daily sums, not hours: shared clouds are what the neighbour must
+               carry, the diurnal shape is common to every site, and 730 x 68,923 values fit in memory (17,520 hourly
+               rows would be 4.8 GB).
 
 The file is processed in row batches (pyarrow), never loaded whole (about 61,320 x 64,680 values). The output keeps the
 source's schema, column order and every non-site column. A repaired profiles folder holds the repaired file under the
@@ -58,13 +64,17 @@ def _site_columns(names, sites: pd.DataFrame | None) -> list[str]:
     return [c for c in names if str(c) in keep]
 
 
-def scan(path: Path, columns: list[str], first_year=2007, hours=8760, batch_rows=2190) -> dict:
-    """Per column and weather year: max and sum. Returns {"years", "max": DataFrame, "sum": DataFrame} (year x column)."""
+def scan(path: Path, columns: list[str], first_year=2007, hours=8760, batch_rows=2190, daily_years=()) -> dict:
+    """Per column and weather year: max and sum. Returns {"years", "max": DataFrame, "sum": DataFrame} (year x column);
+    with daily_years, also "daily": daily sums over those years (day x column, float32)."""
     pq = _pq()
     f = pq.ParquetFile(path)
     years = years_of(f.metadata.num_rows, first_year, hours)
     mx = np.zeros((len(years), len(columns)))
     sm = np.zeros((len(years), len(columns)))
+    dy = [y for y in years if y in set(daily_years)]
+    dpy = hours // 24
+    daily = np.zeros((len(dy) * dpy, len(columns)), dtype=np.float32) if dy else None
     row = 0
     for b in f.iter_batches(batch_size=batch_rows, columns=columns):
         a = np.column_stack([b.column(i).to_numpy(zero_copy_only=False) for i in range(b.num_columns)])
@@ -76,10 +86,20 @@ def scan(path: Path, columns: list[str], first_year=2007, hours=8760, batch_rows
             part = a[start:start + take]
             mx[y] = np.maximum(mx[y], part.max(axis=0))
             sm[y] += part.sum(axis=0, dtype=np.float64)
+            if daily is not None and years[y] in dy:
+                h0 = (row + start) % hours
+                base = dy.index(years[y]) * dpy
+                for d in range(h0 // 24, (h0 + take - 1) // 24 + 1):
+                    lo, hi = max(d * 24, h0) - h0, min((d + 1) * 24, h0 + take) - h0
+                    daily[base + d] += part[lo:hi].sum(axis=0)
             start += take
         row += len(a)
-    return {"years": years, "max": pd.DataFrame(mx, index=years, columns=columns),
-            "sum": pd.DataFrame(sm, index=years, columns=columns), "hours": hours}
+    out = {"years": years, "max": pd.DataFrame(mx, index=years, columns=columns),
+           "sum": pd.DataFrame(sm, index=years, columns=columns), "hours": hours}
+    if daily is not None:
+        out["daily"] = pd.DataFrame(daily, columns=columns)
+        out["daily_years"] = dy
+    return out
 
 
 def zero_site_years(stats: dict, sites: pd.DataFrame | None) -> pd.DataFrame:
@@ -141,6 +161,68 @@ def plan(stats: dict, sites: pd.DataFrame, ref_years=(2012, 2013)) -> pd.DataFra
                                        "neighbour_ref_mean", "status"])
 
 
+def _standardise(a: np.ndarray) -> np.ndarray:
+    a = a - a.mean(axis=0)
+    sd = np.sqrt((a * a).sum(axis=0))
+    return a / np.where(sd > 0, sd, np.inf)
+
+
+def plan_correlation(stats: dict, sites: pd.DataFrame, ref_years=(2012, 2013)) -> pd.DataFrame:
+    """As plan(), with the neighbour chosen by daily correlation over the reference years (module docstring): same zone
+    first, then anywhere. Columns as plan()'s plus correlation and scope; distance_km is empty."""
+    mx, sm, hours = stats["max"], stats["sum"], stats["hours"]
+    if "daily" not in stats:
+        raise ValueError("correlation neighbours need scan(..., daily_years=reference years)")
+    ref = [y for y in ref_years if y in mx.index]
+    if not ref or list(stats["daily_years"]) != ref:
+        raise ValueError(f"reference years {ref_years}: daily sums cover {stats.get('daily_years')}")
+    s = sites.assign(site=sites.site.astype(str)).drop_duplicates("site").set_index("site")
+    if "zone" not in s:
+        raise ValueError("correlation neighbours need a sites table with a zone column")
+    cols = [c for c in mx.columns if str(c) in s.index]
+    zone = pd.Series({c: s.at[str(c), "zone"] for c in cols})
+    zero = mx[cols] <= 0
+    ref_mean = sm.loc[ref, cols].sum() / (hours * len(ref))
+    ref_ok = (~zero.loc[ref]).all() & (ref_mean > 0)
+    z = _standardise(stats["daily"][cols].to_numpy(np.float64))
+    pos = {c: k for k, c in enumerate(cols)}
+    donors = {int(y): np.array([bool(ref_ok[c] and not zero.at[y, c]) for c in cols]) for y in mx.index}
+    rows = []
+    targets = [c for c in cols if zero[c].any()]
+    for zn, grp in pd.Series(targets, dtype=object).groupby(zone.reindex(targets).fillna("__no_zone__").values):
+        ts = list(grp)
+        inzone = (zone == zn).to_numpy()
+        corr = z[:, [pos[c] for c in ts]].T @ z                       # targets x all sites
+        for i, c in enumerate(ts):
+            yz = [int(y) for y in zero.index[zero[c]]]
+            r = corr[i].copy()
+            r[pos[c]] = -np.inf
+            for y in yz:
+                base = {"site": str(c), "year": y, "site_ref_mean": float(ref_mean[c]), "distance_km": np.nan}
+                reason = ("all weather years zero: no reference mean" if len(yz) == len(zero.index)
+                          else f"zero in a reference year {ref}" if not ref_ok[c] else "")
+                ok = donors[y]
+                best, scope = None, ""
+                if not reason:
+                    for mask, sc in ((ok & inzone, "zone"), (ok, "outside zone")):
+                        if mask.any():
+                            k = int(np.argmax(np.where(mask, r, -np.inf)))
+                            if np.isfinite(r[k]):
+                                best, scope = cols[k], sc
+                                break
+                    if best is None:
+                        reason = f"no site with data in {y}"
+                if reason:
+                    rows.append({**base, "neighbour": None, "scale": np.nan, "neighbour_ref_mean": np.nan,
+                                 "correlation": np.nan, "scope": "", "status": "unfilled: " + reason})
+                    continue
+                rows.append({**base, "neighbour": str(best), "scale": float(ref_mean[c] / ref_mean[best]),
+                             "neighbour_ref_mean": float(ref_mean[best]), "correlation": round(float(r[pos[best]]), 4),
+                             "scope": scope, "status": "filled" if scope == "zone" else "filled outside zone"})
+    return pd.DataFrame(rows, columns=["site", "year", "neighbour", "distance_km", "correlation", "scope", "scale",
+                                       "site_ref_mean", "neighbour_ref_mean", "status"])
+
+
 def compare_with_list(fills: pd.DataFrame, zeroed: pd.DataFrame) -> dict:
     """Agreement with the dashboards' zeroed_pv_sites.csv (site, years_zero "2007;2008;..."; one row per site and zone)."""
     z = zeroed.assign(site=zeroed.site.astype(str)).drop_duplicates("site")
@@ -151,16 +233,28 @@ def compare_with_list(fills: pd.DataFrame, zeroed: pd.DataFrame) -> dict:
             "found_not_listed": sorted(f"{s}:{y}" for s, y in found - listed)[:50]}
 
 
+def filled(fills: pd.DataFrame) -> pd.Series:
+    return fills.status.astype(str).str.startswith("filled")
+
+
 def fill_summary(fills: pd.DataFrame) -> dict:
-    f = fills[fills.status == "filled"]
+    f = fills[filled(fills)]
     if f.empty:
         return {}
     uses = f.groupby("neighbour").size()
-    q = f.distance_km.quantile([0.5, 0.9, 0.99]).round(1)
-    return {"distance_km_median": float(q.loc[0.5]), "distance_km_p90": float(q.loc[0.9]),
-            "distance_km_p99": float(q.loc[0.99]), "distance_km_max": float(f.distance_km.max()),
-            "distinct_neighbours": int(uses.size), "max_site_years_from_one_neighbour": int(uses.max()),
-            "scale_median": float(f.scale.median()), "scale_min": float(f.scale.min()), "scale_max": float(f.scale.max())}
+    out = {"distinct_neighbours": int(uses.size), "max_site_years_from_one_neighbour": int(uses.max()),
+           "scale_median": float(f.scale.median()), "scale_min": float(f.scale.min()), "scale_max": float(f.scale.max()),
+           "scale_share_0.7_1.3": float(f.scale.between(0.7, 1.3).mean())}
+    if f.distance_km.notna().any():
+        q = f.distance_km.quantile([0.5, 0.9, 0.99]).round(1)
+        out.update({"distance_km_median": float(q.loc[0.5]), "distance_km_p90": float(q.loc[0.9]),
+                    "distance_km_p99": float(q.loc[0.99]), "distance_km_max": float(f.distance_km.max())})
+    if "correlation" in f and f.correlation.notna().any():
+        q = f.correlation.quantile([0.01, 0.1, 0.5]).round(4)
+        out.update({"correlation_min": float(f.correlation.min()), "correlation_p01": float(q.loc[0.01]),
+                    "correlation_p10": float(q.loc[0.1]), "correlation_median": float(q.loc[0.5]),
+                    "site_years_filled_outside_zone": int((f.scope == "outside zone").sum())})
+    return out
 
 
 def write_repaired(src: Path, out: Path, fills: pd.DataFrame, first_year=2007, hours=8760, batch_rows=2190) -> dict:
@@ -172,7 +266,7 @@ def write_repaired(src: Path, out: Path, fills: pd.DataFrame, first_year=2007, h
     names = f.schema_arrow.names
     pos = {str(n): k for k, n in enumerate(names)}
     todo = {}
-    for r in fills[fills.status == "filled"].itertuples():
+    for r in fills[filled(fills)].itertuples():
         todo.setdefault(int(r.year), []).append((pos[r.site], pos[r.neighbour], float(r.scale), r.site))
     clipped = {}
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -221,7 +315,8 @@ def sha256(p: Path, chunk=1 << 24) -> str:
 
 def repair_folder(src_dir: Path, out_dir: Path, profile_name: str, sites: pd.DataFrame, first_year=2007, hours=8760,
                   ref_years=(2012, 2013), batch_rows=2190, link_others=True, with_hash=False, log=print,
-                  zeroed: pd.DataFrame | None = None, warn_km: float = 100.0) -> dict:
+                  zeroed: pd.DataFrame | None = None, warn_km: float = 100.0, neighbour_method: str = "distance",
+                  warn_corr: float = 0.8) -> dict:
     """Write out_dir: the repaired profile file (same name), the source folder's other files (hard links, else copies),
     the fill log and the manifest. Returns the manifest."""
     src_dir, out_dir = Path(src_dir), Path(out_dir)
@@ -231,13 +326,26 @@ def repair_folder(src_dir: Path, out_dir: Path, profile_name: str, sites: pd.Dat
     out_dir.mkdir(parents=True, exist_ok=True)
     pq = _pq()
     cols = _site_columns(pq.ParquetFile(src).schema_arrow.names, sites)
-    stats = scan(src, cols, first_year, hours, batch_rows)
+    if neighbour_method not in ("distance", "correlation"):
+        raise ValueError(f"neighbour_method must be distance or correlation, not {neighbour_method!r}")
+    corr = neighbour_method == "correlation"
+    stats = scan(src, cols, first_year, hours, batch_rows, daily_years=ref_years if corr else ())
     before = zero_site_years(stats, sites)
-    fills = plan(stats, sites, ref_years)
+    fills = plan_correlation(stats, sites, ref_years) if corr else plan(stats, sites, ref_years)
     log(f"pv_profile_repair: {before.site.nunique()} sites, {len(before)} site-years all zero with capacity; "
-        f"{(fills.status == 'filled').sum()} site-years filled, {(fills.status != 'filled').sum()} unfillable")
+        f"{filled(fills).sum()} site-years filled ({neighbour_method} neighbours), {(~filled(fills)).sum()} unfillable")
     summ = fill_summary(fills)
-    if summ:
+    if summ and corr:
+        log(f"pv_profile_repair: daily correlation with the neighbour: min {summ['correlation_min']}, p1 "
+            f"{summ['correlation_p01']}, p10 {summ['correlation_p10']}, median {summ['correlation_median']}; "
+            f"{summ['site_years_filled_outside_zone']} site-years filled outside their zone; {summ['distinct_neighbours']}"
+            f" distinct neighbours, at most {summ['max_site_years_from_one_neighbour']} site-years from one; scale "
+            f"{summ['scale_min']:.3f}-{summ['scale_max']:.3f}")
+        low = fills[filled(fills) & (fills.correlation < warn_corr)]
+        if len(low):
+            log(f"pv_profile_repair: WARNING {len(low)} site-years filled from a neighbour with daily correlation below "
+                f"{warn_corr} ({low.site.nunique()} sites); see the log")
+    elif summ:
         log(f"pv_profile_repair: fill distance median {summ['distance_km_median']} km, p90 {summ['distance_km_p90']} km, "
             f"max {summ['distance_km_max']} km; {summ['distinct_neighbours']} distinct neighbours, at most "
             f"{summ['max_site_years_from_one_neighbour']} site-years from one; scale {summ['scale_min']:.3f}-"
@@ -270,8 +378,11 @@ def repair_folder(src_dir: Path, out_dir: Path, profile_name: str, sites: pd.Dat
            "source": _stat(src), "output": _stat(out_dir / profile_name),
            "first_weather_year": first_year, "hours_per_year": hours, "reference_years": list(ref_years),
            "site_years_zero_before": int(len(before)), "sites_zero_before": int(before.site.nunique()),
-           "site_years_filled": int((fills.status == "filled").sum()),
-           "site_years_unfillable": int((fills.status != "filled").sum()),
+           "neighbour_method": neighbour_method,
+           "neighbour_basis": ("daily output correlation over the reference years, same zone first" if corr
+                               else "great-circle distance between site centroids"),
+           "site_years_filled": int(filled(fills).sum()),
+           "site_years_unfillable": int((~filled(fills)).sum()),
            "zero_site_years_with_capacity_after": int(len(after)),
            "clipped_hours": int(fills.clipped_hours.sum()), "fill_summary": summ, "zeroed_list_check": agree,
            "other_files_linked": linked, "other_files_copied": copied,

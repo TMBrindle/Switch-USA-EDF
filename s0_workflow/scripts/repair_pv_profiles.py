@@ -9,7 +9,13 @@
       (builds the sites table: capacity summed and coordinates capacity-weighted over each profile site's CPAs;
       columns default to CPA_ID, Site, latitude, longitude, cpa_mw, matched case-insensitively; --*-col to change)
 
---sites: site (the profile column name), latitude, longitude, capacity_mw. The source folder is only read. The output
+  python s0_workflow/scripts/repair_pv_profiles.py ... --neighbour-method correlation \
+      --metadata pg_data/resource_groups/ReEDS-cpas-patched/solar_lcoe_ReEDS.csv \
+      --site-map pg_data/profiles/solar_site_mapping_20240801.parquet --region-col <zone column of the metadata>
+      (CHANGES §131: no coordinates; the neighbour is the same-zone site whose daily 2012-13 output correlates best)
+
+--sites: site (the profile column name), latitude, longitude, capacity_mw; with --neighbour-method correlation: site,
+zone, capacity_mw. The source folder is only read. The output
 folder gets the repaired file under its original name, hard links (else copies) of the folder's other files,
 pv_profile_repair_log.csv (one row per zeroed site-year: neighbour, distance, scale, clipped hours, status) and
 pv_profile_repair_manifest.json. Then set s0_production.pv_profile_repair: {mode: neighbour_fill, profiles_dir: <out>}.
@@ -31,6 +37,23 @@ def _col(df: pd.DataFrame, name: str, what: str) -> str:
     if name.lower() not in m:
         raise SystemExit(f"{what}: no column {name!r}; columns are {list(df.columns)[:40]}; pass --{what}-col")
     return m[name.lower()]
+
+
+def sites_zone_from(metadata: pd.DataFrame, site_map: pd.DataFrame, cpa="CPA_ID", site="Site", region="ipm_region",
+                    cap="cpa_mw") -> pd.DataFrame:
+    """Profile sites for the correlation method: capacity summed over each site's CPAs; zone = the zone holding most of
+    the site's CPA MW (the first zone by CPA count where the MW sum is 0)."""
+    mc, mr, mcap = _col(metadata, cpa, "cpa"), _col(metadata, region, "region"), _col(metadata, cap, "cap")
+    sc, ss = _col(site_map, cpa, "cpa"), _col(site_map, site, "site")
+    m = metadata[[mc, mr, mcap]].rename(columns={mc: "cpa", mr: "zone", mcap: "mw"}).merge(
+        site_map[[sc, ss]].rename(columns={sc: "cpa", ss: "site"}), on="cpa")
+    m["w"] = m.mw.clip(lower=0)
+    by = m.groupby(["site", "zone"]).agg(w=("w", "sum"), n=("cpa", "size")).reset_index()
+    by = by.sort_values(["site", "w", "n"], ascending=[True, False, False])
+    zone = by.drop_duplicates("site").set_index("site").zone
+    out = pd.DataFrame({"zone": zone, "capacity_mw": m.groupby("site").w.sum().reindex(zone.index),
+                        "zones": by.groupby("site").zone.nunique().reindex(zone.index)})
+    return out.reset_index().assign(site=lambda d: d.site.astype(str))
 
 
 def sites_from(metadata: pd.DataFrame, site_map: pd.DataFrame, cpa="CPA_ID", site="Site", lat="latitude",
@@ -61,8 +84,13 @@ def main(argv=None):
     ap.add_argument("--sites", type=Path)
     ap.add_argument("--metadata", type=Path)
     ap.add_argument("--site-map", type=Path)
-    for k, d in (("cpa", "CPA_ID"), ("site", "Site"), ("lat", "latitude"), ("lon", "longitude"), ("cap", "cpa_mw")):
+    for k, d in (("cpa", "CPA_ID"), ("site", "Site"), ("lat", "latitude"), ("lon", "longitude"), ("cap", "cpa_mw"),
+                 ("region", "ipm_region")):
         ap.add_argument(f"--{k}-col", default=d)
+    ap.add_argument("--neighbour-method", choices=["distance", "correlation"], default="distance",
+                    help="distance: nearest site (needs coordinates); correlation: best daily 2012-13 correlation in "
+                         "the same zone (no coordinates; CHANGES §131)")
+    ap.add_argument("--warn-corr", type=float, default=0.8, help="correlation method: warn below this")
     ap.add_argument("--zeroed", type=Path, help="zeroed_pv_sites.csv (data/rev-cf-mismatch): cross-check the fills")
     ap.add_argument("--warn-km", type=float, default=100.0)
     ap.add_argument("--first-year", type=int, default=2007)
@@ -76,13 +104,17 @@ def main(argv=None):
         sites = pd.read_csv(a.sites, dtype={"site": str})
     elif a.metadata and a.site_map:
         rd = lambda p: pd.read_parquet(p) if str(p).endswith(".parquet") else pd.read_csv(p)  # noqa: E731
-        sites = sites_from(rd(a.metadata), rd(a.site_map), a.cpa_col, a.site_col, a.lat_col, a.lon_col, a.cap_col)
+        if a.neighbour_method == "correlation":
+            sites = sites_zone_from(rd(a.metadata), rd(a.site_map), a.cpa_col, a.site_col, a.region_col, a.cap_col)
+        else:
+            sites = sites_from(rd(a.metadata), rd(a.site_map), a.cpa_col, a.site_col, a.lat_col, a.lon_col, a.cap_col)
         sites.to_csv(a.out_dir.with_name(a.out_dir.name + "_sites.csv"), index=False)
     else:
         ap.error("give --sites, or --metadata and --site-map with the column names")
     man = pr.repair_folder(a.profiles_dir, a.out_dir, a.profile, sites, a.first_year, a.hours, tuple(a.ref_years),
                            a.batch_rows, link_others=not a.no_links, with_hash=a.hash,
-                           zeroed=pd.read_csv(a.zeroed, dtype={"site": str}) if a.zeroed else None, warn_km=a.warn_km)
+                           zeroed=pd.read_csv(a.zeroed, dtype={"site": str}) if a.zeroed else None, warn_km=a.warn_km,
+                           neighbour_method=a.neighbour_method, warn_corr=a.warn_corr)
     return 0 if man["zero_site_years_with_capacity_after"] == 0 else 1
 
 
