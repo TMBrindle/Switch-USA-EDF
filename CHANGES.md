@@ -3918,3 +3918,18 @@ pandas 3.0.6 and 1.4.4; Stage 1 outputs reproduce byte-identically on 1.4.4.
 `upstream --hold-year` (builds the path from `zone_basin_shares.csv` on the fly). The output gains `share_method`.
 The guide records the caveat that 2030 (and partly 2028) shares include NGMM's 2028–30 builds (+6.1 Bcf/d by 2030).
 Committed outputs unchanged (default 2030). Tests: 39 (1 new), pandas 3.0.6 and 1.4.4.
+
+**Fix (2026-10-12, VM report on the first real run at ac7bcac; same section).** `upstream.gas_burn` read
+`dispatch.csv` with `usecols` and renamed by position; pandas returns usecols in file order, and S0 v3.1's
+`dispatch.csv` has `tp_weight_in_year_hrs` before `period`, so the period took the hour weight and fuel use was
+weighted ~100× too high, silently. `GenFuelUseRate.csv` was also renamed by position (in `upstream.py` and
+`report.py`).
+- All model-output columns are now selected and renamed by header name (`report.read_named`), with a clear error
+  naming any missing column; the tracked-demand file likewise.
+- New sanity warnings by period: gas heat rate outside 5–15 MMBtu/MWh; non-CCS CO2 intensity outside
+  0.050–0.056 tCO2/MMBtu.
+- Tests: 41 (2 new: S0 column order with extra columns gives the same result as the standard order, no warning on
+  plausible data; missing column error and the sanity warning). The ac7bcac code, run on the S0-order test file,
+  reports period 4380 — the bug reproduced.
+- No other positional renames of model outputs in `gasnet/`; the remaining positional reads are of pinned EIA/AEO
+  workbooks (`capacity.py`, `eia.py`, `aeo.py`) with fixed, sha256-checked layouts.

@@ -141,3 +141,53 @@ def test_hold_year_option(tmp_path):
     assert set(z24.share_method) == {"constrained_pipe_hold_2024"} and set(z30.share_method) == {"trace_aeo_additive_balanced"}
     assert not np.allclose(z24.total_tch4.values, z30.total_tch4.values)
     assert z30.total_tch4.values == pytest.approx(run(2030).total_tch4.values)
+
+
+def _realistic(tmp_path, name, permuted):
+    """Plausible plant data (7 MMBtu/MWh, 0.05306 tCO2/MMBtu). permuted: S0 v3.1 dispatch.csv order (weight before
+    period), extra columns, and GenFuelUseRate.csv with the value column first."""
+    d = tmp_path / name
+    d.mkdir()
+    rows = []
+    for g, z, mw in (("g1", "p99", 100.0), ("g2", "p10", 50.0)):
+        for t in ("1", "2"):
+            rows.append(dict(generation_project=g, gen_dbid=g, gen_tech="CC", gen_load_zone=z,
+                             gen_energy_source="naturalgas", timestamp=t, tp_weight_in_year_hrs=W, period=2030,
+                             DispatchGen_MW=mw, Energy_GWh_typical_yr=mw * W / 1000, VariableCost_per_yr=1.0,
+                             DispatchEmissions_tCO2_per_typical_yr=7 * mw * W * 0.05306, GenCapacity_MW=2 * mw))
+    disp = pd.DataFrame(rows)
+    fu = pd.DataFrame({"GEN_TP_FUELS_1": disp.generation_project, "GEN_TP_FUELS_2": disp.timestamp,
+                       "GEN_TP_FUELS_3": "naturalgas", "GenFuelUseRate": 7 * disp.DispatchGen_MW})
+    if not permuted:
+        disp = disp[["generation_project", "timestamp", "gen_load_zone", "period", "tp_weight_in_year_hrs",
+                     "Energy_GWh_typical_yr", "DispatchEmissions_tCO2_per_typical_yr"]]
+    else:   # Switch writes dispatch.csv with index (generation_project, timestamp) first, then the record order
+        disp = disp[["generation_project", "timestamp"] + [c for c in disp if c not in ("generation_project", "timestamp")]]
+        fu = fu[["GenFuelUseRate", "GEN_TP_FUELS_3", "GEN_TP_FUELS_1", "GEN_TP_FUELS_2"]].assign(extra=1)
+    disp.to_csv(d / "dispatch.csv", index=False)
+    fu.to_csv(d / "GenFuelUseRate.csv", index=False)
+    return d
+
+
+def test_column_order_and_extra_columns_do_not_matter(tmp_path):
+    kw = dict(share_paths=["aeo"], bases=["measured"], methane_paths=["current_rules"], write=False)
+    a = upstream.upstream(_realistic(tmp_path, "std", False), load_config(), **kw)
+    b = upstream.upstream(_realistic(tmp_path, "s0", True), load_config(), **kw)
+    cols = ["gas_mmbtu", "gas_mwh", "stack_tco2", "total_tch4", "kg_ch4_per_mwh"]
+    pd.testing.assert_frame_equal(a["by_zone"][cols], b["by_zone"][cols])
+    va = b["by_zone"][(b["by_zone"].zone == "p99") & (b["by_zone"].level == "central")].iloc[0]
+    assert va.period == 2030 and va.gas_mmbtu == pytest.approx(7 * 100 * W * 2)
+    assert va.gas_mmbtu / va.gas_mwh == pytest.approx(7.0)
+    assert a["flags"] == [] and b["flags"] == []                               # plausible: no sanity warning
+
+
+def test_missing_column_and_sanity_warning(tmp_path):
+    d = _realistic(tmp_path, "x", True)
+    disp = pd.read_csv(d / "dispatch.csv").drop(columns=["period"])
+    disp.to_csv(d / "dispatch.csv", index=False)
+    with pytest.raises(ValueError, match=r"expected column\(s\) \['period'\]"):
+        upstream.upstream(d, load_config(), write=False)
+    with pytest.warns(UserWarning, match="heat rate"):                        # the toy case: 43.8 MMBtu/MWh
+        r = upstream.upstream(_toy(tmp_path), load_config(), share_paths=["aeo"], bases=["measured"],
+                              methane_paths=["current_rules"], write=False)
+    assert any("heat rate" in f for f in r["flags"]) and any("CO2 intensity" in f for f in r["flags"])

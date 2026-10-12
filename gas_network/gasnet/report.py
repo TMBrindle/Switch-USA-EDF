@@ -14,13 +14,25 @@ from pathlib import Path
 import pandas as pd
 
 
+FUEL_USE_COLS = {"GEN_TP_FUELS_1": "gen", "GEN_TP_FUELS_2": "tp", "GEN_TP_FUELS_3": "fuel",
+                 "GenFuelUseRate": "mmbtu_per_h"}      # Switch save_generic_results headers: <set>_<i>, <var>
+
+
+def read_named(path: Path, cols: dict, str_cols=()) -> pd.DataFrame:
+    """Read a model output CSV and select + rename columns BY HEADER NAME (never by position: column order and extra
+    columns differ between Switch versions and modules). Stops with a clear error if a column is missing."""
+    d = pd.read_csv(path, dtype={c: str for c in str_cols})
+    missing = [c for c in cols if c not in d.columns]
+    if missing:
+        raise ValueError(f"{path}: expected column(s) {missing} not found; header is {list(d.columns)}")
+    return d[list(cols)].rename(columns=cols)
+
+
 def _tp_table(outputs: Path, inputs: Path | None) -> pd.DataFrame:
     disp = outputs / "dispatch.csv"
     if disp.exists():
-        d = pd.read_csv(disp, usecols=["generation_project", "timestamp", "gen_load_zone", "period",
-                                       "tp_weight_in_year_hrs"], dtype={"timestamp": str})
-        return d.rename(columns={"generation_project": "gen", "timestamp": "tp", "gen_load_zone": "zone",
-                                 "tp_weight_in_year_hrs": "weight"})
+        return read_named(disp, {"generation_project": "gen", "timestamp": "tp", "gen_load_zone": "zone",
+                                 "period": "period", "tp_weight_in_year_hrs": "weight"}, str_cols=("timestamp",))
     if inputs is None:
         raise FileNotFoundError(f"{disp} missing; pass inputs_dir (gen_info, timepoints, timeseries)")
     gi = pd.read_csv(inputs / "gen_info.csv", usecols=["GENERATION_PROJECT", "gen_load_zone"])
@@ -37,8 +49,7 @@ def _tp_table(outputs: Path, inputs: Path | None) -> pd.DataFrame:
 
 def basin_gas_mmbtu(outputs_dir, shares_csv, gas_fuels, inputs_dir=None, write=True) -> pd.DataFrame:
     outputs = Path(outputs_dir)
-    fu = pd.read_csv(outputs / "GenFuelUseRate.csv", dtype={"GEN_TP_FUELS_2": str})
-    fu.columns = ["gen", "tp", "fuel", "mmbtu_per_h"]
+    fu = read_named(outputs / "GenFuelUseRate.csv", FUEL_USE_COLS, str_cols=("GEN_TP_FUELS_2",))
     fu["mmbtu_per_h"] = pd.to_numeric(fu.mmbtu_per_h, errors="coerce").fillna(0.0)
     unlisted = sorted(f for f in set(fu.fuel) if "gas" in str(f).lower() and f not in gas_fuels)
     if unlisted:

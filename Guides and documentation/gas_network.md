@@ -17,7 +17,7 @@ python -m gasnet.cli report <switch outputs dir> [--inputs-dir <inputs dir>]   #
 python -m gasnet.cli stage2a    # Stage 2a annual network LP -> outputs/stage2a/ (§103)
 python -m gasnet.cli nemscap    # NGMM capacity (AEO2026 restart file) vs Stage 2a min expansion (§104)
 python -m gasnet.cli upstream <switch outputs dir> [options]   # post-solve upstream CH4 (§105; below)
-python -m pytest -q             # 39 tests; the raw-data ones skip if data/raw is empty
+python -m pytest -q             # 41 tests; the raw-data ones skip if data/raw is empty
 python -m gasnet.cli pin        # only after a deliberate data refresh: rewrites data/SOURCES.yml
 ```
 
@@ -713,6 +713,12 @@ python -m gasnet.cli upstream /path/to/case/outputs --out-dir /path/to/dir \
   ordinary Switch generators, so that burn is already in `GenFuelUseRate.csv`: the file labels it
   (`onsite_gas_mmbtu`) and is not added again; a row missing from `GenFuelUseRate.csv` is added with no MWh and
   flagged.
+- **Columns are read by header name**, never by position (Switch writes `dispatch.csv` with
+  `tp_weight_in_year_hrs` before `period`, plus extra columns); a missing column stops with its name and the file's
+  header. GenFuelUseRate headers: `GEN_TP_FUELS_1/_2/_3`, `GenFuelUseRate` (Switch `save_generic_results`).
+- **Sanity checks (warn, do not stop), by period:** implied gas heat rate outside 5–15 MMBtu/MWh, or CO2 intensity
+  of non-CCS gas burn outside 0.050–0.056 tCO2/MMBtu. Warnings are printed as `FLAG` lines and Python
+  `UserWarning`s. (S0 v3.1 on the VM: 6.4–7.2 MMBtu/MWh and 0.0531 tCO2/MMBtu.)
 - **Gas fuels:** `config.yaml gas_fuels`, case-insensitive (`--gas-fuels` overrides); a fuel with "gas" in its name
   that is not listed stops the run. A generator burning gas with another fuel gets the gas fraction of its MWh and
   stack CO2.

@@ -25,12 +25,14 @@ GWP: IPCC AR6 WG1 Table 7.15, fossil CH4: GWP100 29.8, GWP20 82.5.
 """
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from . import PKG, limitations
+from .report import FUEL_USE_COLS, read_named
 
 GWP100, GWP20 = 29.8, 82.5
 K = 0.95 * 19.2 / 1.037        # kg CH4 per MMBtu delivered per unit L/(1-L); same conversion as the research note
@@ -38,6 +40,14 @@ SHARE_FILES = {"aeo": "zone_basin_shares.csv", "constrained_pipe": "zone_basin_s
 LEVELS = ("low", "central", "high")
 METHANE_PATHS = ("current_rules", "no_further_reductions")
 ONSITE = "tracked_demand_onsite_fuel_use.csv"
+DISPATCH_COLS = {"generation_project": "gen", "timestamp": "tp", "gen_load_zone": "zone", "period": "period",
+                 "tp_weight_in_year_hrs": "weight", "Energy_GWh_typical_yr": "gwh",
+                 "DispatchEmissions_tCO2_per_typical_yr": "tco2"}
+ONSITE_COLS = {"generation_project": "generation_project", "timestamp": "timestamp", "load_zone": "load_zone",
+               "period": "period", "fuel": "fuel", "fuel_use_mmbtu_per_h": "fuel_use_mmbtu_per_h",
+               "tp_weight_in_year": "tp_weight_in_year", "emissions_tco2_per_h": "emissions_tco2_per_h"}
+HEAT_RATE_RANGE = (5.0, 15.0)        # MMBtu/MWh, gas generation (sanity check)
+CO2_RANGE = (0.050, 0.056)           # tCO2/MMBtu of gas burned, non-CCS generators (EIA 0.0529; EPA 0.05306)
 
 
 def kg_from_pct(pct):
@@ -74,20 +84,19 @@ def intensities(csv: Path) -> tuple[pd.DataFrame, dict]:
 def gas_burn(outputs: Path, gas_fuels) -> tuple[pd.DataFrame, list]:
     """zone, period, gas_mmbtu, onsite_gas_mmbtu, gas_mwh, stack_tco2 (typical year of the period) and flags."""
     gas = {f.lower() for f in gas_fuels}
-    fu = pd.read_csv(outputs / "GenFuelUseRate.csv", dtype={"GEN_TP_FUELS_2": str})
-    fu.columns = ["gen", "tp", "fuel", "rate"]
+    fu = read_named(outputs / "GenFuelUseRate.csv", {**FUEL_USE_COLS, "GenFuelUseRate": "rate"},
+                    str_cols=("GEN_TP_FUELS_2",))
     fu["rate"] = pd.to_numeric(fu.rate, errors="coerce").fillna(0.0)
     unlisted = sorted(f for f in set(fu.fuel) if "gas" in str(f).lower() and str(f).lower() not in gas)
     if unlisted:
         raise ValueError(f"gas-like fuels not in the gas fuel list: {unlisted}")
     fu["is_gas"] = fu.fuel.str.lower().isin(gas)
     fu["gas_rate"] = fu.rate.where(fu.is_gas, 0.0)
-    g = fu.groupby(["gen", "tp"], as_index=False).agg(gas_rate=("gas_rate", "sum"), all_rate=("rate", "sum"))
+    fu["ccs"] = fu.is_gas & fu.fuel.str.lower().str.contains("ccs") & (fu.rate > 0)
+    g = fu.groupby(["gen", "tp"], as_index=False).agg(gas_rate=("gas_rate", "sum"), all_rate=("rate", "sum"),
+                                                      ccs=("ccs", "any"))
     g = g[g.gas_rate > 0]
-    disp = pd.read_csv(outputs / "dispatch.csv", dtype={"timestamp": str},
-                       usecols=["generation_project", "timestamp", "gen_load_zone", "period", "tp_weight_in_year_hrs",
-                                "Energy_GWh_typical_yr", "DispatchEmissions_tCO2_per_typical_yr"])
-    disp.columns = ["gen", "tp", "zone", "period", "weight", "gwh", "tco2"]
+    disp = read_named(outputs / "dispatch.csv", DISPATCH_COLS, str_cols=("timestamp",))
     m = g.merge(disp, on=["gen", "tp"], how="left")
     if m.zone.isna().any():
         bad = m[m.zone.isna()].head(3)[["gen", "tp"]].values.tolist()
@@ -100,7 +109,7 @@ def gas_burn(outputs: Path, gas_fuels) -> tuple[pd.DataFrame, list]:
     flags = []
     p = outputs / ONSITE
     if p.exists():
-        o = pd.read_csv(p, dtype={"timestamp": str})
+        o = read_named(p, ONSITE_COLS, str_cols=("timestamp",))
         o = o[o.fuel.str.lower().isin(gas) & (o.fuel_use_mmbtu_per_h > 0)]
         o = o.groupby(["generation_project", "timestamp", "load_zone", "period"], as_index=False).agg(
             rate=("fuel_use_mmbtu_per_h", "sum"), weight=("tp_weight_in_year", "first"),
@@ -117,8 +126,31 @@ def gas_burn(outputs: Path, gas_fuels) -> tuple[pd.DataFrame, list]:
                 "period": extra.period, "gas_mmbtu": extra.rate * extra.weight, "gas_mwh": 0.0,
                 "stack_tco2": extra.eh * extra.weight, "onsite_gas_mmbtu": extra.rate * extra.weight})],
                 ignore_index=True)
+    flags += sanity(m)
     cols = ["gas_mmbtu", "onsite_gas_mmbtu", "gas_mwh", "stack_tco2"]
     return m.groupby(["zone", "period"], as_index=False)[cols].sum(), flags
+
+
+def sanity(m: pd.DataFrame) -> list:
+    """Warn (not stop) when, by period, the implied gas heat rate (MMBtu/MWh, generator-timepoints with MWh) or the CO2
+    intensity of gas burned at non-CCS generators (tCO2/MMBtu) is outside a plausible range. Both catch weighting or
+    column errors (e.g. the hour weight read as the period)."""
+    out = []
+    ccs = m["ccs"].fillna(False).astype(bool) if "ccs" in m else pd.Series(False, index=m.index)
+    for p, x in m.groupby("period"):
+        w = x[x.gas_mwh > 0]
+        if w.gas_mwh.sum() > 0:
+            hr = w.gas_mmbtu.sum() / w.gas_mwh.sum()
+            if not HEAT_RATE_RANGE[0] <= hr <= HEAT_RATE_RANGE[1]:
+                out.append(f"period {p}: implied gas heat rate {hr:.2f} MMBtu/MWh outside {HEAT_RATE_RANGE}")
+        n = x[~ccs.loc[x.index] & (x.gas_mmbtu > 0)]
+        if n.gas_mmbtu.sum() > 0:
+            ci = n.stack_tco2.sum() / n.gas_mmbtu.sum()
+            if not CO2_RANGE[0] <= ci <= CO2_RANGE[1]:
+                out.append(f"period {p}: CO2 intensity of non-CCS gas burn {ci:.4f} tCO2/MMBtu outside {CO2_RANGE}")
+    for f in out:
+        warnings.warn(f)
+    return out
 
 
 def _latest(years, p):
