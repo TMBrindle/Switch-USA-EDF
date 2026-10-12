@@ -4433,3 +4433,56 @@ when the flag is on. With the flag off it is logged, which is the v3.1 behaviour
 
 **Results:** with the flag on, new CTs and CCs pay start-up costs in commitment (`commit_operate`), which favours
 existing units and changes dispatch and builds. **For Ollie's review.**
+
+## 120. S0 v3.2: Offshore Wind Duplicates (Item H)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. **Flag:** `s0_production.offshore_filter_fix.mode`: `off` (default,
+v3.1) or `split_groups`.
+
+**The finding** (dashboards, dbc3637; confirmed in the committed s4x1 fedpol inputs):
+- In all 36 offshore zones, the three offshore entries in `resources.yml` (fixed pref-site 1, fixed pref-site 0,
+  floating) produce the same project: every eligible CPA, floating included.
+- Each carries the zone's whole capacity limit: 2,985,509 MW each for `OffShoreWind_Class3_Moderate_fixed_0`, `_fixed_1`
+  and `OffShoreWind_Class12_Moderate_floating_0` (p1: 68,339 MW each). The resource is offered three times, not twice.
+
+**Cause:**
+- PowerGenome selects a resource group by the cluster entry's keys against the group JSON's attributes (`technology`,
+  `metadata`, `profiles`, ...; the format `make_study_loads.py` writes).
+- The offshore group in `ReEDS-cpas-patched` has no `turbine_type` or `pref_site` attribute, so all three entries select
+  the one all-CPA group.
+
+**The fix** (`s0_workflow/offshore_groups.py`; `s0_workflow/scripts/split_offshore_groups.py`):
+- **Split:** writes a copy of `RESOURCE_GROUPS` with the offshore group split into one group per (turbine type, pref
+  site). Each group's JSON is the original plus `turbine_type` and `pref_site`; each gets its metadata subset. The
+  profiles and site map are shared, and every other file is hard-linked.
+- **Classification:** turbine type comes from a metadata column, or from water depth (floating deeper than 60 m by
+  default). The pref site comes from a metadata column. Column names are arguments, matched without regard to case; a
+  missing one stops the run with the list of columns.
+- **Manifest:** `offshore_true_resource_by_zone.csv` (MW at LCOE ≤ 125, the clusters' filter, by zone, turbine type and
+  pref site) and `offshore_split_manifest.json`.
+
+**The build:**
+- With `split_groups` (`production.apply_offshore_filter_fix`), it checks the manifest and points `RESOURCE_GROUPS` at
+  the copy.
+- `write_offshore_check` writes `offshore_mw_by_zone.csv` in each case: the capacity limits by zone and technology,
+  plus, with the fix, the true resource and the ratio. The build stops if any zone's limits don't sum to the true
+  resource.
+- With the flag off, it reports the v3.1 multiple: the zone total over the largest single project, 3.00.
+- Before/after by zone: compare the off build's `offshore_mw_by_zone.csv` (each technology carrying the whole resource)
+  with the on build's (summing to it once).
+- Refused mismatches: with the flag off, a split folder in `RESOURCE_GROUPS`.
+
+**Not known here (VM data):**
+- The offshore group JSON's name and the metadata's turbine-type, depth and pref-site columns, which the split needs as
+  arguments. Find the JSON with `grep -l -i offshorewind pg_data/resource_groups/**/*.json`.
+- Whether PowerGenome's cluster cache needs clearing for the new groups.
+
+**Test:** `test_offshore_groups.py`.
+- The fedpol inputs show the ×3 duplication: identical limits in every zone, 36 zones, 2,985,509 MW.
+- On a hand-built group folder, the split gives fixed/1, fixed/0 and floating/0 groups with the right CPAs and MW,
+  shared profiles, the all-CPA group removed, other groups unchanged, the source untouched and the true resource by
+  zone at the LCOE limit.
+- The flag is off by default, the off-with-split folder is refused, and `split_groups` points `RESOURCE_GROUPS`.
+- The case check passes at ×1 and stops at ×2.
+- The CLI runs and reports a missing column.
+- The regression-row and S-set tests list the key.

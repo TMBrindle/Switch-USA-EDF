@@ -96,6 +96,7 @@ def apply_settings(case_settings: dict) -> None:
             apply_ca_wa_carbon(s, s0, case, year)
             apply_storage_credit(s, s0, case, year)
             apply_pv_profile_repair(s, s0, case, year)
+            apply_offshore_filter_fix(s, s0, case, year)                # offshore duplicates (§120)
             added = startup_costs.apply_settings(s, s0)                 # V32-01 start-up costs (§119)
             if added:
                 logger.info("s0_production %s/%s: startup_cost_fix, new-build start-up keys added %s", case, year, added)
@@ -679,6 +680,70 @@ def apply_pv_profile_repair(s: dict, s0: dict, case=None, year=None) -> None:
     s["RESOURCE_GROUP_PROFILES"] = str(d.resolve())
     logger.info("s0_production %s/%s: PV profiles from the repaired folder %s (%d site-years filled, %d sites; "
                 "0 zero site-years with capacity)", case, year, d, man["site_years_filled"], man["sites_zero_before"])
+
+
+def offshore_fix_settings(s0: dict) -> dict:
+    r = {"mode": "off", "resource_groups_dir": None, **((s0 or {}).get("offshore_filter_fix") or {})}
+    if r["mode"] not in ("off", "split_groups"):
+        raise ValueError(f"s0_production.offshore_filter_fix.mode must be off or split_groups, not {r['mode']!r}")
+    if r["mode"] == "split_groups" and not r["resource_groups_dir"]:
+        raise ValueError("s0_production.offshore_filter_fix: split_groups needs resource_groups_dir")
+    return r
+
+
+def _repo_path(p) -> Path:
+    p = Path(p)
+    return p if p.is_absolute() else REPO / p
+
+
+def apply_offshore_filter_fix(s: dict, s0: dict, case=None, year=None) -> None:
+    """s0_production.offshore_filter_fix (v3.2 flag; CHANGES §120). off (v3.1): RESOURCE_GROUPS as it is (the three
+    offshore entries all pick the one all-CPA group). split_groups: RESOURCE_GROUPS = the folder written by
+    s0_workflow/scripts/split_offshore_groups.py (one offshore group per turbine type and pref site), after its
+    manifest checks out."""
+    from s0_workflow import offshore_groups as og
+    r = offshore_fix_settings(s0)
+    if r["mode"] == "off":
+        cur = s.get("RESOURCE_GROUPS")
+        if cur and (Path(cur) / og.MANIFEST).exists():
+            raise ValueError(f"s0_production.offshore_filter_fix is off but RESOURCE_GROUPS ({cur}) is a split folder")
+        return
+    d = _repo_path(r["resource_groups_dir"])
+    man = og.check_folder(d)
+    s["RESOURCE_GROUPS"] = str(d.resolve())
+    logger.info("s0_production %s/%s: offshore groups split by turbine type and pref site (%s); true resource %.1f GW",
+                case, year, ", ".join(f"{g['turbine_type']}/{g['pref_site']}" for g in man["groups"]),
+                man["true_resource_mw"] / 1e3)
+
+
+def write_offshore_check(folder: Path, s0: dict, log) -> None:
+    """offshore_mw_by_zone.csv: offshore capacity limits by zone and technology. With split_groups, also the true resource
+    and the ratio, and the build stops if any zone's limits don't sum to it (once, not three times)."""
+    from s0_workflow import offshore_groups as og
+    folder = Path(folder)
+    if not (folder / "gen_info.csv").exists():
+        return
+    gi = pd.read_csv(folder / "gen_info.csv", na_values=["."])
+    by = og.mw_by_zone(gi)
+    if by.empty:
+        return
+    r = offshore_fix_settings(s0)
+    if r["mode"] == "off":
+        by.to_csv(folder / og.BY_ZONE, index=False)
+        z = by.groupby("gen_load_zone").mw.agg(["sum", "max"])
+        log(f"offshore (v3.1): {len(z)} zones, capacity limits sum to {(z['sum'] / z['max']).median():.2f} x the largest "
+            f"single offshore project per zone (3.00 = the resource offered three times); {og.BY_ZONE}")
+        return
+    true = pd.read_csv(_repo_path(r["resource_groups_dir"]) / "offshore_true_resource_by_zone.csv")
+    t = og.check_case(folder, true)
+    t.merge(by.pivot_table(index="gen_load_zone", columns="gen_tech", values="mw", aggfunc="sum").reset_index()
+            .rename(columns={"gen_load_zone": "zone"}), on="zone", how="left").to_csv(folder / og.BY_ZONE, index=False)
+    bad = t[~t.ok & (t.case_mw > 0)]
+    if len(bad):
+        raise ValueError(f"offshore_filter_fix: capacity limits differ from the true resource in {len(bad)} zones "
+                         f"({', '.join(f'{z} x{x:.2f}' for z, x in zip(bad.zone, bad.ratio))[:300]})")
+    log(f"offshore (split_groups): limits equal the true resource in {int(t.ok.sum())} zones "
+        f"({t.case_mw.sum() / 1e3:,.1f} GW); {og.BY_ZONE}")
 
 
 def write_pv_repair_log(folder: Path, s0: dict, log) -> None:
@@ -1294,6 +1359,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     fuel_prices.write_case_inputs(out_folder, s0, scen_settings_dict, log)  # STEO -> AEO2026 gas and coal (§67)
     write_pv_repair_log(out_folder, s0, log)                                # repaired PV profiles (§111)
     startup_costs.write_check(out_folder, s0, log)                          # new gas start-up costs (§119)
+    write_offshore_check(out_folder, s0, log)                               # offshore duplicates (§120)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))

@@ -353,6 +353,11 @@ s0_production:
   # current ATB names (NaturalGas_Combustion Turbine, NaturalGas_1-on-1 / 2-on-1 Combined Cycle; Coal_95% / 99%-CCS).
   # In v3.1 new CTs and CCs match no key and carry Start_Cost_per_MW 0. On: the build stops if new gas still has none
   startup_cost_fix: {enabled: false}
+  # v3.2 flag (CHANGES §120): offshore wind duplicates. The three offshore cluster entries (fixed pref-site 1 / 0,
+  # floating) all pick the one all-CPA offshore group, so each carries every zone's whole resource (x3 in total).
+  # off (v3.1) | split_groups: RESOURCE_GROUPS = a copy with the offshore group split by turbine type and pref site
+  # (s0_workflow/scripts/split_offshore_groups.py); the build stops if the limits don't sum to the true resource
+  offshore_filter_fix: {mode: "off", resource_groups_dir: ~}
   storage_credit:
     mode: flat
     phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}

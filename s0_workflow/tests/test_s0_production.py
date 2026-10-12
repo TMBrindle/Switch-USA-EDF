@@ -559,6 +559,8 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
     # collapses the year-keyed phase_down to its 2035 value)
     assert cr._diff_paths(now, before) == ["s0_production.ca_wa_carbon.import_charge: None -> 'two_tranche'",
                                            "s0_production.ca_wa_carbon.two_tranche: None -> {'preset': 'v31'}",
+                                           "s0_production.offshore_filter_fix: None -> {'mode': 'off', "
+                                           "'resource_groups_dir': None}",
                                            "s0_production.prm.imports.new_tx_allowance: 0.0 -> None",
                                            "s0_production.prm.thermal_derate.prm_temp_tz_fix: None -> False",
                                            "s0_production.pv_profile_repair: None -> {'mode': 'off', 'profiles_dir': "
