@@ -4843,3 +4843,22 @@ E, `README_pv_repair.md`). Also off: WA two-tranche, and the build-rate flags (�
 - `s0_workflow/tests/conftest.py` gains an autouse fixture for unit tests that resolve the S0 defaults without the VM
   folder. For that one default path, and only while it is missing, `offshore_groups.check_folder` returns a stub
   manifest. Tests of the fix use their own folders and the real check. The case build is unaffected.
+
+## 130. S0 v3.2: Flags-Off Patch for the Runner's Hash-Check Build
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`.
+
+**What it is:** with the v3.2 defaults ON in `s0_production.yml` (§126, §129), a flags-off build of the v3.2 code needs
+the seven settings set back. `s0_workflow/data/v32/v32_flags_off.patch` does that: wind price factor null, storage
+`flat`, CA preset `v31`, `cf_fidelity` off, `startup_cost_fix` off, `prm_temp_tz_fix` false and `offshore_filter_fix`
+off.
+
+**How to use it:** in a scratch worktree of the head, run `git apply s0_workflow/data/v32/v32_flags_off.patch`. Don't
+commit the result.
+
+**Test:** `test_v32_flags_off_patch.py`.
+- The patch applies.
+- The patched file parses to exactly 4696653's settings (the last commit with every flag off), except an explicit
+  `price_factors: {wind: null}`. That is the same v3.1 value as `config.yaml`'s.
+- The build-rate flags (§121–§125), `pv_profile_repair` and WA are already at v3.1 in the yml, so the patch doesn't
+  touch them.
