@@ -291,7 +291,8 @@ def _switch_src() -> Path:
 TOY = _switch_src() / "examples" / "3zone_toy"
 
 
-def _toy(tmp_path, wind_rate=0.5, adders=(0.0, 0.15, 0.50), prev=None, slack=None, regions=None, floor=10.0, solar_rate=100.0):
+def _toy(tmp_path, wind_rate=0.5, adders=(0.0, 0.15, 0.50), prev=None, slack=None, regions=None, floor=10.0, solar_rate=100.0,
+         options=None, prev_extra=None):
     if shutil.which("switch") is None or not TOY.exists():
         pytest.skip("switch / 3zone_toy example not available")
     run = tmp_path / "toy"
@@ -327,7 +328,10 @@ def _toy(tmp_path, wind_rate=0.5, adders=(0.0, 0.15, 0.50), prev=None, slack=Non
     pd.DataFrame(rows_p).to_csv(inp / "build_rate_periods.csv", index=False)
     pd.DataFrame(rows_t).to_csv(inp / "build_rate_tiers.csv", index=False)
     if prev is not None:
-        pd.DataFrame({"BR_GROUP": ["wind_onshore"], "br_prev_rate_mw_per_yr": [prev]}).to_csv(inp / "build_rate_prev_build.csv", index=False)
+        pd.DataFrame({"BR_GROUP": ["wind_onshore"], "br_prev_rate_mw_per_yr": [prev], **(prev_extra or {})}).to_csv(
+            inp / "build_rate_prev_build.csv", index=False)
+    if options is not None:
+        pd.DataFrame([options]).to_csv(inp / "build_rate_options.csv", index=False)
     if regions is not None:
         zones, caps = regions
         pd.DataFrame({"LOAD_ZONE": list(zones), "br_zone_region": list(zones.values())}).to_csv(inp / "build_rate_zones.csv", index=False)
@@ -683,3 +687,148 @@ def test_reform_bp_and_high_reform_tables():
     assert {"reform_bp", "high_reform", "reform"} <= set(cli.LEVELS)
     assert CFG["levels"]["high_reform"]["max_of"] == ["high", "reform_bp"]
     assert CFG["levels"]["reform_bp"]["benchmark_of"] == "central"
+
+
+# ---------------------------------------------------------------------------- v3.2 R1 / R11 / R2 / R4 / R7 (§121-§125)
+
+def test_toy_r1_ramp_base_includes_previous_data_rate(tmp_path):
+    """R1: chained best build 0.2 MW/yr but the previous stage's data rate 5: the ramp allows 1.05^10 x 5 + 0."""
+    v31 = _toy(tmp_path / "a", wind_rate=5.0, prev=0.2, floor=0.0, prev_extra={"br_prev_r_data_mw_per_yr": [5.0]})
+    r31 = pd.read_csv(v31 / "outputs/build_rate_new_build.csv").set_index(["group", "period"])
+    assert r31.loc[("wind_onshore", 2020), "rate_mw_per_yr"] <= 1.05 ** 10 * 0.2 + 1e-6   # columns ignored when off
+    run = _toy(tmp_path / "b", wind_rate=5.0, prev=0.2, floor=0.0, prev_extra={"br_prev_r_data_mw_per_yr": [5.0]},
+               options={"br_ramp_base": "max_build_r", "br_stage_r": "data", "br_prev_build_divisor": 1.3})
+    nb = pd.read_csv(run / "outputs/build_rate_new_build.csv").set_index(["group", "period"])
+    assert nb.loc[("wind_onshore", 2020), "rate_mw_per_yr"] > 1.05 ** 10 * 0.2 + 1e-3
+    assert nb.loc[("wind_onshore", 2020), "rate_mw_per_yr"] <= 5.0 + 1e-6               # still under the data rate
+    assert "rate_cap_mw_per_yr" not in nb                                                # R11 off: v3.1 columns
+
+
+def test_toy_r11_rate_floor_from_previous_stage_build(tmp_path):
+    """R11: data rate 0.5 (v3.1: R <= 0.5, ceiling 10 MW per 10-yr period); the previous stage built 2.6 MW/yr, so
+    R <= max(0.5, 2.6 / 1.3) = 2.0."""
+    run = _toy(tmp_path, wind_rate=0.5, prev=100.0, floor=0.0, prev_extra={"br_prev_stage_build_mw_per_yr": [2.6]},
+               options={"br_ramp_base": "build", "br_stage_r": "max_data_prev_build", "br_prev_build_divisor": 1.3})
+    nb = pd.read_csv(run / "outputs/build_rate_new_build.csv").set_index(["group", "period"])
+    assert nb.loc[("wind_onshore", 2030), "rate_cap_mw_per_yr"] == pytest.approx(2.0)
+    # R is above the 0.5 data rate (v3.1's bound) in some period; the in-stage ramp still limits 2030 by 2020's build
+    assert nb.xs("wind_onshore")["rate_mw_per_yr"].max() > 0.5 + 1e-3
+    assert nb.loc[("solar", 2030), "rate_cap_mw_per_yr"] == pytest.approx(100.0)          # no chained build: data
+
+
+def test_chain_writes_v32_columns_only_with_options(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("pns", REPO / "switch/study_modules/prepare_next_stage.py")
+    pns = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pns)
+
+    class P(dict):
+        def last(self):
+            return 2030
+    chained = lambda *p: Path(Path(*p).parent, f"{Path(*p).stem}.chained.c{Path(*p).suffix}")  # noqa: E731
+    possibly = lambda *p: chained(*p) if chained(*p).exists() else Path(*p)                     # noqa: E731
+    for opt, cols in (({}, ["BR_GROUP", "br_prev_rate_mw_per_yr"]),
+                      ({"br_ramp_base": "max_build_r", "br_stage_r": "data"},
+                       ["BR_GROUP", "br_prev_rate_mw_per_yr", "br_prev_r_data_mw_per_yr", "br_prev_stage_build_mw_per_yr"])):
+        inp, nxt = tmp_path / f"in{len(opt)}", tmp_path / f"next{len(opt)}"
+        inp.mkdir(); nxt.mkdir()
+        pd.DataFrame({"BR_GROUP": ["solar"], "br_prev_rate_mw_per_yr": [30.0]}).to_csv(
+            inp / "build_rate_prev_build.chained.c.csv", index=False)
+        m = SimpleNamespace(PERIODS=P(), BR_GROUP_PERIODS=[("solar", 2030)], BRNewBuild={("solar", 2030): 40.0},
+                            br_window_years={2030: 4}, br_rate_data_mw={("solar", 2030): 7.0}, **opt)
+        pns.chain_build_rate_inputs(m, inp, nxt, chained, possibly, lambda p: pd.read_csv(p),
+                                    lambda df, p: df.to_csv(p, index=False))
+        out = pd.read_csv(nxt / "build_rate_prev_build.chained.c.csv")
+        assert list(out.columns) == cols
+        assert out["br_prev_rate_mw_per_yr"].iat[0] == 30.0            # best so far, as v3.1
+        if opt:
+            assert out["br_prev_r_data_mw_per_yr"].iat[0] == 7.0         # this stage's data rate
+            assert out["br_prev_stage_build_mw_per_yr"].iat[0] == 10.0   # this stage's own build (not best so far)
+
+
+def test_r2_handover_linear_blend():
+    nt = {"handover": {"mode": "linear", "groups": ["solar"], "blend_years": [2029, 2030]}}
+    r = {2028: 33.0, 2029: 27.0, 2030: 27.0, 2031: 28.0}
+    out = rates.handover(r, nt, "solar")
+    assert out[2029] == pytest.approx(33 + (28 - 33) / 3) and out[2030] == pytest.approx(33 + 2 * (28 - 33) / 3)
+    assert out[2028] == 33.0 and out[2031] == 28.0                       # the grown path is unchanged
+    assert rates.handover(r, nt, "wind_onshore") == r                    # groups not listed: v3.1
+    assert rates.handover(r, {"handover": {"mode": "off"}}, "solar") == r
+    assert rates.handover({2028: 1.0, 2029: 9.0, 2030: 9.0, 2031: 2.0}, nt, "solar")[2029] == 9.0   # never lowers
+
+
+def test_r7_lbnl_post_ia_completion():
+    post = pd.DataFrame({"1-2": [167, 1240, 57, 88], "4-5": [629, 468, 33, 209]},
+                        index=pd.Index(["operational", "active", "suspended", "withdrawn"], name="status"))
+    rate, b, n = rates.post_ia_completion(post)
+    assert b == "4-5" and n == 871 and rate == pytest.approx(629 / 871)
+    assert rates.post_ia_completion(post, "1-2")[0] == pytest.approx(167 / 312)
+    comp = _queue()
+    cfg = {**CFG, "near_term": {**CFG["near_term"], "construction_completion_source": "lbnl_post_ia"}}
+    c = rates.completion_rates(comp, cfg, post)
+    assert c[c.stage == "Construction"]["rate"].tolist() == pytest.approx([629 / 871] * (c.stage == "Construction").sum())
+    assert c[c.stage == "Construction"]["source"].str.contains("LBNL Queued Up").all()
+    v31 = rates.completion_rates(comp, CFG)                                # off: the 0.9 placeholder
+    assert (v31[v31.stage == "Construction"]["rate"] == 0.9).all()
+    with pytest.raises(ValueError, match="Post-IA"):
+        rates.completion_rates(comp, cfg)
+
+
+def test_r7_reads_lbnl_sheet_when_available():
+    p = REPO / "build_rate/data/raw/queued_up.xlsx"
+    if not p.exists():
+        pytest.skip("LBNL Queued Up not downloaded (scripts/fetch_data.sh)")
+    from build_rate.brc import data
+    post = data.load_post_ia_completion(p)
+    assert list(post.index) == ["operational", "active", "suspended", "withdrawn"] and len(post.columns) >= 4
+    assert 0.5 < rates.post_ia_completion(post)[0] < 0.95
+
+
+def test_v32_config_flags_default_off():
+    nt = CFG["near_term"]
+    assert nt["construction_completion_source"] == "placeholder" and nt["construction_completion"] == 0.9
+    assert nt["handover"]["mode"] == "off"
+    assert cli.table_flags(CFG) == {"handover": "off", "construction_completion": "placeholder"}
+    assert CFG["ramp_floor_reeds"]["gbin_min_mw_per_state"] == {"wind_onshore": 100, "solar": 100, "storage": 100,
+                                                                "gas": 300}
+    assert switch_case.v32_flags({}) == switch_case.V32_DEFAULTS
+    br = yaml.safe_load(open(REPO / "pg/settings/build_rate.yml"))["build_rate"]
+    assert switch_case.v32_flags(br) == switch_case.V32_DEFAULTS
+
+
+def test_cli_set_overrides():
+    import copy
+    c = cli.apply_sets(copy.deepcopy(CFG), ["near_term.handover.mode=linear",
+                                            "near_term.construction_completion_source=lbnl_post_ia"])
+    assert cli.table_flags(c) == {"handover": "linear", "construction_completion": "lbnl_post_ia"}
+    with pytest.raises(KeyError):
+        cli.apply_sets(copy.deepcopy(CFG), ["nope.x=1"])
+
+
+def test_case_writer_v32_flags(tmp_path, monkeypatch):
+    monkeypatch.setattr(switch_case, "REPO_ROOT", REPO)
+    tdir = _tables(tmp_path)
+    base = {"enabled": True, "level": "central", "tables_dir": str(tdir), "groups": ["wind_onshore", "solar"]}
+    d = _case(tmp_path)
+    files = switch_case.write_case_inputs(d, {"build_rate": base})
+    assert "build_rate_options.csv" not in files                                       # v3.1
+    g = pd.read_csv(d / "build_rate_groups.csv").set_index("BR_GROUP")["br_ramp_floor_mw"]
+    assert g["wind_onshore"] == 1000
+    (tmp_path / "b").mkdir()
+    d2 = _case(tmp_path / "b")
+    on = dict(base, ramp_base="max_build_r", stage_r="max_data_prev_build", ramp_floor="reeds_gbin_min")
+    files = switch_case.write_case_inputs(d2, {"build_rate": on})
+    o = pd.read_csv(d2 / "build_rate_options.csv").iloc[0]
+    assert (o.br_ramp_base, o.br_stage_r, o.br_prev_build_divisor) == ("max_build_r", "max_data_prev_build", 1.3)
+    g = pd.read_csv(d2 / "build_rate_groups.csv").set_index("BR_GROUP")["br_ramp_floor_mw"]
+    assert g["wind_onshore"] == 4800 and g["solar"] == 4800                             # 100 MW x 48 states
+    # R2 / R7: the tables must carry the flags the case asks for
+    with pytest.raises(ValueError, match="other flags"):
+        switch_case.write_case_inputs(d2, {"build_rate": dict(base, handover="linear")})
+    yaml.safe_dump({"flags": {"handover": "linear", "construction_completion": "placeholder"}},
+                   open(tdir / "run_info.yaml", "w"))
+    with pytest.raises(ValueError, match="other flags"):
+        switch_case.write_case_inputs(d2, {"build_rate": base})                          # v3.1 case, R2 tables
+    switch_case.write_case_inputs(d2, {"build_rate": dict(base, handover="linear")})
+    with pytest.raises(ValueError, match="ramp_base"):
+        switch_case.v32_flags({"ramp_base": "nope"})

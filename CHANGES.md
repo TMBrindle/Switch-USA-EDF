@@ -4486,3 +4486,193 @@ v3.1) or `split_groups`.
 - The case check passes at ×1 and stops at ×2.
 - The CLI runs and reports a missing column.
 - The regression-row and S-set tests list the key.
+
+## 121. S0 v3.2 Build Rate R1: Ramp Base Includes the Previous Stage's Data Rate
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. **Flag:** `build_rate.ramp_base` (`pg/settings/build_rate.yml`):
+`build` (default, v3.1) or `max_build_r`. Tom, 11 Oct 2026: the build-rate package R1 / R11 / R2 / R4 / R7 is in scope
+for v3.2 and is the critical path; R3 (post-2030 growth) and R5 (regional floors) are v4. Shared code: Ollie reviews at
+v3.2 sign-off (SHARED_CHANGES rows 123–127).
+
+**v3.1:** the ramp bound on a stage's R is `(1+growth)^W × b + floor`, where `b` is the best build rate chained from
+earlier stages (`build_rate_prev_build.csv`). A stage that built little locks the next stage's R near the
+1,000 MW/yr floor, whatever the data path says.
+
+**R1:** the base is `max(b, R_prev)`, where `R_prev` is the previous stage's data rate (`br_rate_data_mw` of its
+committed period, chained as `br_prev_r_data_mw_per_yr`). R is then never ramp-limited below `(1+growth)^W × R_prev +
+floor`.
+- **Within one stage** (mode B windows, perfect foresight): `max(build_q, R_q)` is not linear. The ramp between two
+  periods of one stage is dropped when `(1+growth)^W × R_q + floor` already reaches R's upper bound. Otherwise it keeps
+  the v3.1 form. S0 production is mode A, one period per stage, so this case does not arise there.
+- **Code:**
+  - `switch/study_modules/build_rate.py`: `br_ramp_base`, read from `build_rate_options.csv`, and `ramp_rule`.
+  - `switch/study_modules/prepare_next_stage.py::chain_build_rate_inputs` writes the two new columns, only when an
+    option is on.
+  - `build_rate/brc/switch_case.py` writes `build_rate_options.csv`, only when R1 or R11 is on.
+
+**Before/after** (`s0_workflow/data/build_rate_v32/report_{central,high}.csv`; `build_rate/scripts/v32_report.py`):
+- **Previous stage built nothing:**
+  - v3.1: the ramp bound is the floor, 1.0 GW/yr in every stage and group, so it binds.
+  - R1 (central): wind 10.1 / 11.5 / 13.2 / 16.6 GW/yr for 2030 / 35 / 40 / 45, solar 41.9 / 35.3 / 40.8 / 51.8 and
+    storage 28.7 / 18.0 / 22.5 / 32.6. These are above the data R in every stage, so the data rate binds instead.
+- **Previous stage built at or above R_prev:** R1 changes nothing.
+
+**Test:** `build_rate/tests/test_build_rate.py`.
+- `test_toy_r1_ramp_base_includes_previous_data_rate` (3-zone toy, HiGHS): chained build 0.2 and previous data rate 5.
+  v3.1 holds R(2020) to 1.05¹⁰ × 0.2 and ignores the new column. R1 lets R exceed that, staying under the data rate.
+- `test_chain_writes_v32_columns_only_with_options`.
+
+## 122. S0 v3.2 Build Rate R11: R Floored at the Previous Stage's Build / 1.3
+
+**Flag:** `build_rate.stage_r`: `data` (default, v3.1) or `max_data_prev_build`. The divisor is
+`build_rate.prev_build_divisor`, default 1.3.
+
+**R11:** in every period of a stage, `R ≤ max(br_rate_data_mw, b_prev / 1.3)`.
+- `b_prev` is the previous stage's own build per year in its committed period, chained as
+  `br_prev_stage_build_mw_per_yr`. It is that stage's build, not the best so far.
+- Dividing by 1.3 puts the previous stage's build in the free band (edge 1.3 × R). The bands scale with R, so the
+  2.0 × R ceiling is kept.
+- **Code:**
+  - The module's `br_rate_cap_mw` replaces `br_rate_data_mw` in `BR_Rate_Data`.
+  - With R11 on, `build_rate_new_build.csv` gains `rate_cap_mw_per_yr`. It is unchanged when R11 is off.
+
+**Before/after (central):** R11 binds only where the previous stage built more than 1.3 × this stage's data R. That is
+the 2028 → 2030 hand-over.
+- **Previous stage at its R (37.1 GW/yr solar, 23.7 storage):** 2030 R's bound rises from 26.9 to 28.5 GW/yr (solar)
+  and from 11.6 to 18.3 (storage).
+- **At its free band (1.3 R):** 2030 R's bound is 37.1 (solar) and 23.7 (storage), 2028's own R.
+- **2035 onwards:** no change. The grown R is above `b_prev / 1.3` unless the previous stage built above 1.3 × R,
+  which the free band allows only at a 15% adder.
+- **Wind:** no change in any stage.
+
+**Test:** `test_toy_r11_rate_floor_from_previous_stage_build`. With data rate 0.5 and previous build 2.6, the rate cap
+is 2.0 and R exceeds 0.5. Solar, with nothing chained, keeps its data rate.
+
+## 123. S0 v3.2 Build Rate R2: Smoothed 2028 → 2030 Hand-Over for Solar and Storage
+
+**Flag:** `build_rate/config.yaml` `near_term.handover.mode`: `off` (default, v3.1) or `linear`. Groups `[solar,
+storage]`, blend years `[2029, 2030]`. The case setting `build_rate.handover` must match the tables (see "Tables" below).
+
+**v3.1:** R is the queue-based rate up to 2028 and R0 in 2029–30. Stage-window means: solar 37.1 → 26.9 GW/yr (−28%),
+storage 23.7 → 11.6 (−51%).
+
+**R2:** each blend year takes `max(v3.1 R, the straight line from R(2028) to R(2031))` (`rates.handover`).
+- The grown path after 2030 is unchanged: it still grows from the v3.1 R(2030). Changing it is R3, which is v4.
+- IPM-shaped levels (`high_ipm`) are not affected. Derived levels (`reform_bp`, `high_reform`) inherit the change
+  through their base levels.
+
+**Before/after, 2030 stage R (GW/yr):**
+
+| Level | Solar | Storage |
+|---|---|---|
+| central | 26.9 → 30.8 (drop from 2028: −17% instead of −28%) | 11.6 → 16.6 (−30% instead of −51%) |
+| high | 31.2 → 33.8 | 16.4 → 19.8 |
+
+- Wind and the other stages are unchanged.
+- The 2035 stage R stays at v3.1's (central solar 31.2, storage 14.6). So central storage still dips below its 2028
+  level until 2040; that is R3.
+
+**Test:** `test_r2_handover_linear_blend`: the blend values, the end points unchanged, unlisted groups and `off` give
+v3.1, and the blend never lowers R.
+
+## 124. S0 v3.2 Build Rate R4: Ramp Floor from ReEDS's Per-State Minimum Growth Bin
+
+**Flag:** `build_rate.ramp_floor`: `placeholder` (default, v3.1: `ramp_floor_mw`, 1,000 MW/yr per group) or
+`reeds_gbin_min`.
+
+**Source:** ReEDS `inputs/growth_constraints/gbin_min.csv` at commit 2f583ff5 (`build_rate/data/reference/REEDS_COMMIT.txt`).
+- Values: wind-ons 100, pv 100, battery 100 and gas 300 MW.
+- `b_inputs.gms`: "gbin_min is based on the representative plant size for a single plant in that tech group".
+  `d_solveoneyear.gms` raises each state's first, zero-cost growth bin to it in every modelled state.
+- **Summed nationally:** × 48, the US states in `hierarchy.csv`. That gives 4,800 MW/yr for wind, solar and storage,
+  and 14,400 for gas (gas is not in S0's groups).
+- **Two differences from ReEDS, both noted in `config.yaml`:**
+  - ReEDS floors the free bin (a max). Here the value is the additive floor in the ramp bound.
+  - ReEDS applies it per state, not as one national number.
+
+**Before/after:** the ramp bound rises by 3.8 GW/yr in every stage and group. It matters only where the ramp binds:
+after a stage that built little, and with R1 off.
+
+**Test:** `test_case_writer_v32_flags`: floor 1,000 by default and 4,800 with the flag. The v3.1 case writes no options
+file.
+
+## 125. S0 v3.2 Build Rate R7: Construction-Stage Completion from LBNL Queued Up
+
+**Flag:** `build_rate/config.yaml` `near_term.construction_completion_source`: `placeholder` (default, v3.1: 0.9) or
+`lbnl_post_ia`. The case setting `build_rate.construction_completion` must match the tables.
+
+**Source:** Rand, Cheyette, Gorman, Wiser, Seel, Kahrl (LBNL) with Talley and Zhang (Interconnection.fyi), *Queued Up:
+Interconnection Queue Dataset & Summarized Data Files, through 2025*, May 2026 (emp.lbl.gov/queues). This is the
+`queued_up.xlsx` the pipeline already reads.
+- Sheet "27. Post-IA Completion", table (B) "Status by Years Since IA Execution". It is compiled from LBNL's annual
+  datasets: 7 ISOs and 7 non-ISO balancing areas with IA dates.
+- **Rate:** in the latest bucket (4–5 years after IA), operational / (operational + withdrawn + suspended) =
+  629 / 871 = **0.722**. Count basis, all technologies.
+- **Earlier buckets:** 0.535 (1–2 years), 0.656 (2–3) and 0.722 (3–4).
+- **Same sheet, IAs signed 2000–2022, capacity basis:** 43% operational, 41% withdrawn, 15% active, 1% suspended.
+- **Why this bucket:** LBNL publishes no completion rate for the construction stage, and Queued Up has no resolved
+  construction history (completed projects are reclassified as IA Executed: 194 active and 4 withdrawn construction
+  requests). Under-construction requests are the furthest-along IA-executed ones, so the latest bucket is the closest
+  LBNL figure.
+- **Choosing another bucket:** `near_term.lbnl_post_ia_bucket`.
+- **Code:**
+  - `brc/data.py::load_post_ia_completion` reads the table from the file.
+  - `rates.completion_rates` uses the rate and records the source string in `completion_rates.csv`.
+
+**Effect:** the construction stage is a small share of the near-term queue. Active MW with an executed IA vs under
+construction: solar 197.7 / 20.2 GW, storage 119.0 / 1.4, wind 55.0 / 3.2. So 0.9 → 0.722 lowers the queue years
+slightly:
+
+| 2028 stage R (GW/yr) | v3.1 | R7 |
+|---|---|---|
+| Solar | 37.1 | 36.3 (−2.2%) |
+| Storage | 23.74 | 23.69 |
+| Wind | 8.28 | 8.25 (R0 binds) |
+
+- With R2 on, central solar 2030 is 30.4 instead of 30.8.
+- No other stage changes, because R0 binds from 2029.
+
+**Test:** `test_r7_lbnl_post_ia_completion` (fixture of the published table; v3.1 gives 0.9; a missing table errors)
+and `test_r7_reads_lbnl_sheet_when_available` (the real file).
+
+### Tables, flags, the pin test and the expected effect (§121–§125 together)
+
+**Tables (R2, R7):**
+- `python -m brc.cli run --outputs outputs_v32 --set near_term.handover.mode=linear --set
+  near_term.construction_completion_source=lbnl_post_ia` writes a separate table set. Its `run_info.yaml` records
+  `flags`.
+- Point `build_rate.tables_dir: build_rate/outputs_v32` at it.
+- The case build stops if `build_rate.handover` or `build_rate.construction_completion` differs from the tables' flags,
+  in either direction. Missing flags count as v3.1.
+- With every flag off, the pipeline's tables are byte-identical to v3.1's. Checked here on the same EIA-860M (August
+  2026) and Queued Up files: every CSV is identical.
+
+**Pin test (`s0_workflow/tests/test_build_rate_v3_pinned.py`), updated deliberately:**
+- `build_rate_v3_manifest.csv` stays as the record of v3 (79f4064), still checked against git.
+- The new `build_rate_v32_manifest.csv` pins the current content.
+- `test_v32_changes_only_the_listed_entries` lists the entries allowed to differ from v3: `brc/cli.py`, `brc/data.py`,
+  `brc/rates.py`, `brc/switch_case.py`, `config.yaml`, `pg/settings/build_rate.yml` and the module's model.
+- `write_build_rate_files` in `pg_to_switch.py` is unchanged.
+
+**Before/after tables:** `s0_workflow/data/build_rate_v32/`.
+- `stage_r.csv`: R by level, group and stage for v3.1, R2, R7 and both.
+- `report_{central,high}.csv`: the ramp bound under v3.1, R1, R4 and R1+R4, and R11's cap, for a previous-stage build
+  of 0, 0.5, 1, 1.3 and 2 × R_prev.
+- `completion_rates_r7.csv`.
+- Committed (predetermined) builds, which raise R and the ramp, are left out. The S0 cases' build history is on the
+  VM; these tables use the data R and stylised previous builds.
+
+**Expected effect on S1 / S2-type cases:**
+- **S1** (central, credits reinstated) builds more wind, solar and storage than S0, so the build rate binds more often.
+  - R2 and R11 loosen the 2030 stage, the one where v3.1's R drops: solar +3.9 GW/yr of R and storage +5.1 (R2). That
+    raises the 2029–30 ceiling (2 × R × 2 years) by up to 15.7 GW for solar and 20.3 GW for storage, and by more with
+    R11 if 2028 built near its ceiling.
+  - R1 and R4 matter only after an underbuilt stage. In S0-type chains that is wind in 2028 if little was built.
+  - R7 trims 2028 solar R by 0.8 GW/yr.
+- **S2 / S4** (high): the same direction, smaller in relative terms (2030 solar +2.7, storage +3.4 GW/yr with R2). The
+  high growth rates already keep the ramp clear of R.
+- **L, P (high_reform), S3, S5 (off):** L and P change through the same channels. S3 and S5 have no build rate, so
+  they are unaffected.
+- **Results:** R1, R11 and R2 only relax limits, so in any stage where those limits bind they can only add wind, solar
+  and storage (and lower cost), and nowhere else. R7 tightens 2028 slightly. The measured effect needs a solved
+  one-stage test: see `Guides and documentation/s0_v3.2.md`.

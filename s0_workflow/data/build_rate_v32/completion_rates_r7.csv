@@ -1,0 +1,9 @@
+stage,group,rate,basis_mw,source
+IA Executed,gas,0.656517329057609,260540.48597091436,"Queued Up, IA Executed requests queued <= 2018, resolved"
+IA Executed,solar,0.6499323110430199,111941.20518717045,"Queued Up, IA Executed requests queued <= 2018, resolved"
+IA Executed,storage,0.8686163636428808,15938.68200076294,"Queued Up, IA Executed requests queued <= 2018, resolved"
+IA Executed,wind_onshore,0.4636760459007078,289449.6857974662,"Queued Up, IA Executed requests queued <= 2018, resolved"
+Construction,gas,0.722158438576349,,"LBNL Queued Up (through 2025, May 2026), sheet 27 Post-IA Completion (B): IA-executed requests 4-5 years after IA, operational / resolved (871 requests, count basis, all technologies)"
+Construction,solar,0.722158438576349,,"LBNL Queued Up (through 2025, May 2026), sheet 27 Post-IA Completion (B): IA-executed requests 4-5 years after IA, operational / resolved (871 requests, count basis, all technologies)"
+Construction,storage,0.722158438576349,,"LBNL Queued Up (through 2025, May 2026), sheet 27 Post-IA Completion (B): IA-executed requests 4-5 years after IA, operational / resolved (871 requests, count basis, all technologies)"
+Construction,wind_onshore,0.722158438576349,,"LBNL Queued Up (through 2025, May 2026), sheet 27 Post-IA Completion (B): IA-executed requests 4-5 years after IA, operational / resolved (871 requests, count basis, all technologies)"

@@ -38,6 +38,18 @@ near_term:
   # operation (candidate sources: EIA-860M planned-to-operating transitions; LBNL Queued Up
   # completion tables by phase).
   construction_completion: 0.9
+  # v3.2 R7 (CHANGES §125; off = placeholder, v3.1): lbnl_post_ia replaces the 0.9 with LBNL's post-IA completion:
+  # Queued Up (Rand et al., LBNL, May 2026, data through 2025; emp.lbl.gov/queues) sheet "27. Post-IA Completion",
+  # table (B) "Status by Years Since IA Execution", operational / (operational + withdrawn + suspended) in the
+  # latest bucket (lbnl_post_ia_bucket; null = last column, "4-5" years: 629 / 871 = 0.722, count basis, all
+  # technologies). LBNL publishes no construction-stage completion rate; under-construction requests are the
+  # furthest-along IA-executed ones, so the latest bucket is the closest LBNL figure (1-2 years: 0.535).
+  construction_completion_source: placeholder   # placeholder | lbnl_post_ia
+  lbnl_post_ia_bucket: null
+  # v3.2 R2 (CHANGES §123; mode off = v3.1): blend the queue years into the grown path. mode linear: each blend year
+  # takes max(v3.1 R, the straight line from R in the year before the blend to R in the year after it), for the
+  # groups listed. The grown path after last_year is unchanged.
+  handover: {mode: "off", groups: [solar, storage], blend_years: [2029, 2030]}
   # COD = max(proposed year, IA year + median IA-to-COD years of operational requests queued from
   # delay_cohort_min_queue_year on, by group; computed). Proposed CODs in the file are revised as
   # projects progress, so proposed-vs-actual slip can't be measured from it.
@@ -59,6 +71,14 @@ growth:
 # Ramp bound between model periods: R_p <= (1+growth)^W x build_{p-1}/W_{p-1} + floor.
 # PLACEHOLDER floors (MW/yr, national); ReEDS uses 100-300 MW per state (gbin_min).
 ramp_floor_mw: {wind_onshore: 1000, solar: 1000, storage: 1000, gas: 1000}   # PLACEHOLDER
+# v3.2 R4 (CHANGES §124; case setting build_rate.ramp_floor: reeds_gbin_min, off = placeholder above): ReEDS's minimum
+# first (zero-cost) growth bin per state and tech group, inputs/growth_constraints/gbin_min.csv at ReEDS commit
+# 2f583ff5 (data/reference/REEDS_COMMIT.txt; b_inputs.gms: "gbin_min is based on the representative plant size for a
+# single plant in that tech group"; d_solveoneyear.gms raises gbin1 to it in every modelled state). Summed over the
+# states of hierarchy.csv (country USA: 48), so the national floor = 48 x the per-state value. ReEDS applies it
+# as a floor on the free bin (max), not added to it; here it replaces the additive floor in the ramp bound as is.
+ramp_floor_reeds:
+  gbin_min_mw_per_state: {wind_onshore: 100, solar: 100, storage: 100, gas: 300}   # ReEDS tg wind-ons, pv, battery, gas
 
 # Regional ceiling per transreg: max(share_r x regional_mult x top band x R, regional_floor).
 regional_mult: {wind_onshore: 1.5, solar: 1.5, storage: 1.5, gas: 1.5}             # PLACEHOLDER

@@ -102,3 +102,28 @@ def queue_components(q: pd.DataFrame, c2t: pd.DataFrame) -> pd.DataFrame:
                              "prop_year": q["prop_year"], "on_year": q["on_year"], "ia_year": q["ia_year"]})
         rows.append(part[part["group"].notna() & (part["mw"] > 0)])
     return pd.concat(rows, ignore_index=True)
+
+
+POST_IA_SHEET = "27. Post-IA Completion"
+
+
+def load_post_ia_completion(path: Path) -> pd.DataFrame:
+    """LBNL Queued Up sheet "27. Post-IA Completion", table (B) "Status by Years Since IA Execution": request counts by
+    status (operational, active, suspended, withdrawn) and years since IA execution (columns "1-2", "2-3", ...),
+    compiled by LBNL from its annual queue datasets. Returns status x bucket counts."""
+    raw = pd.read_excel(path, sheet_name=POST_IA_SHEET, header=None)
+    for i in range(len(raw)):
+        row = raw.iloc[i].tolist()
+        for j, v in enumerate(row):
+            nxt = [str(x) for x in row[j + 1:] if not (isinstance(x, float) and np.isnan(x))]
+            if str(v).strip() == "Status" and nxt and re.fullmatch(r"\d+-\d+", nxt[0].strip()):
+                cols = [str(x).strip() for x in row[j + 1:j + 1 + len(nxt)]]
+                body = raw.iloc[i + 1:i + 6, j:j + 1 + len(cols)]
+                body = body[body.iloc[:, 0].astype(str).str.strip().isin(
+                    ["operational", "active", "suspended", "withdrawn"])]
+                out = pd.DataFrame(body.iloc[:, 1:].to_numpy(float), columns=cols,
+                                   index=pd.Index(body.iloc[:, 0].astype(str).str.strip(), name="status"))
+                if set(out.index) != {"operational", "active", "suspended", "withdrawn"}:
+                    raise ValueError(f"{POST_IA_SHEET}: unexpected status rows {list(out.index)}")
+                return out
+    raise ValueError(f"{POST_IA_SHEET}: table (B) 'Status by Years Since IA Execution' not found in {path}")

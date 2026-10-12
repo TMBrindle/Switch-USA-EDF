@@ -34,6 +34,17 @@ build_rate_tiers.csv    BR_GROUP, PERIOD, BR_TIER, br_tier_width, br_tier_adder_
 build_rate_zones.csv    LOAD_ZONE, br_zone_region                                      [optional]
 build_rate_regions.csv  BR_GROUP, BR_REGION, PERIOD, br_region_max_mw_per_yr           [optional]
 build_rate_prev_build.csv  BR_GROUP, br_prev_rate_mw_per_yr  (myopic chaining)         [optional]
+                        (+ br_prev_r_data_mw_per_yr, br_prev_stage_build_mw_per_yr with the v3.2 options)
+build_rate_options.csv  br_ramp_base, br_stage_r, br_prev_build_divisor                  [optional]
+
+v3.2 options (build_rate_options.csv; absent = v3.1; CHANGES §121-§122):
+  br_ramp_base max_build_r (R1): the ramp's base is max(the chained best build rate, the previous stage's data rate
+      br_prev_r_data_mw_per_yr), so R is never ramp-limited below (1+growth)^W x the previous stage's data path +
+      floor. Between periods inside one stage the base max(build_q/W_q, R_data_q) is not linear; the ramp there is
+      dropped when (1+growth)^W x R_data_q + floor already reaches R's upper bound, else kept in the v3.1 form.
+  br_stage_r max_data_prev_build (R11): R <= max(br_rate_data_mw, br_prev_stage_build_mw_per_yr /
+      br_prev_build_divisor) in every period of the stage: the previous stage's actual build fits in the free band
+      (1.3 x R); the bands, so the 2.0 x R ceiling, scale with R as before.
 
 Gas-turbine supply cap (configurable gas group; replaces MaxCapTag_GasTurbineSupply; written by
 build_rate/brc/turbine_cap.py whenever build_rate.gas_turbine_cap.enabled, independently of the
@@ -74,6 +85,13 @@ def define_components(m):
     # -1 = not given (slack off / no chained history)
     m.br_ceiling_slack_cost_per_mw = Param(m.BR_GROUPS, within=Any, default=-1)
     m.br_prev_rate_mw_per_yr = Param(m.BR_GROUPS, within=Any, default=-1)
+
+    # v3.2 options (build_rate_options.csv; defaults = v3.1)
+    m.br_ramp_base = Param(within=Any, default="build")
+    m.br_stage_r = Param(within=Any, default="data")
+    m.br_prev_build_divisor = Param(within=NonNegativeReals, default=1.3)
+    m.br_prev_r_data_mw_per_yr = Param(m.BR_GROUPS, within=Any, default=-1)
+    m.br_prev_stage_build_mw_per_yr = Param(m.BR_GROUPS, within=Any, default=-1)
 
     m.BR_GENS = Set(dimen=1, within=m.GENERATION_PROJECTS)
     m.br_gen_group = Param(m.BR_GENS, within=m.BR_GROUPS)
@@ -116,9 +134,23 @@ def define_components(m):
                    if (g, y) in m.PREDETERMINED_GEN_BLD_YRS)
     m.br_committed_mw = Param(m.BR_GROUP_PERIODS, initialize=committed)
 
+    def rate_cap(m, grp, p):
+        """R's upper bound: the data rate, or with br_stage_r max_data_prev_build (R11) the larger of it and the
+        previous stage's build / divisor."""
+        r = value(m.br_rate_data_mw[grp, p])
+        opt = str(value(m.br_stage_r))
+        if opt == "max_data_prev_build":
+            b = value(m.br_prev_stage_build_mw_per_yr[grp])
+            if b is not None and float(b) >= 0:
+                r = max(r, float(b) / value(m.br_prev_build_divisor))
+        elif opt != "data":
+            raise ValueError(f"br_stage_r must be data or max_data_prev_build, not {opt!r}")
+        return r
+    m.br_rate_cap_mw = Param(m.BR_GROUP_PERIODS, initialize=rate_cap)
+
     m.BRRate = Var(m.BR_GROUP_PERIODS, within=NonNegativeReals)
     m.BR_Rate_Data = Constraint(m.BR_GROUP_PERIODS, rule=lambda m, grp, p:
-                                m.BRRate[grp, p] <= m.br_rate_data_mw[grp, p])
+                                m.BRRate[grp, p] <= m.br_rate_cap_mw[grp, p])
 
     def top_band(m, grp, p):
         return sum(m.br_tier_width[t] for t in m.BR_TIERS if t[0] == grp and t[1] == p)
@@ -129,13 +161,23 @@ def define_components(m):
         top = top_band(m, grp, p)
         extra = m.br_ramp_floor_mw[grp] + (m.br_committed_mw[grp, p] / (top * w) if top > 0 else 0)
         g = (1 + m.br_growth[grp]) ** w
+        base = str(value(m.br_ramp_base))
+        if base not in ("build", "max_build_r"):
+            raise ValueError(f"br_ramp_base must be build or max_build_r, not {base!r}")
         if ps:
             q = ps[-1]
+            if base == "max_build_r" and value(g * m.br_rate_data_mw[grp, q] + extra) >= value(m.br_rate_cap_mw[grp, p]):
+                return Constraint.Skip   # R1: the data-path base already allows R's upper bound
             return m.BRRate[grp, p] <= g * m.BRNewBuild[grp, q] / value(m.br_window_years[q]) + extra
         prev = value(m.br_prev_rate_mw_per_yr[grp])
         if prev is None or prev < 0:
             return Constraint.Skip   # first period, no chained history: data rate only
-        return m.BRRate[grp, p] <= g * float(prev) + extra
+        prev = float(prev)
+        if base == "max_build_r":
+            hist = value(m.br_prev_r_data_mw_per_yr[grp])
+            if hist is not None and float(hist) >= 0:
+                prev = max(prev, float(hist))
+        return m.BRRate[grp, p] <= g * prev + extra
     m.BR_Ramp = Constraint(m.BR_GROUP_PERIODS, rule=ramp_rule)
 
     m.BRTier = Var(m.BR_TIERS, within=NonNegativeReals)
@@ -235,7 +277,12 @@ def load_inputs(m, switch_data, inputs_dir):
         index=m.BR_REGION_PERIODS, param=(m.br_region_max_mw_per_yr,))
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "build_rate_prev_build.csv"), optional=True,
-        param=(m.br_prev_rate_mw_per_yr,))
+        optional_params=["br_prev_r_data_mw_per_yr", "br_prev_stage_build_mw_per_yr"],
+        param=(m.br_prev_rate_mw_per_yr, m.br_prev_r_data_mw_per_yr, m.br_prev_stage_build_mw_per_yr))
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "build_rate_options.csv"), optional=True,
+        optional_params=["br_ramp_base", "br_stage_r", "br_prev_build_divisor"],
+        param=(m.br_ramp_base, m.br_stage_r, m.br_prev_build_divisor))
 
 
 def pv_factor(m, grp, v):
@@ -304,6 +351,9 @@ def post_solve(m, outdir):
     if len(dd):
         dd["dual_units"] = "$/kW overnight-equivalent (model dollars)"
     dd.to_csv(os.path.join(outdir, "build_rate_duals.csv"), index=False)
-    pd.DataFrame(nrows).to_csv(os.path.join(outdir, "build_rate_new_build.csv"), index=False)
+    nb = pd.DataFrame(nrows)
+    if str(value(m.br_stage_r)) != "data":   # v3.2 R11: R's upper bound (v3.1 outputs unchanged when off)
+        nb["rate_cap_mw_per_yr"] = [value(m.br_rate_cap_mw[g, p]) for g, p in zip(nb["group"], nb["period"])]
+    nb.to_csv(os.path.join(outdir, "build_rate_new_build.csv"), index=False)
     pd.DataFrame([{"period": p, "BuildRateCosts": value(m.BuildRateCosts[p])} for p in m.PERIODS]).to_csv(
         os.path.join(outdir, "build_rate_costs.csv"), index=False)

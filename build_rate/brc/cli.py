@@ -24,6 +24,29 @@ def load_cfg(path: str = "config.yaml") -> dict:
     return cfg
 
 
+def table_flags(cfg: dict) -> dict:
+    """The v3.2 table flags this run used (run_info.yaml; the case writer checks them against the case's settings)."""
+    nt = cfg["near_term"]
+    return {"handover": (nt.get("handover") or {}).get("mode", "off"),
+            "construction_completion": nt.get("construction_completion_source", "placeholder")}
+
+
+def apply_sets(cfg: dict, sets: list[str]) -> dict:
+    """--set a.b.c=value overrides (value read as YAML), e.g. near_term.handover.mode=linear."""
+    for kv in sets or []:
+        key, _, val = kv.partition("=")
+        if not _:
+            raise ValueError(f"--set needs key=value, got {kv!r}")
+        d = cfg
+        parts = key.split(".")
+        for k in parts[:-1]:
+            if not isinstance(d.get(k), dict):
+                raise KeyError(f"--set {key}: {k} is not a section of the config")
+            d = d[k]
+        d[parts[-1]] = yaml.safe_load(val)
+    return cfg
+
+
 def check_inputs(cfg: dict):
     missing = [f"{k}: {v}" for k, v in cfg["paths"].items() if k != "outputs" and not Path(v).exists()]
     if missing:
@@ -45,7 +68,9 @@ def cmd_run(cfg: dict) -> dict:
     shares = rates.regional_shares(base, h["share_years"])
     shares.to_csv(out / "regional_shares.csv", index=False)
     comp = data.queue_components(data.load_queued_up(cfg["paths"]["queued_up"]), c2t)
-    comp_rates = rates.completion_rates(comp, cfg)
+    post_ia = (data.load_post_ia_completion(cfg["paths"]["queued_up"])
+               if cfg["near_term"].get("construction_completion_source", "placeholder") != "placeholder" else None)
+    comp_rates = rates.completion_rates(comp, cfg, post_ia)
     comp_rates.to_csv(out / "completion_rates.csv", index=False)
     delay = rates.cod_delay(comp, cfg)
     delay.to_csv(out / "cod_delay.csv")
@@ -78,7 +103,7 @@ def cmd_run(cfg: dict) -> dict:
     match = add[add["year"].between(h["first_year"], h["last_year"])]
     info = {"eia_mw_mapped_to_transreg": float(match.loc[match["transreg"].notna(), "mw"].sum() / match["mw"].sum()),
             "queue_mw_mapped_to_transreg": float(comp.loc[comp["transreg"].notna(), "mw"].sum() / comp["mw"].sum()),
-            "levels_written": written, "levels_skipped": skipped}
+            "levels_written": written, "levels_skipped": skipped, "flags": table_flags(cfg)}
     yaml.safe_dump(info, open(out / "run_info.yaml", "w"), sort_keys=False)
     return info
 
@@ -124,8 +149,13 @@ def main(argv=None):
     ap.add_argument("--zone-map", help="CSV with columns ba, zone (only for aggregated zones)")
     ap.add_argument("--ceiling-slack-cost", type=float, help="$/kW; diagnostic slack above the ceiling")
     ap.add_argument("--tables-dir", help="pipeline outputs (default: this config's outputs)")
+    ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                    help="run: config override, e.g. near_term.handover.mode=linear (v3.2 flags)")
+    ap.add_argument("--outputs", help="run: outputs folder (default: the config's paths.outputs)")
     a = ap.parse_args(argv)
-    cfg = load_cfg(a.config)
+    cfg = apply_sets(load_cfg(a.config), a.set)
+    if a.outputs:
+        cfg["paths"]["outputs"] = str(Path(a.outputs).resolve())
     if a.command == "run":
         info = cmd_run(cfg)
         print(yaml.safe_dump(info, sort_keys=False))

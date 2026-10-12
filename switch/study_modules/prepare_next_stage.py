@@ -583,6 +583,15 @@ def chain_build_rate_inputs(m, in_path, next_in_path, chained, possibly_chained,
     if prev_path.exists():
         for _, r in read_csv(prev_path).iterrows():
             rates[r["BR_GROUP"]] = max(rates.get(r["BR_GROUP"], 0.0), float(r["br_prev_rate_mw_per_yr"]))
-    to_csv(pd.DataFrame({"BR_GROUP": list(rates), "br_prev_rate_mw_per_yr": list(rates.values())}),
-           chained(next_in_path, "build_rate_prev_build.csv"))
+    out = pd.DataFrame({"BR_GROUP": list(rates), "br_prev_rate_mw_per_yr": list(rates.values())})
+    # v3.2 options (CHANGES §121-§122): this stage's data rate (R1's ramp base) and actual build per year (R11), in
+    # its last (committed) period; written only when an option is on, so v3.1 chains are unchanged
+    if str(value(getattr(m, "br_ramp_base", "build"))) != "build" or \
+            str(value(getattr(m, "br_stage_r", "data"))) != "data":
+        out["br_prev_r_data_mw_per_yr"] = [value(m.br_rate_data_mw[g, last]) if (g, last) in m.BR_GROUP_PERIODS
+                                           else -1 for g in out["BR_GROUP"]]
+        out["br_prev_stage_build_mw_per_yr"] = [
+            value(m.BRNewBuild[g, last]) / value(m.br_window_years[last]) if (g, last) in m.BR_GROUP_PERIODS
+            else -1 for g in out["BR_GROUP"]]
+    to_csv(out, chained(next_in_path, "build_rate_prev_build.csv"))
 

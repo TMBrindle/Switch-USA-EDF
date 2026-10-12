@@ -17,6 +17,16 @@ build_rate:
   # transreg ceilings only for siting-limited groups; storage and gas stay national-only
   regional_groups: [wind_onshore, solar]
   ceiling_slack_cost: null   # $/kW; diagnostic slack above the ceiling (off when null)
+  # v3.2 build-rate flags (CHANGES §121-§125; Tom, 11 Oct 2026). Each default is v3.1; turn on only once tested.
+  ramp_base: build             # R1: build | max_build_r (ramp base = max(best chained build, previous stage's data R))
+  stage_r: data                # R11: data | max_data_prev_build (R = max(data R, previous stage's build / divisor))
+  prev_build_divisor: 1.3      # R11: the free band's edge (1.3 x R), so the previous stage's build fits in it
+  ramp_floor: placeholder      # R4: placeholder (ramp_floor_mw, 1,000 MW/yr) | reeds_gbin_min (ReEDS 100 MW/state x 48)
+  # R2 / R7 change the pipeline's tables (build_rate/config.yaml near_term.handover / construction_completion_source):
+  # make them with `python -m brc.cli run --outputs outputs_v32 --set ...` and point tables_dir there; the case
+  # build checks these two against the tables' run_info.yaml
+  handover: "off"              # R2: off | linear
+  construction_completion: placeholder   # R7: placeholder (0.9) | lbnl_post_ia
   # Gas-turbine supply cap (moved here from make_emission_policies.py's MaxCapTag_GasTurbineSupply,
   # Oct 2026; see SHARED_CHANGES.md). Active whenever gas_turbine_cap.enabled, independently of
   # build_rate.enabled; written by build_rate/brc/turbine_cap.py, enforced by study_modules.build_rate.

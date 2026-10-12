@@ -14,6 +14,13 @@ Settings (pg/settings/build_rate.yml):
       regional: true
       regional_groups: [wind_onshore, solar]   # groups with transreg ceilings; others national-only
       ceiling_slack_cost: null       # $/kW; diagnostic slack above the ceiling (off when null)
+      # v3.2 flags (CHANGES §121-§125); the defaults are v3.1
+      ramp_base: build               # build | max_build_r (R1)
+      stage_r: data                  # data | max_data_prev_build (R11)
+      prev_build_divisor: 1.3        # R11: previous stage's build / this = R's floor (the free band's edge)
+      ramp_floor: placeholder        # placeholder | reeds_gbin_min (R4)
+      handover: "off"                # off | linear (R2): must match the tables' run_info.yaml flags
+      construction_completion: placeholder   # placeholder | lbnl_post_ia (R7): likewise
 """
 from __future__ import annotations
 
@@ -34,6 +41,45 @@ GAS_CAP_TAG = "MaxCapTag_GasTurbineSupply"
 # limited by supply chain and stay national-only: 2021-25 storage build was concentrated in CAISO,
 # ERCOT and WestConnect, so share-based regional ceilings held storage far below its national pace.
 DEFAULT_REGIONAL_GROUPS = ("wind_onshore", "solar")
+
+
+V32_DEFAULTS = {"ramp_base": "build", "stage_r": "data", "prev_build_divisor": 1.3, "ramp_floor": "placeholder",
+                "handover": "off", "construction_completion": "placeholder"}
+V32_CHOICES = {"ramp_base": ("build", "max_build_r"), "stage_r": ("data", "max_data_prev_build"),
+               "ramp_floor": ("placeholder", "reeds_gbin_min"), "handover": ("off", "linear"),
+               "construction_completion": ("placeholder", "lbnl_post_ia")}
+
+
+def v32_flags(br: dict) -> dict:
+    f = {k: br.get(k, v) for k, v in V32_DEFAULTS.items()}
+    f["handover"] = "off" if f["handover"] is False else f["handover"]
+    for k, ok in V32_CHOICES.items():
+        if f[k] not in ok:
+            raise ValueError(f"build_rate.{k} must be one of {ok}, not {f[k]!r}")
+    return f
+
+
+def check_table_flags(tdir: Path, flags: dict):
+    """R2 / R7 change the pipeline's tables: the tables in tables_dir must have been made with the flags the case
+    asks for (run_info.yaml `flags`; missing = v3.1)."""
+    info = Path(tdir) / "run_info.yaml"
+    have = ((yaml.safe_load(open(info)) or {}).get("flags") or {}) if info.exists() else {}
+    bad = [f"{k}: case {flags[k]!r}, tables {have.get(k, V32_DEFAULTS[k])!r}"
+           for k in ("handover", "construction_completion") if have.get(k, V32_DEFAULTS[k]) != flags[k]]
+    if bad:
+        raise ValueError(f"build_rate tables in {tdir} were made with other flags ({'; '.join(bad)}). Run "
+                         "`python -m brc.cli run --outputs <dir> --set near_term.handover.mode=... --set "
+                         "near_term.construction_completion_source=...` and point build_rate.tables_dir at <dir>.")
+
+
+def ramp_floor_mw(cfg: dict, group: str, mode: str) -> float:
+    """National ramp floor (MW/yr): the config placeholder, or (R4) ReEDS gbin_min per state x the number of US
+    states in hierarchy.csv."""
+    if mode == "placeholder":
+        return cfg["ramp_floor_mw"][group]
+    h = pd.read_csv(REPO_ROOT / "hierarchy.csv")
+    n = h.loc[h["country"] == "USA", "st"].nunique()
+    return float(cfg["ramp_floor_reeds"]["gbin_min_mw_per_state"][group]) * n
 
 
 def br_settings(settings: dict) -> dict | None:
@@ -167,6 +213,8 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
     if not rates_path.exists():
         raise FileNotFoundError(f"build_rate is enabled but {rates_path} is missing. Run `python -m brc.cli run` "
                                 "in build_rate/ (level high_ipm also needs ipm.run_year_span), or set enabled: false.")
+    flags = v32_flags(br)
+    check_table_flags(tdir, flags)
     rates = pd.read_csv(rates_path)
     tiers_path = tdir / f"tiers_{level}.csv"
     tiers = pd.read_csv(tiers_path if tiers_path.exists() else tdir / "tiers.csv")
@@ -217,7 +265,7 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
                                "br_tier_adder_per_mw": round(float(t["adder"]) * frac * (0 if np.isnan(capex) else capex), 2)})
     slack_kw = br.get("ceiling_slack_cost")
     grp_rows = [{"BR_GROUP": g, "br_growth": float(nat[nat["group"] == g]["growth"].iat[0]),
-                 "br_ramp_floor_mw": cfg["ramp_floor_mw"][g], "br_life_years": cfg["life_years"][g],
+                 "br_ramp_floor_mw": ramp_floor_mw(cfg, g, flags["ramp_floor"]), "br_life_years": cfg["life_years"][g],
                  "br_ceiling_slack_cost_per_mw": float(slack_kw) * 1000 if slack_kw is not None else -1}
                 for g in groups]
     gens_out = gens[["GENERATION_PROJECT", "br_gen_group"]]
@@ -226,6 +274,10 @@ def write_case_inputs(out_folder: Path, settings: dict, pipeline_cfg: dict | Non
 
     files = {"build_rate_groups.csv": pd.DataFrame(grp_rows), "build_rate_gens.csv": gens_out,
              "build_rate_periods.csv": pd.DataFrame(rows_p), "build_rate_tiers.csv": pd.DataFrame(rows_t)}
+    if flags["ramp_base"] != "build" or flags["stage_r"] != "data":     # R1 / R11; absent = v3.1
+        files["build_rate_options.csv"] = pd.DataFrame([{"br_ramp_base": flags["ramp_base"],
+                                                         "br_stage_r": flags["stage_r"],
+                                                         "br_prev_build_divisor": float(flags["prev_build_divisor"])}])
     reg_groups = [g for g in groups if g in (br.get("regional_groups") or DEFAULT_REGIONAL_GROUPS)]
     if br.get("regional", True) and reg_groups:
         zones, regions = regional_frames(gens, periods, rates, reg_groups, settings, predet)

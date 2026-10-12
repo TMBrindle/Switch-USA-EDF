@@ -2,6 +2,12 @@
 the VM by `python -m brc.cli run`, not tracked) are a function of the build_rate/ code, config and reference data, the
 settings file, the Switch module and the case writer; every one of those is pinned here to its v3 content.
 
+v3.2 (CHANGES §121-§125, Tom 11 Oct 2026: the build-rate package R1 / R11 / R2 / R4 / R7 is in scope): the code changed
+deliberately, every change behind a flag that is off by default. The current content is pinned in
+build_rate_v32_manifest.csv; the v3 manifest stays as the record of v3, and V32_CHANGED lists the only entries that differ
+from it. With every flag off the tables are byte-identical to v3's (brc.cli run on the same EIA-860M / Queued Up files,
+12 Oct 2026) and the case writer writes the same files (build_rate/tests: test_case_writer_v32_flags).
+
 Hashes are git blob ids of the content with line endings normalised to LF (CRLF -> LF), so a Windows checkout with
 core.autocrlf (CRLF in the working tree) passes: the id of a whole file equals `git rev-parse 79f4064:<path>`."""
 import ast
@@ -35,9 +41,19 @@ def _text(path: Path) -> str:
     return path.read_bytes().decode("utf-8").replace("\r\n", "\n")
 
 
-def _manifest():
-    rows = _text(REPO / "s0_workflow/data/build_rate_v3_manifest.csv").splitlines()[1:]
+# entries deliberately changed in v3.2 (everything else keeps its v3 content)
+V32_CHANGED = {"build_rate/brc/cli.py", "build_rate/brc/data.py", "build_rate/brc/rates.py",
+               "build_rate/brc/switch_case.py", "build_rate/config.yaml", "pg/settings/build_rate.yml",
+               MODULE + "::model"}
+
+
+def _manifest(name="build_rate_v3_manifest.csv"):
+    rows = _text(REPO / "s0_workflow/data" / name).splitlines()[1:]
     return dict(r.split(",") for r in rows if r)
+
+
+def _v32():
+    return _manifest("build_rate_v32_manifest.csv")
 
 
 def _case_writer_src(text: str) -> str:
@@ -53,15 +69,21 @@ def _model_src(text: str) -> str:
     return "".join(lines[:fn.lineno - 1] + lines[fn.end_lineno:])
 
 
-def test_build_rate_inputs_are_v3():
-    man = _manifest()
+def test_build_rate_inputs_are_v32():
+    man = _v32()
     assert set(man) == PINNED | {"pg_to_switch.py::write_build_rate_files", MODULE + "::model"}
     for f in sorted(PINNED):
-        assert _blob((REPO / f).read_bytes()) == man[f], f"{f} differs from v3 ({V3}): build rates must stay at v3"
+        assert _blob((REPO / f).read_bytes()) == man[f], f"{f} differs from the v3.2 pin: update it deliberately"
     src = _case_writer_src(_text(REPO / "pg_to_switch.py"))
     assert _blob(src.encode()) == man["pg_to_switch.py::write_build_rate_files"], "build-rate case writer changed"
     assert _blob(_model_src(_text(REPO / MODULE)).encode()) == man[MODULE + "::model"], \
         "the build-rate Switch module's model changed"
+
+
+def test_v32_changes_only_the_listed_entries():
+    v3, v32 = _manifest(), _v32()
+    assert set(v3) == set(v32)
+    assert {k for k in v3 if v3[k] != v32[k]} == V32_CHANGED
 
 
 def test_manifest_matches_v3_commit():
@@ -83,4 +105,4 @@ def test_manifest_matches_v3_commit():
 def test_crlf_checkout_gives_the_same_ids(tmp_path):
     """A file with CRLF line endings (a Windows checkout) hashes like its LF original."""
     lf = (REPO / "pg/settings/build_rate.yml").read_bytes().replace(b"\r\n", b"\n")
-    assert _blob(lf.replace(b"\n", b"\r\n")) == _blob(lf) == _manifest()["pg/settings/build_rate.yml"]
+    assert _blob(lf.replace(b"\n", b"\r\n")) == _blob(lf) == _v32()["pg/settings/build_rate.yml"]

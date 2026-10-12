@@ -566,3 +566,14 @@ that the data anchor is meant to prevent.
   limit; the additive form under perfect foresight; unchanged limits with the switch off.
 
 Most relevant once fedpol runs go multi-period with myopic chaining.
+
+## v3.2 flags (CHANGES §121–§125)
+
+Five changes, each off by default (v3.1), are described in `Guides and documentation/s0_v3.2.md` ("Build-rate package"):
+- R1 `ramp_base: max_build_r` (ramp base includes the previous stage's data R);
+- R11 `stage_r: max_data_prev_build` (R ≥ the previous stage's build / 1.3);
+- R2 `near_term.handover.mode: linear` (2029–30 blend for solar and storage);
+- R4 `ramp_floor: reeds_gbin_min` (ReEDS 100 MW per state × 48);
+- R7 `near_term.construction_completion_source: lbnl_post_ia` (0.722 from LBNL Queued Up, sheet 27).
+
+R2 and R7 change the tables: build them with `brc.cli run --outputs <dir> --set ...` and point `tables_dir` there.

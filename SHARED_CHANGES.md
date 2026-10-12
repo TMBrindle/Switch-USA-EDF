@@ -504,3 +504,36 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
       `variable_capacity_factors.csv` is written. `vcf_fidelity.csv` is new.
     - **Effect on existing cases:** none. The setting is S0-only and off by default; non-S0 cases never call it.
 
+123. (§121, §122, tom/s0-v3.2) **`switch/study_modules/build_rate.py`: R1 ramp base and R11 rate floor.**
+    - **Change:** new optional inputs. `build_rate_options.csv` carries `br_ramp_base` (`build` | `max_build_r`),
+      `br_stage_r` (`data` | `max_data_prev_build`) and `br_prev_build_divisor` (1.3). `build_rate_prev_build.csv`
+      gains two optional columns, `br_prev_r_data_mw_per_yr` and `br_prev_stage_build_mw_per_yr`.
+      `BR_Rate_Data` bounds R by `br_rate_cap_mw`, which equals `br_rate_data_mw` unless R11 is on. `ramp_rule` uses
+      `max(b, R_prev)` with R1 on.
+    - **Effect on existing cases:** none. Without `build_rate_options.csv` every parameter takes its v3.1 default, the
+      constraints are the v3.1 ones, and `build_rate_new_build.csv` keeps its columns (`rate_cap_mw_per_yr` is added
+      only with R11 on).
+124. (§121, §122, tom/s0-v3.2) **`switch/study_modules/prepare_next_stage.py::chain_build_rate_inputs`.**
+    - **Change:** writes `br_prev_r_data_mw_per_yr` (this stage's data R) and `br_prev_stage_build_mw_per_yr` (this
+      stage's own build per year), only when the model's `br_ramp_base` or `br_stage_r` is not the default.
+    - **Effect on existing cases:** none. v3.1 chains write the same one-column file as before.
+125. (§121, §122, §124, tom/s0-v3.2) **`build_rate/brc/switch_case.py` and `pg/settings/build_rate.yml`: v3.2 flags.**
+    - **New keys:** `ramp_base`, `stage_r`, `prev_build_divisor`, `ramp_floor`, `handover` and
+      `construction_completion`, all at their v3.1 values.
+    - **Behaviour:**
+      - R4 (`ramp_floor: reeds_gbin_min`) sets `br_ramp_floor_mw` to ReEDS gbin_min × 48 states.
+      - R1 / R11 write `build_rate_options.csv`.
+      - The case build checks `handover` / `construction_completion` against the tables' `run_info.yaml` flags.
+    - **Effect on existing cases:** none. With the defaults the same files are written, and tables without flags (all
+      existing ones) count as v3.1. `pg_to_switch.write_build_rate_files` is unchanged.
+126. (§123, §125, tom/s0-v3.2) **Build-rate pipeline (`build_rate/brc/rates.py`, `data.py`, `cli.py`,
+    `config.yaml`).**
+    - **New config keys:** `near_term.handover` (R2) and `near_term.construction_completion_source` /
+      `lbnl_post_ia_bucket` (R7), both off. `ramp_floor_reeds` holds the R4 values.
+    - **New CLI options:** `--set key=value` and `--outputs`. `run_info.yaml` gains `flags`.
+    - **Effect:** with the defaults, the tables are byte-identical to v3.1's on the same raw data (checked 12 Oct 2026).
+      Existing `outputs/` folders need no rerun.
+127. (§121–§125, tom/s0-v3.2) **`s0_workflow/tests/test_build_rate_v3_pinned.py`: the build-rate pin moved to v3.2
+    deliberately.**
+    - **Change:** the v3 manifest is kept and still checked against 79f4064. The new `build_rate_v32_manifest.csv`
+      pins the current files, and a test lists the seven entries allowed to differ from v3.

@@ -61,12 +61,24 @@ def regional_floor(cfg: dict, level: str, group: str, stock_mw: float, peak_mw: 
     return max(f["floor_min_mw"], f["k_stock"] * stock_mw, f["k_peak"] * peak_mw)
 
 
-def completion_rates(comp: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+def post_ia_completion(post_ia: pd.DataFrame, bucket: str | None = None) -> tuple[float, str, float]:
+    """(rate, bucket, resolved count): operational / (operational + withdrawn + suspended) among IA-executed requests
+    in one years-since-IA bucket of LBNL's table (data.load_post_ia_completion); default the last (latest) bucket."""
+    b = bucket or post_ia.columns[-1]
+    c = post_ia[b]
+    res = float(c["operational"] + c["withdrawn"] + c["suspended"])
+    return float(c["operational"]) / res, b, res
+
+
+def completion_rates(comp: pd.DataFrame, cfg: dict, post_ia: pd.DataFrame | None = None) -> pd.DataFrame:
     """MW-weighted share reaching operation, by stage and group.
 
     IA Executed: requests whose phase is IA Executed, queued by cohort_max_queue_year and resolved
     (operational, withdrawn or suspended). Construction: config placeholder (the file reclassifies
-    completed projects as IA Executed, so it has no resolved Construction history)."""
+    completed projects as IA Executed, so it has no resolved Construction history), or, with
+    near_term.construction_completion_source lbnl_post_ia (v3.2 R7, CHANGES §125), LBNL's post-IA completion:
+    the resolved completion rate (count basis, all technologies) of IA-executed requests in the latest
+    years-since-IA bucket of Queued Up sheet "27. Post-IA Completion" (B)."""
     nt = cfg["near_term"]
     c = comp[(comp["phase"] == "IA Executed") & (comp["q_year"] <= nt["completion_cohort_max_queue_year"])
              & comp["status"].isin(["operational", "withdrawn", "suspended"])]
@@ -78,8 +90,21 @@ def completion_rates(comp: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     rows = [{"stage": "IA Executed", "group": g, "rate": r.rate, "basis_mw": r.n_mw,
              "source": f"Queued Up, IA Executed requests queued <= {nt['completion_cohort_max_queue_year']}, resolved"}
             for g, r in ia.iterrows()]
-    rows += [{"stage": "Construction", "group": g, "rate": nt["construction_completion"], "basis_mw": np.nan,
-              "source": "PLACEHOLDER (config near_term.construction_completion)"} for g in ia.index]
+    src = nt.get("construction_completion_source", "placeholder")
+    if src == "placeholder":
+        rows += [{"stage": "Construction", "group": g, "rate": nt["construction_completion"], "basis_mw": np.nan,
+                  "source": "PLACEHOLDER (config near_term.construction_completion)"} for g in ia.index]
+    elif src == "lbnl_post_ia":
+        if post_ia is None:
+            raise ValueError("near_term.construction_completion_source lbnl_post_ia needs Queued Up sheet "
+                             "'27. Post-IA Completion'")
+        rate, b, n = post_ia_completion(post_ia, nt.get("lbnl_post_ia_bucket"))
+        rows += [{"stage": "Construction", "group": g, "rate": rate, "basis_mw": np.nan,
+                  "source": f"LBNL Queued Up (through 2025, May 2026), sheet 27 Post-IA Completion (B): IA-executed "
+                            f"requests {b} years after IA, operational / resolved ({n:.0f} requests, count basis, all "
+                            "technologies)"} for g in ia.index]
+    else:
+        raise ValueError(f"unknown near_term.construction_completion_source {src!r} (placeholder | lbnl_post_ia)")
     return pd.DataFrame(rows)
 
 
@@ -183,6 +208,29 @@ def ipm_rate_for_year(cfg: dict, ipm: dict, y: int, growth: float) -> float:
     return ipm[last_ry] * (1 + growth) ** (y - ry[last_ry][1])
 
 
+def handover(r: dict, nt: dict, group: str) -> dict:
+    """v3.2 R2 (CHANGES §123; near_term.handover, off = v3.1): blend the queue years into the post-queue path. With mode
+    linear, for a group in handover.groups, each year in blend_years takes the larger of its v3.1 R and the straight
+    line from R in the year before the blend (the last queue year used) to R in the year after it (the first grown
+    year), so R steps down over the blend years instead of at once. The grown path after the near-term years is
+    unchanged (it still grows from the v3.1 R of near_term.last_year; post-2030 growth is v4, R3)."""
+    h = nt.get("handover") or {}
+    mode = h.get("mode", "off")
+    if mode == "off" or group not in (h.get("groups") or []):
+        return r
+    if mode != "linear":
+        raise ValueError(f"unknown near_term.handover.mode {mode!r} (off | linear)")
+    yrs = sorted(int(y) for y in h["blend_years"])
+    y0, y1 = yrs[0] - 1, yrs[-1] + 1
+    if y0 not in r or y1 not in r or yrs != list(range(yrs[0], yrs[-1] + 1)):
+        raise ValueError(f"near_term.handover.blend_years {yrs} must be consecutive years inside the rate table")
+    out = dict(r)
+    for y in yrs:
+        line = r[y0] + (r[y1] - r[y0]) * (y - y0) / (y1 - y0)
+        out[y] = max(r[y], line)
+    return out
+
+
 def level_params(cfg: dict, level: str, group: str, key: str):
     lv = cfg["levels"][level]
     return (lv.get(key) or {}).get(group, cfg[key][group])
@@ -213,6 +261,8 @@ def rate_table(cfg: dict, level: str, base: pd.DataFrame, near: pd.DataFrame, sh
                 r[y] = r[nt["last_year"]] * (1 + growth) ** (y - nt["last_year"])
             if ipm:   # IPM's shape: R = Step 1 per build year (implied build windows)
                 r[y] = ipm_rate_for_year(cfg, ipm, y, growth)
+        if not ipm:
+            r = handover(r, nt, g)
         top = tiers(cfg, g, level_tier_set(cfg, level))["upto"].max()
         mult = level_params(cfg, level, g, "regional_mult")
         sh = shares[shares["group"] == g].set_index("region")["share"]
