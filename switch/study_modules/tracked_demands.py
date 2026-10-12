@@ -3223,6 +3223,15 @@ def post_solve(m, outdir):
 
     Stage 10 outputs are computed from the solved model (§108 (b); they no longer need dispatch.csv).
     """
+    # Switch's reporting module (a core module, so its post_solve runs first) writes every Var to <name>.csv, empty
+    # ones as a header only. The on-site tech menu's variables are empty when the menu is off (and the MIP sizing
+    # ones whenever no tech uses it): drop those header-only files (§140, VM test).
+    for name, index in (("BuildOnsiteTech", m.TD_TECH_BUILDS), ("BuildOnsiteTechFlag", m.TD_TECH_BUILDS_FLAG),
+                        ("BuildOnsiteTechUnits", m.TD_TECH_BUILDS_UNITS),
+                        ("DispatchOnsiteTech", m.TD_TECH_TIMEPOINTS)):
+        f = os.path.join(outdir, f"{name}.csv")
+        if not len(index) and os.path.exists(f):
+            os.remove(f)
     if not m.TRACKED_DEMANDS:
         return
 
@@ -3842,16 +3851,25 @@ _CLEAN_ENERGY_SOURCES = frozenset({
 
 
 def _find_hierarchy_file(start_dir):
-    """Search upward from start_dir (up to 6 levels) for hierarchy.csv."""
-    path = os.path.abspath(start_dir)
-    for _ in range(6):
-        candidate = os.path.join(path, "hierarchy.csv")
-        if os.path.exists(candidate):
-            return candidate
-        parent = os.path.dirname(path)
-        if parent == path:
-            break
-        path = parent
+    """hierarchy.csv: searched upward (up to 6 levels) from start_dir (a case's own copy wins), then from the working
+    directory, then from this module's folder, which reaches the repo root (<repo>/switch/study_modules). A run starts
+    in switch/ with the case folder often outside the repo (§140 VM test), so the inputs-dir search alone missed it."""
+    def upward(start):
+        path = os.path.abspath(start)
+        for _ in range(6):
+            candidate = os.path.join(path, "hierarchy.csv")
+            if os.path.exists(candidate):
+                return candidate
+            parent = os.path.dirname(path)
+            if parent == path:
+                break
+            path = parent
+        return None
+    for start in (start_dir, os.getcwd(), os.path.dirname(os.path.abspath(__file__))):
+        if start is not None:
+            found = upward(start)
+            if found is not None:
+                return found
     return None
 
 

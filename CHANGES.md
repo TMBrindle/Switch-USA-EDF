@@ -4335,4 +4335,21 @@ Option B is implemented; option C is not. No shared files changed (SHARED_CHANGE
       the five conditions (NSPS and area-source NESHAP engines).
     - **Tests:** `test_td_diesel.py` +4 (module defaults; emergency hours not counted; CA/WA rule with and without),
       `test_td_case_writer.py` +1 (CA/WA rule columns). The toy diesel tests set permit 36 h and test 12 h explicitly.
+13. **Follow-ups from the VM mechanics test of badec2f** (12 Oct). The test passed: the 2035 single stage off S0 v3.1
+    solved in 100.5 min (S0 102); PJM's PRM rose by exactly 250 MW; grid draw stayed within the 250 MW connection;
+    the 4.5 MW recips were exempt from RGGI and the aero units covered. Inputs were placeholders: no numbers are
+    results.
+    - **`hierarchy.csv` lookup.** Stage 10 regions and the NY state rule searched only upward from the inputs folder.
+      A run starts in `switch/` with its case folder outside the repo, so the file at the repo root was missed. The
+      lookup now tries the case's own copy first, then upward from the working directory, then upward from the
+      module's folder, which reaches the repo root. `test_td_hierarchy.py` (3).
+    - **Header-only `BuildOnsiteTech*.csv`.** These are Switch's generic per-variable files (`switch_model.reporting`
+      writes every Var, empty ones as a header). They come only from the on-site tech menu, which the VM spec didn't
+      use. The module's `post_solve` (which runs after reporting's) now drops `BuildOnsiteTech`,
+      `BuildOnsiteTechFlag`, `BuildOnsiteTechUnits` and `DispatchOnsiteTech` when the variable is empty. So with the
+      menu off none are left; with an LP menu only the empty MIP sizing files go. `test_td_outputs.py` (2).
+    - **Headroom draw 0** with the 250 MW connection is by design. The draw is optional and off by default (D4d;
+      `connection.uses_headroom`, default false, as in the example spec), so no fix is needed. A scenario that should
+      charge it sets `uses_headroom: true`. That needs `--td-headroom-draw` on (the default), a location-fixed demand,
+      and interconnection_headroom loaded; a zone without a headroom limit takes no draw, with a message.
 

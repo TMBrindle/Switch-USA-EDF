@@ -1993,3 +1993,13 @@ stress_shortfall_penalty: 10000      # optional; default the case's lost-load co
 ```
 
 Tests: `test_td_diesel.py` (23) and `test_td_case_writer.py` (diesel, 10).
+
+### 16.9 Notes from the VM mechanics test (12 Oct 2026)
+
+- **`hierarchy.csv`** (Stage 10 regions, the NY state rule): searched upward from the case folder, then from the
+  working directory, then from the module's folder (the repo root). A case's own copy wins.
+- **On-site tech menu files:** `BuildOnsiteTech*.csv` and `DispatchOnsiteTech.csv` (Switch's per-variable dumps) are
+  removed when empty, i.e. when the menu is off; the MIP sizing ones also go when no tech uses MIP sizing.
+- **Headroom draw:** optional and off by default (D4d). With it off, `headroom_draw_mw` is 0 whatever the connection.
+  Turn it on per scenario with `connection.uses_headroom: true`.
+
