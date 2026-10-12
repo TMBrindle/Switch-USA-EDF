@@ -563,7 +563,9 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
                                            "s0_production.pv_profile_repair: None -> {'mode': 'off', 'profiles_dir': "
                                            "None, 'verify': 'manifest'}",
                                            "s0_production.storage_credit: None -> {'mode': 'flat', 'phase_down': 0.5, "
-                                           "'phase_basis': 'span_mean'}"]
+                                           "'phase_basis': 'span_mean'}",
+                                           "s0_production.time_sampling.cf_fidelity: None -> {'mode': 'off', 'techs': "
+                                           "['solar', 'onwind', 'offwind'], 'flag_range': [0.8, 1.25]}"]
     assert now["s0_production"]["ca_wa_carbon"]["mode"] == "legacy"
     assert now["s0_production"]["prm"]["design"] == "legacy" and now["s0_production"]["tx_policy"]["mode"] == "legacy"
     on_pgdays = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))[

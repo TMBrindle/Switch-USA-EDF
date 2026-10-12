@@ -4290,3 +4290,48 @@ row 121 records the move.
 **Interaction with the v3.2 storage flag:** `full_ira` sets the battery ×0.7 and statutory terms. With
 `storage_credit.mode: obbba`, the ×0.7 becomes the investment term alongside `full_ira`'s production terms; the two
 term types are separate, so nothing is counted twice.
+
+## 116. S0 v3.2: Sample-Fidelity Rescale, Option B (Tom's Decision D)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. **Flag:** `s0_production.time_sampling.cf_fidelity.mode`: `off` (default,
+v3.1) or `rescale`.
+
+**The scan** (`data/rev-cf-mismatch` dbc3637, copied to `s0_workflow/data/sample_fidelity/`). S0 v3.1, sampled vs
+full-record CF, zone-stages outside 0.95–1.05:
+
+| Series | Zone-stages outside | Share of MW | Typical deviation | Range |
+|---|---|---|---|---|
+| Load | 1 of 670 | – | – | – |
+| PV | 110 of 670 | 16% | 2.7% | – |
+| Onshore wind | 422 of 660 | 63% | 7% | 0.66–1.28 |
+| Offshore wind | 127 of 180 | – | 10% | 0.64–1.40 |
+
+National ratios are 0.95–1.01, because the zone errors cancel. The scan also confirms that load and profiles share the
+UTC−5 basis (`tz_check_by_zone.csv`).
+
+**Rescale** (`s0_workflow/cf_fidelity.py`, called in `pg_to_switch.operational_files` before
+`variable_capacity_factors.csv`):
+- **Scale:** for every PV, onshore and offshore wind cluster, scale = full-record mean CF / sample-weighted mean CF,
+  with weights ts_scale_to_period × ts_duration_of_tp.
+- **Cap:** the sampled profile is multiplied by the scale and capped at 1. The capped energy is put back on the
+  uncapped hours (up to 5 proportional passes), so the sample-weighted CF equals the full-record CF; any residual is
+  reported.
+- **Left alone:** stress days (weight 0), distributed PV, hydro and every other technology.
+- **Flag:** scales outside 0.8–1.25 are applied and flagged in the log and in `vcf_fidelity.csv` (per cluster and model
+  year: CFs before and after, scale, capped share, residual, flag).
+- **Pre-processing only:** the same days, timepoints and model size.
+
+**Option A is dropped for national runs, and the national sample size does not grow** (Tom: balance fidelity against
+run time). Fidelity beyond B comes from regional split models (more days in a smaller model) and large-sample
+production-cost runs, which must start from a build without B. These are design notes in `s0_v3.2.md`.
+
+**Order:** turn it on after the PV repair (§111). Rerun the scan on repaired profiles first; the runbook,
+`scripts/README_pv_repair.md` (§117), has the steps.
+
+**Test:** `test_cf_fidelity.py`.
+- Weights, with stress days at 0.
+- The rescaled sample-weighted CF equals the full-record CF for PV, onshore and offshore wind.
+- Stress days and other technologies are untouched; the rows and columns are unchanged.
+- Capping redistributes energy, and big scales are flagged.
+- A cluster with no output on the sampled days is left as it is and flagged.
+- The default is off, and the wiring sits before the capacity-factor table.

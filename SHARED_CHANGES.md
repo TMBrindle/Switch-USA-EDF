@@ -497,3 +497,10 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     - **Effect on existing cases:** as row 24. The fedpol rows' inputs are unchanged, S0 is unchanged, and the S-set
       resolves exactly as on the credits branch apart from the v3.2 flags, which sit at their v3.1 settings
       (`test_s_set_on_v32.py`).
+122. (§116, tom/s0-v3.2) **`pg_to_switch.py` (`operational_files`): sample-fidelity rescale hook
+    (`s0_workflow/cf_fidelity.py`).**
+    - **Change:** when `s0_production.time_sampling.cf_fidelity.mode: rescale`, each PV, onshore and offshore wind
+      cluster's sampled profile is scaled to its full-record CF (capped at 1, energy put back) before
+      `variable_capacity_factors.csv` is written. `vcf_fidelity.csv` is new.
+    - **Effect on existing cases:** none. The setting is S0-only and off by default; non-S0 cases never call it.
+

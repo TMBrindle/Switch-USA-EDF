@@ -14,7 +14,7 @@ CREDITS = "f8f12bc"           # the S-set launch commit on tom/s0-v3.1-credits
 S_SET = ["S0prod_A", "S1", "S2", "S3", "S4", "S5", "L", "P"]
 FILES = ("pg/extra_inputs/scenario_inputs.csv", "pg/settings/scenario_management.yml", "pg/settings/s0_production.yml")
 V32_FLAGS = {"s0_production.storage_credit", "s0_production.pv_profile_repair",
-             "s0_production.ca_wa_carbon.two_tranche"}
+             "s0_production.ca_wa_carbon.two_tranche", "s0_production.time_sampling.cf_fidelity"}
 
 
 def _resolve(paths, case, year):

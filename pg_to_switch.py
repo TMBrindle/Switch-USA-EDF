@@ -26,6 +26,7 @@ from s0_workflow import coal_fleet as s0coal
 from s0_workflow import day_selection as s0days
 from s0_workflow import prm as s0prm
 from s0_workflow import read_once as s0_read_once
+from s0_workflow import cf_fidelity as s0_cf_fidelity
 import pandas as pd
 import numpy as np
 import scipy
@@ -562,6 +563,7 @@ def operational_files(
 
     # will hold all years of each type of data
     output = collections.defaultdict(list)
+    fidelity_reports = []  # sample-fidelity rescale reports (CHANGES §116)
 
     # testing: model_year, year_settings = first_key(scen_settings_dict), first_value(scen_settings_dict)
     for model_year, year_settings in scen_settings_dict.items():
@@ -807,6 +809,20 @@ def operational_files(
 
         output["loads.csv"].append(loads)
 
+        # sample fidelity (option B; s0_production.time_sampling.cf_fidelity, CHANGES §116): rescale the sampled
+        # PV / wind profiles so each cluster's sample-weighted CF equals its full-record CF; off = unchanged
+        cf_fid = s0_cf_fidelity.settings(year_settings) if cluster_time else None
+        if cf_fid is not None:
+            period_variability_sampled, _fid_rep = s0_cf_fidelity.rescale(
+                period_variability,
+                period_variability_sampled,
+                period_gens,
+                s0_cf_fidelity.row_weights(timeseries_df, timepoints_df),
+                cf_fid,
+                model_year,
+            )
+            fidelity_reports.append(_fid_rep)
+
         # capacity factors for variable generators
         vcf = variable_capacity_factors_table(
             period_variability_sampled if cluster_time else period_variability,
@@ -823,6 +839,9 @@ def operational_files(
                 timepoints_df,
             )
         output["graph_timestamp_map.csv"].append(graph_timestamp_map)
+
+    if fidelity_reports:
+        pd.concat(fidelity_reports).to_csv(out_folder / "vcf_fidelity.csv", index=False)
 
     # drop_duplicates isn't enough for some files, because they may have
     # different capacities calculated in different years (!)
