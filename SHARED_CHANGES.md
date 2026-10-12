@@ -543,3 +543,7 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
       `startup_cost_fix.enabled: false`, `prm.thermal_derate.prm_temp_tz_fix: false`, `time_sampling.cf_fidelity.mode:
       off` and `ca_wa_carbon.two_tranche.preset: v31`.
     - **Effect:** the regression row resolves to v3.1 values (test). No other axis value or row is touched.
+129. (§128, V32-04, tom/s0-v3.2) **PowerGenome submodule pin 5ecb454 → c4c433c.**
+    - **Change:** one commit that adds `data/cost_multipliers/AEO_2026_regional_cost_corrections.csv`, the table
+      `pg/settings/resources.yml` already names. No PowerGenome code changes.
+    - **Effect on existing cases:** none where the file was already present. Fresh clones can now build them.

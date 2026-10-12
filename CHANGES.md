@@ -4783,3 +4783,36 @@ and `test_r7_reads_lbnl_sheet_when_available` (the real file).
   - Compare with the S0 v3.1 2028 stage.
   - If the charge is immaterial, costs move by ≤ about $8M/yr and WA emissions by noise.
   - This is cleaner than a two_tranche run because it needs no new code path or row.
+
+## 128. S0 v3.2: PowerGenome Submodule Pin 5ecb454 → c4c433c (V32-04)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. From the repo manager's PowerGenome dependency inventory (V32-04).
+S0-block housekeeping, alongside §115 (the S-set files brought onto v3.2). No result change expected.
+
+**The problem:**
+- `pg/settings/resources.yml` sets `cost_multiplier_fn: AEO_2026_regional_cost_corrections.csv`, S0's regional capex
+  table.
+- That file exists only from PowerGenome c4c433c on, but the repo pinned the submodule at 5ecb454.
+- So a fresh clone followed by `git submodule update` couldn't build S0's regional capex. The runner's checkout
+  already had the file.
+
+**Choice: bump the pin (preferred) rather than move the CSV into `pg/extra_inputs`.** Checked in a scratch clone of
+`TMBrindle/PowerGenome`, not the repo's submodule checkout:
+- **Exact match:** c4c433c ("Add AEO2026 regional cost correction table") sits directly on top of 5ecb454. The diff is
+  one file, `data/cost_multipliers/AEO_2026_regional_cost_corrections.csv` (+26 lines). The pinned code is unchanged.
+- **Reachable:** c4c433c is on the remote's `master`; 5ecb454 is `edf-modifications`. A fresh clone fetches it.
+- **No PowerGenome change needed:** PowerGenome reads `cost_multiplier_fn` from its own `data/cost_multipliers/`.
+  Moving the CSV would need a PowerGenome path change or a second copy of the table, and I didn't read PowerGenome's
+  code to check how it resolves the name.
+- **EDF-org migration:** the migrated fork has to carry c4c433c, a single commit on top of what it carries anyway.
+  Fast-forwarding `edf-modifications` to c4c433c in the fork would put the pin back on the EDF branch. That is outside
+  this repo's scope, so it isn't done here.
+
+**Change:**
+- The `PowerGenome` gitlink is now c4c433cfefd0ae11f5b3f47ae05e3b9d7c90a691. `.gitmodules` is unchanged.
+- The local submodule checkout was not touched.
+- **Test:** `s0_workflow/tests/test_powergenome_pin.py` checks the gitlink, plus the file's presence where the
+  submodule is checked out at the pin; it is skipped otherwise.
+
+**Effect:** S0 inputs should be byte-identical to a build from a checkout that already had the file (the runner's).
+The runner's v3.2 test build will confirm it.
