@@ -65,7 +65,8 @@ def test_s_set_rows_resolve_as_on_the_credits_branch():
 # credits branch's scenario_management.yml
 ON_PGDAYS_V31 = {"settings": {"interconnection_headroom": {"price_factors": {"wind": None}}},
                  "storage_credit": {"mode": "flat"}, "startup_cost_fix": {"enabled": False},
-                 "prm": {"thermal_derate": {"prm_temp_tz_fix": False}}}
+                 "prm": {"thermal_derate": {"prm_temp_tz_fix": False}},
+                 "offshore_filter_fix": {"mode": "off", "resource_groups_dir": None}}           # §129
 
 
 def test_scenario_management_differs_only_by_the_regression_row_v31_pins():

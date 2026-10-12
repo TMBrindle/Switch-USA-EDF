@@ -361,7 +361,9 @@ s0_production:
   # floating) all pick the one all-CPA offshore group, so each carries every zone's whole resource (x3 in total).
   # off (v3.1) | split_groups: RESOURCE_GROUPS = a copy with the offshore group split by turbine type and pref site
   # (s0_workflow/scripts/split_offshore_groups.py); the build stops if the limits don't sum to the true resource
-  offshore_filter_fix: {mode: "off", resource_groups_dir: ~}
+  # v3.2 ON (Tom; CHANGES §129). The folder is written on the VM by split_offshore_groups.py (VM_RECIPES.md, recipe L);
+  # the build stops until it exists and its manifest checks out
+  offshore_filter_fix: {mode: split_groups, resource_groups_dir: pg_data/resource_groups/ReEDS-cpas-patched-offshore-split}
   storage_credit:
     mode: obbba
     phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}

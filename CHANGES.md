@@ -4816,3 +4816,30 @@ S0-block housekeeping, alongside §115 (the S-set files brought onto v3.2). No r
 
 **Effect:** S0 inputs should be byte-identical to a build from a checkout that already had the file (the runner's).
 The runner's v3.2 test build will confirm it.
+
+## 129. S0 v3.2 Defaults: Offshore Wind Split ON (Tom's Approval; Completes §126)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. 5a4af74 (§126) left `offshore_filter_fix` off; Tom approved it on.
+
+**Setting:** `s0_production.offshore_filter_fix: {mode: split_groups, resource_groups_dir:
+pg_data/resource_groups/ReEDS-cpas-patched-offshore-split}`. Each offshore zone's resource is then offered once, not
+three times (§120). This changes results.
+
+**Prerequisite (VM, recipe L):**
+- The folder is written by `s0_workflow/scripts/split_offshore_groups.py` and needs the offshore group JSON name and
+  its metadata column names.
+- Until it exists and its manifest checks out, every v3.2 S0 build stops with "offshore_filter_fix: … not found". That
+  is deliberate: the default is not silently skipped.
+
+**The regression row:** `on_pgdays` sets `offshore_filter_fix: {mode: "off", resource_groups_dir: ~}`, so it still
+resolves to v3.1 and its resolved-diff test is unchanged. `on_pgdays_new` takes v3.2.
+
+**Still off:** `pv_profile_repair` stays off until the dashboards session's VM run passes the manifest checks (runbook
+E, `README_pv_repair.md`). Also off: WA two-tranche, and the build-rate flags (§121–§125).
+
+**Tests:**
+- `test_offshore_groups.py` asserts the yml value and that the code default is off.
+- `test_s_set_on_v32.py` adds the key to the regression row's v3.1 pins.
+- `s0_workflow/tests/conftest.py` gains an autouse fixture for unit tests that resolve the S0 defaults without the VM
+  folder. For that one default path, and only while it is missing, `offshore_groups.check_folder` returns a stub
+  manifest. Tests of the fix use their own folders and the real check. The case build is unaffected.

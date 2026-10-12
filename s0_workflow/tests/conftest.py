@@ -55,3 +55,31 @@ def windows_c_long(monkeypatch):
     monkeypatch.setattr(pd.DataFrame, "astype", f_astype)
     monkeypatch.setattr(pd.Index, "astype", i_astype)
     yield
+
+
+# §129: offshore_filter_fix is ON in s0_production.yml, pointing at a split RESOURCE_GROUPS folder written on the VM
+# (split_offshore_groups.py). Unit tests that resolve the S0 defaults have no such folder; for that one default path
+# only, while it is missing, check_folder returns a stub manifest (tests of the offshore fix use their own folders and
+# the real check). The case build itself still stops when the folder is missing.
+@pytest.fixture(autouse=True)
+def offshore_split_default_folder(monkeypatch):
+    from pathlib import Path
+
+    import yaml
+    from s0_workflow import offshore_groups as og
+    repo = Path(__file__).resolve().parents[2]
+    d = ((yaml.safe_load(open(repo / "pg/settings/s0_production.yml"))["s0_production"].get("offshore_filter_fix")
+          or {}).get("resource_groups_dir"))
+    if not d:
+        yield
+        return
+    default = (repo / d).resolve()
+    real = og.check_folder
+
+    def check_folder(folder):
+        if Path(folder).resolve() == default and not (default / og.MANIFEST).exists():
+            return {"groups": [], "true_resource_mw": 0.0, "stub": "s0_workflow/tests/conftest.py"}
+        return real(folder)
+
+    monkeypatch.setattr(og, "check_folder", check_folder)
+    yield

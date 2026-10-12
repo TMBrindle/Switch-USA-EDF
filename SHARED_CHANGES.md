@@ -547,3 +547,6 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     - **Change:** one commit that adds `data/cost_multipliers/AEO_2026_regional_cost_corrections.csv`, the table
       `pg/settings/resources.yml` already names. No PowerGenome code changes.
     - **Effect on existing cases:** none where the file was already present. Fresh clones can now build them.
+130. (§129, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `offshore_filter_fix: {mode: "off"}`.**
+    - **Why:** the offshore split is ON in the v3.2 S0 defaults, and the regression row keeps v3.1.
+    - **Effect:** the regression row resolves to v3.1 values, as in row 128.

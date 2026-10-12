@@ -69,7 +69,9 @@ def test_build_flag_and_case_check(tmp_path):
     out = tmp_path / "oswfix"
     og.split_folder(g, out, "cpas/osw_group.json", depth_col="depth_m", pref_col="pref", log=lambda m: None)
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert s0["offshore_filter_fix"]["mode"] == "off"                       # v3.1 until approved
+    assert s0["offshore_filter_fix"]["mode"] == "split_groups"              # v3.2 ON (§129)
+    assert s0["offshore_filter_fix"]["resource_groups_dir"] == "pg_data/resource_groups/ReEDS-cpas-patched-offshore-split"
+    assert s0prod.offshore_fix_settings({})["mode"] == "off"               # the code default: v3.1
     s = {"RESOURCE_GROUPS": str(g)}
     s0prod.apply_offshore_filter_fix(s, {"offshore_filter_fix": {"mode": "off"}})
     assert s["RESOURCE_GROUPS"] == str(g)

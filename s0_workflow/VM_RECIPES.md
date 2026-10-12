@@ -890,6 +890,36 @@ git worktree add ../s0v31-wa-off s0-v3.1 && cd ../s0v31-wa-off
   noise.
 - **Don't commit the edit.** Remove the worktree afterwards.
 
+## L. Offshore split folder for the v3.2 build (CHANGES §120, §129) — needed before any v3.2 S0 build
+
+`offshore_filter_fix` is ON in v3.2 (`split_groups`, folder `pg_data/resource_groups/ReEDS-cpas-patched-offshore-split`).
+The S0 build stops until that folder exists and its manifest checks out.
+
+1. **Find the offshore group JSON and the metadata columns.** Report both:
+   ```bash
+   grep -l -i offshorewind pg_data/resource_groups/ReEDS-cpas-patched/*.json
+   "<ic-pipeline python>" -c "import json,sys,pandas as pd; j=json.load(open(sys.argv[1])); print(j); print(list(pd.read_csv(sys.argv[1].rsplit('/',1)[0]+'/'+j['metadata'], nrows=1).columns))" <that json>
+   ```
+   You need:
+   - the turbine-type column, or else a water-depth column (floating deeper than 60 m);
+   - the pref-site column;
+   - the region, MW and LCOE columns, if they aren't `ipm_region`, `mw` and `lcoe`.
+2. **Split** (the source folder is not changed; other files are hard-linked):
+   ```bash
+   "<ic-pipeline python>" s0_workflow/scripts/split_offshore_groups.py \
+       --groups-dir pg_data/resource_groups/ReEDS-cpas-patched \
+       --out-dir pg_data/resource_groups/ReEDS-cpas-patched-offshore-split \
+       --json <json name, relative to groups-dir> --pref-col <pref-site col> \
+       (--turbine-col <col> | --depth-col <col>) [--region-col .. --mw-col .. --lcoe-col ..]
+   ```
+3. **Check the log and `offshore_split_manifest.json`:**
+   - the groups are fixed/1, fixed/0 and floating/0 (or the turbine-type and pref-site pairs the data has);
+   - the true resource (GW at LCOE ≤ 125) and the number of zones (36).
+4. **PowerGenome's cluster cache:** if `pg/extra_inputs/cluster_assignments/` holds offshore clusters from the
+   unsplit group, clear or bypass them for the v3.2 build.
+5. **In the v3.2 build:** each case's `offshore_mw_by_zone.csv` should show ratio 1.00 in every zone. The build stops
+   otherwise. Report total offshore capacity limits before (×3) and after.
+
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 
 **Deferred** (Oct 2026): mode A is the production route for now. Keep this recipe for when mode B is
