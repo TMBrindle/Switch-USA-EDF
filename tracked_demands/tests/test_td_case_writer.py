@@ -402,7 +402,7 @@ def test_gas_capex_without_s0_build_or_with_a_mismatch(tmp_path):
              "storage": {"power_cost_per_mw_yr": 1, "energy_cost_per_mwh_yr": 1, "premium_class": "ct"}}]}, run / "b")
 
 
-# ------------------------------------------------------------------------------------------------ backup diesel (§120)
+# ------------------------------------------------------------------------------------------------ backup diesel (§140)
 def _diesel_case(tmp_path, name, chained=True):
     """The toy with a stress day (2020_p1_prm), its stress_days.csv calendar, and chained copies of the predetermined
     and build-cost files (a later chain stage carries both)."""

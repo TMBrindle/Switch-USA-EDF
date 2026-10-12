@@ -4260,9 +4260,9 @@ capex premium. The case writer now adds the premium the way the case build did (
 
    Guide 15.9 and the example spec are updated. No shared files changed.
 
-## 120. Tracked Demands: Backup Diesel by Site Configuration
+## 140. Tracked Demands: Backup Diesel by Site Configuration
 
-Design: `tracked_demands/docs/design/diesel_backup_proposal.md` (it was written as §109; the section is §120).
+Design: `tracked_demands/docs/design/diesel_backup_proposal.md` (written as §109, briefly numbered §120; the section is §140).
 Accepted by Tom on 12 Oct 2026, with the decisions in the decisions register ("backup diesel"). Guide section 16.
 Option B is implemented; option C is not. No shared files changed (SHARED_CHANGES rows 140–149 stay unused).
 

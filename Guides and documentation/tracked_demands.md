@@ -1822,7 +1822,7 @@ For the regression row `s4x1_S0prod_2035` (PowerGenome k-means days), scale by i
 LP unless `td_onsite_tech_min_build_mw` / `_build_increment_mw` are set (MIP). Duals for the headroom charge need
 an LP solution; Gurobi barrier gives them.
 
-## 16. Backup Diesel (§120)
+## 16. Backup Diesel (§140)
 
 Design: `tracked_demands/docs/design/diesel_backup_proposal.md`, accepted with Tom's decisions of 12 Oct 2026 (decisions
 register, "backup diesel"). Option B is implemented; option C (requirement by hour) is not.

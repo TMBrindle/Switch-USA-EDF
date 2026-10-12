@@ -271,7 +271,7 @@ def credit_by_period(inp: Path, key: str, periods, override: dict | None, gen_in
 
 
 # --------------------------------------------------------------------------------------------- backup diesel
-# §120 defaults (Tom, 12 Oct 2026, updated from the input research). PLACEHOLDER values are flagged in the writer log
+# §140 defaults (Tom, 12 Oct 2026, updated from the input research). PLACEHOLDER values are flagged in the writer log
 # when used. permit_flh 100 is a PLACEHOLDER (VA permits' annual fuel caps imply 37-137 full-load hours, MD 7-24,
 # WA 45-100; sensitivities 37 and 137); test_flh 10 (filings 4-25 h; Laurelwood CA 10.5 h).
 DIESEL_DEFAULTS = {"multiple": 1.3, "unit_mw": 2.5, "tier": 2, "heat_rate": 10.2, "forced_outage_rate": 0.05,

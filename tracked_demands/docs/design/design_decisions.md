@@ -291,18 +291,18 @@ sections (§n) and open items (OI n) above, and `spec_v1.md` §8 confirmed decis
 
 ## Decisions of 12 October 2026 (Tom): backup diesel
 
-On the design proposal `diesel_backup_proposal.md` (written as §109; implemented as CHANGES §120, guide section 16).
+On the design proposal `diesel_backup_proposal.md` (written as §109; implemented as CHANGES §140, guide section 16).
 
 | # | Decision (12 Oct 2026) | Implemented |
 |---|---|---|
-| E1 | Implement option B (stress grid limit `td_stress_grid_limit_share`, default 1 = D1b exactly) as an option; not option C. | §120 (5) |
-| E2 | Stress-year basis `weather_year` by default; `all` as an option. | §120 (4) |
-| E3 | Defaults: permit 36 full-load hours a year (sensitivities 24 and 42 documented); test 12 h (PLACEHOLDER pending the input research); config defaults to blackstart if the demand has gas-fired linked generators, else grid_backup, logged. | §120 (1), (2) |
-| E4 | Non-emergency running only for tier 4 or `permitted_non_emergency`; the writer stops otherwise. The reading of 40 CFR 60.4211(f) / 63.6640(f) is to be confirmed by the input research. | §120 (6) |
-| E5 | Potential to emit: add `td_onsite_pte_hours`; diesel at its permit hours. CA/WA treatment of emergency engines goes to the input research. | §120 (7) |
-| E6 | Shortfall penalty: the case's lost-load cost if it defines one, else 10,000 $/MWh; strict off by default. | §120 (3) C6 |
-| E3 revised (12 Oct, input research) | Test hours default 10 (filings 4–25 h; Laurelwood CA 10.5 h). Permit default 100 full-load hours as a PLACEHOLDER, with sensitivities 37 and 137 (VA fuel caps imply 37–137; MD 7–24; WA 45–100; sized under the major-source NOx threshold). Replaces E3's 36 h / 12 h. | §120 (12) |
-| E7 | New `emergency_counts_toward_cap` (default 1): at 0 the permit cap leaves out emergency (stress-day) running. Federal rules put no time limit on emergency use; whether state permit caps count emergency hours is being checked. | §120 (12) |
-| E8 | CA and WA never cover backup diesel at the facility (CA 17 CCR §95101(f)(2), supplier obligation §95852(d); WA WAC 173-446-040(3)(a)(ii), supplier's under (3)(c)(i)): such rows are not covered, with the citation, whatever their potential to emit. `td_onsite_pte_hours` stays for other fuels; RGGI/VA unit basis unchanged. Refines E5. | §120 (12) |
+| E1 | Implement option B (stress grid limit `td_stress_grid_limit_share`, default 1 = D1b exactly) as an option; not option C. | §140 (5) |
+| E2 | Stress-year basis `weather_year` by default; `all` as an option. | §140 (4) |
+| E3 | Defaults: permit 36 full-load hours a year (sensitivities 24 and 42 documented); test 12 h (PLACEHOLDER pending the input research); config defaults to blackstart if the demand has gas-fired linked generators, else grid_backup, logged. | §140 (1), (2) |
+| E4 | Non-emergency running only for tier 4 or `permitted_non_emergency`; the writer stops otherwise. The reading of 40 CFR 60.4211(f) / 63.6640(f) is to be confirmed by the input research. | §140 (6) |
+| E5 | Potential to emit: add `td_onsite_pte_hours`; diesel at its permit hours. CA/WA treatment of emergency engines goes to the input research. | §140 (7) |
+| E6 | Shortfall penalty: the case's lost-load cost if it defines one, else 10,000 $/MWh; strict off by default. | §140 (3) C6 |
+| E3 revised (12 Oct, input research) | Test hours default 10 (filings 4–25 h; Laurelwood CA 10.5 h). Permit default 100 full-load hours as a PLACEHOLDER, with sensitivities 37 and 137 (VA fuel caps imply 37–137; MD 7–24; WA 45–100; sized under the major-source NOx threshold). Replaces E3's 36 h / 12 h. | §140 (12) |
+| E7 | New `emergency_counts_toward_cap` (default 1): at 0 the permit cap leaves out emergency (stress-day) running. Federal rules put no time limit on emergency use; whether state permit caps count emergency hours is being checked. | §140 (12) |
+| E8 | CA and WA never cover backup diesel at the facility (CA 17 CCR §95101(f)(2), supplier obligation §95852(d); WA WAC 173-446-040(3)(a)(ii), supplier's under (3)(c)(i)): such rows are not covered, with the citation, whatever their potential to emit. `td_onsite_pte_hours` stays for other fuels; RGGI/VA unit basis unchanged. Refines E5. | §140 (12) |
 | E9 | Federal limits confirmed (40 CFR 60.4211(f), 63.6640(f)); emergency demand response removed from the 100 h (vacated 2015–16, removed from the CFR 2022); paid local-reliability dispatch only under the five conditions (NSPS and area-source NESHAP engines). Settles E4's "to be confirmed". | guide 16.2 |
 

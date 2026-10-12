@@ -163,7 +163,7 @@ def _fixed_connection(m, td):
 
 
 def _prm_requirement(m, td, p):
-    """min(s x connection, peak) x (1 - curtailable share), s the stress grid limit share (§120; 1 by default); with
+    """min(s x connection, peak) x (1 - curtailable share), s the stress grid limit share (§140; 1 by default); with
     an endogenous connection (bounded above by td_grid_interconnect_mw, which must not exceed the peak) it is
     s x connection x (1 - share)."""
     if td in m.TD_ENDOGENOUS_CONNECTION:
@@ -203,7 +203,7 @@ def _new_connection(m, td):
 
 
 def _has_stress_backup(m, td):
-    """TD with a backup diesel fleet or a stress grid limit (§120): its stress-day shortfall is a variable."""
+    """TD with a backup diesel fleet or a stress grid limit (§140): its stress-day shortfall is a variable."""
     return value(m.td_stress_grid_limit_share[td]) < 1 or any(d == td for d, _ in m.TD_DIESEL_GENS)
 
 
@@ -212,7 +212,7 @@ def _shortfall(m, td, t):
 
 
 def _stress_group(m, td, t):
-    """The weather-year group of stress timepoint t for td (§120): its weather year, or "all"."""
+    """The weather-year group of stress timepoint t for td (§140): its weather year, or "all"."""
     ts = m.tp_ts[t]
     if str(value(m.td_stress_year_basis[td])).strip() == "weather_year" and ts in m.TD_STRESS_YEAR_TS:
         return str(value(m.td_stress_weather_year[ts]))
@@ -458,7 +458,7 @@ def define_components(m):
         validate=lambda m, v, td: str(v).strip() in ("max", "profile", "min"),
     )
     m.td_stress_curtailable_share = Param(m.TRACKED_DEMANDS, within=PercentFraction, default=0.0)
-    # Stress grid limit (CHANGES §120, option B): on stress days the TD's grid
+    # Stress grid limit (CHANGES §140, option B): on stress days the TD's grid
     # draw is at most this share of its connection (mandatory curtailment of
     # large loads in emergencies; backup generation carries the rest). 1 = no
     # limit (exactly §108's rule). The PRM requirement uses share x connection.
@@ -554,10 +554,10 @@ def define_components(m):
     m.TD_GTC_COVERAGE = Set(dimen=1, within=Any)
 
     # hours per year of potential to emit for carbon-cap applicability tests
-    # (CHANGES §120): "." = all year, or the permit hours of a backup diesel
+    # (CHANGES §140): "." = all year, or the permit hours of a backup diesel
     m.td_onsite_pte_hours = Param(m.TD_ONSITE_GENS, within=Any, default=".")
 
-    # ── Backup diesel (CHANGES §120) ─────────────────────────────────────────
+    # ── Backup diesel (CHANGES §140) ─────────────────────────────────────────
     # Existing reliability fleet (predetermined capacity at zero capex), linked
     # like any on-site generator; tracked_demand_diesel.csv marks it. Emergency
     # running on stress days only, unless non-emergency hours are allowed
@@ -704,7 +704,7 @@ def define_components(m):
     # Dispatch bounds — use timepoint-indexed params (Stage 6). When no
     # dispatch_bounds.csv is provided the callable defaults return the scalar
     # values, so behaviour is identical to the previous Stage 1 constraints.
-    # Stress-day shortfall (CHANGES §120, C6): for TDs with a backup diesel
+    # Stress-day shortfall (CHANGES §140, C6): for TDs with a backup diesel
     # fleet or a stress grid limit, unserved TD load on stress days, penalised
     # (TDStressShortfallCost) so a gap shows instead of an infeasible run;
     # fixed at 0 with td_stress_strict.
@@ -821,7 +821,7 @@ def define_components(m):
             >= (1 - m.td_stress_curtailable_share[td]) * _stress_load(m, td, t)
         ),
     )
-    # stress grid limit (§120, option B)
+    # stress grid limit (§140, option B)
     m.TD_Stress_Grid_Limit = Constraint(
         m.TD_STRESS_TIMEPOINTS,
         rule=lambda m, td, t: (
@@ -864,7 +864,7 @@ def define_components(m):
         ),
     )
 
-    # ── Backup diesel constraints and stress-day costs (CHANGES §120) ────────
+    # ── Backup diesel constraints and stress-day costs (CHANGES §140) ────────
     # C1: emergency only (no running outside stress days) unless non-emergency
     # hours are allowed; then at most those hours per year
     m.TD_DIESEL_NORMAL_TPS = Set(
@@ -2170,7 +2170,7 @@ def define_components(m):
         validate=lambda m, v, pr: str(v).strip() in ("unit", "site"),
     )
     m.td_cap_limited_export_exemption = Param(m.TD_CAP_PROGRAMS, within=Any, default=0)
-    # §120: a programme that never covers backup diesel at the facility (CA, WA)
+    # §140: a programme that never covers backup diesel at the facility (CA, WA)
     # names its rule here; such a fleet is not covered and stays out of the
     # programme's site-basis sums, whatever its potential to emit
     m.td_cap_backup_diesel_rule = Param(m.TD_CAP_PROGRAMS, within=Any, default="")
@@ -2332,7 +2332,7 @@ def _pte_hours(m, td, g):
 
 def _pte_tco2(m, g, mw, td=None):
     """Potential to emit (tCO2/yr) of mw of generator g at full load for its potential-to-emit hours (all year
-    unless td_onsite_pte_hours or a diesel permit says otherwise; §120)."""
+    unless td_onsite_pte_hours or a diesel permit says otherwise; §140)."""
     rate = max(
         value(m.f_co2_intensity[f])
         * ((1 - value(m.gen_ccs_capture_efficiency[g])) if g in m.CCS_EQUIPPED_GENS else 1)
@@ -3140,7 +3140,7 @@ def load_inputs(m, switch_data, inputs_dir):
         optional_params=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw,
                          m.td_onsite_gtc_class, m.td_onsite_pte_hours),
     )
-    # §120: backup diesel fleets and the stress days' weather years
+    # §140: backup diesel fleets and the stress days' weather years
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "tracked_demand_diesel.csv"),
         optional=True,
@@ -3332,7 +3332,7 @@ def post_solve(m, outdir):
             _write_45v_assessment(m, outdir, grid_df)
 
 
-# ── Backup diesel checks and outputs (CHANGES §120) ─────────────────────────
+# ── Backup diesel checks and outputs (CHANGES §140) ─────────────────────────
 DIESEL_NOX_G_PER_KWH = {2: 6.4, 4: 0.67}   # certification limits, >560 / >900 kW gensets (40 CFR 89.112, 1039.101)
 
 
@@ -3345,7 +3345,7 @@ def _diesel_mw(m, g, p):
 
 
 def _check_diesel(m):
-    """Backup diesel rules (§120): existing capacity only; non-emergency running only for tier 4 or engines permitted
+    """Backup diesel rules (§140): existing capacity only; non-emergency running only for tier 4 or engines permitted
     as non-emergency (40 CFR 60.4211(f) / 63.6640(f), rule text checked by the input research); test plus
     non-emergency hours within the permit."""
     for td, g in m.TD_DIESEL_GENS:
@@ -3366,7 +3366,7 @@ def _check_diesel(m):
 
 
 def _check_stress_supply(m):
-    """Necessary-condition check (§120): for each TD with a backup fleet or a stress grid limit, period and
+    """Necessary-condition check (§140): for each TD with a backup fleet or a stress grid limit, period and
     weather-year group, the stress-day energy beyond s x connection against what the fleet (within its permit) and
     bounded on-site supply can give. A gap warns (an error with td_stress_strict); unbounded on-site supply skips it."""
     for td in m.TRACKED_DEMANDS:
@@ -3612,7 +3612,7 @@ def _write_onsite_gen_outputs(m, outdir):
         "covered_by_cap", "coverage_reason", "threshold_check",
     ])
     if len(m.TD_DIESEL_GENS):
-        # §120: a backup fleet's stress-day (emergency) tonnes per year, averaged over the weather-year groups;
+        # §140: a backup fleet's stress-day (emergency) tonnes per year, averaged over the weather-year groups;
         # tco2_per_yr above is its non-emergency running (Switch's weighted accounting, in the cap rows)
         emerg = {}
         for td, g, p, w in m.TD_DIESEL_GROUPS:
