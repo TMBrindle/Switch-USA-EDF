@@ -433,6 +433,16 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     - **`build_rate.py` (`post_solve` only):** `build_rate_duals.csv` and `gas_turbine_cap_results.csv` gain a
       `dual_units` column.
     - Existing columns are unchanged and the models are unchanged.
+24. (§90, tom/s0-v3.1-credits) **Tax credits from statutory terms, levelised.**
+    - **Writer:** `pg_to_switch.gen_tax_credits_file` also reads `tax_credit_terms` (`s0_workflow/tax_credits.py`)
+      and adds each credit levelised over the generator's capital-recovery life. Hand-entered `tax_credit_values`
+      work as before; a project-period credited both ways must agree, or the build stops.
+    - **Settings:** the `tax_credits` axis's `full_ira` is now statutory terms. The v3 version is kept as
+      `full_ira_unlev_v3`.
+    - **Fedpol rows:** `s4x1_fedpol_biden*` and `s4x1_fedpol_reinstate*` now use `full_ira_unlev_v3`, so their inputs
+      are unchanged. They don't load `gen_amortization_period`, so levelising over `gen_max_age` (500 years) would
+      cut their credit to about 15%. **For Ollie:** decide whether fedpol should move to levelised credits (and
+      with which life).
 25. (§92, tom/s0-v3.1-two-tranche) **`switch/study_modules/trans_hurdle_cost.py`: optional two-tranche import charge.**
     - **Inputs:** new optional `trans_import_tranche.csv` and `trans_import_tranche_dirs.csv`.
     - **Model:** a free tranche of delivered imports per period, then a per-MWh rate on the excess (a new Var and
@@ -478,3 +488,12 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
       turns it off.
     - **Effect on every case built with this pg_to_switch:** the written inputs are unchanged (five-stage stand-in
       test). The parsed input files stay in memory for the whole build.
+121. (§115, tom/s0-v3.2) **S-set settings brought onto v3.2 from `tom/s0-v3.1-credits` (Tom's decision C).**
+    - **Files:** `pg/settings/scenario_management.yml` (the §90 `tax_credits` axis: statutory `full_ira`,
+      `full_ira_unlev_v3`), `pg/extra_inputs/scenario_inputs.csv` (the fedpol rows on `full_ira_unlev_v3`),
+      `s0_workflow/data/chain_reuse_expected.csv`, `Guides and documentation/s_set_scenarios.md` and
+      `s0_workflow/tests/test_tax_credits.py`. They are byte for byte the credits branch's files (f8f12bc = head).
+      Row 24 above, which came with them, is copied from that branch.
+    - **Effect on existing cases:** as row 24. The fedpol rows' inputs are unchanged, S0 is unchanged, and the S-set
+      resolves exactly as on the credits branch apart from the v3.2 flags, which sit at their v3.1 settings
+      (`test_s_set_on_v32.py`).

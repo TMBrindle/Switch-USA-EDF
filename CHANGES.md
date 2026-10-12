@@ -4264,3 +4264,29 @@ held flat in every period. A trajectory waits for CARB MRR data.
 - `d2` and `d3` write 52.721 and 38.972 TWh in every period.
 - Unknown presets, and a preset combined with `free_mwh_per_yr`, are refused.
 - The regression-row resolution test lists the new key.
+
+## 115. S0 v3.2: S-Set Settings and Tests from the Credits Branch (Tom's Decision C)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. `tom/s0-v3.1-credits` is untouched.
+
+**What came across:** the S-set's settings and tests, so the v3.2 S-set builds from one branch. The files are byte for
+byte those of `tom/s0-v3.1-credits` (its S-set launch commit f8f12bc and its head agree on all of them):
+- `pg/settings/scenario_management.yml`: the §90 `tax_credits` axis, with statutory `full_ira` and
+  `full_ira_unlev_v3`;
+- `pg/extra_inputs/scenario_inputs.csv`: the fedpol rows on `full_ira_unlev_v3`;
+- `s0_workflow/data/chain_reuse_expected.csv`;
+- `Guides and documentation/s_set_scenarios.md`;
+- `s0_workflow/tests/test_tax_credits.py`.
+
+The credit writer (§90) was already on v3.2 (§100). SHARED_CHANGES row 24 (§90) is copied from the credits branch;
+row 121 records the move.
+
+**Test:** `test_s_set_on_v32.py`.
+- Every S-set row (S0prod_A, S1–S5, L, P), in every year, resolves on v3.2 exactly as on the credits branch, except
+  the v3.2 flags (`storage_credit`, `pv_profile_repair`, `ca_wa_carbon.two_tranche`), which sit at their v3.1 settings.
+- The five files are identical to the credits branch's.
+- `test_tax_credits.py` passes on v3.2.
+
+**Interaction with the v3.2 storage flag:** `full_ira` sets the battery ×0.7 and statutory terms. With
+`storage_credit.mode: obbba`, the ×0.7 becomes the investment term alongside `full_ira`'s production terms; the two
+term types are separate, so nothing is counted twice.

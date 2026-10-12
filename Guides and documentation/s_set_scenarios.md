@@ -73,7 +73,51 @@ Per case and model period ($/yr, typical year; long table by technology and vint
   - the share electing a production credit (1.0);
   - the $/MWh value.
 - **Credit term:** the model's own credits follow `gen_tax_credits.csv`, which pays a project's whole dispatch in a
-  period, whatever the vintage's age.
+  period, whatever the vintage's age. From §90 that rate is the levelised value (below), so the model's total over a
+  plant's life has the statutory present value.
+
+## Levelised credits (§90)
+
+From §90, `full_ira` carries statutory terms (`tax_credit_terms`, `s0_workflow/tax_credits.py`):
+- **45Y:** $27.5/MWh (2024$) for 10 years, on new wind and solar placed in service from 2025.
+- **Levelisation:** the case build turns each term into an in-model $/MWh on every MWh of the plant's in-model life:
+
+  value × AF(r, duration) / AF(r, life), where AF(r, n) = (1 − (1 + r)^−n) / r
+
+  This has the same present value at r as the statutory profile.
+- **r and life** come from the fields Switch annualises that generator's capital with:
+  - **r:** `interest_rate` (`financials.csv`; 0.05 from `switch.yml`). It is not a PowerGenome per-technology WACC:
+    Switch annualises overnight capex with `crf(interest_rate, n)`.
+  - **life:** `gen_amortization_period` when the case loads `study_modules.gen_amortization_period` (S0 and the
+    S-set: `s0_production.extra_modules`), else `gen_max_age`.
+  - **Wind and solar here:** life 30 (PowerGenome `atb_cap_recovery_years`; their `gen_max_age` is 500), r 0.05.
+    The factor is AF(0.05, 10) / AF(0.05, 30) = 7.7217 / 15.3725 = **0.5023**, so **$13.81/MWh**.
+  - A credit that lasts at least the life is not scaled.
+- **Checks:**
+  - The build stops on a hand-entered `levelised_value_per_mwh` that disagrees with the computed value, and on a
+    project-period credited both by `tax_credit_values` and by a term with a different value.
+  - It warns when a term's rate differs from `interest_rate`, and that the period discount rate (0.03) differs from
+    the levelisation rate.
+- **Outputs:** `credit_levelisation_report.csv` in the case folder, per credit, technology and period: value,
+  duration, r, life (and its source), factor, result, run mode (perfect foresight / myopic / rolling, from
+  `s0_production.foresight.mode`) and the discount rate. The treatment is the same in every mode.
+  - `gen_tax_credits_by_vintage.csv` is the hook for vintage-indexed dispatch credits. Nothing reads it yet.
+  - These files are written only when a statutory term applies, so S0 cases gain no files.
+- **New nuclear's $15:** a placeholder, already an in-model value (`prelevelised: true` in `full_ira`; S0's
+  `no_wind_solar` keeps it as the hand-entered `tax_credit_values` $15, exactly as in v3). It is flagged in the
+  report.
+- **Old version:** `full_ira_unlev_v3` is the v3 full-life version ($27.5 on every MWh of a credited plant's in-model
+  life). It is only for reproducing S1_v3 / S2_v3, and for the fedpol rows (`s4x1_fedpol_biden*`, `_reinstate*`),
+  which keep their inputs.
+- **Statutory tally after a solve:**
+
+  ```bash
+  python s0_workflow/scripts/credit_tally.py switch/in/<root>/scenarios_<case>.txt --out credit_tally.csv
+  ```
+
+  For every credited vintage (model and predetermined builds): energy × the statutory $/MWh for its first 10 years in
+  service, by calendar year, with a PV column at the model's discount rate to its base year
+  (`s0_workflow/credit_tally.py`).
 
 ## Reuse from S0prod_A (`reuse_chain_stages.py expected`)
 
