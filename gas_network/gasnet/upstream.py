@@ -14,7 +14,8 @@ fraction of the generator's fuel use. Summed by zone and period (typical year of
 
 Upstream CH4 = gas MMBtu x sum_b share(zone, b) x intensity(b) + gas MMBtu x transmission & storage (distribution is
 not on the power-plant path and is excluded). Options:
-  share path   aeo (zone_basin_shares.csv) | constrained_pipe (zone_basin_shares_constrained_pipe.csv)
+  share path   aeo (zone_basin_shares.csv) | constrained_pipe (zone_basin_shares_constrained_pipe.csv, or built
+               here from the aeo shares with hold_year = 2024/2028/2030)
   basis        measured (IDEA-01 default) | inventory (GHGRP RY2023 basin rates; W. Canada NIR-level; E. Canada and
                LNG imports have no inventory value and keep the measured one)
   methane path current_rules | no_further_reductions (inventory values follow the measured path's multipliers)
@@ -29,7 +30,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import PKG
+from . import PKG, limitations
 
 GWP100, GWP20 = 29.8, 82.5
 K = 0.95 * 19.2 / 1.037        # kg CH4 per MMBtu delivered per unit L/(1-L); same conversion as the research note
@@ -126,7 +127,9 @@ def _latest(years, p):
 
 
 def upstream(outputs_dir, cfg, shares_dir=None, intensity_csv=None, share_paths=None, bases=None,
-             methane_paths=None, out_dir=None, write=True) -> dict:
+             methane_paths=None, out_dir=None, write=True, hold_year=None) -> dict:
+    """hold_year (2024/2028/2030): build the constrained_pipe path from the aeo shares with that hold year instead
+    of reading zone_basin_shares_constrained_pipe.csv (written by `run` with config constrained_pipe_hold_year)."""
     outputs = Path(outputs_dir)
     shares_dir = Path(shares_dir or PKG / "outputs")
     burn, flags = gas_burn(outputs, cfg["gas_fuels"])
@@ -135,9 +138,14 @@ def upstream(outputs_dir, cfg, shares_dir=None, intensity_csv=None, share_paths=
     state = dict(zip(h.ba, h.st))
     rows = []
     for sp in share_paths or list(SHARE_FILES):
-        sh = pd.read_csv(shares_dir / SHARE_FILES[sp])
+        if sp == "constrained_pipe" and hold_year is not None:
+            sh = limitations.constrained_pipe(pd.read_csv(shares_dir / SHARE_FILES["aeo"], keep_default_na=False),
+                                              int(hold_year))
+        else:
+            sh = pd.read_csv(shares_dir / SHARE_FILES[sp])
         syears = sorted(sh.year.unique())
         shd = {k: list(zip(v.basin, v.share)) for k, v in sh[sh.share > 0].groupby(["zone", "year"])}
+        shm = sh.groupby(["zone", "year"]).method.first().to_dict()
         missing = sorted(set(burn.zone) - set(sh.zone))
         if missing:
             raise ValueError(f"no basin shares for zones {missing[:5]}")
@@ -151,7 +159,8 @@ def upstream(outputs_dir, cfg, shares_dir=None, intensity_csv=None, share_paths=
                 k = float(sum(x * tk[(iy, b)] for b, x in shd[(r.zone, sy)]))
                 up_t, ts_t = r.gas_mmbtu * k / 1000, r.gas_mmbtu * ts[lv] / 1000
                 rows.append(dict(zone=r.zone, state=state.get(r.zone, ""), period=int(r.period), share_path=sp,
-                                 basis=basis, methane_path=mp, level=lv, share_year=sy, intensity_year=iy,
+                                 basis=basis, methane_path=mp, level=lv, share_year=sy,
+                                 share_method=shm[(r.zone, sy)], intensity_year=iy,
                                  gas_mmbtu=r.gas_mmbtu, onsite_gas_mmbtu=r.onsite_gas_mmbtu, gas_mwh=r.gas_mwh,
                                  stack_tco2=r.stack_tco2, upstream_tch4=up_t, ts_tch4=ts_t))
     z = pd.DataFrame(rows)

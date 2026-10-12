@@ -3912,3 +3912,9 @@ section "Share paths and the post-solve upstream methane tool (§105)".
 **Tests:** 38 (5 new: known answer on toy outputs incl. a gas/H2 blend and coal; tracked-demand on-site gas not
 double counted; unlisted gas-like fuel stops; constrained_pipe path; inventory follows the measured path). Pass on
 pandas 3.0.6 and 1.4.4; Stage 1 outputs reproduce byte-identically on 1.4.4.
+
+**Follow-up (2026-10-12, Tom; same section).** The constrained_pipe hold year is a setting:
+`config.yaml constrained_pipe_hold_year` (2030 default; 2028 or 2024 allowed, others stop), `run --hold-year`, and
+`upstream --hold-year` (builds the path from `zone_basin_shares.csv` on the fly). The output gains `share_method`.
+The guide records the caveat that 2030 (and partly 2028) shares include NGMM's 2028–30 builds (+6.1 Bcf/d by 2030).
+Committed outputs unchanged (default 2030). Tests: 39 (1 new), pandas 3.0.6 and 1.4.4.

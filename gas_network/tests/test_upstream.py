@@ -121,3 +121,23 @@ def test_intensity_inventory_follows_measured_path():
                              "san_juan", "rockies_other", "bakken", "fed_gom", "w_canada", "e_canada", "lng_imports",
                              "other"}
     assert ts["central"] == pytest.approx(0.0376, abs=1e-4)
+
+
+def test_hold_year_option(tmp_path):
+    from gasnet import limitations
+    a = pd.read_csv(OUT / "zone_basin_shares.csv", keep_default_na=False)
+    with pytest.raises(ValueError, match="hold year"):
+        limitations.constrained_pipe(a, 2035)
+    c = limitations.constrained_pipe(a, 2028)
+    h = a[a.year == 2028].set_index(["zone", "basin"]).share
+    late = c[c.year > 2028]
+    np.testing.assert_allclose(late.share.values, h.loc[list(zip(late.zone, late.basin))].values)
+    assert set(late.method) == {"constrained_pipe_hold_2028"}
+    # the tool builds the path on the fly; default (None) reads the committed 2030 file
+    d = _toy(tmp_path)
+    run = lambda hy: upstream.upstream(d, load_config(), share_paths=["constrained_pipe"], bases=["measured"],
+                                       methane_paths=["current_rules"], write=False, hold_year=hy)["by_zone"]
+    z30, z24 = run(None), run(2024)
+    assert set(z24.share_method) == {"constrained_pipe_hold_2024"} and set(z30.share_method) == {"trace_aeo_additive_balanced"}
+    assert not np.allclose(z24.total_tch4.values, z30.total_tch4.values)
+    assert z30.total_tch4.values == pytest.approx(run(2030).total_tch4.values)

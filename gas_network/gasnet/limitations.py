@@ -133,10 +133,15 @@ def share_fallback(z: pd.DataFrame, w: pd.DataFrame, unmet: pd.DataFrame, deg_zo
     return out, pd.DataFrame(rows, columns=["year", "zone", "reason"])
 
 
+HOLD_YEARS = (2024, 2028, 2030)   # base year or a model year up to the last one Stage 2a serves on status-rule pipe
+
+
 def constrained_pipe(z: pd.DataFrame, hold_year: int) -> pd.DataFrame:
     """CHANGES §105 share path 'constrained_pipe': every zone keeps its hold_year shares (after the §104 fallback) in
     later years. Years up to hold_year are the 'aeo' path unchanged. Later rows get method
     'constrained_pipe_hold_<year>'; a hold-year fallback reason is carried in 'fallback'."""
+    if hold_year not in HOLD_YEARS:
+        raise ValueError(f"constrained_pipe hold year {hold_year} not in {HOLD_YEARS}")
     h = z[z.year == hold_year].set_index(["zone", "basin"])
     out = z.copy()
     m = out.year > hold_year

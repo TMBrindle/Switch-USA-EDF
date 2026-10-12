@@ -214,7 +214,9 @@ def main(argv=None):
     sub.add_parser("fetch")
     sub.add_parser("pin")
     sub.add_parser("verify")
-    sub.add_parser("run")
+    rp = sub.add_parser("run")
+    rp.add_argument("--hold-year", type=int, choices=[2024, 2028, 2030],
+                    help="constrained_pipe hold year (default config constrained_pipe_hold_year, 2030)")
     sub.add_parser("stage2a")
     sub.add_parser("nemscap")
     u = sub.add_parser("upstream", help="post-solve upstream CH4 for a Switch run (§105)")
@@ -224,6 +226,8 @@ def main(argv=None):
     u.add_argument("--basis", nargs="*", choices=["measured", "inventory"])
     u.add_argument("--methane-path", nargs="*", choices=["current_rules", "no_further_reductions"])
     u.add_argument("--gas-fuels", nargs="*", help="override config gas_fuels (case-insensitive)")
+    u.add_argument("--hold-year", type=int, choices=[2024, 2028, 2030],
+                   help="constrained_pipe hold year; default: the committed zone_basin_shares_constrained_pipe.csv")
     r = sub.add_parser("report")
     r.add_argument("outputs_dir")
     r.add_argument("--inputs-dir")
@@ -242,6 +246,8 @@ def main(argv=None):
         bad = fetch.verify(raw, src)
         print("ok" if not bad else f"mismatch: {bad}")
     elif a.cmd == "run":
+        if a.hold_year:
+            cfg["constrained_pipe_hold_year"] = a.hold_year
         run(cfg)
     elif a.cmd == "stage2a":
         from . import stage2a
@@ -256,7 +262,7 @@ def main(argv=None):
         if a.gas_fuels:
             cfg["gas_fuels"] = a.gas_fuels
         r = upstream.upstream(a.outputs_dir, cfg, share_paths=a.share_path, bases=a.basis,
-                              methane_paths=a.methane_path, out_dir=a.out_dir)
+                              methane_paths=a.methane_path, out_dir=a.out_dir, hold_year=a.hold_year)
         tot = r["by_period"]
         c = tot[(tot.level == "central")]
         print(f"wrote upstream_ch4_by_zone/by_state/by_period.csv to {r['out_dir']}")

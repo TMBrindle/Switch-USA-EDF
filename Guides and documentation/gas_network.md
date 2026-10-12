@@ -17,7 +17,7 @@ python -m gasnet.cli report <switch outputs dir> [--inputs-dir <inputs dir>]   #
 python -m gasnet.cli stage2a    # Stage 2a annual network LP -> outputs/stage2a/ (§103)
 python -m gasnet.cli nemscap    # NGMM capacity (AEO2026 restart file) vs Stage 2a min expansion (§104)
 python -m gasnet.cli upstream <switch outputs dir> [options]   # post-solve upstream CH4 (§105; below)
-python -m pytest -q             # 38 tests; the raw-data ones skip if data/raw is empty
+python -m pytest -q             # 39 tests; the raw-data ones skip if data/raw is empty
 python -m gasnet.cli pin        # only after a deliberate data refresh: rewrites data/SOURCES.yml
 ```
 
@@ -663,9 +663,13 @@ zone-year takes the zone's 2024 shares (`method` `fallback_2024`, 2024 `source_v
     shifts away from Appalachia, and which basins replace it is a supply-and-price question that Stage 2a (supply
     fixed by basin) cannot answer. Stage 2a's least-cost routing also differs from observed flows by 19–25 pp in FL and
     CA even in 2024, larger than the effect being measured.
-  - Caveat: Stage 1's 2030 shares already include NGMM's 2028–2030 builds (+6.1 Bcf/d across the Appalachian
-    boundary by 2030), which Stage 2a shows are not needed to serve 2030 demand; the hold is therefore slightly more
-    Appalachian than a strict no-build network would be.
+  - **Caveat (hold year):** Stage 1's 2030 shares already include NGMM's 2028–2030 endogenous builds (+6.1 Bcf/d
+    across the Mid-Atlantic/Ohio → Eastern Midwest boundary by 2030; 2028 already carries part of them), which
+    Stage 2a shows are not needed to serve 2030 demand. A 2030 hold is therefore somewhat more Appalachian than a
+    strict no-build network would be. The hold year is a setting: `config.yaml constrained_pipe_hold_year` (2030
+    default; 2028 or 2024 allowed, the stricter choices), `python -m gasnet.cli run --hold-year 2028` to rewrite
+    `zone_basin_shares_constrained_pipe.csv`, or `upstream --hold-year 2024|2028|2030` to build the path on the fly
+    from `zone_basin_shares.csv` without re-running Stage 1. Any other year stops with an error.
 
 Shares under the two paths (%, basins ≥ 0.5%; 2024–2030 identical):
 
@@ -698,7 +702,8 @@ than the methane path (current_rules vs no_further_reductions: −24 to −35% i
 ```
 python -m gasnet.cli upstream /path/to/case/outputs                       # all options, writes outputs/upstream_ch4/
 python -m gasnet.cli upstream /path/to/case/outputs --out-dir /path/to/dir \
-    --share-path aeo constrained_pipe --basis measured --methane-path current_rules [--gas-fuels NaturalGas ...]
+    --share-path aeo constrained_pipe --basis measured --methane-path current_rules [--hold-year 2028] \
+    [--gas-fuels NaturalGas ...]
 ```
 
 - **Reads** from the Switch outputs folder: `GenFuelUseRate.csv` (generator, timepoint, fuel, MMBtu/h) and
@@ -718,11 +723,13 @@ python -m gasnet.cli upstream /path/to/case/outputs --out-dir /path/to/dir \
   - `inventory`: GHGRP RY2023 prod + G&B rates (W. Canada: the `inventory_derived` NIR-level row, 0.81%; E. Canada and
     LNG imports keep measured values), moved over time by the measured path's multipliers; one value for all levels.
 - **Writes** `upstream_ch4_by_zone.csv`, `_by_state.csv`, `_by_period.csv`: one row per zone/state/period ×
-  share path × basis × methane path × level, with gas MMBtu, on-site gas MMBtu, gas MWh, stack tCO2 (from the same
+  share path × basis × methane path × level (with `share_year` and `share_method`, e.g.
+  `constrained_pipe_hold_2028`), with gas MMBtu, on-site gas MMBtu, gas MWh, stack tCO2 (from the same
   run), upstream and T&S t CH4, total t CH4, t CO2e at GWP100 (29.8) and GWP20 (82.5), kg CH4/MWh, and upstream
   CO2e as % of stack CO2.
 - **Tests** on toy Switch outputs: known answer, gas/hydrogen blend, coal excluded, on-site gas labelled not doubled,
-  an on-site row only in the tracked-demand file, an unlisted gas-like fuel, and the inventory multipliers.
+  an on-site row only in the tracked-demand file, an unlisted gas-like fuel, the inventory multipliers, and the hold
+  year (2028 path, on-the-fly 2024 path, invalid year).
 
 ## Limits
 
