@@ -32,6 +32,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from s0_workflow import startup_costs
 from s0_workflow import coal_fleet
 from s0_workflow import fuel_prices
 from s0_workflow import prm
@@ -95,6 +96,9 @@ def apply_settings(case_settings: dict) -> None:
             apply_ca_wa_carbon(s, s0, case, year)
             apply_storage_credit(s, s0, case, year)
             apply_pv_profile_repair(s, s0, case, year)
+            added = startup_costs.apply_settings(s, s0)                 # V32-01 start-up costs (§119)
+            if added:
+                logger.info("s0_production %s/%s: startup_cost_fix, new-build start-up keys added %s", case, year, added)
             apply_retirement_option(s, s0)
             apply_forced_tx(s, s0, case, year)
             if prm.apply_settings(s, s0):
@@ -1289,6 +1293,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     write_va_rggi(out_folder, s0, scen_settings_dict, log)                 # Virginia in ETS 1 (§66)
     fuel_prices.write_case_inputs(out_folder, s0, scen_settings_dict, log)  # STEO -> AEO2026 gas and coal (§67)
     write_pv_repair_log(out_folder, s0, log)                                # repaired PV profiles (§111)
+    startup_costs.write_check(out_folder, s0, log)                          # new gas start-up costs (§119)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))

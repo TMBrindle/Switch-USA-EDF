@@ -563,6 +563,7 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
                                            "s0_production.prm.thermal_derate.prm_temp_tz_fix: None -> False",
                                            "s0_production.pv_profile_repair: None -> {'mode': 'off', 'profiles_dir': "
                                            "None, 'verify': 'manifest'}",
+                                           "s0_production.startup_cost_fix: None -> {'enabled': False}",
                                            "s0_production.storage_credit: None -> {'mode': 'flat', 'phase_down': 0.5, "
                                            "'phase_basis': 'span_mean'}",
                                            "s0_production.time_sampling.cf_fidelity: None -> {'mode': 'off', 'techs': "

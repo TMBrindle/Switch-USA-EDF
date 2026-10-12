@@ -349,6 +349,10 @@ s0_production:
   #          span_mean (the mean over the period's build years, period_spans)
   #          v3.2 setting (Tom, CHANGES §113): span_mean, so the 2035 stage (builds 2031-35) is x0.745 x ATB before
   #          the tariff. It only acts when mode is obbba; mode stays flat (v3.1) until v3.2 is approved.
+  # v3.2 flag (CHANGES §119, V32-01; changes results, for Ollie's review): new-build start-up cost keys that match the
+  # current ATB names (NaturalGas_Combustion Turbine, NaturalGas_1-on-1 / 2-on-1 Combined Cycle; Coal_95% / 99%-CCS).
+  # In v3.1 new CTs and CCs match no key and carry Start_Cost_per_MW 0. On: the build stops if new gas still has none
+  startup_cost_fix: {enabled: false}
   storage_credit:
     mode: flat
     phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}

@@ -4382,3 +4382,54 @@ with `method: hourly`.
 - With the fix, the hottest hour and the largest derate both fall at model hour 16.
 - With v3.1 they fall at 15.
 - The yml default is `false`, and the regression-row and S-set tests list the key.
+
+## 119. S0 v3.2: Start-Up Costs of New Gas, V32-01 (Item G). Changes Results; for Ollie's Review
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. **Flag:** `s0_production.startup_cost_fix.enabled`: `false` (default,
+v3.1) or `true`. It is a separate flag, so its effect on S0 can be shown on its own.
+
+**The bug:**
+- PowerGenome matches `startup_costs.yml` `new_build_startup_costs` keys to new builds with `str.contains`
+  (`generators.py:296`, as the housekeeping review found).
+- The keys `NaturalGas_CT` and `NaturalGas_CC` match the older ATB names (`NaturalGas_CTAvgCF`, `_CCAvgCF`), not those
+  S0 builds: `NaturalGas_Combustion Turbine (F-Frame)` and `NaturalGas_1-on-1 Combined Cycle (H-Frame)`.
+- **Confirmed in the committed s4x1 fedpol inputs:** all 268 new CT and CC projects (134 zones × 2) have
+  `gen_startup_om` 0, while existing CTs have $145/MW-start and existing CCs $112.
+
+**The fix** (`s0_workflow/startup_costs.py`, applied to the case's settings by `production.apply_settings`). It adds keys
+without regex metacharacters (`str.contains` reads keys as regular expressions) and keeps the v3.1 keys for the older
+names:
+
+| Key | Class |
+|---|---|
+| `NaturalGas_Combustion Turbine` | `gas_large_ct` |
+| `NaturalGas_1-on-1 Combined Cycle` (also its 95% and 97% CCS variants) | `gas_cc` |
+| `NaturalGas_2-on-1 Combined Cycle` | `gas_cc` |
+| `Coal_95%-CCS`, `Coal_99%-CCS` | `coal_supercritical` |
+
+The coal CCS keys cover technologies the CCS axes build; v3.1 gave them no start cost. S0 builds no coal, so on S0 the
+fix changes gas only.
+
+**Audit** (`audit`, over every technology name in `resources.yml` (`atb_new_gen`, `cost_multiplier_technology_map`)
+and the `atb_new_gen` lists of the scenario axes):
+- **v3.1:**
+  - The current ATB CT and CC names, the CC CCS variants and `Coal_95%/99%-CCS` match no key, so they get no start-up
+    cost.
+  - `NaturalGas_CT/CC`, `Coal_new`, `Coal_CCS30` and `Nuclear_Nuclear` match as intended.
+  - `Coal_CCS90`, `Coal_IGCC` and `NaturalGas_CCS100` match nothing (stale, harmless).
+- **With the fix:** every NaturalGas_* name and every fossil or nuclear technology an axis or `atb_new_gen` builds
+  matches exactly one key. There are no ambiguous matches, and no hydrogen technology exists.
+
+**Build check:** after the case is written, any new `NaturalGas_*` project with `gen_startup_om` 0 stops the build
+when the flag is on. With the flag off it is logged, which is the v3.1 behaviour.
+
+**Test:** `test_startup_costs.py`.
+- The v3.1 keys miss the gas names, and the fixed keys map them.
+- Every buildable fossil and nuclear name matches exactly one key.
+- The flag is off by default, and turning it on adds the keys.
+- The build check flags all 268 fedpol projects with the flag off, stops the build with it on, and passes once
+  `gen_startup_om` is set.
+- The regression-row and S-set tests list the key.
+
+**Results:** with the flag on, new CTs and CCs pay start-up costs in commitment (`commit_operate`), which favours
+existing units and changes dispatch and builds. **For Ollie's review.**
