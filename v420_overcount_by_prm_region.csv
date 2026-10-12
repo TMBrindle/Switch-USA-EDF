@@ -1,0 +1,11 @@
+prm_region,total_mw,coal_integrated_gasification_combined_cycle,conventional_hydroelectric,natural_gas_fired_combined_cycle,natural_gas_fired_combustion_turbine,natural_gas_steam_turbine,petroleum_liquids
+MISO,5479.6,481.2,37.1,4903.9,0.0,0.0,57.4
+SPP,1496.3,0.0,0.0,1195.6,7.2,293.5,0.0
+PJM,746.1,0.0,0.0,746.1,0.0,0.0,0.0
+SERC_C,604.5,0.0,0.0,604.5,0.0,0.0,0.0
+NPCC_NY,564.1,0.0,0.0,564.1,0.0,0.0,0.0
+NPCC_NE,513.6,0.0,0.0,513.6,0.0,0.0,0.0
+SERC_SE,406.4,0.0,0.0,406.4,0.0,0.0,0.0
+WestConnect_North,338.4,0.0,0.0,338.4,0.0,0.0,0.0
+NorthernGrid_East,90.9,0.0,90.9,0.0,0.0,0.0,0.0
+WECC_CA,4.5,0.0,4.5,0.0,0.0,0.0,0.0

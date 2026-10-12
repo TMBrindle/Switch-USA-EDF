@@ -1,0 +1,36 @@
+plant_id_eia,plant_name_eia,state,zone,prm_region,techs,generators,overcount_mw,retires_before_2028,plant_nameplate_mw,plant_winter_reported_mw,plant_winter_old_mw
+55380,Union Power Partners LP,AR,p85,MISO,natural_gas_fired_combined_cycle,8,1408.0,False,2428.0,2318.1,3726.1
+55463,Redbud Power Plant,OK,p50,SPP,natural_gas_fired_combined_cycle,4,795.6,False,1433.6,1214.0,2009.6
+6073,Victor J Daniel Jr,MS,p87,MISO,natural_gas_fired_combined_cycle,4,761.4,False,2229.0,2187.6,2949.0
+55173,Acadia Power Station,LA,p58,MISO,natural_gas_fired_combined_cycle,3,694.6,False,1389.2,549.7,1244.3
+57037,Kemper County,MS,p88,SERC_C,natural_gas_fired_combined_cycle,2,604.5,False,840.0,730.0,1334.5
+55467,Quachita Generating Plant,LA,p86,MISO,natural_gas_fired_combined_cycle,3,537.9,False,903.9,836.9,1374.8
+60903,Salem Harbor Station NGCC,MA,p131,NPCC_NE,natural_gas_fired_combined_cycle,2,481.4,False,798.2,710.4,1191.8
+1004,Edwardsport,IN,p107,MISO,coal_integrated_gasification_combined_cycle,2,481.2,False,812.7,578.0,1059.2
+60302,Keys Energy Center,MD,p123,PJM,natural_gas_fired_combined_cycle,2,471.0,False,830.6,799.0,1270.0
+643,Lansing Smith,FL,p91,SERC_SE,natural_gas_fired_combined_cycle,2,406.4,False,661.5,686.0,1092.4
+55418,Hot Spring,AR,p85,MISO,natural_gas_fired_combined_cycle,2,397.8,False,714.8,636.2,1034.0
+55620,Perryville,LA,p86,MISO,natural_gas_fired_combined_cycle,2,397.8,False,824.1,815.4,1213.2
+55220,Attala Generating Co LLC,MS,p87,MISO,natural_gas_fired_combined_cycle,2,353.2,False,551.3,515.5,868.7
+55218,Hinds,MS,p87,MISO,natural_gas_fired_combined_cycle,2,353.2,False,600.4,548.4,901.6
+50707,TCP 122,CO,p33,WestConnect_North,natural_gas_fired_combined_cycle,6,338.4,False,396.9,272.0,610.4
+2079,Hawthorn,MO,p54,SPP,natural_gas_fired_combined_cycle,2,312.8,False,1046.2,744.2,1057.0
+10725,Selkirk Cogen Partners  LP,NY,p127,NPCC_NY,natural_gas_fired_combined_cycle,3,255.6,False,446.0,441.5,697.1
+2951,Horseshoe Lake,OK,p50,SPP,natural_gas_steam_turbine,1,220.0,False,784.0,467.8,687.8
+54832,Panda Brandywine LP,MD,p123,PJM,natural_gas_fired_combined_cycle,2,197.4,False,288.8,254.0,451.4
+56196,Zeltmann,NY,p127,NPCC_NY,natural_gas_fired_combined_cycle,1,188.0,False,528.0,540.4,728.4
+50558,PowerSmith Cogen,OK,p50,SPP,natural_gas_fired_combined_cycle,1,87.2,False,131.4,126.0,213.2
+10751,Camden Cogen LP,NJ,p126,PJM,natural_gas_fired_combined_cycle,1,77.7,False,172.9,144.7,222.4
+2291,North Omaha,NE,p41,SPP,natural_gas_steam_turbine,1,73.5,True,644.7,389.6,463.1
+7314,Richard M Flynn,NY,p128,NPCC_NY,natural_gas_fired_combined_cycle,1,60.0,False,170.0,160.0,220.0
+6463,Ames GT,IA,p70,MISO,petroleum_liquids,1,57.4,False,78.7,22.1,79.5
+7190,Milner Hydro,ID,p16,NorthernGrid_East,conventional_hydroelectric,1,46.6,False,59.5,3.8,50.4
+821,Twin Falls,ID,p16,NorthernGrid_East,conventional_hydroelectric,1,44.3,False,52.7,7.3,51.6
+52026,Dartmouth Power Assoc,MA,p131,NPCC_NE,natural_gas_fired_combined_cycle,1,32.2,False,97.4,89.5,121.7
+4056,Prairie Du Sac,WI,p77,MISO,conventional_hydroelectric,7,29.9,False,33.4,29.0,58.9
+10190,Fort Orange TransCana,NY,p127,NPCC_NY,natural_gas_fired_combined_cycle,1,25.0,False,72.0,77.3,102.3
+50451,Indeck Yerkes Energy Center,NY,p127,NPCC_NY,natural_gas_fired_combined_cycle,1,19.3,False,59.9,53.8,73.1
+50450,Indeck Oswego Energy Center,NY,p127,NPCC_NY,natural_gas_fired_combined_cycle,1,16.2,False,57.4,59.0,75.2
+4053,Kilbourn,WI,p76,MISO,conventional_hydroelectric,3,7.2,False,9.7,9.5,16.7
+56458,Hobbs Generating Station,NM,p47,SPP,natural_gas_fired_combustion_turbine,1,7.2,False,681.5,634.0,641.2
+6645,Foothill Feeder,CA,p10,WECC_CA,conventional_hydroelectric,1,4.5,False,9.0,6.7,11.2
