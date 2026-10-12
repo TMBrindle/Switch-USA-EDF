@@ -29,13 +29,14 @@ ratio. It never changes `pg_data/profiles`. Then it reruns the sample-fidelity s
   ```bash
   python -c "import pandas as pd; d=pd.read_csv('pg_data/resource_groups/ReEDS-cpas-patched/solar_lcoe_ReEDS.csv', nrows=3); print(d.T)"
   ```
-- **Disk:** copies, not links (`--no-links`). The output folder takes the repaired solar file (about the size of the
-  source) plus full copies of the folder's other files. Check with `du -sh pg_data/profiles/*` and keep about 1.2 ×
-  the solar file plus the others free in the scratch volume.
-- **Memory:** about 3 GB peak with the default `--batch-rows 2190`, plus about 1 GB for the correlation (daily sums,
-  730 × 68,923). Use `--batch-rows 1095` to halve the batch part.
-- **Runtime:** an estimate; please record the real time. The file is read three times (scan, write, rescan of the
-  output), and `--hash` adds two more full reads for the sha256 of source and output. Expect roughly 45–120 minutes.
+- **Disk (measured, VM run 12 Oct 2026):** the repaired solar file is about **10 GB**, 2.3 × the source, because the
+  filled 2007–11 years compress far less than the all-zero columns they replace. The folder's other files (the wind
+  profiles, site mappings) are unchanged, so they can be **hard links** (the default, on the same volume) instead of
+  copies; `--no-links` copies them and adds their full size.
+- **Memory (measured):** **17.4 GB peak** with the default `--batch-rows 2190`, correlation method. Run it on a machine
+  or session with at least 24 GB free; `--batch-rows 1095` lowers the batch part only.
+- **Runtime (measured):** about **6 hours** with `--hash`. The file is read three times (scan, write, rescan of the
+  output), and `--hash` adds two full reads. Most of the time is the write of the filled 2007–11 rows (see section 6).
 
 ## 2. Run (output to the dashboards session's scratch folder)
 ```bash
@@ -49,7 +50,7 @@ time python s0_workflow/scripts/repair_pv_profiles.py \
     --site-map pg_data/profiles/solar_site_mapping_20240801.parquet \
     --region-col <zone column> \
     --zeroed s0_workflow/data/pv_profile_repair/zeroed_pv_sites.csv \
-    --hash --no-links \
+    --hash \
     2>&1 | tee pv_repair.log
 ```
 - **Optional arguments:**
@@ -63,7 +64,8 @@ time python s0_workflow/scripts/repair_pv_profiles.py \
 - **Outputs:**
   - in `$OUT/`: the repaired `solar_rev_profiles_20240801.parquet`, `pv_profile_repair_log.csv` (one row per zeroed
     site-year: neighbour, correlation, scope, scale, clipped hours, status), `pv_profile_repair_manifest.json` (with
-    `neighbour_method: correlation` and the sha256 of source and output) and copies of the folder's other files;
+    `neighbour_method: correlation` and the sha256 of source and output) and hard links (or, with `--no-links`, copies)
+    of the folder's other files;
   - the sites table it built (site, zone, capacity_mw, number of zones), written beside the folder as
     `$OUT_sites.csv`.
 - **Exit code:** 0 when no site-year with capacity is still all zero, else 1.
@@ -91,8 +93,9 @@ The values come from `zeroed_pv_sites.csv`:
 | `fill_summary.site_years_filled_outside_zone` | 0 expected | **review** any: zones whose sites all lack a year |
 | `fill_summary.max_site_years_from_one_neighbour` | — | review if > 50: one site fills a whole block |
 | `fill_summary.scale_min` / `scale_max` | median about 0.98 (p1 block-0 sites vs neighbours, fd4a3a1) | `scale_share_0.7_1.3` ≥ 0.99; review the outliers in the log |
-| `clipped_hours` | small | < 0.1% of filled hours (14,350 × 8,760) |
-| `other_files_copied` | every other file in `pg_data/profiles` | none missing (`other_files_linked` empty with `--no-links`) |
+| `clipped_energy_share` | about 0.15% (VM run 12 Oct) | **≤ 0.5%** of the filled site-years' scaled output; review above 0.25% |
+| `clipped_hours`, `clipped_hours_share` | about 1.9% of filled hours (VM run 12 Oct) | information only, no threshold |
+| `other_files_linked` + `other_files_copied` | every other file in `pg_data/profiles` | none missing |
 | `source.sha256`, `output.sha256` | present | both present (`--hash`) |
 
 **Checks to report back:**
@@ -102,12 +105,27 @@ The values come from `zeroed_pv_sites.csv`:
    CF).
 3. The real runtime, peak memory and disk use.
 
+**Why the clipping check is on energy (§132):** a clipped hour is a scale above 1 applied to a neighbour hour already
+at the inverter limit (CF 1.0). The PV profiles sit at that limit for many midday hours, so the share of clipped hours
+is large (1.9%) while the output lost is small (about 0.15%). The earlier hour-share threshold (0.1%) measured the
+wrong thing. `clipped_energy_share` = output above 1 that was cut / the scaled output before the cut, over the filled
+site-years; `pv_profile_repair_log.csv` has both per site-year (`clipped_energy_lost`, `scaled_energy`). Manifests
+written before §132 (the 12 Oct run) don't have the field. The dashboards' own calculation (at most about 0.15% of
+energy) stands for that run.
+
 ## 4. Use it in a build
-In the case's settings (or `pg/settings/s0_production.yml`, once Tom approves):
+ON in the v3.2 S0 defaults (`pg/settings/s0_production.yml`, CHANGES §132):
 ```yaml
 s0_production:
-  pv_profile_repair: {mode: neighbour_fill, profiles_dir: <the repaired folder>, verify: manifest}
+  pv_profile_repair: {mode: neighbour_fill, profiles_dir: pg_data/profiles_pvfix, verify: manifest,
+                      neighbour_method: correlation, output_sha256: fb0fda93}
 ```
+- **Moving the folder:** the build compares the repaired file's size and modification time with the manifest. Move it
+  with `mv` (same volume) or `rsync -a` / `cp -a`, which keep the time. A plain `cp` changes it and the build refuses the
+  folder ("changed since the repair").
+- **`neighbour_method` / `output_sha256`:** the build also requires the manifest's method and the output sha256
+  recorded by `--hash`. A prefix of at least 8 hex digits is enough. Replace the 8-digit prefix with the full hash
+  from `pv_profile_repair_manifest.json` when convenient.
 - **What the build does:** checks the manifest, stopping if the file changed since the repair or any site-year with
   capacity is still zero. It then points `RESOURCE_GROUP_PROFILES` at the folder and copies the fill log into each case.
   `verify: full` (with `sites: <folder>_sites.csv`) rescans the file instead, which takes one full read.
@@ -133,3 +151,10 @@ s0_production:
    zone's clusters).
 4. **Report:** the scan summary (before and after repair; after repair with rescale), plus the build time with and
    without rescale. Rescale should add seconds, not minutes.
+
+## 6. Future fix (not done): a vectorised write
+The slow step is `write_repaired`. For every batch of 2007–11 rows it rebuilds each filled column on its own: an Arrow
+→ NumPy copy, the scaled neighbour slice, then a new Arrow array, for about 14,350 site-years. Building each batch's
+filled columns at once would cut most of the 6 hours. Gather the neighbours' columns in one array, multiply by the
+scale vector, clip, and replace the target columns in a single `RecordBatch.from_arrays`. Not changed now: the run has
+passed, and the output is checked by hash.

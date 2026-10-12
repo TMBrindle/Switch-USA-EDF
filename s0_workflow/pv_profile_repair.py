@@ -258,7 +258,8 @@ def fill_summary(fills: pd.DataFrame) -> dict:
 
 
 def write_repaired(src: Path, out: Path, fills: pd.DataFrame, first_year=2007, hours=8760, batch_rows=2190) -> dict:
-    """Copy src to out batch by batch, replacing each filled site-year. Returns clipped-hour counts by (site, year)."""
+    """Copy src to out batch by batch, replacing each filled site-year. Returns, by (site, year): clipped hours, the
+    output lost to clipping (sum of scaled values above 1) and the scaled output before clipping."""
     import pyarrow as pa
     pq = _pq()
     f = pq.ParquetFile(src)
@@ -289,7 +290,9 @@ def write_repaired(src: Path, out: Path, fills: pd.DataFrame, first_year=2007, h
                     col = arrays[k_site].to_numpy(zero_copy_only=False).astype(float).copy()
                     nb = arrays[k_nb].to_numpy(zero_copy_only=False).astype(float)
                     v = nb[s0:s0 + tk] * scale
-                    clipped[(site, y)] = clipped.get((site, y), 0) + int((v > 1.0).sum())
+                    h, lost, tot = clipped.get((site, y), (0, 0.0, 0.0))
+                    clipped[(site, y)] = (h + int((v > 1.0).sum()), lost + float(np.clip(v - 1.0, 0, None).sum()),
+                                          tot + float(np.clip(v, 0, None).sum()))
                     col[s0:s0 + tk] = np.clip(v, 0.0, 1.0)
                     arrays[k_site] = pa.array(col, type=f.schema_arrow.field(k_site).type, from_pandas=True)
             w.write_batch(pa.RecordBatch.from_arrays(arrays, schema=f.schema_arrow))
@@ -359,7 +362,10 @@ def repair_folder(src_dir: Path, out_dir: Path, profile_name: str, sites: pd.Dat
         log(f"pv_profile_repair: zeroed list {agree['listed_site_years']} site-years, found {agree['found_site_years']}, "
             f"in both {agree['in_both']}")
     clipped = write_repaired(src, out_dir / profile_name, fills, first_year, hours, batch_rows)
-    fills["clipped_hours"] = [clipped.get((r.site, int(r.year)), 0) for r in fills.itertuples()]
+    fills["clipped_hours"] = [clipped.get((r.site, int(r.year)), (0, 0.0, 0.0))[0] for r in fills.itertuples()]
+    fills["clipped_energy_lost"] = [clipped.get((r.site, int(r.year)), (0, 0.0, 0.0))[1] for r in fills.itertuples()]
+    fills["scaled_energy"] = [clipped.get((r.site, int(r.year)), (0, 0.0, 0.0))[2] for r in fills.itertuples()]
+    tot_scaled = float(fills.scaled_energy.sum())
     fills.to_csv(out_dir / LOG, index=False)
     after = zero_site_years(scan(out_dir / profile_name, cols, first_year, hours, batch_rows), sites)
     linked, copied = [], []
@@ -384,7 +390,13 @@ def repair_folder(src_dir: Path, out_dir: Path, profile_name: str, sites: pd.Dat
            "site_years_filled": int(filled(fills).sum()),
            "site_years_unfillable": int((~filled(fills)).sum()),
            "zero_site_years_with_capacity_after": int(len(after)),
-           "clipped_hours": int(fills.clipped_hours.sum()), "fill_summary": summ, "zeroed_list_check": agree,
+           "clipped_hours": int(fills.clipped_hours.sum()),
+           # §132: the PV check. Clipped hours are a scale above 1 applied to a neighbour at its inverter limit; what
+           # matters is the output lost, as a share of the filled site-years' scaled output
+           "clipped_energy_share": (float(fills.clipped_energy_lost.sum()) / tot_scaled) if tot_scaled > 0 else 0.0,
+           "clipped_hours_share": (float(fills.clipped_hours.sum()) / (int(filled(fills).sum()) * hours))
+           if filled(fills).any() else 0.0,
+           "fill_summary": summ, "zeroed_list_check": agree,
            "other_files_linked": linked, "other_files_copied": copied,
            "log": LOG}
     if with_hash:

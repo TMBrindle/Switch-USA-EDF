@@ -83,3 +83,30 @@ def offshore_split_default_folder(monkeypatch):
 
     monkeypatch.setattr(og, "check_folder", check_folder)
     yield
+
+
+# §132: likewise pv_profile_repair is ON, pointing at the repaired profiles folder on the VM (pg_data/profiles_pvfix).
+# For that default path only, while its manifest is missing, check_folder returns a stub manifest matching the
+# settings' method and hash prefix.
+@pytest.fixture(autouse=True)
+def pv_repair_default_folder(monkeypatch):
+    from pathlib import Path
+
+    import yaml
+    from s0_workflow import pv_profile_repair as pr
+    repo = Path(__file__).resolve().parents[2]
+    r = yaml.safe_load(open(repo / "pg/settings/s0_production.yml"))["s0_production"].get("pv_profile_repair") or {}
+    if not r.get("profiles_dir"):
+        yield
+        return
+    default = (repo / r["profiles_dir"]).resolve()
+    real = pr.check_folder
+
+    def check_folder(folder, sites=None, full=False):
+        if Path(folder).resolve() == default and not (default / pr.MANIFEST).exists():
+            return {"site_years_filled": 0, "sites_zero_before": 0, "neighbour_method": r.get("neighbour_method"),
+                    "output": {"sha256": str(r.get("output_sha256") or "")}, "stub": "s0_workflow/tests/conftest.py"}
+        return real(folder, sites, full)
+
+    monkeypatch.setattr(pr, "check_folder", check_folder)
+    yield

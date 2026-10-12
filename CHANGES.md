@@ -4914,3 +4914,54 @@ commit the result.
 - Errors for a missing zone column and an unknown method.
 - `sites_zone_from` (majority-MW zone).
 - The CLI end to end with `--hash --no-links`.
+
+## 132. S0 v3.2 Defaults: PV Profile Repair ON (Tom's Conditional Approval; the VM Run Passed)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`.
+
+**The run** (dashboards session, runbook dc7aa00, correlation neighbours):
+- **Fills:** all 14,350 zeroed site-years filled, all in-zone.
+- **Daily correlation with the neighbour:** min 0.72, p10 0.93.
+- **Scale:** 0.74–1.17.
+- **p1 CF over 2007–13:** 0.125 → 0.180 (about 0.178 expected).
+- **Clipping:** at most about 0.15% of energy lost; 1.9% of hours clipped, see below.
+- **Output sha256:** fb0fda93… The folder moves to `pg_data/profiles_pvfix`.
+
+**Setting:** `pv_profile_repair: {mode: neighbour_fill, profiles_dir: pg_data/profiles_pvfix, verify: manifest,
+neighbour_method: correlation, output_sha256: fb0fda93}`. It changes results: PV in the zeroed zones, p1 most.
+
+**New build checks** (`production.apply_pv_profile_repair`):
+- `neighbour_method` must equal the manifest's.
+- `output_sha256`, at least 8 hex digits, must prefix the manifest's recorded output sha256. A manifest without one
+  (a run without `--hash`) is refused.
+- Both compare the manifest only; nothing is rehashed. The existing size and mtime check still ties the manifest to the
+  file.
+- Replace the prefix with the full hash when convenient.
+- **Fix:** `write_pv_repair_log` warns instead of failing when a manifest has no fill log.
+
+**Clipping (runbook item a):**
+- **What the run showed:** clipped hours were 1.9% of filled hours. Each is a scale above 1 applied to a neighbour hour
+  already at the inverter limit, so the share of hours says little about the energy lost.
+- **Recorded per site-year now:** `write_repaired` records the output cut (`clipped_energy_lost`) and the scaled
+  output before the cut (`scaled_energy`). The manifest gains `clipped_energy_share` and `clipped_hours_share`.
+- **The runbook check:** `clipped_energy_share` ≤ 0.5%, review above 0.25%. Clipped hours are information only.
+- **The 12 Oct manifest:** it predates these fields; the dashboards' figure (about 0.15%) stands for that run.
+
+**Runbook (items b and c):**
+- **Measured resources:** 6 h with `--hash`, 17.4 GB peak memory, a repaired solar file of about 10 GB (2.3 × the
+  source: the filled years compress less).
+- **Links:** the other files (wind profiles, mappings) can be hard links, the default on the same volume.
+- **Moving the folder:** use `mv`, `rsync -a` or `cp -a`, because the build checks the file's mtime.
+- **Section 6 (future, not done):** vectorise the 2007–11 write, the slow step.
+
+**The regression row (`on_pgdays`):** sets `pv_profile_repair` back to off, so it still resolves to v3.1 (SHARED_CHANGES
+row 131).
+
+**Flags-off patch** (`s0_workflow/data/v32/v32_flags_off.patch`, §130): now 8 changes, the PV repair added. It still
+parses to 4696653's settings.
+
+**Tests:**
+- `test_pv_profile_repair.py`: the yml value; method and hash checks (match, prefix, uppercase, wrong method, wrong
+  hash, too short, no `--hash`); clipped energy share.
+- `conftest.py`: a stub manifest for the default folder while it is missing, as for the offshore folder (§129).
+- Regression row, S-set and flags-off patch tests updated.

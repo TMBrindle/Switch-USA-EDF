@@ -640,8 +640,11 @@ _PV_REPAIR_CHECKED = {}
 
 
 def pv_repair_settings(s0: dict) -> dict:
-    r = {"mode": "off", "profiles_dir": None, "verify": "manifest", "sites": None,
-         **((s0 or {}).get("pv_profile_repair") or {})}
+    r = {"mode": "off", "profiles_dir": None, "verify": "manifest", "sites": None, "neighbour_method": None,
+         "output_sha256": None, **((s0 or {}).get("pv_profile_repair") or {})}
+    sha = r["output_sha256"]
+    if sha is not None and not (len(str(sha)) >= 8 and all(c in "0123456789abcdef" for c in str(sha).lower())):
+        raise ValueError("s0_production.pv_profile_repair.output_sha256 must be at least 8 hex digits of the sha256")
     if r["mode"] not in PV_REPAIR_MODES:
         raise ValueError(f"s0_production.pv_profile_repair.mode must be one of {PV_REPAIR_MODES}, not {r['mode']!r}")
     if r["verify"] not in ("manifest", "full"):
@@ -677,6 +680,17 @@ def apply_pv_profile_repair(s: dict, s0: dict, case=None, year=None) -> None:
             sites = pd.read_csv(sp if sp.is_absolute() else REPO / sp, dtype={"site": str})
         _PV_REPAIR_CHECKED[key] = pr.check_folder(d, sites, full=r["verify"] == "full")
     man = _PV_REPAIR_CHECKED[key]
+    # §132: the run the settings name (method and recorded output hash); compares the manifest, no rehash
+    if r["neighbour_method"] and man.get("neighbour_method", "distance") != r["neighbour_method"]:
+        raise ValueError(f"pv_profile_repair: {d} was repaired with {man.get('neighbour_method', 'distance')} "
+                         f"neighbours, the settings ask for {r['neighbour_method']}")
+    if r["output_sha256"]:
+        got = str((man.get("output") or {}).get("sha256") or "")
+        if not got:
+            raise ValueError(f"pv_profile_repair: {d}'s manifest has no output sha256 (repair run without --hash)")
+        if not got.lower().startswith(str(r["output_sha256"]).lower()):
+            raise ValueError(f"pv_profile_repair: {d}'s output sha256 {got[:16]}... is not the one in the settings "
+                             f"({r['output_sha256']})")
     s["RESOURCE_GROUP_PROFILES"] = str(d.resolve())
     logger.info("s0_production %s/%s: PV profiles from the repaired folder %s (%d site-years filled, %d sites; "
                 "0 zero site-years with capacity)", case, year, d, man["site_years_filled"], man["sites_zero_before"])
@@ -756,10 +770,15 @@ def write_pv_repair_log(folder: Path, s0: dict, log) -> None:
     d = Path(r["profiles_dir"])
     d = d if d.is_absolute() else REPO / d
     man = pr.check_folder(d)
-    shutil.copy2(d / man["log"], Path(folder) / pr.LOG)
-    log(f"pv_profile_repair (neighbour_fill): {man['site_years_filled']} site-years filled at {man['sites_zero_before']} "
-        f"sites from the nearest unaffected site in the same weather year, scaled by the 2012-13 means; "
-        f"{man['clipped_hours']} hours clipped at 1; log {pr.LOG}; folder {d}")
+    src = d / man["log"] if man.get("log") else None
+    if src is not None and src.exists():
+        shutil.copy2(src, Path(folder) / pr.LOG)
+    else:
+        log(f"pv_profile_repair: WARNING no fill log in {d}; {pr.LOG} not copied")
+    log(f"pv_profile_repair (neighbour_fill, {man.get('neighbour_method', 'distance')} neighbours): "
+        f"{man['site_years_filled']} site-years filled at {man['sites_zero_before']} sites from a site with data in the "
+        f"same weather year, scaled by the 2012-13 means; {man.get('clipped_hours', 0)} hours clipped at 1 "
+        f"(energy lost {100 * man.get('clipped_energy_share', 0.0):.3f}% where recorded); folder {d}")
 
 
 def apply_ca_wa_carbon(s: dict, s0: dict, case=None, year=None) -> None:

@@ -339,10 +339,11 @@ s0_production:
   #                   (each zeroed site-year from the nearest unaffected site in the same weather year x the 2012-13
   #                   mean ratio); the build checks its manifest (verify: manifest) or rescans it (verify: full, with
   #                   sites) and stops if any site-year with capacity is still all zero
-  pv_profile_repair:
-    mode: "off"
-    profiles_dir: ~                # e.g. pg_data/profiles_pvfix
-    verify: manifest
+  #   neighbour_method / output_sha256 (§132, optional): the build also requires the manifest's method and the sha256
+  #                   recorded for the repaired file (--hash; a prefix of at least 8 hex digits is enough)
+  # v3.2 ON (Tom, conditional on the VM run, which passed 12 Oct 2026 with runbook dc7aa00: 14,350 site-years filled, all
+  # in-zone; daily correlation min 0.72, p10 0.93; scale 0.74-1.17; p1 CF 2007-13 0.125 -> 0.180; CHANGES §132)
+  pv_profile_repair: {mode: neighbour_fill, profiles_dir: pg_data/profiles_pvfix, verify: manifest, neighbour_method: correlation, output_sha256: fb0fda93}
 
   # v3.2 flag (CHANGES §100): the battery storage credit (48E ITC).
   #   flat   (v3.1) the tax_credits axis's x0.7 battery capex multiplier (atb_modifiers.batteries) in every period

@@ -66,7 +66,9 @@ def test_s_set_rows_resolve_as_on_the_credits_branch():
 ON_PGDAYS_V31 = {"settings": {"interconnection_headroom": {"price_factors": {"wind": None}}},
                  "storage_credit": {"mode": "flat"}, "startup_cost_fix": {"enabled": False},
                  "prm": {"thermal_derate": {"prm_temp_tz_fix": False}},
-                 "offshore_filter_fix": {"mode": "off", "resource_groups_dir": None}}           # §129
+                 "offshore_filter_fix": {"mode": "off", "resource_groups_dir": None},           # §129
+                 "pv_profile_repair": {"mode": "off", "profiles_dir": None, "neighbour_method": None,
+                                       "output_sha256": None}}                                   # §132
 
 
 def test_scenario_management_differs_only_by_the_regression_row_v31_pins():

@@ -550,3 +550,6 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 130. (§129, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `offshore_filter_fix: {mode: "off"}`.**
     - **Why:** the offshore split is ON in the v3.2 S0 defaults, and the regression row keeps v3.1.
     - **Effect:** the regression row resolves to v3.1 values, as in row 128.
+131. (§132, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `pv_profile_repair: {mode: "off"}`.**
+    - **Why:** the PV repair is ON in the v3.2 S0 defaults, and the regression row keeps v3.1.
+    - **Effect:** the regression row resolves to v3.1 values, as in rows 128 and 130.

@@ -1345,6 +1345,7 @@ settings_management:
           startup_cost_fix: {enabled: false}
           prm: {thermal_derate: {prm_temp_tz_fix: false}}
           offshore_filter_fix: {mode: "off", resource_groups_dir: ~}   # §129
+          pv_profile_repair: {mode: "off", profiles_dir: ~, neighbour_method: ~, output_sha256: ~}   # §132
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}

@@ -110,6 +110,11 @@ def test_clipping_is_counted(tmp_path):
     man = _repair(src, tmp_path / "fixed", sites)
     assert man["clipped_hours"] > 0
     assert pd.read_parquet(tmp_path / "fixed" / NAME)["105"].max() <= 1.0
+    # §132: energy lost to clipping, as a share of the filled site-years' scaled output
+    log = pd.read_csv(tmp_path / "fixed" / pr.LOG, dtype={"site": str})
+    assert man["clipped_energy_share"] == pytest.approx(log.clipped_energy_lost.sum() / log.scaled_energy.sum())
+    assert 0 < man["clipped_energy_share"] < 1 and (log[log.site != "105"].clipped_energy_lost == 0).all()
+    assert man["clipped_hours_share"] == pytest.approx(man["clipped_hours"] / (man["site_years_filled"] * H))
 
 
 def _s0(mode, d=None, verify="manifest"):
@@ -118,7 +123,10 @@ def _s0(mode, d=None, verify="manifest"):
 
 def test_build_flag(tmp_path):
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert s0["pv_profile_repair"]["mode"] == "off"                              # v3.1 until approved
+    assert s0["pv_profile_repair"] == {"mode": "neighbour_fill", "profiles_dir": "pg_data/profiles_pvfix",   # §132 ON
+                                       "verify": "manifest", "neighbour_method": "correlation",
+                                       "output_sha256": "fb0fda93"}
+    assert s0prod.pv_repair_settings({})["mode"] == "off"                       # the code default: v3.1
     src, sites, _ = _profiles(tmp_path, dead_capacity=0.0)
     out = tmp_path / "fixed"
     _repair(src, out, sites)
@@ -290,3 +298,33 @@ def test_cli_correlation_sites_from_metadata(tmp_path):
     man = json.loads((tmp_path / "out" / pr.MANIFEST).read_text())
     assert rc == 0 and man["neighbour_method"] == "correlation" and "sha256" in man["output"]
     assert (tmp_path / "out_sites.csv").exists()
+
+
+def test_build_checks_method_and_hash(tmp_path):
+    """§132: the settings can require the manifest's neighbour method and recorded output sha256 (a prefix)."""
+    src, sites, cols = _corr_profiles(tmp_path)
+    out = tmp_path / "o"
+    man = pr.repair_folder(src, out, NAME, sites, first_year=2007, hours=HC, log=lambda m: None,
+                           neighbour_method="correlation", with_hash=True)
+    sha = man["output"]["sha256"]
+
+    def apply(**kw):
+        s0prod._PV_REPAIR_CHECKED.clear()
+        s = {}
+        s0prod.apply_pv_profile_repair(s, {"pv_profile_repair": {"mode": "neighbour_fill", "profiles_dir": str(out), **kw}})
+        return s
+    assert apply(neighbour_method="correlation", output_sha256=sha[:8])["RESOURCE_GROUP_PROFILES"] == str(out.resolve())
+    apply(output_sha256=sha.upper())
+    with pytest.raises(ValueError, match="repaired with correlation"):
+        apply(neighbour_method="distance")
+    with pytest.raises(ValueError, match="is not the one in the settings"):
+        apply(output_sha256="0" * 8 if not sha.startswith("0" * 8) else "1" * 8)
+    with pytest.raises(ValueError, match="at least 8 hex"):
+        apply(output_sha256="fb0f")
+    nohash = tmp_path / "nh"
+    pr.repair_folder(src, nohash, NAME, sites, first_year=2007, hours=HC, log=lambda m: None,
+                     neighbour_method="correlation")
+    s0prod._PV_REPAIR_CHECKED.clear()
+    with pytest.raises(ValueError, match="without --hash"):
+        s0prod.apply_pv_profile_repair({}, {"pv_profile_repair": {"mode": "neighbour_fill", "profiles_dir": str(nohash),
+                                                                  "output_sha256": sha[:8]}})

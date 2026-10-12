@@ -17,7 +17,7 @@ def _patched_text() -> str:
     lines = PATCH.read_text().splitlines()
     minus = [l[1:] for l in lines if l.startswith("-") and not l.startswith("---")]
     plus = [l[1:] for l in lines if l.startswith("+") and not l.startswith("+++")]
-    assert len(minus) == len(plus) == 7
+    assert len(minus) == len(plus) == 8                      # §132: + pv_profile_repair
     for a, b in zip(minus, plus):
         assert text.count(a + "\n") == 1, a
         text = text.replace(a + "\n", b + "\n")

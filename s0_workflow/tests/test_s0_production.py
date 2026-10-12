@@ -569,7 +569,8 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
                                            "s0_production.prm.imports.new_tx_allowance: 0.0 -> None",
                                            "s0_production.prm.thermal_derate.prm_temp_tz_fix: None -> False",
                                            "s0_production.pv_profile_repair: None -> {'mode': 'off', 'profiles_dir': "
-                                           "None, 'verify': 'manifest'}",
+                                           "None, 'verify': 'manifest', 'neighbour_method': None, 'output_sha256': "
+                                           "None}",                              # §132: ON in v3.2, off here
                                            "s0_production.settings.interconnection_headroom.price_factors: None -> "
                                            "{'wind': None}",
                                            "s0_production.startup_cost_fix: None -> {'enabled': False}",
