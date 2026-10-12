@@ -25,7 +25,8 @@ def _axis(name):
     return copy.deepcopy(sm["tax_credits"][name])
 
 
-def _stage_settings(mode=None, axis="no_wind_solar", basis=None, share_modifiers=False):
+def _stage_settings(mode="flat", axis="no_wind_solar", basis=None, share_modifiers=False):
+    """mode flat = v3.1 (set explicitly: the S0 default is obbba from v3.2, §126)."""
     cs = {"c": {}}
     shared = None
     for y in STAGES:
@@ -60,10 +61,11 @@ def _gens():
                     Fixed_OM_Cost_per_MWyr_mean=10_000.0, Fixed_OM_Cost_per_MWhyr=1_000.0)
 
 
-def test_default_is_v31_flat():
+def test_v32_default_is_obbba_and_flat_is_v31():
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert s0["storage_credit"]["mode"] == "flat"
-    for y, s in _stage_settings().items():
+    assert s0["storage_credit"]["mode"] == "obbba"                                   # v3.2 ON (§126)
+    assert s0prod.storage_credit_settings({})["mode"] == "flat"                      # the code default: v3.1
+    for y, s in _stage_settings("flat").items():
         assert s["atb_modifiers"]["batteries"]["capex_mw"] == ["mul", 0.7], y        # x0.7 in every period
         assert s["atb_modifiers"]["batteries"]["capex_mwh"] == ["mul", 0.7], y
         assert not tc.investment_terms_for(s)
@@ -106,7 +108,7 @@ def test_battery_capex_by_stage(tmp_path, basis, expect):
 
 
 def test_flat_writes_build_costs_as_v31(tmp_path):
-    """flat (the default): the writer sees no investment term, so gen_build_costs.csv is PowerGenome's capex (the
+    """flat (v3.1): the writer sees no investment term, so gen_build_costs.csv is PowerGenome's capex (the
     x0.7 is already inside it, from atb_modifiers) and no report file is written."""
     a, b = tmp_path / "a", tmp_path / "b"
     a.mkdir()
@@ -120,7 +122,7 @@ def test_flat_writes_build_costs_as_v31(tmp_path):
 def test_flat_and_obbba_agree_until_2033():
     """Same battery capex as v3.1 in the 2028 and 2030 stages: PowerGenome's x0.7 there equals the writer's
     1 - 0.3 x 1."""
-    flat, ob = _stage_settings(), _stage_settings("obbba")
+    flat, ob = _stage_settings("flat"), _stage_settings("obbba")
     for y in (2028, 2030):
         m_flat = flat[y]["atb_modifiers"]["batteries"]["capex_mw"][1]
         t = tc.investment_terms_for(ob[y])["storage_itc_48e"]
@@ -172,7 +174,7 @@ def test_credit_writer_hook_keeps_s0_tax_credits_as_v31(tmp_path):
 def test_v32_setting_is_span_mean(tmp_path):
     """§113 (Tom): with mode obbba and the yml's own phase basis, the 2035 stage pays 0.745 x ATB (before the tariff)."""
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert s0["storage_credit"]["phase_basis"] == "span_mean" and s0["storage_credit"]["mode"] == "flat"
+    assert s0["storage_credit"]["phase_basis"] == "span_mean" and s0["storage_credit"]["mode"] == "obbba"   # §126
     assert s0prod.STORAGE_CREDIT_DEFAULTS["phase_basis"] == "span_mean"
     ssd = _stage_settings("obbba")                             # phase basis from the yml
     _writer()(_gens(), tmp_path, ssd)

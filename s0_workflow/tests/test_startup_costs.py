@@ -50,10 +50,12 @@ def test_audit_every_buildable_fossil_and_nuclear_name():
 
 def test_flag_off_by_default_and_on_adds_keys():
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert s0["startup_cost_fix"] == {"enabled": False}
+    assert s0["startup_cost_fix"] == {"enabled": True}                                       # v3.2 ON (§126)
     s = {"new_build_startup_costs": dict(sc.load_yml("startup_costs.yml")["new_build_startup_costs"])}
     before = dict(s["new_build_startup_costs"])
-    assert sc.apply_settings(s, s0) == [] and s["new_build_startup_costs"] == before         # off: v3.1
+    assert sc.apply_settings(s, {"startup_cost_fix": {"enabled": False}}) == []
+    assert s["new_build_startup_costs"] == before                                            # off: v3.1
+    assert sc.apply_settings(s, {}) == []                                                    # code default: off
     added = sc.apply_settings(s, {"startup_cost_fix": {"enabled": True}})
     assert set(added) == set(sc.FIXED_KEYS) and {**before, **sc.FIXED_KEYS} == s["new_build_startup_costs"]
 

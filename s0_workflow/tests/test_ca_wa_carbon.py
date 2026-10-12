@@ -483,8 +483,9 @@ def test_toy_wa_two_tranche_charge(tmp_path):
 
 def test_ca_free_tranche_presets(built):
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert s0["ca_wa_carbon"]["two_tranche"] == {"preset": "v31"}                         # v3.1 until approved
-    r = s0prod.ca_wa_settings(s0)
+    assert s0["ca_wa_carbon"]["two_tranche"] == {"preset": "d2"}                          # v3.2 ON (§126)
+    assert s0prod.ca_wa_settings(s0)["two_tranche"]["free_mwh_per_yr"] == 52.721e6
+    r = s0prod.ca_wa_settings({"ca_wa_carbon": {"two_tranche": {"preset": "v31"}}})     # v3.1
     assert r["two_tranche"]["free_mwh_per_yr"] == 49.399e6
     for preset, mwh in (("d2", 52.721e6), ("d3", 38.972e6)):
         r = s0prod.ca_wa_settings({"ca_wa_carbon": {"two_tranche": {"preset": preset}}})

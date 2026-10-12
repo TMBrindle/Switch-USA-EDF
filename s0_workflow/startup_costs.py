@@ -125,6 +125,9 @@ def write_check(folder: Path, s0: dict, log) -> None:
                          f"({sorted(bad.gen_tech.unique())}); check new_build_startup_costs against the ATB names")
     gi = pd.read_csv(Path(folder) / "gen_info.csv", na_values=["."])
     ng = gi[gi.gen_tech.astype(str).str.startswith("NaturalGas_")]
+    if "gen_startup_om" not in gi or ng.empty:
+        log("startup costs (startup_cost_fix): no new gas projects with gen_startup_om in gen_info.csv; nothing to check")
+        return
     log("startup costs (startup_cost_fix): new gas start-up cost $/MW-start by technology: "
         + "; ".join(f"{t} {v:g}" for t, v in ng.groupby("gen_tech").gen_startup_om.max().items()))
 

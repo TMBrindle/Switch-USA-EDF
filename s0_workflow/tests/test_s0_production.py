@@ -121,9 +121,11 @@ def test_apply_settings_merges_and_sets_atb_moderate():
                                "regional": True, "regional_groups": ["wind_onshore", "solar"],
                                "gas_turbine_cap": {"enabled": True, "form": "cumulative_additions",
                                                    "allowance_path": "central"}}
-    assert s["interconnection_headroom"] == {"enabled": True, "scenario": "atts_s0"}
+    assert s["interconnection_headroom"] == {"enabled": True, "scenario": "atts_s0",
+                                             "price_factors": {"wind": 1.0}}                 # §126: v3.2 ON
     assert s["atb_modifiers"]["ngcc"]["capex_mw"] == ["mul", 1.0] and s["atb_modifiers"]["ngct"]["capex_mw"] == ["mul", 1.0]
-    assert s["atb_modifiers"]["batteries"]["capex_mw"] == ["mul", 0.7]                  # untouched
+    # §126: storage_credit obbba (v3.2 ON) moves the axis's x0.7 to the credit writer, so the modifier is x1.0
+    assert s["atb_modifiers"]["batteries"]["capex_mw"] == ["mul", 1.0]
     assert cs["legacy"][2035]["atb_modifiers"]["ngcc"]["capex_mw"] == 2061000           # other cases untouched
     with pytest.raises(ValueError, match="period_spans"):
         s0prod.apply_settings({"c": {2035: _case_settings(first=2030)}})
@@ -557,7 +559,10 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
     # import cost)
     # and the v3.2 flags at their v3.1 settings: PV profile repair off (§111) and the storage credit (§100), flat (inert: the axis's x0.7 as before; chain_reuse
     # collapses the year-keyed phase_down to its 2035 value)
-    assert cr._diff_paths(now, before) == ["s0_production.ca_wa_carbon.import_charge: None -> 'two_tranche'",
+    # (§126: the v3.2 defaults are ON in s0_production.yml; on_pgdays sets each back to its v3.1 value, so the row
+    # resolves to v3.1 settings; the wind price factor null is v3.1's 0.25 x)
+    assert cr._diff_paths(now, before) == ["interconnection_headroom.price_factors: None -> {'wind': None}",
+                                           "s0_production.ca_wa_carbon.import_charge: None -> 'two_tranche'",
                                            "s0_production.ca_wa_carbon.two_tranche: None -> {'preset': 'v31'}",
                                            "s0_production.offshore_filter_fix: None -> {'mode': 'off', "
                                            "'resource_groups_dir': None}",
@@ -565,6 +570,8 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
                                            "s0_production.prm.thermal_derate.prm_temp_tz_fix: None -> False",
                                            "s0_production.pv_profile_repair: None -> {'mode': 'off', 'profiles_dir': "
                                            "None, 'verify': 'manifest'}",
+                                           "s0_production.settings.interconnection_headroom.price_factors: None -> "
+                                           "{'wind': None}",
                                            "s0_production.startup_cost_fix: None -> {'enabled': False}",
                                            "s0_production.storage_credit: None -> {'mode': 'flat', 'phase_down': 0.5, "
                                            "'phase_basis': 'span_mean'}",

@@ -537,3 +537,9 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     deliberately.**
     - **Change:** the v3 manifest is kept and still checked against 79f4064. The new `build_rate_v32_manifest.csv`
       pins the current files, and a test lists the seven entries allowed to differ from v3.
+128. (§126, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, axis `s0_production`, value `on_pgdays` (the
+    regression row): the v3.2 defaults set back to v3.1.**
+    - **Keys:** `settings.interconnection_headroom.price_factors.wind: null`, `storage_credit.mode: flat`,
+      `startup_cost_fix.enabled: false`, `prm.thermal_derate.prm_temp_tz_fix: false`, `time_sampling.cf_fidelity.mode:
+      off` and `ca_wa_carbon.two_tranche.preset: v31`.
+    - **Effect:** the regression row resolves to v3.1 values (test). No other axis value or row is touched.

@@ -4676,3 +4676,53 @@ and `test_r7_reads_lbnl_sheet_when_available` (the real file).
 - **Results:** R1, R11 and R2 only relax limits, so in any stage where those limits bind they can only add wind, solar
   and storage (and lower cost), and nowhere else. R7 tightens 2028 slightly. The measured effect needs a solved
   one-stage test: see `Guides and documentation/s0_v3.2.md`.
+
+## 126. S0 v3.2 Defaults ON (Tom's Decision, 11 Oct 2026)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. These change S0's inputs and results. Every S0 production row (S0prod_A
+/ B, BILL, the S-set, `s4x1_S0prod_2035_new` and the sensitivities) takes them. Cases with S0 off are unaffected.
+
+**ON in `pg/settings/s0_production.yml`:**
+
+| Item | Setting | v3.1 | CHANGES |
+|---|---|---|---|
+| a. Wind interconnection price | `settings.interconnection_headroom.price_factors: {wind: 1.0}` | `{wind: null}` (0.25 ×) | §98 |
+| b / A. Battery storage credit | `storage_credit.mode: obbba`, `phase_basis: span_mean` | `flat` (×0.7 every period) | §100, §113 |
+| B. CA free tranche | `ca_wa_carbon.two_tranche.preset: d2` (52.7 TWh/yr) | `v31` (49.4) | §114 |
+| D. Sample-fidelity rescale | `time_sampling.cf_fidelity.mode: rescale` | `off` | §116 |
+| G. New-gas start-up costs (V32-01) | `startup_cost_fix.enabled: true` | `false` | §119 |
+| F. PRM temperature clock | `prm.thermal_derate.prm_temp_tz_fix: true` | `false` (inert with S0's seasonal derates) | §118 |
+
+**Not yet ON:**
+- `pv_profile_repair: neighbour_fill` (§111, §117). Needs the VM repair run (`pg_data/profiles_pvfix`, manifest
+  checks), then `profiles_dir` set.
+- `offshore_filter_fix: split_groups` (§120). Needs the split folder from the VM (group JSON name, turbine-type / depth
+  and pref-site columns), then `resource_groups_dir` set.
+- WA two-tranche (§100). Stays `per_mwh` pending the WA reassessment.
+- The build-rate flags (§121–§125). Off until tested.
+- **Note on rescale:** cf_fidelity rescale was approved to run after the PV repair. With the repair still off, a v3.2
+  build rescales the unrepaired PV profiles. The full-record target then includes the zeroed years, so PV clusters with
+  zeroed site-years are scaled towards the depressed CF. Turn on the repair before the v3.2 S0 build.
+
+**The regression row (`s4x1_S0prod_2035`, axis value `on_pgdays`) stays the v3.1 build.**
+- `on_pgdays` sets each of the six back to its v3.1 value: wind `null`, `storage_credit.mode: flat`, preset `v31`,
+  `cf_fidelity.mode: off`, `startup_cost_fix.enabled: false` and `prm_temp_tz_fix: false`.
+- `test_regression_row_resolves_as_before_the_one_column_fix` lists the resolved differences from 9e2045b. All are v3.1
+  values: the flags at v3.1, plus the explicit wind `null`.
+- `on_pgdays_new` (`s4x1_S0prod_2035_new`, "the same case with the new defaults") takes v3.2.
+
+**Tests updated deliberately:**
+- Each flag test now asserts the yml value is ON and the code default is v3.1:
+  - `test_storage_credit.py`: `_stage_settings` sets `flat` explicitly; `test_v32_default_is_obbba_and_flat_is_v31`;
+  - `test_ca_wa_carbon.py::test_ca_free_tranche_presets`;
+  - `test_cf_fidelity.py::test_settings_v32_on_code_default_off`;
+  - `test_prm.py` (two tests);
+  - `test_startup_costs.py`;
+  - `test_s0_production.py`: the headroom block, and the battery modifier ×1.0 under obbba;
+  - `test_final_s0.py`: preset `d2`.
+- `test_s_set_on_v32.py`: the price-factor paths join `V32_FLAGS`. The byte-for-byte check of
+  `scenario_management.yml` against the credits branch (f8f12bc) becomes
+  `test_scenario_management_differs_only_by_the_regression_row_v31_pins`. Parsed, the file equals the credits branch's
+  once the `on_pgdays` v3.1 pins are removed.
+- **Fix:** `startup_costs.write_check` no longer fails (AttributeError) on a `gen_info.csv` without
+  `gen_startup_om` or with no new gas when the fix is on. It logs and returns; the stop for new gas at 0 is unchanged.

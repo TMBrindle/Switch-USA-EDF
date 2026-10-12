@@ -28,6 +28,8 @@ s0_production:
     interconnection_headroom:
       enabled: true
       scenario: atts_s0
+      # v3.2 ON (Tom, 11 Oct 2026; CHANGES §126): wind pays the full step price (v3.1: wind null, 0.25 x)
+      price_factors: {wind: 1.0}
 
   # diagnostic slack on the headroom limit ($/MW; ic_params.ic_v2 of the test runs), so a case that
   # cannot meet the headroom limit solves and reports where (ic_headroom.csv)
@@ -58,7 +60,8 @@ s0_production:
     # sampled profile so its sample-weighted CF equals its full-record CF (capped at 1, the capped energy put back on
     # uncapped hours); stress days untouched; no change to the days or the model size; vcf_fidelity.csv per case.
     # off (v3.1) | rescale. Leave off for production-cost builds over many days or the full record.
-    cf_fidelity: {mode: "off", techs: [solar, onwind, offwind], flag_range: [0.8, 1.25]}
+    # v3.2 ON (Tom, 11 Oct 2026; CHANGES §126)
+    cf_fidelity: {mode: rescale, techs: [solar, onwind, offwind], flag_range: [0.8, 1.25]}
     # sample (optional; absent = n_days single days): N (N single days, = n_days) or NxL, N chronological
     # L-day blocks (e.g. 4x3), each one timeseries (storage and hydro carry over its L days), against the
     # same targets, tolerances and tail bands; weights in days/yr, each block at least w_min times a year.
@@ -273,7 +276,7 @@ s0_production:
       # v3.2 flag (CHANGES §118): read hourly temperatures on the model's clock (utc_offset -5 -> Etc/GMT+5, the basis of
       # the profiles and load, dbc3637), not Etc/GMT+6, which is one hour behind. false = v3.1. Acts only with
       # method: hourly (S0 uses seasonal derates, which don't read temperatures)
-      prm_temp_tz_fix: false
+      prm_temp_tz_fix: true        # v3.2 ON (Tom, 11 Oct 2026; CHANGES §126); false = v3.1
       cold_c: -15                  # winter stress days: the cold end of the murphy2019 curves
       hot_c: 35                    # summer stress days: the hot end
       winter_months: [11, 12, 1, 2, 3]
@@ -348,18 +351,19 @@ s0_production:
   #          0 (2036 on). phase_basis: period_label (the period's label year, as the production credits) or
   #          span_mean (the mean over the period's build years, period_spans)
   #          v3.2 setting (Tom, CHANGES §113): span_mean, so the 2035 stage (builds 2031-35) is x0.745 x ATB before
-  #          the tariff. It only acts when mode is obbba; mode stays flat (v3.1) until v3.2 is approved.
+  #          the tariff. It only acts when mode is obbba.
+  #          v3.2 ON (Tom, 11 Oct 2026; CHANGES §126): mode obbba with span_mean; flat = v3.1.
   # v3.2 flag (CHANGES §119, V32-01; changes results, for Ollie's review): new-build start-up cost keys that match the
   # current ATB names (NaturalGas_Combustion Turbine, NaturalGas_1-on-1 / 2-on-1 Combined Cycle; Coal_95% / 99%-CCS).
   # In v3.1 new CTs and CCs match no key and carry Start_Cost_per_MW 0. On: the build stops if new gas still has none
-  startup_cost_fix: {enabled: false}
+  startup_cost_fix: {enabled: true}   # v3.2 ON (Tom, 11 Oct 2026; CHANGES §126); false = v3.1
   # v3.2 flag (CHANGES §120): offshore wind duplicates. The three offshore cluster entries (fixed pref-site 1 / 0,
   # floating) all pick the one all-CPA offshore group, so each carries every zone's whole resource (x3 in total).
   # off (v3.1) | split_groups: RESOURCE_GROUPS = a copy with the offshore group split by turbine type and pref site
   # (s0_workflow/scripts/split_offshore_groups.py); the build stops if the limits don't sum to the true resource
   offshore_filter_fix: {mode: "off", resource_groups_dir: ~}
   storage_credit:
-    mode: flat
+    mode: obbba
     phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}
     phase_basis: span_mean
   ca_wa_carbon:
@@ -371,7 +375,7 @@ s0_production:
     # v3.2 flag (CHANGES §114): CA free tranche preset. v31 (default, 49.4 TWh) | d2 (v3.2 value, Tom: 52.7 TWh, CEC clean
     # imports + geothermal + biomass) | d3 (sensitivity, ~39 TWh, CARB basis, indicative). A sensitivity row sets
     # s0_production: {ca_wa_carbon: {two_tranche: {preset: d3}}}
-    two_tranche: {preset: v31}
+    two_tranche: {preset: d2}      # v3.2 ON (Tom, 11 Oct 2026; CHANGES §126); v31 = v3.1
     # v3.2 flag (CHANGES §100): wa_import_charge: per_mwh (v3.1, the code default) | two_tranche (WA imports as a
     # named tranche in the CA LP form: wa_two_tranche.free_mwh_per_yr free, then price x 0.437 per MWh)
     # imports generators inside CA / WA zones (CHANGES §66): output pays price x factor (tCO2/MWh) per MWh

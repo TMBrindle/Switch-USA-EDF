@@ -52,7 +52,7 @@ def test_defaults_and_regression_pins():
     assert s["rggi"]["mode"] == "3pr" and s["rggi"]["virginia"]["enabled"] is True
     assert s["ca_wa_carbon"] == {"mode": "linked", "path": "central", "import_charge": "two_tranche",   # §94: explicit
                                  "import_gens": {"p11": 0.428, "p1": 0.0, "p3": 0.0},
-                                 "two_tranche": {"preset": "v31"}}                    # §114: v3.2 flag at v3.1
+                                 "two_tranche": {"preset": "d2"}}                     # §126: v3.2 ON (§114 preset)
     assert s["lifetime_backstop"] == {"enabled": True, "coal_years": 65, "gas_years": 55, "floor_year": 2026}
     assert s["retirement_friction"]["fraction"] == 0.5 and s["retirement_friction"]["from_period"] == 2030
     assert s["existing_fixed_om"] == "by_period"

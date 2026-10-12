@@ -78,10 +78,12 @@ def test_cap_at_one_puts_energy_back_and_flags_big_scales():
     assert (out["osw"].values[on] * w[on]).sum() / w[on].sum() == pytest.approx(full["osw"].mean(), abs=1e-4)
 
 
-def test_settings_default_off():
+def test_settings_v32_on_code_default_off():
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert s0["time_sampling"]["cf_fidelity"]["mode"] == "off"
-    assert cf.settings({"s0_production": {**s0, "enabled": True}}) is None
+    assert s0["time_sampling"]["cf_fidelity"]["mode"] == "rescale"                      # v3.2 ON (§126)
+    assert cf.DEFAULTS["mode"] == "off"                                                  # the code default: v3.1
+    off = {**s0, "enabled": True, "time_sampling": {**s0["time_sampling"], "cf_fidelity": {"mode": "off"}}}
+    assert cf.settings({"s0_production": off}) is None
     on = {**s0, "enabled": True, "time_sampling": {**s0["time_sampling"], "cf_fidelity": {"mode": "rescale"}}}
     assert cf.settings({"s0_production": on})["techs"] == ["solar", "onwind", "offwind"]
     with pytest.raises(ValueError, match="cf_fidelity.mode"):

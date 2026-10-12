@@ -1319,7 +1319,7 @@ settings_management:
       on_pgdays:
         s0_production:
           enabled: true
-          time_sampling: {method: powergenome}
+          time_sampling: {method: powergenome, cf_fidelity: {mode: "off"}}
           foresight: {mode: single}
           gas_capex: {mode: atb_moderate}
           gas_turbine_cap: {form: legacy}
@@ -1334,11 +1334,16 @@ settings_management:
           # prm.design and tx_policy.mode: the regression row's prm_design and tx_bill columns (legacy) set them, so
           # each key is set in one place only (CHANGES §81)
           rggi: {mode: legacy}
-          ca_wa_carbon: {mode: legacy}
+          ca_wa_carbon: {mode: legacy, two_tranche: {preset: v31}}
           lifetime_backstop: {enabled: false}
           retirement_friction: {fraction: 0.0}
           existing_fixed_om: mean
           fuel_prices: {mode: hist5}
+          # the v3.2 defaults (CHANGES §126) back at their v3.1 values: the regression row stays the v3.1 build
+          settings: {interconnection_headroom: {price_factors: {wind: null}}}
+          storage_credit: {mode: flat}
+          startup_cost_fix: {enabled: false}
+          prm: {thermal_derate: {prm_temp_tz_fix: false}}
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}

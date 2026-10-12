@@ -235,7 +235,9 @@ def test_settings_axis_column_and_legacy():
                                     "stress_days": {"formulation": "light"}}}},
                                 "legacy": {"s0_production": {"prm": {"design": "legacy"}}}}
     # §81: the regression row's prm.design is its prm_design column's (legacy), not on_pgdays'
-    assert "prm" not in ax["s0_production"]["on_pgdays"]["s0_production"]
+    # (§126: on_pgdays sets only prm.thermal_derate.prm_temp_tz_fix, back to v3.1)
+    assert ax["s0_production"]["on_pgdays"]["s0_production"].get("prm", {}) in (
+        {}, {"thermal_derate": {"prm_temp_tz_fix": False}})
     si = pd.read_csv(REPO / "pg/extra_inputs/scenario_inputs.csv")
     regional = set(si.loc[(si.prm_design == "regional") & (si.s_set == "none"), "case_id"])   # §75 S-set aside
     assert {c for c in regional if not ("S0_tx" in c or "BILL" in c)} == {"S0prod_A", "S0prod_B", "s4x1_S0prod_2035_prm",
@@ -816,7 +818,7 @@ def test_prm_temp_tz_fix_peak_hour_matches_model_hour(tmp_path):
     s = {"utc_offset": -5}
     assert prm.model_tz(s) == "Etc/GMT+5" and prm.model_tz({"utc_offset": 3}) == "Etc/GMT-3"
     td_on = {**P["thermal_derate"], "method": "hourly", "prm_temp_tz_fix": True}
-    td_off = {**P["thermal_derate"], "method": "hourly"}
+    td_off = {**P["thermal_derate"], "method": "hourly", "prm_temp_tz_fix": False}
     assert td_off["prm_temp_tz_fix"] is False and prm.temperature_tz(td_off, s) == "Etc/GMT+6"
     for td, peak in ((td_on, 16), (td_off, 15)):
         tz = prm.temperature_tz(td, s)
@@ -826,4 +828,4 @@ def test_prm_temp_tz_fix_peak_hour_matches_model_hour(tmp_path):
         derate = {hh: float(prm.curve_for(CFG, "combustion_turbine", v)) for hh, v in by_hour.items()}
         assert derate[peak] == max(derate.values()) and derate[peak] > derate[peak - 1]   # the largest derate
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
-    assert s0["prm"]["thermal_derate"]["prm_temp_tz_fix"] is False                # v3.1 until approved
+    assert s0["prm"]["thermal_derate"]["prm_temp_tz_fix"] is True                 # v3.2 ON (§126)
