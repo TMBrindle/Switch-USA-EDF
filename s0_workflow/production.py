@@ -431,7 +431,10 @@ CA_WA_DEFAULTS = {
     # geothermal treatment)
     "two_tranche": {"free_mwh_per_yr": 49.399e6,
                     "source": "PLACEHOLDER: CEC 2023 TSEG specified non-emitting imports (hydro, nuclear, wind, "
-                              "solar), 49,399 of 76,400 GWh, CEC basis, held flat; calibration in v3.2"},
+                              "solar), 49,399 of 76,400 GWh, CEC basis, held flat; calibration in v3.2",
+                    # v3.2 flag (CHANGES §114): a named free tranche (CA_FREE_TRANCHE_PRESETS) replaces
+                    # free_mwh_per_yr and source; v31 = the values above
+                    "preset": "v31"},
     # v3.2 flag (CHANGES §100): WA imports. per_mwh (v3.1): every MWh into a WA zone from outside CA / WA pays price x
     # the WA factor (or the import_charge option's WA share). two_tranche: the CA form for WA, a named tranche "WA"
     # (trans_import_tranches*.csv): free_mwh_per_yr free, every MWh above at price x the WA factor. free 0 = v3.1's
@@ -445,6 +448,22 @@ CA_WA_DEFAULTS = {
         "low": {2028: 29.1, 2030: 32.0, 2035: 40.6, 2040: 51.6, 2045: 65.4},        # floor (Greenline/EDF; WA Ecology)
         "high": {2028: 52.8, 2030: 74.8, 2035: 149.1, 2040: 189.2, 2045: 240.0},    # Bushnell, Feb 2026
     },
+}
+
+
+# CA free tranche (CHANGES §100 d, §114; Tom's decision B: d2 is the v3.2 value, d3 a sensitivity). Flat in every period;
+# a trajectory waits for CARB MRR data. GWh from CEC 2023 Total System Electric Generation imports (76,400 GWh).
+CA_FREE_TRANCHE_PRESETS = {
+    "v31": {"free_mwh_per_yr": 49.399e6,
+            "source": "S0 v3.1: CEC 2023 TSEG specified clean imports (large + small hydro, nuclear, wind, solar), "
+                      "49,399 GWh, held flat"},
+    "d2": {"free_mwh_per_yr": 52.721e6,
+           "source": "v3.2 (Tom, §114): CEC 2023 TSEG specified clean imports 49,399 + geothermal 2,569 + biomass 753 "
+                     "= 52,721 GWh, held flat"},
+    "d3": {"free_mwh_per_yr": 38.972e6,
+           "source": "sensitivity (§114), CARB basis, INDICATIVE: D1 49,399 less the extra unspecified volume CARB counts "
+                     "(about 20.8 TWh, from CARB inventory 2022 unspecified imports + T&D 8.9 MMT / 0.428 t/MWh, an upper "
+                     "bound, less CEC's 10,373 GWh) = 38,972 GWh, held flat; replace with CARB MRR data when read"},
 }
 
 
@@ -470,6 +489,15 @@ def ca_wa_settings(s0: dict) -> dict:
         f = float(r["specified_factor"])
         if f < 0:
             raise ValueError(f"s0_production.ca_wa_carbon.specified_factor must be >= 0, not {f}")
+    over_tt = ((s0 or {}).get("ca_wa_carbon") or {}).get("two_tranche") or {}
+    preset = r["two_tranche"].get("preset", "v31")
+    if preset not in CA_FREE_TRANCHE_PRESETS:
+        raise ValueError(f"s0_production.ca_wa_carbon.two_tranche.preset must be one of {sorted(CA_FREE_TRANCHE_PRESETS)}, "
+                         f"not {preset!r}")
+    if preset != "v31":
+        if "free_mwh_per_yr" in over_tt:
+            raise ValueError("s0_production.ca_wa_carbon.two_tranche: set preset or free_mwh_per_yr, not both")
+        r["two_tranche"] = {**r["two_tranche"], **CA_FREE_TRANCHE_PRESETS[preset]}
     if r["import_charge"] == "two_tranche" and float(r["two_tranche"]["free_mwh_per_yr"]) < 0:
         raise ValueError("s0_production.ca_wa_carbon.two_tranche.free_mwh_per_yr must be >= 0")
     if r["wa_import_charge"] not in ("per_mwh", "two_tranche"):

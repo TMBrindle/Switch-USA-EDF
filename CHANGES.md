@@ -4240,3 +4240,27 @@ repair folder (a second, flagged repair rule).
 
 **Also:** the storage-credit comment in `s0_production.yml` had ended up above the PV-repair block; it is back above
 its key.
+
+## 114. S0 v3.2: CA Free-Tranche Presets, D2 as the v3.2 Value and D3 as a Sensitivity (Tom's Decision B)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`.
+
+**The flag:** `s0_production.ca_wa_carbon.two_tranche.preset` (`production.CA_FREE_TRANCHE_PRESETS`). Every preset is
+held flat in every period. A trajectory waits for CARB MRR data.
+
+| Preset | Free tranche | Basis | Role |
+|---|---|---|---|
+| `v31` | 49.4 TWh (49,399 GWh) | CEC 2023 TSEG specified clean imports: large and small hydro, nuclear, wind, solar | **Default**: S0 v3.1, unchanged until v3.2 is approved |
+| `d2` | 52.7 TWh (52,721 GWh) | v31 + geothermal 2,569 + biomass 753 GWh | **v3.2 value** (Tom) |
+| `d3` | 39.0 TWh (38,972 GWh) | CARB basis, indicative: v31 less the extra unspecified volume CARB counts (about 20.8 TWh from the CARB 2022 inventory via Next10, an upper bound, less CEC's 10,373 GWh) | **Sensitivity**: replace with CARB MRR data when it can be read |
+
+**Usage:**
+- A sensitivity row sets `s0_production: {ca_wa_carbon: {two_tranche: {preset: d3}}}`.
+- Setting both a preset and `free_mwh_per_yr` stops the build.
+- The tranche info file records the preset's source.
+
+**Test:** `test_ca_free_tranche_presets`.
+- The yml default is `v31`, and the explicit `v31` setting writes byte-identical tranche files.
+- `d2` and `d3` write 52.721 and 38.972 TWh in every period.
+- Unknown presets, and a preset combined with `free_mwh_per_yr`, are refused.
+- The regression-row resolution test lists the new key.

@@ -350,6 +350,10 @@ s0_production:
     # S0 v3.1 (tag s0-v3.1): explicit, as the launch run set it (the code default is the same, §93). Free tranche
     # 49.4 TWh/yr, PLACEHOLDER on CEC's basis; it bound in every stage of the S0 v3.1 run. Calibration in v3.2
     import_charge: two_tranche
+    # v3.2 flag (CHANGES §114): CA free tranche preset. v31 (default, 49.4 TWh) | d2 (v3.2 value, Tom: 52.7 TWh, CEC clean
+    # imports + geothermal + biomass) | d3 (sensitivity, ~39 TWh, CARB basis, indicative). A sensitivity row sets
+    # s0_production: {ca_wa_carbon: {two_tranche: {preset: d3}}}
+    two_tranche: {preset: v31}
     # v3.2 flag (CHANGES §100): wa_import_charge: per_mwh (v3.1, the code default) | two_tranche (WA imports as a
     # named tranche in the CA LP form: wa_two_tranche.free_mwh_per_yr free, then price x 0.437 per MWh)
     # imports generators inside CA / WA zones (CHANGES §66): output pays price x factor (tCO2/MWh) per MWh

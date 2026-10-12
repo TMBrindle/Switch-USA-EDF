@@ -477,3 +477,27 @@ def test_toy_wa_two_tranche_charge(tmp_path):
     assert comp == pytest.approx(ca_r.annual_cost + wa_r.annual_cost, rel=1e-6)
     info = pd.read_csv(both / "outputs/trans_import_tranche_info.csv")
     assert set(info.state) == {"CA", "WA"}
+
+
+# ---- §114: CA free-tranche presets (Tom's decision B: d2 the v3.2 value, d3 a sensitivity) ----
+
+def test_ca_free_tranche_presets(built):
+    s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
+    assert s0["ca_wa_carbon"]["two_tranche"] == {"preset": "v31"}                         # v3.1 until approved
+    r = s0prod.ca_wa_settings(s0)
+    assert r["two_tranche"]["free_mwh_per_yr"] == 49.399e6
+    for preset, mwh in (("d2", 52.721e6), ("d3", 38.972e6)):
+        r = s0prod.ca_wa_settings({"ca_wa_carbon": {"two_tranche": {"preset": preset}}})
+        assert r["two_tranche"]["free_mwh_per_yr"] == mwh and r["two_tranche"]["preset"] == preset
+        p, _ = _write(built, {"ca_wa_carbon": {"two_tranche": {"preset": preset}}}, f"tt_{preset}")
+        t = pd.read_csv(p.parent / "trans_import_tranche.csv")
+        assert (t.tranche_free_mwh_per_yr == mwh).all()                                   # flat in every period
+        info = pd.read_csv(p.parent / "trans_import_tranche_info.csv")
+        assert info.source.str.contains("§114").all()
+    v31, _ = _write(built, {}, "tt_v31")
+    expl, _ = _write(built, {"ca_wa_carbon": {"two_tranche": {"preset": "v31"}}}, "tt_v31b")
+    assert (v31.parent / "trans_import_tranche.csv").read_bytes() == (expl.parent / "trans_import_tranche.csv").read_bytes()
+    with pytest.raises(ValueError, match="preset must be one of"):
+        s0prod.ca_wa_settings({"ca_wa_carbon": {"two_tranche": {"preset": "d4"}}})
+    with pytest.raises(ValueError, match="not both"):
+        s0prod.ca_wa_settings({"ca_wa_carbon": {"two_tranche": {"preset": "d2", "free_mwh_per_yr": 1}}})
