@@ -433,7 +433,7 @@ def test_diesel_grid_backup_written_and_solved(tmp_path):
     out = write_case_inputs(run / "inputs", _dspec({}, stress_grid_limit_share=0.5), run / "inputs_td")
     log = (out / "tracked_demands_writer_log.txt").read_text()
     assert "DC1: diesel config not given; grid_backup (no gas-fired linked generators)" in log
-    assert "WARNING: DC1: diesel heat_rate=10.2, forced_outage_rate=0.05, variable_om=10, test_flh=12 are " \
+    assert "WARNING: DC1: diesel permit_flh=100, heat_rate=10.2, forced_outage_rate=0.05, variable_om=10 are " \
            "PLACEHOLDER defaults" in log
     # 1.3 x the 2 MW connection, existing from the year before the first period (2017 - 1), zero capex: base and chained
     for sfx in ("", ".chained.case"):
@@ -448,9 +448,10 @@ def test_diesel_grid_backup_written_and_solved(tmp_path):
     assert gi.at["DC1_diesel", "gen_forced_outage_rate"] == 0 and pd.isna(gi.at["DC1_diesel", "gen_unit_size"])
     links = pd.read_csv(out / "tracked_demand_onsite_gens.csv").set_index("GENERATION_PROJECT")
     assert links.at["DC1_diesel", "td_onsite_gtc_class"] == "none"
-    assert links.at["DC1_diesel", "td_onsite_pte_hours"] == 36 and links.at["DC1_diesel", "td_onsite_unit_mw"] == 2.5
+    assert links.at["DC1_diesel", "td_onsite_pte_hours"] == 100 and links.at["DC1_diesel", "td_onsite_unit_mw"] == 2.5
     dz = pd.read_csv(out / "tracked_demand_diesel.csv").iloc[0]
-    assert (dz["td_diesel_permit_flh"], dz["td_diesel_test_flh"], dz["td_diesel_tier"]) == (36, 12, 2)
+    assert (dz["td_diesel_permit_flh"], dz["td_diesel_test_flh"], dz["td_diesel_tier"]) == (100, 10, 2)
+    assert dz["td_diesel_emergency_counts_toward_cap"] == 1
     sy = pd.read_csv(out / "tracked_demand_stress_years.csv")
     assert sy.to_dict("records") == [{"TIMESERIES": "2020_p1_prm", "td_stress_weather_year": 2009}]
     td = pd.read_csv(out / "tracked_demands.csv").iloc[0]
@@ -498,7 +499,7 @@ def test_diesel_config(tmp_path, diesel, gens, expect):
 
 @pytest.mark.parametrize("diesel,match", [
     ({"non_emergency_flh": 20}, "needs tier 4 or permitted_non_emergency"),
-    ({"tier": 4, "non_emergency_flh": 30}, "exceed permit_flh"),
+    ({"tier": 4, "non_emergency_flh": 95}, "exceed permit_flh"),          # 10 test + 95 > 100
     ({"config": "standby"}, "must be grid_backup, blackstart or none"),
 ])
 def test_diesel_rules_stop_the_writer(tmp_path, diesel, match):
@@ -506,3 +507,17 @@ def test_diesel_rules_stop_the_writer(tmp_path, diesel, match):
     run = _diesel_case(tmp_path, "dr", chained=False)
     with pytest.raises(ValueError, match=match):
         write_case_inputs(run / "inputs", _dspec(diesel), run / "inputs_td")
+
+
+
+def test_ca_and_wa_rules_carry_the_backup_diesel_rule(tmp_path):
+    from tracked_demands.case_writer import write_case_inputs
+    run = toyutil.toy_inputs(tmp_path, "cawa", modules=("tracked_demands",), edit=lambda i: carbon_cap(i))
+    out = write_case_inputs(run / "inputs", _spec([_gen("g1")], cap_coverage={"RGGI": "CA"}), run / "a")
+    c = pd.read_csv(out / "tracked_demand_cap_coverage.csv").iloc[0]
+    assert c["td_cap_backup_diesel_rule"] == "17 CCR 95101(f)(2); supplier obligation 95852(d)"
+    out = write_case_inputs(run / "inputs", _spec([_gen("g1")], cap_coverage={"RGGI": "WA"}), run / "b")
+    assert pd.read_csv(out / "tracked_demand_cap_coverage.csv")["td_cap_backup_diesel_rule"].iat[0].startswith(
+        "WAC 173-446-040(3)(a)(ii)")
+    out = write_case_inputs(run / "inputs", _spec([_gen("g1")], cap_coverage={"RGGI": "RGGI"}), run / "c")
+    assert pd.isna(pd.read_csv(out / "tracked_demand_cap_coverage.csv", na_values=".")["td_cap_backup_diesel_rule"].iat[0])

@@ -27,8 +27,9 @@ tracked_demands:
       - {name: p33_DC1_recip, technology: recip, fuel: gas, heat_rate: 8.3, overnight_cost_per_kw: 1500,
          fixed_om_per_kw_yr: 15, variable_om: 6, unit_mw: 4.5, capacity_limit_mw: 300, max_age: 25,
          uc: {min_load_fraction: 0.3, min_uptime: 0, min_downtime: 0}}   # placeholders; startup cost unset (warned)
-    # backup diesel (§120, guide 16): grid_backup = 1.3 x the connection, existing, emergency only, permit 36 h/yr
-    diesel: {config: grid_backup, tier: 2, permit_flh: 36}
+    # backup diesel (§120, guide 16): grid_backup = 1.3 x the connection, existing, emergency only; permit 100 h/yr
+    # (PLACEHOLDER; sensitivities 37, 137), test 10 h/yr; emergency_counts_toward_cap 0 = the cap limits only testing
+    diesel: {config: grid_backup, tier: 2, permit_flh: 100, test_flh: 10, emergency_counts_toward_cap: 1}
     stress_grid_limit_share: 1.0   # option B: < 1 limits grid draw on stress days (the fleet carries the rest)
 cap_coverage:                   # the case's CO2_PROGRAM -> tracked_demands/data/cap_coverage_rules.yml family
   "ETS 1": RGGI                # limited-export exemption off; {family: RGGI, limited_export_exemption: 1} to set it

@@ -271,12 +271,14 @@ def credit_by_period(inp: Path, key: str, periods, override: dict | None, gen_in
 
 
 # --------------------------------------------------------------------------------------------- backup diesel
-# §120 defaults (Tom, 12 Oct 2026). PLACEHOLDER values are flagged in the writer log when used.
+# §120 defaults (Tom, 12 Oct 2026, updated from the input research). PLACEHOLDER values are flagged in the writer log
+# when used. permit_flh 100 is a PLACEHOLDER (VA permits' annual fuel caps imply 37-137 full-load hours, MD 7-24,
+# WA 45-100; sensitivities 37 and 137); test_flh 10 (filings 4-25 h; Laurelwood CA 10.5 h).
 DIESEL_DEFAULTS = {"multiple": 1.3, "unit_mw": 2.5, "tier": 2, "heat_rate": 10.2, "forced_outage_rate": 0.05,
-                   "variable_om": 10.0, "fixed_om_per_kw_yr": 0.0, "permit_flh": 36.0, "test_flh": 12.0,
-                   "non_emergency_flh": 0.0, "permitted_non_emergency": False, "stress_year_basis": "weather_year",
-                   "max_age": 40}
-DIESEL_PLACEHOLDERS = ("heat_rate", "forced_outage_rate", "variable_om", "test_flh")
+                   "variable_om": 10.0, "fixed_om_per_kw_yr": 0.0, "permit_flh": 100.0, "test_flh": 10.0,
+                   "non_emergency_flh": 0.0, "permitted_non_emergency": False, "emergency_counts_toward_cap": 1,
+                   "stress_year_basis": "weather_year", "max_age": 40}
+DIESEL_PLACEHOLDERS = ("permit_flh", "heat_rate", "forced_outage_rate", "variable_om")
 
 
 def diesel_config(d: dict, log) -> str:
@@ -542,7 +544,7 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
             if float(dz["non_emergency_flh"]) > 0 and int(dz["tier"]) != 4 and not dz["permitted_non_emergency"]:
                 raise ValueError(f"case_writer: {name}: diesel non_emergency_flh {dz['non_emergency_flh']} needs tier 4 "
                                  f"or permitted_non_emergency: emergency engines may not run for peak shaving (40 CFR "
-                                 f"60.4211(f), 63.6640(f), as read here; to be confirmed by the input research)")
+                                 f"60.4211(f), 63.6640(f))")
             if float(dz["test_flh"]) + float(dz["non_emergency_flh"]) > float(dz["permit_flh"]):
                 raise ValueError(f"case_writer: {name}: diesel test_flh + non_emergency_flh exceed permit_flh")
             dmw = float(dz["multiple"]) * float(r["td_grid_interconnect_mw"])
@@ -595,11 +597,13 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
                     "td_diesel_permit_flh": float(dz["permit_flh"]), "td_diesel_test_flh": float(dz["test_flh"]),
                     "td_diesel_non_emergency_flh": float(dz["non_emergency_flh"]), "td_diesel_tier": int(dz["tier"]),
                     "td_diesel_permitted_non_emergency": int(bool(dz["permitted_non_emergency"])),
-                    "td_diesel_forced_outage_rate": float(dz["forced_outage_rate"])})
+                    "td_diesel_forced_outage_rate": float(dz["forced_outage_rate"]),
+                    "td_diesel_emergency_counts_toward_cap": int(bool(dz["emergency_counts_toward_cap"]))})
                 log(f"{name}: backup diesel {gid}: {dz['mw']:g} MW (= {float(dz['multiple']):g} x connection "
                     f"{r['td_grid_interconnect_mw']:g} MW), existing from {year0}, zero capex, tier {dz['tier']}, "
                     f"permit {float(dz['permit_flh']):g} h/yr (test {float(dz['test_flh']):g}, non-emergency "
-                    f"{float(dz['non_emergency_flh']):g})")
+                    f"{float(dz['non_emergency_flh']):g}; emergency hours "
+                    f"{'count' if dz['emergency_counts_toward_cap'] else 'do not count'})")
             for p in (periods if not g.get("_diesel") else []):
                 rows["bc"].append({"_i0": gid, "_i1": p,
                                    "gen_overnight_cost": float(g["overnight_cost_per_kw"]) * 1000.0
@@ -715,7 +719,8 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
                           "td_cap_threshold_mw": r.get("threshold_mw", "."),
                           "td_cap_threshold_tco2": r.get("threshold_tco2", "."),
                           "td_cap_threshold_basis": r.get("basis", "unit"),
-                          "td_cap_limited_export_exemption": r.get("limited_export_exemption", 0)})
+                          "td_cap_limited_export_exemption": r.get("limited_export_exemption", 0),
+                          "td_cap_backup_diesel_rule": r.get("backup_diesel_rule", ".")})
             for st, sr in (r.get("states") or {}).items():
                 srows.append({"CO2_PROGRAM": prog, "STATE": st, "td_cap_state_threshold_mw": sr["threshold_mw"],
                               "td_cap_state_condition": sr.get("condition", "always")})

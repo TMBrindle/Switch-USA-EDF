@@ -1854,24 +1854,33 @@ a `gen_build_costs` row at overnight 0, in the base and chained files.
 
 | Column | Default | Meaning |
 |---|---|---|
-| `td_diesel_permit_flh` | 36 | site permit cap, full-load-equivalent hours per year (VA/MD evidence 24–42; sensitivities 24 and 42) |
-| `td_diesel_test_flh` | 12 | hours per year reserved for testing (PLACEHOLDER pending the input research), inside the permit |
+| `td_diesel_permit_flh` | 100 (PLACEHOLDER) | site permit cap, full-load-equivalent hours per year. Sensitivities 37 and 137: VA permits' annual fuel caps imply 37–137 FLH; MD 7–24; WA 45–100. The caps are sized to keep the site under the major-source NOx threshold |
+| `td_diesel_test_flh` | 10 | hours per year of testing and maintenance, inside the permit. Filings: 4–25 h (Laurelwood, CA 10.5 h; others 5–26 h) |
+| `td_diesel_emergency_counts_toward_cap` | 1 | 0: C2 leaves out stress-day (emergency) running, so the cap limits only testing and non-emergency hours. Federal rules put no time limit on emergency use; whether state permit caps count emergency hours is being checked |
 | `td_diesel_non_emergency_flh` | 0 | non-emergency hours per year; > 0 only for tier 4 or `permitted_non_emergency` |
 | `td_diesel_tier` | 2 | 2 or 4: NOx reporting (certification limits 6.4 / 0.67 g/kWh) and the non-emergency rule |
 | `td_diesel_permitted_non_emergency` | 0 | 1: permitted as a non-emergency engine |
 | `td_diesel_forced_outage_rate` | 0 (writer: 0.05 PLACEHOLDER) | availability on stress days |
 
-**Non-emergency running.** As read here, 40 CFR 60.4211(f) and 63.6640(f) allow emergency engines 100 h/yr for
-maintenance and testing, of which up to 50 h/yr non-emergency. They may not run for peak shaving, non-emergency demand
-response, or supplying the grid for compensation. Economic running in normal hours is peak shaving, so it is allowed
-only for tier 4 or permitted engines; the writer and the run stop otherwise. **To be confirmed by the input research.**
+**Federal limits** (40 CFR 60.4211(f) for NSPS engines, 63.6640(f) for RICE NESHAP engines; rule text checked by the
+input research, 12 Oct 2026):
+- **Emergency operation:** no time limit.
+- **Maintenance and testing:** up to 100 h/yr. Of those, up to 50 h/yr may be non-emergency running, which may not
+  be peak shaving, non-emergency demand response, or supplying the grid for compensation.
+- **Emergency demand response is no longer in the 100 h.** The 15 h allowance was vacated (D.C. Circuit 2015,
+  mandate 2016) and removed from the CFR in 2022.
+- **Paid local-reliability dispatch** within the 50 h is allowed only under the rule's five conditions, for NSPS and
+  area-source NESHAP engines.
+
+Economic running in normal hours is peak shaving, so non-emergency running is allowed only for tier 4 engines or
+engines permitted as non-emergency; the writer and the run stop otherwise.
 
 ### 16.3 Constraints
 
 | | Rule |
 |---|---|
 | C1 | No running outside stress days (`TD_Diesel_Emergency_Only`). With non-emergency hours: at most those hours a year, counted at `tp_weight_in_year` (`TD_Diesel_Non_Emergency_Limit`) |
-| C2 | Permit cap per year (`TD_Diesel_Permit_Cap`, per TD, generator, period and weather-year group): stress MWh at real duration + non-emergency MWh per year + test hours × MW ≤ permit hours × MW |
+| C2 | Permit cap per year (`TD_Diesel_Permit_Cap`, per TD, generator, period and weather-year group): stress MWh at real duration (unless `td_diesel_emergency_counts_toward_cap` = 0) + non-emergency MWh per year + test hours × MW ≤ permit hours × MW |
 | C3 | No export from diesel: `TDGridExport` ≤ the TD's other linked generators' output (`TD_Diesel_No_Export`) |
 | C4 | Stress-day availability: dispatch ≤ MW × (1 − forced outage rate) (`TD_Diesel_Availability`) |
 | C5 | `TDDieselStressCost`: stress MWh × (variable O&M + heat rate × fuel cost) per year, in total cost |
@@ -1920,7 +1929,8 @@ only for tier 4 or permitted engines; the writer and the run stop otherwise. **T
 - **Before the solve.** For each TD with a fleet or limit, period and weather-year group, the run compares two
   amounts:
   - the stress-day energy beyond s × connection;
-  - what the fleet can give (MW × (1 − forced outage) × (permit − test hours), and per hour) plus capacity-limited
+  - what the fleet can give (MW × (1 − forced outage) per hour, and within permit − test hours when emergency hours
+    count) plus capacity-limited
     linked generators.
 
   If the need is larger: a WARNING with both numbers, or an error with `td_stress_strict`. On-site techs, storage or
@@ -1948,10 +1958,18 @@ only for tier 4 or permitted engines; the writer and the run stop otherwise. **T
 ### 16.7 Cap coverage
 
 - **Potential to emit** uses `td_onsite_pte_hours` (new column of `tracked_demand_onsite_gens.csv`; "." = all year,
-  8766 h). A backup fleet defaults to its permit hours, and the writer writes them.
-- **Unit-basis programmes (RGGI, VA):** the 2–3 MW units are below 25 MWe, so the fleet is exempt.
-- **CA and WA (site basis):** even 36 h of a 1 GW-class fleet is tens of kt CO₂/yr, above ~25 kt. Whether CARB's MRR
-  and WA count emergency engines toward that threshold is with the input research.
+  8766 h). A backup fleet defaults to its permit hours, and the writer writes them. It matters only in programmes
+  without a backup-diesel rule; other fuels keep it.
+- **Unit-basis programmes (RGGI, VA):** unchanged. The 2–3 MW units are below 25 MWe, so the fleet is exempt.
+- **CA and WA never cover backup diesel at the facility** (rule text checked 12 Oct 2026):
+  - **CA:** 17 CCR §95101(f)(2). Backup or emergency units designated in an air district permit are not reported,
+    so they can't count toward the threshold. The obligation for distillate falls on its suppliers, §95852(d).
+  - **WA:** WAC 173-446-040(3)(a)(ii). Purchased diesel is not a facility covered emission; it is the supplier's,
+    under (3)(c)(i).
+  - **How the model applies it:** the rules file gives CA and WA a `backup_diesel_rule`, which the writer passes as
+    `td_cap_backup_diesel_rule`. A programme with one marks the fleet not covered
+    (`backup_diesel_not_covered (<citation>)`), whatever its potential to emit. The fleet also stays out of that
+    programme's site-basis sum for the site's other generators.
 
 ### 16.8 Spec
 
@@ -1963,8 +1981,9 @@ only for tier 4 or permitted engines; the writer and the run stop otherwise. **T
       multiple: 1.3
       unit_mw: 2.5
       tier: 2
-      permit_flh: 36                 # sensitivities 24, 42
-      test_flh: 12                   # PLACEHOLDER
+      permit_flh: 100                # PLACEHOLDER; sensitivities 37, 137
+      test_flh: 10                   # filings 4-25 h
+      emergency_counts_toward_cap: 1 # 0: the cap limits only testing and non-emergency hours
       non_emergency_flh: 0           # > 0 only with tier 4 or permitted_non_emergency
       stress_year_basis: weather_year
       heat_rate: 10.2                # PLACEHOLDER
@@ -1973,4 +1992,4 @@ only for tier 4 or permitted engines; the writer and the run stop otherwise. **T
 stress_shortfall_penalty: 10000      # optional; default the case's lost-load cost, else 10,000
 ```
 
-Tests: `test_td_diesel.py` (19) and `test_td_case_writer.py` (diesel, 9).
+Tests: `test_td_diesel.py` (23) and `test_td_case_writer.py` (diesel, 10).

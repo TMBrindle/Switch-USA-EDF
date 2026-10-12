@@ -22,8 +22,13 @@ HR = 10.2
 CO2 = 0.07315          # DistillateFuelOil in the toy's fuels.csv
 
 
-def add_diesel(inp, mw=MW, fuel_price=None, links=True, **cols):
-    """The fleet: predetermined (2015, zero capex), DistillateFuelOil, linked to DC1, a tracked_demand_diesel.csv row."""
+TOY_PERMIT = {"td_diesel_permit_flh": 36, "td_diesel_test_flh": 12}   # the toy's hours (module defaults: 100, 10)
+
+
+def add_diesel(inp, mw=MW, fuel_price=None, links=True, defaults=False, **cols):
+    """The fleet: predetermined (2015, zero capex), DistillateFuelOil, linked to DC1, a tracked_demand_diesel.csv row
+    (permit 36 h, test 12 h unless given; defaults=True leaves them to the module's defaults)."""
+    cols = {**({} if defaults else TOY_PERMIT), **cols}
     gi = pd.read_csv(inp / "gen_info.csv", na_values=".")
     row = gi[gi["GENERATION_PROJECT"] == "N-NG_GT"].iloc[0].copy()
     row.update({"GENERATION_PROJECT": GEN, "gen_tech": "TD_diesel", "gen_energy_source": "DistillateFuelOil",
@@ -240,7 +245,8 @@ def test_prm_requirement_uses_the_grid_limit(tmp_path, cols, req):
 # ------------------------------------------------------------------------------------------------ cap coverage
 @pytest.mark.parametrize("pte_hours,covered", [(".", 0), (8766, 1)])
 def test_potential_to_emit_at_permit_hours(tmp_path, pte_hours, covered):
-    """A 1,000 t/yr site threshold: the fleet at its 36 permit hours (70 t) is below it; at 8766 h (17,000 t) above."""
+    """A 1,000 t/yr site threshold (a programme without a backup-diesel rule): the fleet at its 36 permit hours (70 t)
+    is below it; at 8766 h (17,000 t) above."""
     def after(inp):
         f = inp / "tracked_demand_onsite_gens.csv"
         g = pd.read_csv(f)
@@ -313,3 +319,52 @@ def test_chain_carries_the_fleet(tmp_path):
         r = d[d["period"] == p].iloc[0]
         assert r["diesel_mw"] == pytest.approx(MW) and r["stress_mwh"] == pytest.approx(need)
         assert r["total_flh"] <= 36 + 1e-6
+
+
+# ------------------------------------------------------------------------------------------------ research updates
+def test_module_defaults_permit_100_test_10(tmp_path):
+    run = case(tmp_path, "defaults", diesel={"defaults": True})
+    r = diesel_row(run)
+    assert (r["permit_flh"], r["test_flh"]) == (100, 10) and r["emergency_counts_toward_cap"] == 1
+
+
+def test_emergency_hours_need_not_count(tmp_path):
+    """emergency_counts_toward_cap 0: the permit (15 h, test 12 h) limits only testing and non-emergency running, so
+    the 24 MWh stress need is met (the tight case's shortfall goes) and no warning is printed."""
+    run = case(tmp_path, "nocount", td={"td_stress_grid_limit_share": 0.5}, solve=False,
+               diesel={"td_diesel_permit_flh": 15, "td_diesel_emergency_counts_toward_cap": 0})
+    r = run_switch(run)
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert "beyond its stress grid limit" not in r.stdout
+    row = diesel_row(run)
+    assert row["stress_mwh"] == pytest.approx(24.0) and row["shortfall_mwh"] == pytest.approx(0.0, abs=1e-6)
+    assert row["emergency_counts_toward_cap"] == 0
+    assert row["total_flh"] == pytest.approx(12.0) and row["flh_remaining"] == pytest.approx(3.0)
+
+
+@pytest.mark.parametrize("rule", ["", "17 CCR 95101(f)(2); supplier obligation 95852(d)"])
+def test_ca_wa_never_cover_backup_diesel(tmp_path, rule):
+    """A site-basis programme with a 1,000 t/yr threshold and a 0.01 MW gas engine (~40 t/yr) beside the fleet at
+    8766 h (17,000 t/yr). Without a backup-diesel rule both are covered (site sum); with CA's rule the fleet is not
+    covered, whatever its potential to emit, and stays out of the site sum, so the engine is below the threshold."""
+    def after(inp):
+        from td_toy import add_onsite_gen, carbon_cap
+        add_onsite_gen(inp, name="N-DC1-gas", cap_limit=0.01, rated_mw=0.01)
+        f = inp / "tracked_demand_onsite_gens.csv"
+        g = pd.read_csv(f)
+        g["td_onsite_pte_hours"] = 8766
+        g.to_csv(f, index=False)
+        carbon_cap(inp)
+        csv(inp, "tracked_demand_cap_coverage.csv", [{"CO2_PROGRAM": "RGGI", "td_cap_threshold_tco2": 1000,
+                                                      "td_cap_threshold_basis": "site",
+                                                      "td_cap_backup_diesel_rule": rule or "."}])
+    run = case(tmp_path, f"cawa{bool(rule)}", extra_after=after, before=("carbon_policies_regional",))
+    e = read(run, "tracked_demand_onsite_emissions.csv")
+    e = e[e["period"] == 2020].set_index("generation_project")
+    if rule:
+        assert int(e.at[GEN, "covered_by_cap"]) == 0 and e.at[GEN, "coverage_reason"].startswith(
+            "backup_diesel_not_covered (17 CCR 95101(f)(2)")
+        assert int(e.at["N-DC1-gas", "covered_by_cap"]) == 0
+    else:
+        assert int(e.at[GEN, "covered_by_cap"]) == 1 and int(e.at["N-DC1-gas", "covered_by_cap"]) == 1
+

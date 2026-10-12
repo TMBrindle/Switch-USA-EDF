@@ -28,11 +28,18 @@ CA:
   threshold_tco2: 25000
   basis: site
   limited_export_exemption: 0
+  # backup diesel is never covered at the facility (§120; rule text checked 12 Oct 2026): 17 CCR 95101(f)(2), backup
+  # or emergency units designated in an air district permit are not reported, so they can't count toward the
+  # threshold; the obligation for distillate falls on its suppliers, 17 CCR 95852(d)
+  backup_diesel_rule: "17 CCR 95101(f)(2); supplier obligation 95852(d)"
 WA:
   # WAC 173-446-030: 25,000 tCO2e per year, per facility
   threshold_tco2: 25000
   basis: site
   limited_export_exemption: 0
+  # backup diesel is never covered at the facility (§120): purchased diesel is not a facility covered emission,
+  # WAC 173-446-040(3)(a)(ii); the supplier's under (3)(c)(i)
+  backup_diesel_rule: "WAC 173-446-040(3)(a)(ii); supplier obligation (3)(c)(i)"
 NONE:
   # a programme that leaves on-site emissions out
   counts_onsite: 0

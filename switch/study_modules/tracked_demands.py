@@ -564,8 +564,14 @@ def define_components(m):
     # (tier 4 or permitted engines); a permit cap on full-load-equivalent hours
     # per year counts stress hours at their real duration.
     m.TD_DIESEL_GENS = Set(dimen=2, within=m.TD_ONSITE_GENS)
-    m.td_diesel_permit_flh = Param(m.TD_DIESEL_GENS, within=NonNegativeReals, default=36.0)
-    m.td_diesel_test_flh = Param(m.TD_DIESEL_GENS, within=NonNegativeReals, default=12.0)
+    # permit 100 h/yr: PLACEHOLDER (VA permits' annual fuel caps imply 37-137 full-load hours, MD 7-24, WA 45-100;
+    # sized to stay under the major-source NOx threshold); test 10 h/yr (filings 4-25 h; Laurelwood CA 10.5 h)
+    m.td_diesel_permit_flh = Param(m.TD_DIESEL_GENS, within=NonNegativeReals, default=100.0)
+    m.td_diesel_test_flh = Param(m.TD_DIESEL_GENS, within=NonNegativeReals, default=10.0)
+    # 1: emergency (stress-day) running counts toward the permit cap; 0: the cap
+    # limits only testing and non-emergency hours (federal rules put no time
+    # limit on emergency use; whether state permit caps count it is being checked)
+    m.td_diesel_emergency_counts_toward_cap = Param(m.TD_DIESEL_GENS, within=Boolean, default=True)
     m.td_diesel_non_emergency_flh = Param(m.TD_DIESEL_GENS, within=NonNegativeReals, default=0.0)
     m.td_diesel_tier = Param(m.TD_DIESEL_GENS, within=Any, default=2)
     m.td_diesel_permitted_non_emergency = Param(m.TD_DIESEL_GENS, within=Boolean, default=False)
@@ -894,8 +900,8 @@ def define_components(m):
     m.TD_Diesel_Permit_Cap = Constraint(
         m.TD_DIESEL_GROUPS,
         rule=lambda m, td, g, p, w: (
-            sum(m.DispatchGen[g, t] * m.tp_duration_hrs[t] for t in _stress_tps_in_group(m, td, p, w)
-                if (g, t) in m.GEN_TPS)
+            (sum(m.DispatchGen[g, t] * m.tp_duration_hrs[t] for t in _stress_tps_in_group(m, td, p, w)
+                 if (g, t) in m.GEN_TPS) if value(m.td_diesel_emergency_counts_toward_cap[td, g]) else 0)
             + _diesel_normal_flh_mwh(m, g, p)
             + m.td_diesel_test_flh[td, g] * m.GenCapacity[g, p]
             <= m.td_diesel_permit_flh[td, g] * m.GenCapacity[g, p]
@@ -2164,6 +2170,10 @@ def define_components(m):
         validate=lambda m, v, pr: str(v).strip() in ("unit", "site"),
     )
     m.td_cap_limited_export_exemption = Param(m.TD_CAP_PROGRAMS, within=Any, default=0)
+    # §120: a programme that never covers backup diesel at the facility (CA, WA)
+    # names its rule here; such a fleet is not covered and stays out of the
+    # programme's site-basis sums, whatever its potential to emit
+    m.td_cap_backup_diesel_rule = Param(m.TD_CAP_PROGRAMS, within=Any, default="")
 
     # Per-state MW threshold overrides within a programme
     # (tracked_demand_cap_coverage_states.csv: CO2_PROGRAM, STATE,
@@ -2356,6 +2366,12 @@ def _cap_coverage(m):
                 if listed and not _flag(m.td_cap_counts_onsite[pr]):
                     cov[td, g, pr] = (False, "programme_excludes_onsite")
                     continue
+                bd_rule = str(value(m.td_cap_backup_diesel_rule[pr])).strip() if listed else ""
+                if bd_rule in (".", "nan"):
+                    bd_rule = ""
+                if bd_rule and (td, g) in m.TD_DIESEL_GENS:
+                    cov[td, g, pr] = (False, f"backup_diesel_not_covered ({bd_rule})")
+                    continue
                 if (listed and _flag(m.td_cap_limited_export_exemption[pr])
                         and _export_share(m, td) <= LIMITED_EXPORT_SHARE):
                     cov[td, g, pr] = (False, "limited_export_exemption")
@@ -2368,7 +2384,8 @@ def _cap_coverage(m):
                 th_mw, rule = _state_mw_threshold(m, td, g, pr, gens, th_mw)
                 site = listed and str(value(m.td_cap_threshold_basis[pr])).strip() == "site"
                 if site:
-                    members = [h for h in gens if m.gen_load_zone[h] == m.gen_load_zone[g]]
+                    members = [h for h in gens if m.gen_load_zone[h] == m.gen_load_zone[g]
+                               and not (bd_rule and (td, h) in m.TD_DIESEL_GENS)]
                     sizes = {h: _rated_mw(m, td, h) for h in members}
                     what = "rated MW (td_onsite_rated_mw or gen_capacity_limit_mw)"
                 else:
@@ -3129,9 +3146,11 @@ def load_inputs(m, switch_data, inputs_dir):
         optional=True,
         index=m.TD_DIESEL_GENS,
         param=(m.td_diesel_permit_flh, m.td_diesel_test_flh, m.td_diesel_non_emergency_flh, m.td_diesel_tier,
-               m.td_diesel_permitted_non_emergency, m.td_diesel_forced_outage_rate),
+               m.td_diesel_permitted_non_emergency, m.td_diesel_forced_outage_rate,
+               m.td_diesel_emergency_counts_toward_cap),
         optional_params=(m.td_diesel_permit_flh, m.td_diesel_test_flh, m.td_diesel_non_emergency_flh,
-                         m.td_diesel_tier, m.td_diesel_permitted_non_emergency, m.td_diesel_forced_outage_rate),
+                         m.td_diesel_tier, m.td_diesel_permitted_non_emergency, m.td_diesel_forced_outage_rate,
+                         m.td_diesel_emergency_counts_toward_cap),
     )
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "tracked_demand_stress_years.csv"),
@@ -3153,6 +3172,7 @@ def load_inputs(m, switch_data, inputs_dir):
             m.td_cap_threshold_tco2,
             m.td_cap_threshold_basis,
             m.td_cap_limited_export_exemption,
+            m.td_cap_backup_diesel_rule,
         ),
         optional_params=(
             m.td_cap_counts_onsite,
@@ -3160,6 +3180,7 @@ def load_inputs(m, switch_data, inputs_dir):
             m.td_cap_threshold_tco2,
             m.td_cap_threshold_basis,
             m.td_cap_limited_export_exemption,
+            m.td_cap_backup_diesel_rule,
         ),
     )
 
@@ -3325,7 +3346,7 @@ def _diesel_mw(m, g, p):
 
 def _check_diesel(m):
     """Backup diesel rules (§120): existing capacity only; non-emergency running only for tier 4 or engines permitted
-    as non-emergency (as we read 40 CFR 60.4211(f) / 63.6640(f), to be confirmed by the input research); test plus
+    as non-emergency (40 CFR 60.4211(f) / 63.6640(f), rule text checked by the input research); test plus
     non-emergency hours within the permit."""
     for td, g in m.TD_DIESEL_GENS:
         new = [y for g2, y in m.NEW_GEN_BLD_YRS if g2 == g]
@@ -3375,11 +3396,13 @@ def _check_stress_supply(m):
                     mw = _diesel_mw(m, g, p) * (1 - value(m.td_diesel_forced_outage_rate[td, g]))
                     hours = max(0.0, value(m.td_diesel_permit_flh[td, g]) - value(m.td_diesel_test_flh[td, g]))
                     by_hour = sum(min(need_t[t], mw) * value(m.tp_duration_hrs[t]) for t in tps)
-                    supply += min(by_hour, mw * hours)
+                    supply += (min(by_hour, mw * hours) if value(m.td_diesel_emergency_counts_toward_cap[td, g])
+                               else by_hour)
                 if need > supply + 1e-6:
                     msg = (f"tracked_demands: {td} needs {need:,.0f} MWh beyond its stress grid limit "
                            f"({s:g} x {conn:g} MW) on period {p}'s stress days (weather year {w}), but its backup "
-                           f"fleet (within its permit hours) and on-site plant can give at most {supply:,.0f} MWh; "
+                           f"fleet (its size and, where emergency hours count, its permit) and on-site plant can give "
+                           f"at most {supply:,.0f} MWh; "
                            f"the rest is stress-day shortfall")
                     if value(m.td_stress_strict[td]):
                         raise ValueError(msg + " (td_stress_strict: the run would be infeasible)")
@@ -3409,7 +3432,8 @@ def _write_diesel_outputs(m, outdir):
         test = value(m.td_diesel_test_flh[td, g])
         test_mwh = test * cap
         flh = lambda mwh: mwh / cap if cap > 0 else 0.0
-        total = flh(stress_mwh) + flh(ne_mwh) + test
+        counted = bool(value(m.td_diesel_emergency_counts_toward_cap[td, g]))
+        total = (flh(stress_mwh) if counted else 0.0) + flh(ne_mwh) + test
         permit = value(m.td_diesel_permit_flh[td, g])
         c = m.TD_Diesel_Permit_Cap[td, g, p, w]
         dual = abs(duals[c]) / value(m.bring_annual_costs_to_base_year[p]) if duals is not None and c in duals \
@@ -3419,7 +3443,8 @@ def _write_diesel_outputs(m, outdir):
         tier = int(float(value(m.td_diesel_tier[td, g])))
         rows.append(dict(
             tracked_demand=td, generation_project=g, period=p, weather_year=w, diesel_mw=cap, permit_flh=permit,
-            stress_flh=flh(stress_mwh), non_emergency_flh=flh(ne_mwh), test_flh=test, total_flh=total,
+            stress_flh=flh(stress_mwh), emergency_counts_toward_cap=int(counted), non_emergency_flh=flh(ne_mwh),
+            test_flh=test, total_flh=total,
             flh_remaining=permit - total, cap_dual_usd_per_mwh=dual, stress_mwh=stress_mwh,
             non_emergency_mwh=ne_mwh, test_mwh=test_mwh,
             fuel_mmbtu_stress=stress_mwh * hr, fuel_mmbtu_non_emergency=ne_fuel, fuel_mmbtu_test=test_mwh * hr,

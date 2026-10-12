@@ -4315,3 +4315,24 @@ Option B is implemented; option C is not. No shared files changed (SHARED_CHANGE
     - `test_td_case_writer.py` (+9): the grid_backup fleet in base and chained files and a solve; a stage that already
       carries it; the config defaults; the rules that stop the writer.
     - `td_toy.add_stress_timeseries` takes a name.
+12. **Updates from the input research** (rule text checked, 12 Oct 2026; Tom):
+    - **Test hours:** `test_flh` default 10 (range 4–25; Laurelwood, CA filing 10.5 h; others 5–26 h).
+    - **Permit hours:** `permit_flh` default 100, a PLACEHOLDER, with sensitivities 37 and 137. VA permits' annual fuel
+      caps imply 37–137 full-load hours, MD 7–24, WA 45–100; the caps are sized to stay under the major-source NOx
+      threshold.
+    - **New flag `emergency_counts_toward_cap`** (`td_diesel_emergency_counts_toward_cap`, default 1). At 0, C2 leaves
+      out the stress-hour term, so the cap limits only testing and non-emergency hours; the pre-solve check then
+      bounds the fleet by its size alone. Federal rules put no time limit on emergency use; whether state permit caps
+      count emergency hours is being checked.
+    - **CA and WA never cover backup diesel at the facility:** CA under 17 CCR §95101(f)(2), with the supplier
+      obligation in §95852(d); WA under WAC 173-446-040(3)(a)(ii), with the supplier obligation in (3)(c)(i).
+      - The rules file gives each a `backup_diesel_rule`, written as the new `td_cap_backup_diesel_rule` column.
+      - The module marks the fleet `backup_diesel_not_covered (<citation>)` whatever its potential to emit, and
+        leaves it out of the programme's site-basis sum.
+      - `td_onsite_pte_hours` stays for other fuels. RGGI and VA (unit basis) are unchanged.
+    - **Federal limits confirmed;** the guide notes that emergency demand response was removed from the 100 h
+      (vacated 2015–16, removed from the CFR in 2022), and that paid local-reliability dispatch is allowed only under
+      the five conditions (NSPS and area-source NESHAP engines).
+    - **Tests:** `test_td_diesel.py` +4 (module defaults; emergency hours not counted; CA/WA rule with and without),
+      `test_td_case_writer.py` +1 (CA/WA rule columns). The toy diesel tests set permit 36 h and test 12 h explicitly.
+
