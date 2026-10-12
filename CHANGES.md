@@ -4335,3 +4335,27 @@ production-cost runs, which must start from a build without B. These are design 
 - Capping redistributes energy, and big scales are flagged.
 - A cluster with no output on the sampled days is left as it is and flagged.
 - The default is off, and the wiring sits before the capacity-factor table.
+
+## 117. S0 v3.2: Runbook for the Repaired PV Profiles and the Fidelity-Scan Rerun (Item E)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. **File:** `s0_workflow/scripts/README_pv_repair.md`, for the
+dashboards session on the VM.
+
+**Contents:**
+- the inputs; the full `repair_pv_profiles.py` command and its options; the outputs and exit code;
+- estimated memory (about 3 GB at the default batch size), disk (about 1.2 × the solar file, with the other files
+  hard-linked) and runtime (30–90 minutes, to be measured);
+- the manifest's pass/fail table;
+- how to use the folder in a build, including a warning about PowerGenome's cluster cache;
+- the fidelity-scan rerun (before and after repair, then with the §116 rescale).
+
+**Expected counts** (from `zeroed_pv_sites.csv`):
+- 14,553 listed site-years on 5,390 sites.
+- 14,350 site-years on the 5,330 sites with CPA capacity are filled and checked:
+  `site_years_zero_before = site_years_filled = in_both = 14,350`, and `zero_site_years_with_capacity_after = 0`.
+- 203 site-years on the 60 sites with no CPA mapped are left as they are and show under `listed_not_found`.
+- Fill distances, neighbour reuse and the scale range get review thresholds (p99 distance 100 km; 50 site-years from
+  one neighbour; 99% of scales within 0.7–1.3).
+
+**Test:** `test_pv_repair_runbook.py`. Every option the runbook names exists in the script; its counts equal what
+`zeroed_pv_sites.csv` gives; and the manifest fields it names are the ones the code writes.
