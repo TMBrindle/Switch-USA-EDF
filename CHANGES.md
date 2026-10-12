@@ -4726,3 +4726,60 @@ and `test_r7_reads_lbnl_sheet_when_available` (the real file).
   once the `on_pgdays` v3.1 pins are removed.
 - **Fix:** `startup_costs.write_check` no longer fails (AttributeError) on a `gen_info.csv` without
   `gen_startup_om` or with no new gas when the fix is on. It logs and returns; the stop for new gas at 0 is unchanged.
+
+## 127. S0 v3.2: WA Import Charge Reassessed (Item I)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. No setting changes. `wa_import_charge` stays `per_mwh` (v3.1). The
+`two_tranche` code (§100) is kept with no value: free 0 is the placeholder that reproduces v3.1.
+
+**The runner's figure:** S0 v3.1 2028 WA charged border imports = 0.367 TWh/yr (367,286 MWh).
+- This is `delivered_mwh_per_yr` from `trans_import_cost_results.csv`, summed over p5→p2, p14→p2, p5→p3, p14→p3 and
+  p17→p3. It is delivered after losses and gross, with no export netting.
+- At $21.24/MWh this is about $7.8M/yr.
+- The Canadian import generators in p1 / p3 are not in this set: they are charged as generators, at factor 0.
+- **So §100's candidate is withdrawn.** It was free = 2028 imports − 13.2 TWh, where 13.2 TWh is Commerce's CY2023
+  retail "unspecified" fuel-mix volume. That is a retail quantity, not the model's basis, and the formula is negative.
+
+**Data-based proposal (value pending):**
+- **Formula:** free tranche = s_clean × the model's 2028 charged imports (0.367 TWh), held flat.
+  - s_clean = specified imports with emission factor about 0 / all imports.
+  - Both counted from sources outside WA and CA, Canadian sources excluded (the model carries those as import
+    generators). EIM purchases count as unspecified.
+  - From Ecology's EPE reports (WAC 173-441-124: specified MWh by facility and first point of receipt, unspecified
+    MWh, EIM MWh), latest reporting year.
+- **Not reached:** ecology.wa.gov, apps.ecology.wa.gov and data.wa.gov fail DNS from this environment (network
+  policy).
+- **What Tom needs to download:**
+  1. Ecology's GHG Reporting Program publication data, latest year (released each January): the "Mandatory
+     greenhouse gas reports" page, or the data.wa.gov dataset "GHG Reporting Program Publication", rows for electric
+     power entities.
+  2. If that gives only emissions by entity, not MWh by source, ask Ecology's GHG reporting program (CCA questions:
+     CCAQuestions@ecy.wa.gov, 360-407-6963) for an aggregate of EPE imported MWh by source type for the latest year:
+     - specified by fuel or emission factor and by first point of receipt;
+     - unspecified;
+     - EIM.
+  3. Optional: Ecology publication 23-02-090 (Interim Guidance for EPE Reporting), for the reporting definitions.
+- **Upper bound on the effect:** s_clean × $7.8M/yr in 2028.
+
+**Does the charge matter?** At 0.37 TWh and $7.8M/yr in 2028, almost certainly not for system results. WA's
+1.3 → 2.9 Mt rise (2028 → 2045) is more likely driven by something else.
+- **Candidates:**
+  1. WA gas serving CA. CA↔WA flows pay no import charge, CA's free tranche bound in every S0 v3.1 stage, and a WA
+     combined cycle (~0.37 t/MWh at the linked price) is a cheaper route into CA than a charged import
+     (0.428 t/MWh × price).
+  2. WA load growth outpacing WA's clean supply, with hydro fixed.
+  3. Charged WA imports growing in later stages. Unknown: the figure above is 2028 only.
+- **Tools:**
+  - `s0_workflow/scripts/wa_emissions_drivers.py` reads the solved S0 v3.1 stages and writes, per stage:
+    - WA generation and emissions by fuel;
+    - flows on every WA line (to and from CA and other states, with the charge);
+    - WA charged imports;
+    - the CA tranche;
+    - the change from 2028 by fuel.
+  - **Fixture test:** `test_wa_emissions_drivers.py`.
+- **One-stage test (recipe K):**
+  - S0prod_A 2028 from the tag s0-v3.1 with one uncommitted edit, `ca_wa_carbon.import_tco2_per_mwh: {CA: 0.428,
+    WA: 0.0}`, so WA border imports cost 0. CA and WA's own emissions are unchanged.
+  - Compare with the S0 v3.1 2028 stage.
+  - If the charge is immaterial, costs move by ≤ about $8M/yr and WA emissions by noise.
+  - This is cleaner than a two_tranche run because it needs no new code path or row.

@@ -851,6 +851,45 @@ builds its own lines, start it at that stage instead.
    - **Once, to validate:** solve one scenario both ways (with reuse and without, into another root). The first
      solved stage's inputs, chained files included, are byte-identical, and the results match.
 
+## K. WA reassessment: emission drivers and a 2028 WA-charge-off stage (CHANGES §127)
+
+**1. Drivers, from the S0 v3.1 run already solved (no build).** For each stage, pass its inputs and outputs folders:
+```bash
+"<ic-pipeline python>" s0_workflow/scripts/wa_emissions_drivers.py \
+    --stage 2028=<inputs 2028>,<outputs 2028> --stage 2030=<inputs 2030>,<outputs 2030> \
+    --stage 2035=<inputs 2035>,<outputs 2035> --stage 2040=<inputs 2040>,<outputs 2040> \
+    --stage 2045=<inputs 2045>,<outputs 2045> --out wa_drivers_s0v31
+```
+- **Outputs:** `wa_gen_by_fuel.csv`, `wa_flows.csv` and `wa_summary.csv`. Report the printed summary.
+- **Read from the summary:**
+  - WA gas TWh and Mt by stage;
+  - WA net exports to CA and to other states;
+  - WA charged imports (2028 should be 0.367 TWh);
+  - the CA tranche (delivered, free, excess);
+  - the change in WA emissions from 2028, split by fuel.
+- **What tells the drivers apart:**
+  - WA gas rising together with WA's net exports to CA means WA gas is serving CA. CA↔WA flows pay no import
+    charge, so this is a tranche interaction.
+  - WA gas rising with flat exports means WA's own load growth, or WA hydro and imports not keeping up.
+
+**2. One stage, 2028, WA import charge off.** Built from the tag, so only this setting differs from S0 v3.1:
+```bash
+git worktree add ../s0v31-wa-off s0-v3.1 && cd ../s0v31-wa-off
+# one edit: in pg/settings/s0_production.yml, under s0_production.ca_wa_carbon, add the line
+#     import_tco2_per_mwh: {CA: 0.428, WA: 0.0}
+# (WA border imports then cost 0; CA's tranche and factor are unchanged; WA's own emissions still pay the price)
+"<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/s0prod_A_waoff --case-id S0prod_A --year 2028
+```
+- **Solve:** solve the 2028 stage as in recipe C (2028 is the chain's first stage, so nothing is chained in).
+- **Check before solving:** `trans_import_cost.csv` has the WA border directions at 0 $/MWh and the CA tranche files
+  are unchanged.
+- **Then run step 1** on both 2028 stages, v3.1 and WA-off.
+- **Report:** the change in total cost, WA charged imports, WA gas TWh and Mt, WA net exports to CA, the CA tranche
+  excess, and national emissions.
+- **Expected if the charge is immaterial:** costs within about $8M/yr (0.367 TWh × $21.24) and WA emissions within
+  noise.
+- **Don't commit the edit.** Remove the worktree afterwards.
+
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 
 **Deferred** (Oct 2026): mode A is the production route for now. Keep this recipe for when mode B is
