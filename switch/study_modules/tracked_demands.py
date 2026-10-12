@@ -163,8 +163,9 @@ def _fixed_connection(m, td):
 
 
 def _prm_requirement(m, td, p):
-    """min(connection, peak) x (1 - curtailable share); with an endogenous connection (bounded above by
-    td_grid_interconnect_mw, which must not exceed the peak) it is connection x (1 - share)."""
+    """min(s x connection, peak) x (1 - curtailable share), s the stress grid limit share (§120; 1 by default); with
+    an endogenous connection (bounded above by td_grid_interconnect_mw, which must not exceed the peak) it is
+    s x connection x (1 - share)."""
     if td in m.TD_ENDOGENOUS_CONNECTION:
         peak = max(value(m.td_max_power_mw[td, t]) for t in m.TPS_IN_PERIOD[p])
         if value(m.td_grid_interconnect_mw[td]) > peak + 1e-9:
@@ -173,7 +174,9 @@ def _prm_requirement(m, td, p):
                 f"{value(m.td_grid_interconnect_mw[td]):g} MW above its peak load {peak:g} MW in {p}; set the bound "
                 f"at or below the peak so the PRM requirement min(connection, peak) stays linear"
             )
-        return m.TDGridConnectionMW[td] * (1 - m.td_stress_curtailable_share[td])
+        s = value(m.td_stress_grid_limit_share[td])
+        conn = m.TDGridConnectionMW[td] if s >= 1 else s * m.TDGridConnectionMW[td]
+        return conn * (1 - m.td_stress_curtailable_share[td])
     return m.td_prm_requirement_mw[td, p]
 
 
@@ -197,6 +200,62 @@ def _existing_connection(m, td):
 def _new_connection(m, td):
     """Connection added in this stage (MW)."""
     return _connection(m, td) - _existing_connection(m, td)
+
+
+def _has_stress_backup(m, td):
+    """TD with a backup diesel fleet or a stress grid limit (§120): its stress-day shortfall is a variable."""
+    return value(m.td_stress_grid_limit_share[td]) < 1 or any(d == td for d, _ in m.TD_DIESEL_GENS)
+
+
+def _shortfall(m, td, t):
+    return m.TDStressShortfall[td, t] if (td, t) in m.TD_SHORTFALL_TIMEPOINTS else 0
+
+
+def _stress_group(m, td, t):
+    """The weather-year group of stress timepoint t for td (§120): its weather year, or "all"."""
+    ts = m.tp_ts[t]
+    if str(value(m.td_stress_year_basis[td])).strip() == "weather_year" and ts in m.TD_STRESS_YEAR_TS:
+        return str(value(m.td_stress_weather_year[ts]))
+    return "all"
+
+
+def _stress_groups(m, td, p):
+    """Weather-year groups of period p's stress days for td; ["all"] when p has none."""
+    gs = sorted({_stress_group(m, td, t) for t in m.TPS_IN_PERIOD[p] if t in m.TD_STRESS_TPS})
+    return gs or ["all"]
+
+
+def _n_groups(m, td, p):
+    return len(_stress_groups(m, td, p))
+
+
+def _stress_tps_in_group(m, td, p, w):
+    return [t for t in m.TPS_IN_PERIOD[p] if t in m.TD_STRESS_TPS and _stress_group(m, td, t) == w]
+
+
+def _diesel_normal_flh_mwh(m, g, p):
+    """Non-emergency running of diesel g in period p, MWh per year (outside stress days)."""
+    return sum(m.DispatchGen[g, t] * m.tp_weight_in_year[t]
+               for t in m.TPS_IN_PERIOD[p] if t not in m.TD_STRESS_TPS and (g, t) in m.GEN_TPS)
+
+
+def _diesel_variable_cost(m, g, p):
+    """$/MWh of diesel g in period p: variable O&M + heat rate x the zone's fuel cost: fuel_cost.csv (simple fuel
+    costs), or the regional fuel market's cheapest supply tier plus the zone's adder (markets); 0 if neither."""
+    fc = 0.0
+    if g in m.FUEL_BASED_GENS:
+        z = m.gen_load_zone[g]
+        costs = []
+        for f in m.FUELS_FOR_GEN[g]:
+            if hasattr(m, "fuel_cost") and (z, f, p) in m.fuel_cost:
+                costs.append(value(m.fuel_cost[z, f, p]))
+            elif hasattr(m, "zone_fuel_rfm") and (z, f) in m.ZONE_FUELS:
+                tiers = m.SUPPLY_TIERS_FOR_RFM_PERIOD[m.zone_fuel_rfm[z, f], p]
+                if len(tiers):
+                    costs.append(min(value(m.rfm_supply_tier_cost[k]) for k in tiers)
+                                 + value(m.zone_fuel_cost_adder[z, f, p]))
+        fc = (min(costs) if costs else 0.0) * value(m.gen_full_load_heat_rate[g])
+    return value(m.gen_variable_om[g]) + fc
 
 
 def _stress_load(m, td, t):
@@ -399,6 +458,26 @@ def define_components(m):
         validate=lambda m, v, td: str(v).strip() in ("max", "profile", "min"),
     )
     m.td_stress_curtailable_share = Param(m.TRACKED_DEMANDS, within=PercentFraction, default=0.0)
+    # Stress grid limit (CHANGES §120, option B): on stress days the TD's grid
+    # draw is at most this share of its connection (mandatory curtailment of
+    # large loads in emergencies; backup generation carries the rest). 1 = no
+    # limit (exactly §108's rule). The PRM requirement uses share x connection.
+    m.td_stress_grid_limit_share = Param(m.TRACKED_DEMANDS, within=PercentFraction, default=1.0)
+    # How stress days are grouped into years for the diesel permit cap and the
+    # expected cost of stress-day running: weather_year (each weather year's
+    # stress days are one year; tracked_demand_stress_years.csv) or all (all of
+    # a period's stress days are one year)
+    m.td_stress_year_basis = Param(
+        m.TRACKED_DEMANDS, within=Any, default="weather_year",
+        validate=lambda m, v, td: str(v).strip() in ("weather_year", "all"),
+    )
+    # 1: no stress-day shortfall allowed (a gap makes the run infeasible)
+    m.td_stress_strict = Param(m.TRACKED_DEMANDS, within=Boolean, default=False)
+    m.TD_STRESS_YEAR_TS = Set(dimen=1, within=Any)
+    m.td_stress_weather_year = Param(m.TD_STRESS_YEAR_TS, within=Any)
+    # $/MWh of stress-day shortfall: "." = the case's lost-load cost
+    # (unserved_load_penalty_per_mwh) if it has one, else 10,000
+    m.td_stress_shortfall_penalty = Param(within=Any, default=".")
 
     # ── Stage 6 prerequisites ─────────────────────────────────────────────────
     # td_min_power_mw / td_max_power_mw are timepoint-indexed overrides of the
@@ -473,6 +552,24 @@ def define_components(m):
     # other; a turbine must name it.
     m.td_onsite_gtc_class = Param(m.TD_ONSITE_GENS, within=Any, default="")
     m.TD_GTC_COVERAGE = Set(dimen=1, within=Any)
+
+    # hours per year of potential to emit for carbon-cap applicability tests
+    # (CHANGES §120): "." = all year, or the permit hours of a backup diesel
+    m.td_onsite_pte_hours = Param(m.TD_ONSITE_GENS, within=Any, default=".")
+
+    # ── Backup diesel (CHANGES §120) ─────────────────────────────────────────
+    # Existing reliability fleet (predetermined capacity at zero capex), linked
+    # like any on-site generator; tracked_demand_diesel.csv marks it. Emergency
+    # running on stress days only, unless non-emergency hours are allowed
+    # (tier 4 or permitted engines); a permit cap on full-load-equivalent hours
+    # per year counts stress hours at their real duration.
+    m.TD_DIESEL_GENS = Set(dimen=2, within=m.TD_ONSITE_GENS)
+    m.td_diesel_permit_flh = Param(m.TD_DIESEL_GENS, within=NonNegativeReals, default=36.0)
+    m.td_diesel_test_flh = Param(m.TD_DIESEL_GENS, within=NonNegativeReals, default=12.0)
+    m.td_diesel_non_emergency_flh = Param(m.TD_DIESEL_GENS, within=NonNegativeReals, default=0.0)
+    m.td_diesel_tier = Param(m.TD_DIESEL_GENS, within=Any, default=2)
+    m.td_diesel_permitted_non_emergency = Param(m.TD_DIESEL_GENS, within=Boolean, default=False)
+    m.td_diesel_forced_outage_rate = Param(m.TD_DIESEL_GENS, within=PercentFraction, default=0.0)
 
     # unit nameplate (MW) for per-unit applicability tests; "." -> gen_unit_size,
     # else the rated MW
@@ -601,9 +698,26 @@ def define_components(m):
     # Dispatch bounds — use timepoint-indexed params (Stage 6). When no
     # dispatch_bounds.csv is provided the callable defaults return the scalar
     # values, so behaviour is identical to the previous Stage 1 constraints.
+    # Stress-day shortfall (CHANGES §120, C6): for TDs with a backup diesel
+    # fleet or a stress grid limit, unserved TD load on stress days, penalised
+    # (TDStressShortfallCost) so a gap shows instead of an infeasible run;
+    # fixed at 0 with td_stress_strict.
+    m.TD_SHORTFALL_TIMEPOINTS = Set(
+        dimen=2,
+        initialize=lambda m: [
+            (td, t) for td in m.TRACKED_DEMANDS if _has_stress_backup(m, td)
+            for t in m.TIMEPOINTS if value(m.tp_weight_in_year[t]) == 0
+        ],
+    )
+    m.TDStressShortfall = Var(
+        m.TD_SHORTFALL_TIMEPOINTS, within=NonNegativeReals,
+        bounds=lambda m, td, t: (0.0, 0.0 if value(m.td_stress_strict[td]) else None),
+        doc="TD load not served on a stress day (MW).",
+    )
+
     m.TD_Dispatch_Lower_Bound = Constraint(
         m.TD_TIMEPOINTS,
-        rule=lambda m, td, t: m.TDDispatch[td, t] >= m.td_min_power_mw[td, t],
+        rule=lambda m, td, t: m.TDDispatch[td, t] + _shortfall(m, td, t) >= m.td_min_power_mw[td, t],
     )
 
     m.TD_Dispatch_Upper_Bound = Constraint(
@@ -697,8 +811,16 @@ def define_components(m):
     m.TD_Stress_Load_Min = Constraint(
         m.TD_STRESS_TIMEPOINTS,
         rule=lambda m, td, t: (
-            m.TDDispatch[td, t]
+            m.TDDispatch[td, t] + _shortfall(m, td, t)
             >= (1 - m.td_stress_curtailable_share[td]) * _stress_load(m, td, t)
+        ),
+    )
+    # stress grid limit (§120, option B)
+    m.TD_Stress_Grid_Limit = Constraint(
+        m.TD_STRESS_TIMEPOINTS,
+        rule=lambda m, td, t: (
+            m.TDGridDraw[td, t] <= m.td_stress_grid_limit_share[td] * _connection(m, td)
+            if value(m.td_stress_grid_limit_share[td]) < 1 else Constraint.Skip
         ),
     )
 
@@ -709,7 +831,7 @@ def define_components(m):
     m.td_prm_requirement_mw = Param(
         m.TRACKED_DEMANDS, m.PERIODS,
         initialize=lambda m, td, p: min(
-            value(m.td_grid_interconnect_mw[td]),
+            value(m.td_grid_interconnect_mw[td]) * value(m.td_stress_grid_limit_share[td]),
             max(value(m.td_max_power_mw[td, t]) for t in m.TPS_IN_PERIOD[p]),
         ) * (1 - value(m.td_stress_curtailable_share[td])),
         doc="Tracked demand's planning-reserve requirement (MW) in each stress hour of the period.",
@@ -735,6 +857,106 @@ def define_components(m):
             else Constraint.Skip
         ),
     )
+
+    # ── Backup diesel constraints and stress-day costs (CHANGES §120) ────────
+    # C1: emergency only (no running outside stress days) unless non-emergency
+    # hours are allowed; then at most those hours per year
+    m.TD_DIESEL_NORMAL_TPS = Set(
+        dimen=3,
+        initialize=lambda m: [
+            (td, g, t) for td, g in m.TD_DIESEL_GENS for t in m.TPS_FOR_GEN[g] if t not in m.TD_STRESS_TPS
+        ],
+    )
+    m.TD_Diesel_Emergency_Only = Constraint(
+        m.TD_DIESEL_NORMAL_TPS,
+        rule=lambda m, td, g, t: (
+            m.DispatchGen[g, t] == 0 if value(m.td_diesel_non_emergency_flh[td, g]) == 0 else Constraint.Skip
+        ),
+    )
+    m.TD_Diesel_Non_Emergency_Limit = Constraint(
+        m.TD_DIESEL_GENS, m.PERIODS,
+        rule=lambda m, td, g, p: (
+            _diesel_normal_flh_mwh(m, g, p) <= m.td_diesel_non_emergency_flh[td, g] * m.GenCapacity[g, p]
+            if value(m.td_diesel_non_emergency_flh[td, g]) > 0 and (g, p) in m.GEN_PERIODS else Constraint.Skip
+        ),
+    )
+    # C2: permit cap on full-load-equivalent hours per year, in each weather-year
+    # group of stress days: stress running at real duration (tp_duration_hrs,
+    # each stress day once a year) + non-emergency running per year (tp_weight_in_year)
+    # + test hours <= permit hours
+    m.TD_DIESEL_GROUPS = Set(
+        dimen=4,
+        initialize=lambda m: [
+            (td, g, p, w) for td, g in m.TD_DIESEL_GENS for p in m.PERIODS if (g, p) in m.GEN_PERIODS
+            for w in _stress_groups(m, td, p)
+        ],
+    )
+    m.TD_Diesel_Permit_Cap = Constraint(
+        m.TD_DIESEL_GROUPS,
+        rule=lambda m, td, g, p, w: (
+            sum(m.DispatchGen[g, t] * m.tp_duration_hrs[t] for t in _stress_tps_in_group(m, td, p, w)
+                if (g, t) in m.GEN_TPS)
+            + _diesel_normal_flh_mwh(m, g, p)
+            + m.td_diesel_test_flh[td, g] * m.GenCapacity[g, p]
+            <= m.td_diesel_permit_flh[td, g] * m.GenCapacity[g, p]
+        ),
+    )
+    # C3: emergency engines don't supply the grid: export only from the TD's
+    # other linked generators
+    m.TD_Diesel_No_Export = Constraint(
+        m.TD_EXPORT_TIMEPOINTS,
+        rule=lambda m, td, t: (
+            m.TDGridExport[td, t] <= sum(
+                m.DispatchGen[g, t] for g in _onsite_gens(m, td)
+                if (td, g) not in m.TD_DIESEL_GENS and (g, t) in m.GEN_TPS)
+            if any((td, g) in m.TD_DIESEL_GENS for g in _onsite_gens(m, td)) else Constraint.Skip
+        ),
+    )
+    # C4: availability on stress days
+    m.TD_DIESEL_STRESS_TPS = Set(
+        dimen=3,
+        initialize=lambda m: [
+            (td, g, t) for td, g in m.TD_DIESEL_GENS for t in m.TPS_FOR_GEN[g] if t in m.TD_STRESS_TPS
+        ],
+    )
+    m.TD_Diesel_Availability = Constraint(
+        m.TD_DIESEL_STRESS_TPS,
+        rule=lambda m, td, g, t: (
+            m.DispatchGen[g, t]
+            <= m.GenCapacity[g, m.tp_period[t]] * (1 - m.td_diesel_forced_outage_rate[td, g])
+        ),
+    )
+    # C5: expected cost of stress-day running per year (fuel x heat rate +
+    # variable O&M, at real duration, averaged over the period's weather-year
+    # groups): stress days carry no other cost, so this keeps diesel off unless
+    # it relieves something
+    m.TDDieselStressCost = Expression(
+        m.PERIODS,
+        rule=lambda m, p: sum(
+            m.DispatchGen[g, t] * m.tp_duration_hrs[t] * _diesel_variable_cost(m, g, p) / _n_groups(m, td, p)
+            for td, g, t in m.TD_DIESEL_STRESS_TPS if m.tp_period[t] == p
+        ),
+    )
+    m.Cost_Components_Per_Period.append("TDDieselStressCost")
+    # C6: shortfall penalty, per year likewise
+    m.td_stress_shortfall_penalty_resolved = Param(
+        within=NonNegativeReals,
+        initialize=lambda m: (
+            float(_float_or_none(value(m.td_stress_shortfall_penalty)))
+            if _float_or_none(value(m.td_stress_shortfall_penalty)) is not None
+            else float(value(m.unserved_load_penalty_per_mwh)) if hasattr(m, "unserved_load_penalty_per_mwh")
+            else 10000.0
+        ),
+    )
+    m.TDStressShortfallCost = Expression(
+        m.PERIODS,
+        rule=lambda m, p: sum(
+            m.TDStressShortfall[td, t] * m.tp_duration_hrs[t] * m.td_stress_shortfall_penalty_resolved
+            / _n_groups(m, td, p)
+            for td, t in m.TD_SHORTFALL_TIMEPOINTS if m.tp_period[t] == p
+        ),
+    )
+    m.Cost_Components_Per_Period.append("TDStressShortfallCost")
 
     # ── Grid connection cost (§108 (f)) ───────────────────────────────────────
     m.TDConnectionCost = Expression(
@@ -2089,14 +2311,24 @@ def _unit_mw(m, td, g):
     return _rated_mw(m, td, g) if v is None else v
 
 
-def _pte_tco2(m, g, mw):
-    """Potential to emit (tCO2/yr) of mw of generator g at full load all year."""
+def _pte_hours(m, td, g):
+    """Hours per year of potential to emit: td_onsite_pte_hours, else a backup diesel's permit hours, else all year
+    (8766)."""
+    v = _float_or_none(value(m.td_onsite_pte_hours[td, g])) if td is not None else None
+    if v is None and (td, g) in m.TD_DIESEL_GENS:
+        v = value(m.td_diesel_permit_flh[td, g])
+    return 8766 if v is None else v
+
+
+def _pte_tco2(m, g, mw, td=None):
+    """Potential to emit (tCO2/yr) of mw of generator g at full load for its potential-to-emit hours (all year
+    unless td_onsite_pte_hours or a diesel permit says otherwise; §120)."""
     rate = max(
         value(m.f_co2_intensity[f])
         * ((1 - value(m.gen_ccs_capture_efficiency[g])) if g in m.CCS_EQUIPPED_GENS else 1)
         for f in m.FUELS_FOR_GEN[g]
     )
-    return mw * 8766 * value(m.gen_full_load_heat_rate[g]) * rate
+    return mw * _pte_hours(m, td, g) * value(m.gen_full_load_heat_rate[g]) * rate
 
 
 def _cap_programs_of_zone(m):
@@ -2150,7 +2382,7 @@ def _cap_coverage(m):
                         f"basis, but {', '.join(map(str, missing))} (tracked demand {td}) has no {what}."
                     )
                 mw = sum(sizes.values())
-                pte = sum(_pte_tco2(m, h, v) for h, v in sizes.items())
+                pte = sum(_pte_tco2(m, h, v, td) for h, v in sizes.items())
                 if th_mw is not None and mw < th_mw:
                     cov[td, g, pr] = (False, f"below_mw_threshold ({mw:g} < {th_mw:g} MW{rule})")
                 elif th_t is not None and pte < th_t:
@@ -2304,6 +2536,8 @@ def pre_solve(m):
                 f"{value(m.td_grid_interconnect_mw[td]):g} MW and it has no on-site supply: set td_stress_mode, "
                 f"a curtailable share, or on-site plant"
             )
+    _check_diesel(m)
+    _check_stress_supply(m)
     if not len(m.TD_ONSITE_GENS):
         return
     owner = {}
@@ -2608,6 +2842,9 @@ def load_inputs(m, switch_data, inputs_dir):
             m.td_connection_cost_share_demand,
             m.td_connection_uses_headroom,
             m.td_headroom_weight,
+            m.td_stress_grid_limit_share,
+            m.td_stress_year_basis,
+            m.td_stress_strict,
         ),
         optional_params=(
             m.td_default_min_power_mw,
@@ -2623,6 +2860,9 @@ def load_inputs(m, switch_data, inputs_dir):
             m.td_connection_cost_share_demand,
             m.td_connection_uses_headroom,
             m.td_headroom_weight,
+            m.td_stress_grid_limit_share,
+            m.td_stress_year_basis,
+            m.td_stress_strict,
         ),
     )
     # §108 (f): zone network-upgrade cost ($/kW overnight), connection life
@@ -2632,7 +2872,8 @@ def load_inputs(m, switch_data, inputs_dir):
     )
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "tracked_demand_params.csv"),
-        optional=True, param=(m.td_connection_life_years,),
+        optional=True, param=(m.td_connection_life_years, m.td_stress_shortfall_penalty),
+        optional_params=(m.td_connection_life_years, m.td_stress_shortfall_penalty),
     )
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "tracked_demand_stress_profile.csv"),
@@ -2877,9 +3118,26 @@ def load_inputs(m, switch_data, inputs_dir):
         filename=os.path.join(inputs_dir, "tracked_demand_onsite_gens.csv"),
         optional=True,
         index=m.TD_ONSITE_GENS,
-        param=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw, m.td_onsite_gtc_class),
+        param=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw, m.td_onsite_gtc_class,
+               m.td_onsite_pte_hours),
         optional_params=(m.td_onsite_prime_mover, m.td_onsite_unit_mw, m.td_onsite_rated_mw,
-                         m.td_onsite_gtc_class),
+                         m.td_onsite_gtc_class, m.td_onsite_pte_hours),
+    )
+    # §120: backup diesel fleets and the stress days' weather years
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_diesel.csv"),
+        optional=True,
+        index=m.TD_DIESEL_GENS,
+        param=(m.td_diesel_permit_flh, m.td_diesel_test_flh, m.td_diesel_non_emergency_flh, m.td_diesel_tier,
+               m.td_diesel_permitted_non_emergency, m.td_diesel_forced_outage_rate),
+        optional_params=(m.td_diesel_permit_flh, m.td_diesel_test_flh, m.td_diesel_non_emergency_flh,
+                         m.td_diesel_tier, m.td_diesel_permitted_non_emergency, m.td_diesel_forced_outage_rate),
+    )
+    switch_data.load_aug(
+        filename=os.path.join(inputs_dir, "tracked_demand_stress_years.csv"),
+        optional=True,
+        index=m.TD_STRESS_YEAR_TS,
+        param=(m.td_stress_weather_year,),
     )
     switch_data.load_aug(
         filename=os.path.join(inputs_dir, "tracked_demand_gtc_coverage.csv"),
@@ -2949,12 +3207,14 @@ def post_solve(m, outdir):
 
     # ── Stage 1 outputs ───────────────────────────────────────────────────────
 
+    backup = len(m.TD_DIESEL_GENS) > 0 or len(m.TD_SHORTFALL_TIMEPOINTS) > 0
     reporting.write_table(
         m,
         m.TD_TIMEPOINTS,
         output_file=os.path.join(outdir, "tracked_demand_dispatch.csv"),
         headings=("tracked_demand", "timepoint", "timestamp",
-                  "TDDispatch_MW", "TDGridDraw_MW", "TDGridExport_MW", "TDOnsiteGen_MW"),
+                  "TDDispatch_MW", "TDGridDraw_MW", "TDGridExport_MW", "TDOnsiteGen_MW")
+        + (("TDDiesel_MW", "TDStressShortfall_MW") if backup else ()),
         values=lambda m, td, t: (
             td,
             t,
@@ -2963,8 +3223,13 @@ def post_solve(m, outdir):
             m.TDGridDraw[td, t],
             value(_export(m, td, t)),
             value(m.TDOnsiteGenMW[td, t]),
-        ),
+        ) + ((
+            sum(value(m.DispatchGen[g, t]) for d, g in m.TD_DIESEL_GENS if d == td and (g, t) in m.GEN_TPS),
+            value(_shortfall(m, td, t)),
+        ) if backup else ()),
     )
+    if backup:
+        _write_diesel_outputs(m, outdir)
 
     # ── Grid connection outputs (§108 (f)) ────────────────────────────────────
 
@@ -3044,6 +3309,148 @@ def post_solve(m, outdir):
             _write_cfe_computed(m, outdir, grid_df)
         if m.TD_H2_STORAGE:
             _write_45v_assessment(m, outdir, grid_df)
+
+
+# ── Backup diesel checks and outputs (CHANGES §120) ─────────────────────────
+DIESEL_NOX_G_PER_KWH = {2: 6.4, 4: 0.67}   # certification limits, >560 / >900 kW gensets (40 CFR 89.112, 1039.101)
+
+
+def _diesel_mw(m, g, p):
+    """Fleet MW of diesel g in p, known before the solve: its predetermined capacity in service in p."""
+    return sum(
+        value(m.build_gen_predetermined[g2, y]) for g2, y in m.PREDETERMINED_GEN_BLD_YRS
+        if g2 == g and (g, y) in m.GEN_BLD_YRS and p in m.PERIODS_FOR_GEN_BLD_YR[g, y]
+    )
+
+
+def _check_diesel(m):
+    """Backup diesel rules (§120): existing capacity only; non-emergency running only for tier 4 or engines permitted
+    as non-emergency (as we read 40 CFR 60.4211(f) / 63.6640(f), to be confirmed by the input research); test plus
+    non-emergency hours within the permit."""
+    for td, g in m.TD_DIESEL_GENS:
+        new = [y for g2, y in m.NEW_GEN_BLD_YRS if g2 == g]
+        if new:
+            raise ValueError(f"tracked_demands: backup diesel {g} ({td}) has new-build years {new}; the fleet is "
+                             f"existing capacity (gen_build_predetermined only)")
+        ne, permit, test = (value(m.td_diesel_non_emergency_flh[td, g]), value(m.td_diesel_permit_flh[td, g]),
+                            value(m.td_diesel_test_flh[td, g]))
+        tier = int(float(value(m.td_diesel_tier[td, g])))
+        if ne > 0 and tier != 4 and not value(m.td_diesel_permitted_non_emergency[td, g]):
+            raise ValueError(f"tracked_demands: backup diesel {g} ({td}) has {ne:g} non-emergency hours but is tier "
+                             f"{tier} and not permitted as non-emergency; emergency engines may not run for peak "
+                             f"shaving (40 CFR 60.4211(f), 63.6640(f))")
+        if test + ne > permit + 1e-9:
+            raise ValueError(f"tracked_demands: backup diesel {g} ({td}): test {test:g} + non-emergency {ne:g} hours "
+                             f"exceed the permit's {permit:g} hours")
+
+
+def _check_stress_supply(m):
+    """Necessary-condition check (§120): for each TD with a backup fleet or a stress grid limit, period and
+    weather-year group, the stress-day energy beyond s x connection against what the fleet (within its permit) and
+    bounded on-site supply can give. A gap warns (an error with td_stress_strict); unbounded on-site supply skips it."""
+    for td in m.TRACKED_DEMANDS:
+        if not _has_stress_backup(m, td):
+            continue
+        s = value(m.td_stress_grid_limit_share[td])
+        conn = value(m.td_grid_interconnect_mw[td])
+        c = value(m.td_stress_curtailable_share[td])
+        diesel = [g for d, g in m.TD_DIESEL_GENS if d == td]
+        others = [g for g in _onsite_gens(m, td) if g not in diesel]
+        if (len(m.TD_ONSITE_TECHS) or td in m.TD_STORAGE
+                or any(g not in m.CAPACITY_LIMITED_GENS for g in others)):
+            continue                                        # unbounded on-site supply: can't conclude
+        for p in m.PERIODS:
+            for w in _stress_groups(m, td, p):
+                tps = _stress_tps_in_group(m, td, p, w)
+                if not tps:
+                    continue
+                need_t = {t: max(0.0, max((1 - c) * value(_stress_load(m, td, t)), value(m.td_min_power_mw[td, t]))
+                                 - s * conn) for t in tps}
+                need = sum(need_t[t] * value(m.tp_duration_hrs[t]) for t in tps)
+                if need <= 1e-9:
+                    continue
+                supply = sum(value(m.gen_capacity_limit_mw[g]) * value(m.tp_duration_hrs[t])
+                             for g in others for t in tps)
+                for g in diesel:
+                    mw = _diesel_mw(m, g, p) * (1 - value(m.td_diesel_forced_outage_rate[td, g]))
+                    hours = max(0.0, value(m.td_diesel_permit_flh[td, g]) - value(m.td_diesel_test_flh[td, g]))
+                    by_hour = sum(min(need_t[t], mw) * value(m.tp_duration_hrs[t]) for t in tps)
+                    supply += min(by_hour, mw * hours)
+                if need > supply + 1e-6:
+                    msg = (f"tracked_demands: {td} needs {need:,.0f} MWh beyond its stress grid limit "
+                           f"({s:g} x {conn:g} MW) on period {p}'s stress days (weather year {w}), but its backup "
+                           f"fleet (within its permit hours) and on-site plant can give at most {supply:,.0f} MWh; "
+                           f"the rest is stress-day shortfall")
+                    if value(m.td_stress_strict[td]):
+                        raise ValueError(msg + " (td_stress_strict: the run would be infeasible)")
+                    print("WARNING: " + msg)
+
+
+def _write_diesel_outputs(m, outdir):
+    """tracked_demand_diesel.csv (per fleet, period and weather-year group) and tracked_demand_stress_summary.csv (per
+    TD and period)."""
+    duals = getattr(m, "dual", None)
+    rows = []
+    for td, g, p, w in m.TD_DIESEL_GROUPS:
+        cap = value(m.GenCapacity[g, p])
+        stress = [t for t in _stress_tps_in_group(m, td, p, w) if (g, t) in m.GEN_TPS]
+        stress_mwh = sum(value(m.DispatchGen[g, t]) * value(m.tp_duration_hrs[t]) for t in stress)
+        normal = [t for t in m.TPS_IN_PERIOD[p] if t not in m.TD_STRESS_TPS and (g, t) in m.GEN_TPS]
+        ne_mwh = sum(value(m.DispatchGen[g, t]) * value(m.tp_weight_in_year[t]) for t in normal)
+        hr = value(m.gen_full_load_heat_rate[g]) if g in m.FUEL_BASED_GENS else 0.0
+        co2 = max((value(m.f_co2_intensity[f]) for f in m.FUELS_FOR_GEN[g]), default=0.0) \
+            if g in m.FUEL_BASED_GENS else 0.0
+        ne_fuel = sum(value(m.GenFuelUseRate[g, t, f]) * value(m.tp_weight_in_year[t])
+                      for t in normal for f in m.FUELS_FOR_GEN[g] if (g, t, f) in m.GEN_TP_FUELS) \
+            if g in m.FUEL_BASED_GENS else 0.0
+        ne_co2 = sum(value(m.DispatchEmissions[g, t, f]) * value(m.tp_weight_in_year[t])
+                     for t in normal for f in m.FUELS_FOR_GEN[g] if (g, t, f) in m.GEN_TP_FUELS) \
+            if g in m.FUEL_BASED_GENS else 0.0
+        test = value(m.td_diesel_test_flh[td, g])
+        test_mwh = test * cap
+        flh = lambda mwh: mwh / cap if cap > 0 else 0.0
+        total = flh(stress_mwh) + flh(ne_mwh) + test
+        permit = value(m.td_diesel_permit_flh[td, g])
+        c = m.TD_Diesel_Permit_Cap[td, g, p, w]
+        dual = abs(duals[c]) / value(m.bring_annual_costs_to_base_year[p]) if duals is not None and c in duals \
+            else float("nan")
+        short = sum(value(m.TDStressShortfall[td, t]) * value(m.tp_duration_hrs[t])
+                    for t in _stress_tps_in_group(m, td, p, w) if (td, t) in m.TD_SHORTFALL_TIMEPOINTS)
+        tier = int(float(value(m.td_diesel_tier[td, g])))
+        rows.append(dict(
+            tracked_demand=td, generation_project=g, period=p, weather_year=w, diesel_mw=cap, permit_flh=permit,
+            stress_flh=flh(stress_mwh), non_emergency_flh=flh(ne_mwh), test_flh=test, total_flh=total,
+            flh_remaining=permit - total, cap_dual_usd_per_mwh=dual, stress_mwh=stress_mwh,
+            non_emergency_mwh=ne_mwh, test_mwh=test_mwh,
+            fuel_mmbtu_stress=stress_mwh * hr, fuel_mmbtu_non_emergency=ne_fuel, fuel_mmbtu_test=test_mwh * hr,
+            co2_t_stress=stress_mwh * hr * co2, co2_t_non_emergency=ne_co2, co2_t_test=test_mwh * hr * co2,
+            nox_t=(stress_mwh + ne_mwh + test_mwh) * DIESEL_NOX_G_PER_KWH.get(tier, float("nan")) / 1000.0,
+            shortfall_mwh=short,
+            note="stress and test tonnes are outside the model's cap rows (zero-weight hours)",
+        ))
+    pd.DataFrame(rows).to_csv(os.path.join(outdir, "tracked_demand_diesel.csv"), index=False)
+
+    summ = []
+    for td in m.TRACKED_DEMANDS:
+        if not _has_stress_backup(m, td):
+            continue
+        for p in m.PERIODS:
+            mine = [r for r in rows if r["tracked_demand"] == td and r["period"] == p]
+            worst = min(mine, key=lambda r: r["flh_remaining"]) if mine else None
+            short = sum(value(m.TDStressShortfall[td, t]) * value(m.tp_duration_hrs[t])
+                        for t in m.TPS_IN_PERIOD[p] if (td, t) in m.TD_SHORTFALL_TIMEPOINTS)
+            summ.append(dict(
+                tracked_demand=td, period=p, stress_grid_limit_share=value(m.td_stress_grid_limit_share[td]),
+                n_weather_year_groups=_n_groups(m, td, p),
+                binding_weather_year=worst["weather_year"] if worst else "",
+                flh_remaining_min=worst["flh_remaining"] if worst else float("nan"),
+                shortfall_mwh_total=short,
+                shortfall_mwh_per_year=short / _n_groups(m, td, p),
+            ))
+            if short > 1e-6:
+                print(f"WARNING: tracked_demands: {td} has {short:,.1f} MWh of stress-day shortfall in {p} "
+                      f"(tracked_demand_stress_summary.csv)")
+    pd.DataFrame(summ).to_csv(os.path.join(outdir, "tracked_demand_stress_summary.csv"), index=False)
 
 
 def _headroom_value(m, z, p):
@@ -3175,10 +3582,24 @@ def _write_onsite_gen_outputs(m, outdir):
                     if not covered and reason.startswith("below_tco2") and site_t >= th_t:
                         check = f"actual site emissions {site_t:.0f} t/yr >= threshold: re-run covered"
                 rows.append((td, g, m.gen_load_zone[g], p, pr, t_co2, int(covered), reason, check))
-    pd.DataFrame(rows, columns=[
+    df = pd.DataFrame(rows, columns=[
         "tracked_demand", "generation_project", "load_zone", "period", "co2_program", "tco2_per_yr",
         "covered_by_cap", "coverage_reason", "threshold_check",
-    ]).to_csv(os.path.join(outdir, "tracked_demand_onsite_emissions.csv"), index=False)
+    ])
+    if len(m.TD_DIESEL_GENS):
+        # §120: a backup fleet's stress-day (emergency) tonnes per year, averaged over the weather-year groups;
+        # tco2_per_yr above is its non-emergency running (Switch's weighted accounting, in the cap rows)
+        emerg = {}
+        for td, g, p, w in m.TD_DIESEL_GROUPS:
+            hr = value(m.gen_full_load_heat_rate[g])
+            co2 = max(value(m.f_co2_intensity[f]) for f in m.FUELS_FOR_GEN[g])
+            mwh = sum(value(m.DispatchGen[g, t]) * value(m.tp_duration_hrs[t])
+                      for t in _stress_tps_in_group(m, td, p, w) if (g, t) in m.GEN_TPS)
+            emerg[td, g, p] = emerg.get((td, g, p), 0.0) + mwh * hr * co2 / _n_groups(m, td, p)
+        keys = list(zip(df["tracked_demand"], df["generation_project"], df["period"]))
+        df["tco2_emergency_per_yr"] = [emerg.get(k, 0.0) for k in keys]
+        df["emergency_note"] = ["stress days: outside the model's cap rows" if k in emerg else "" for k in keys]
+    df.to_csv(os.path.join(outdir, "tracked_demand_onsite_emissions.csv"), index=False)
 
 
 def _write_clean_ledger(m, outdir):

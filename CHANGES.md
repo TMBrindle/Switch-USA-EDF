@@ -4259,3 +4259,59 @@ capex premium. The case writer now adds the premium the way the case build did (
    - no s0 log; a path mismatch; a logged premium that differs; a premium on storage.
 
    Guide 15.9 and the example spec are updated. No shared files changed.
+
+## 120. Tracked Demands: Backup Diesel by Site Configuration
+
+Design: `tracked_demands/docs/design/diesel_backup_proposal.md` (it was written as §109; the section is §120).
+Accepted by Tom on 12 Oct 2026, with the decisions in the decisions register ("backup diesel"). Guide section 16.
+Option B is implemented; option C is not. No shared files changed (SHARED_CHANGES rows 140–149 stay unused).
+
+1. **Site configurations** (writer, `diesel:` per tracked demand):
+   - `grid_backup`: a fleet of 1.3 × the grid connection. It is sized on `connection_mw`, so a hybrid site backs up
+     only its grid share, and an endogenous connection uses its upper bound.
+   - `blackstart` and `none`: nothing modelled.
+   - With `config` omitted: blackstart if the demand has gas-fired linked generators, else grid_backup (logged).
+2. **The fleet is existing capacity at zero capex.**
+   - A predetermined row (year before the first period) and a zero-cost build-cost row, in base and chained files. A
+     stage that already carries the fleet keeps its rows.
+   - Distillate fuel; no reserve credit, ic weight 0, no gas-turbine cap category, no premium; never clean in matching.
+   - New `tracked_demand_diesel.csv`: permit 36 h, test 12 h (PLACEHOLDER), non-emergency 0, tier 2, forced outage.
+3. **Constraints** (`tracked_demands.py`):
+   - **C1:** emergency only, unless non-emergency hours are allowed; then at most those per year.
+   - **C2:** the permit cap per year, per weather-year group. Stress hours count at `tp_duration_hrs`, once a year;
+     non-emergency hours at `tp_weight_in_year`; plus test hours.
+   - **C3:** no export from diesel.
+   - **C4:** stress-day availability.
+   - **C5:** `TDDieselStressCost`, the expected cost per year of stress-day running. Fuel cost comes from simple costs
+     or the market's cheapest tier.
+   - **C6:** `TDStressShortfall` relaxes the stress-day load floor, at `td_stress_shortfall_penalty`, else the case's
+     lost-load cost, else 10,000 $/MWh. Off with `td_stress_strict`.
+4. **Weather-year groups.** `tracked_demand_stress_years.csv` is written by the writer from the case's
+   `prm/<year>/stress_days.csv`. `td_stress_year_basis` is `weather_year` (default) or `all`.
+5. **Option B, the stress grid limit.** `td_stress_grid_limit_share` s (default 1):
+   - grid draw on stress days ≤ s × connection;
+   - PRM requirement min(s × connection, peak) × (1 − curtailable share);
+   - s = 1 is exactly §108's rule.
+6. **Non-emergency running** only for tier 4 or `permitted_non_emergency`; the writer and the run stop otherwise.
+   This is our reading of 40 CFR 60.4211(f) / 63.6640(f), **to be confirmed by the input research**.
+7. **Potential to emit.** New `td_onsite_pte_hours` (`tracked_demand_onsite_gens.csv`). A fleet's potential to emit is
+   at its permit hours. CA/WA treatment of emergency engines is with the input research.
+8. **Visibility.**
+   - Before the solve: a WARNING (an error if strict) when the stress-day need beyond s × connection exceeds what the
+     fleet and capacity-limited on-site generators can give.
+   - After the solve: `tracked_demand_stress_summary.csv`, and a WARNING on any shortfall.
+9. **Outputs.**
+   - `tracked_demand_diesel.csv`: hours by kind, hours left, cap dual, MWh, fuel, CO₂ and NOx by kind, shortfall.
+   - `tracked_demand_dispatch.csv` gains `TDDiesel_MW` and `TDStressShortfall_MW`, when used.
+   - `tracked_demand_onsite_emissions.csv` gains `tco2_emergency_per_yr`.
+   - Cases without a fleet or a stress limit write the same files as before. Every loaded case gains two zero rows in
+     `costs_itemized.csv` (`TDDieselStressCost`, `TDStressShortfallCost`).
+10. **Behaviour to know.** C5 makes stress-day running determinate. The fleet also runs at s = 1 where it relieves a
+    binding stress-day energy balance (toy at 1.5× stress load). In S0 the reserve test binds first.
+11. **Tests:**
+    - `test_td_diesel.py` (19): idle at s = 1; running when the stress balance binds; real-hour counting; shortfall,
+      check and strict mode; the penalty source; weather-year groups and `all`; non-emergency tier 4 and the rules;
+      stress modes; the PRM requirement; potential to emit at permit hours; light against full; a chain.
+    - `test_td_case_writer.py` (+9): the grid_backup fleet in base and chained files and a solve; a stage that already
+      carries it; the config defaults; the rules that stop the writer.
+    - `td_toy.add_stress_timeseries` takes a name.

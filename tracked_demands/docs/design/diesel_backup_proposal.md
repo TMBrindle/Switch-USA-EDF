@@ -1,6 +1,7 @@
-# Diesel backup for tracked demands: design proposal (CHANGES §109)
+# Diesel backup for tracked demands: design proposal (CHANGES §120)
 
-Status: proposal only, 12 Oct 2026. No code until Tom agrees. Base: `tom/tracked-demands-v2` at dafcb18.
+Status: accepted by Tom on 12 Oct 2026, with the decisions in the decisions register (E1–E6), and implemented in
+CHANGES §120 (guide section 16). Written as §109; the section is §120. The text below is the proposal as accepted.
 
 ## 0. What the current model already does, and why it matters here
 

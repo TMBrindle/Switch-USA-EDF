@@ -23,10 +23,10 @@ import toyutil  # noqa: E402
 DC_MW = 2.0
 
 
-def add_stress_timeseries(inp: Path, period=2020, n=2, load_scale=1.5):
+def add_stress_timeseries(inp: Path, period=2020, n=2, load_scale=1.5, name=None):
     """Append a zero-weight stress timeseries to `period` (copies of the period's first timepoints, loads scaled)."""
     ts = pd.read_csv(inp / "timeseries.csv")
-    name = f"{period}_stress"
+    name = name or f"{period}_stress"
     ts = pd.concat([ts, pd.DataFrame([{"TIMESERIES": name, "ts_period": period, "ts_duration_of_tp": 12,
                                         "ts_num_tps": n, "ts_scale_to_period": 0.0}])])
     ts.to_csv(inp / "timeseries.csv", index=False)
@@ -34,7 +34,8 @@ def add_stress_timeseries(inp: Path, period=2020, n=2, load_scale=1.5):
     src = tp[tp["timeseries"].str.startswith(str(period))].head(n)
     new_ids = list(range(int(tp["timepoint_id"].max()) + 1, int(tp["timepoint_id"].max()) + 1 + n))
     tmap = dict(zip(src["timepoint_id"], new_ids))
-    s = src.assign(timepoint_id=new_ids, timeseries=name, timestamp=src["timestamp"] + 90000000)
+    s = src.assign(timepoint_id=new_ids, timeseries=name,
+                   timestamp=src["timestamp"] + 90000000 + 1000000 * (int(ts["ts_scale_to_period"].eq(0).sum()) - 1))
     pd.concat([tp, s]).to_csv(inp / "timepoints.csv", index=False)
     lo = pd.read_csv(inp / "loads.csv")
     sl = lo[lo["TIMEPOINT"].isin(tmap)].copy()

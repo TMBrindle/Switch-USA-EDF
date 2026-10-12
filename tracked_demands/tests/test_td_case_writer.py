@@ -400,3 +400,109 @@ def test_gas_capex_without_s0_build_or_with_a_mismatch(tmp_path):
         write_case_inputs(run / "inputs", _spec(PREMIUM_GENS[:1]) | {"tracked_demands": [
             {**_spec(PREMIUM_GENS[:1])["tracked_demands"][0],
              "storage": {"power_cost_per_mw_yr": 1, "energy_cost_per_mwh_yr": 1, "premium_class": "ct"}}]}, run / "b")
+
+
+# ------------------------------------------------------------------------------------------------ backup diesel (§120)
+def _diesel_case(tmp_path, name, chained=True):
+    """The toy with a stress day (2020_p1_prm), its stress_days.csv calendar, and chained copies of the predetermined
+    and build-cost files (a later chain stage carries both)."""
+    from td_toy import add_stress_timeseries
+
+    def edit(inp):
+        add_stress_timeseries(inp, name="2020_p1_prm", load_scale=1.0)
+        (inp / "prm" / "2020").mkdir(parents=True)
+        pd.DataFrame([{"TIMESERIES": "2020_p1_prm", "year": 2009, "month": 7, "date": "2009-07-20"}]).to_csv(
+            inp / "prm" / "2020" / "stress_days.csv", index=False)
+        if chained:
+            for f in ("gen_build_predetermined", "gen_build_costs"):
+                (inp / f"{f}.chained.case.csv").write_text((inp / f"{f}.csv").read_text())
+    return toyutil.toy_inputs(tmp_path, name, modules=("tracked_demands",), edit=edit)
+
+
+def _dspec(diesel=None, gens=(), **td):
+    d = {"name": "DC1", "zone": "North", "max_mw": 2.0, "min_mw": 2.0, "annual_energy_share": 0.9,
+         "connection_mw": 2.0, "onsite_gens": list(gens), **td}
+    if diesel is not None:
+        d["diesel"] = diesel
+    return {"tracked_demands": [d], "zone_upgrade_cost_per_kw": {"North": 200.0}}
+
+
+def test_diesel_grid_backup_written_and_solved(tmp_path):
+    from tracked_demands.case_writer import write_case_inputs
+    run = _diesel_case(tmp_path, "dg")
+    out = write_case_inputs(run / "inputs", _dspec({}, stress_grid_limit_share=0.5), run / "inputs_td")
+    log = (out / "tracked_demands_writer_log.txt").read_text()
+    assert "DC1: diesel config not given; grid_backup (no gas-fired linked generators)" in log
+    assert "WARNING: DC1: diesel heat_rate=10.2, forced_outage_rate=0.05, variable_om=10, test_flh=12 are " \
+           "PLACEHOLDER defaults" in log
+    # 1.3 x the 2 MW connection, existing from the year before the first period (2017 - 1), zero capex: base and chained
+    for sfx in ("", ".chained.case"):
+        pred = pd.read_csv(out / f"gen_build_predetermined{sfx}.csv")
+        r = pred[pred["GENERATION_PROJECT"] == "DC1_diesel"]
+        assert list(r["build_year"]) == [2016] and r["build_gen_predetermined"].iat[0] == pytest.approx(2.6)
+        bc = pd.read_csv(out / f"gen_build_costs{sfx}.csv")
+        b = bc[bc["GENERATION_PROJECT"] == "DC1_diesel"]
+        assert list(b["build_year"]) == [2016] and b["gen_overnight_cost"].iat[0] == 0
+    gi = pd.read_csv(out / "gen_info.csv", na_values=".").set_index("GENERATION_PROJECT")
+    assert gi.at["DC1_diesel", "gen_energy_source"] == "DistillateFuelOil"
+    assert gi.at["DC1_diesel", "gen_forced_outage_rate"] == 0 and pd.isna(gi.at["DC1_diesel", "gen_unit_size"])
+    links = pd.read_csv(out / "tracked_demand_onsite_gens.csv").set_index("GENERATION_PROJECT")
+    assert links.at["DC1_diesel", "td_onsite_gtc_class"] == "none"
+    assert links.at["DC1_diesel", "td_onsite_pte_hours"] == 36 and links.at["DC1_diesel", "td_onsite_unit_mw"] == 2.5
+    dz = pd.read_csv(out / "tracked_demand_diesel.csv").iloc[0]
+    assert (dz["td_diesel_permit_flh"], dz["td_diesel_test_flh"], dz["td_diesel_tier"]) == (36, 12, 2)
+    sy = pd.read_csv(out / "tracked_demand_stress_years.csv")
+    assert sy.to_dict("records") == [{"TIMESERIES": "2020_p1_prm", "td_stress_weather_year": 2009}]
+    td = pd.read_csv(out / "tracked_demands.csv").iloc[0]
+    assert td["td_stress_grid_limit_share"] == 0.5 and td["td_stress_year_basis"] == "weather_year"
+    toyutil.solve(run, inputs="inputs_td", outputs="outputs_td")
+    d = pd.read_csv(run / "outputs_td" / "tracked_demand_diesel.csv")
+    r = d[d["period"] == 2020].iloc[0]
+    assert str(r["weather_year"]) == "2009" and r["stress_mwh"] == pytest.approx(24.0)
+
+
+def test_diesel_on_a_stage_that_already_carries_it(tmp_path):
+    """A chained stage whose predetermined file already has the fleet (from an earlier stage) keeps it."""
+    from tracked_demands.case_writer import write_case_inputs
+    run = _diesel_case(tmp_path, "dk")
+    p = run / "inputs" / "gen_build_predetermined.chained.case.csv"
+    pred = pd.read_csv(p)
+    pd.concat([pred, pd.DataFrame([{"GENERATION_PROJECT": "DC1_diesel", "build_year": 2010,
+                                    "build_gen_predetermined": 2.6}])]).to_csv(p, index=False)
+    out = write_case_inputs(run / "inputs", _dspec({"config": "grid_backup"}), run / "inputs_td")
+    pred = pd.read_csv(out / "gen_build_predetermined.chained.case.csv")
+    assert list(pred.loc[pred["GENERATION_PROJECT"] == "DC1_diesel", "build_year"]) == [2010]
+    bc = pd.read_csv(out / "gen_build_costs.chained.case.csv")
+    assert list(bc.loc[bc["GENERATION_PROJECT"] == "DC1_diesel", "build_year"]) == [2010]
+
+
+@pytest.mark.parametrize("diesel,gens,expect", [
+    (None, (), None),                                                    # no diesel block: none
+    ({}, [_gen("g_gas", technology="recip")], "blackstart"),             # gas-fired linked generator: black start only
+    ({"config": "none"}, (), None),
+    ({"config": "grid_backup", "multiple": 1.4}, [_gen("g_gas", technology="recip")], 2.8),   # hybrid: on connection
+])
+def test_diesel_config(tmp_path, diesel, gens, expect):
+    from tracked_demands.case_writer import write_case_inputs
+    run = _diesel_case(tmp_path, "dc", chained=False)
+    out = write_case_inputs(run / "inputs", _dspec(diesel, gens), run / "inputs_td")
+    pred = pd.read_csv(out / "gen_build_predetermined.csv")
+    mine = pred[pred["GENERATION_PROJECT"] == "DC1_diesel"]
+    if isinstance(expect, float):
+        assert mine["build_gen_predetermined"].iat[0] == pytest.approx(expect)
+    else:
+        assert mine.empty and not (out / "tracked_demand_diesel.csv").exists()
+    if expect == "blackstart":
+        assert "DC1: black-start diesel not modelled" in (out / "tracked_demands_writer_log.txt").read_text()
+
+
+@pytest.mark.parametrize("diesel,match", [
+    ({"non_emergency_flh": 20}, "needs tier 4 or permitted_non_emergency"),
+    ({"tier": 4, "non_emergency_flh": 30}, "exceed permit_flh"),
+    ({"config": "standby"}, "must be grid_backup, blackstart or none"),
+])
+def test_diesel_rules_stop_the_writer(tmp_path, diesel, match):
+    from tracked_demands.case_writer import write_case_inputs
+    run = _diesel_case(tmp_path, "dr", chained=False)
+    with pytest.raises(ValueError, match=match):
+        write_case_inputs(run / "inputs", _dspec(diesel), run / "inputs_td")

@@ -270,6 +270,72 @@ def credit_by_period(inp: Path, key: str, periods, override: dict | None, gen_in
     return out
 
 
+# --------------------------------------------------------------------------------------------- backup diesel
+# §120 defaults (Tom, 12 Oct 2026). PLACEHOLDER values are flagged in the writer log when used.
+DIESEL_DEFAULTS = {"multiple": 1.3, "unit_mw": 2.5, "tier": 2, "heat_rate": 10.2, "forced_outage_rate": 0.05,
+                   "variable_om": 10.0, "fixed_om_per_kw_yr": 0.0, "permit_flh": 36.0, "test_flh": 12.0,
+                   "non_emergency_flh": 0.0, "permitted_non_emergency": False, "stress_year_basis": "weather_year",
+                   "max_age": 40}
+DIESEL_PLACEHOLDERS = ("heat_rate", "forced_outage_rate", "variable_om", "test_flh")
+
+
+def diesel_config(d: dict, log) -> str:
+    """The TD's diesel configuration: the spec's diesel.config, else blackstart when it has gas-fired linked
+    generators and grid_backup otherwise (logged). No diesel block: none."""
+    dz = d.get("diesel")
+    if dz is None:
+        return "none"
+    cfg = dz.get("config")
+    if cfg is None:
+        gas = [g["name"] for g in d.get("onsite_gens") or []
+               if str(g.get("fuel", "gas")).lower() in ("gas", "naturalgas", "natural_gas")]
+        cfg = "blackstart" if gas else "grid_backup"
+        log(f"{d['name']}: diesel config not given; {cfg} "
+            + (f"(gas-fired linked generators {gas})" if gas else "(no gas-fired linked generators)"))
+    if cfg not in ("grid_backup", "blackstart", "none"):
+        raise ValueError(f"case_writer: {d['name']}: diesel.config must be grid_backup, blackstart or none, not {cfg!r}")
+    return cfg
+
+
+def add_predetermined(folder: Path, gid: str, year: int, mw: float, fixed_om: float, log) -> None:
+    """An existing fleet: a gen_build_predetermined row (gid, year, mw) and its gen_build_costs row (overnight 0), in
+    the base files and each chained pair. A variant that already carries gid (a later stage of a chain) keeps its
+    rows and build years; only missing cost rows are added."""
+    preds = variants(folder, "gen_build_predetermined.csv") or [folder / "gen_build_predetermined.csv"]
+    for pp in preds:
+        cp = folder / pp.name.replace("gen_build_predetermined", "gen_build_costs")
+        pred = _read(pp) if pp.exists() else pd.DataFrame(
+            columns=["GENERATION_PROJECT", "build_year", "build_gen_predetermined"])
+        k0, k1 = pred.columns[0], pred.columns[1]
+        mine = pred[pred[k0].astype(str) == gid]
+        if len(mine):
+            years = [int(float(y)) for y in mine[k1]]
+            log(f"{gid}: already in {pp.name} (build years {years}); kept")
+        else:
+            years = [year]
+            new = {c: float("nan") for c in pred.columns}
+            new.update({k0: gid, k1: year, pred.columns[2]: mw})
+            _write(pd.concat([pred, pd.DataFrame([new])], ignore_index=True), pp)
+        if cp.exists():
+            bc = _read(cp)
+            b0, b1 = bc.columns[0], bc.columns[1]
+            have = set(zip(bc[b0].astype(str), pd.to_numeric(bc[b1], errors="coerce").astype("Int64")))
+            add = [{b0: gid, b1: y, "gen_overnight_cost": 0.0, "gen_fixed_om": fixed_om}
+                   for y in years if (gid, y) not in have]
+            if add:
+                _write(pd.concat([bc, pd.DataFrame(add)], ignore_index=True), cp)
+
+
+def stress_years(out: Path) -> pd.DataFrame | None:
+    """TIMESERIES -> weather year of each stress day, from the case's prm/<model year>/stress_days.csv (written by
+    s0_workflow/prm.py); None if the case has none."""
+    files = sorted(out.glob("prm/*/stress_days.csv"))
+    if not files:
+        return None
+    df = pd.concat([_read(f)[["TIMESERIES", "year"]] for f in files], ignore_index=True).drop_duplicates("TIMESERIES")
+    return df.rename(columns={"year": "td_stress_weather_year"})
+
+
 # --------------------------------------------------------------------------------------------- gas-turbine cap
 def gtc_case_settings(out: Path, spec: dict, log) -> dict | None:
     """The case's gas-turbine cap settings as turbine_cap resolved them (None: no cap in the case).
@@ -406,7 +472,7 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
         + f" ({gas_capex['_source']})")
 
     rows = {k: [] for k in ("td", "zones", "blocks", "targets", "techs", "subsidies", "caps", "storage", "links",
-                            "gi", "bc", "credit", "prm", "gtc", "ic")}
+                            "gi", "bc", "credit", "prm", "gtc", "ic", "diesel", "diesel_pred")}
     for d in spec["tracked_demands"]:
         name, zone = d["name"], d["zone"]
         if zone not in zones:
@@ -419,7 +485,11 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
              "td_grid_interconnect_mw": float(d.get("connection_mw", mx)),
              "td_stress_mode": d.get("stress_mode", "max"),
              "td_stress_curtailable_share": float(d.get("curtailable_share", 0.0)),
-             "td_export_limit_share": d.get("export_limit_share", ".")}
+             "td_export_limit_share": d.get("export_limit_share", "."),
+             "td_stress_grid_limit_share": float(d.get("stress_grid_limit_share", 1.0)),
+             "td_stress_year_basis": (d.get("diesel") or {}).get("stress_year_basis",
+                                                                  d.get("stress_year_basis", "weather_year")),
+             "td_stress_strict": int(bool(d.get("stress_strict", False)))}
         c = d.get("connection", {}) or {}
         r.update({"td_connection_cost_multiplier": float(c.get("cost_multiplier", 1.0)),
                   "td_connection_cost_per_kw": c.get("cost_per_kw", "."),
@@ -461,7 +531,31 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
                                     "td_storage_energy_cost": float(s["energy_cost_per_mwh_yr"]),
                                     "td_storage_max_hours": float(s.get("max_hours", 8)),
                                     "td_storage_roundtrip_eff": float(s.get("roundtrip_eff", 0.85))})
-        for g in d.get("onsite_gens", []) or []:
+        gens = list(d.get("onsite_gens") or [])
+        dcfg = diesel_config(d, log)
+        if dcfg == "grid_backup":
+            dz = {**DIESEL_DEFAULTS, **{k: v for k, v in (d.get("diesel") or {}).items() if v is not None}}
+            defaulted = [k for k in DIESEL_PLACEHOLDERS if k not in (d.get("diesel") or {})]
+            if defaulted:
+                log(f"WARNING: {name}: diesel " + ", ".join(f"{k}={dz[k]:g}" for k in defaulted)
+                    + " are PLACEHOLDER defaults")
+            if float(dz["non_emergency_flh"]) > 0 and int(dz["tier"]) != 4 and not dz["permitted_non_emergency"]:
+                raise ValueError(f"case_writer: {name}: diesel non_emergency_flh {dz['non_emergency_flh']} needs tier 4 "
+                                 f"or permitted_non_emergency: emergency engines may not run for peak shaving (40 CFR "
+                                 f"60.4211(f), 63.6640(f), as read here; to be confirmed by the input research)")
+            if float(dz["test_flh"]) + float(dz["non_emergency_flh"]) > float(dz["permit_flh"]):
+                raise ValueError(f"case_writer: {name}: diesel test_flh + non_emergency_flh exceed permit_flh")
+            dmw = float(dz["multiple"]) * float(r["td_grid_interconnect_mw"])
+            gens.append({"name": dz.get("name", f"{name}_diesel"), "technology": "diesel", "fuel": "distillate",
+                         "heat_rate": float(dz["heat_rate"]), "variable_om": float(dz["variable_om"]),
+                         "overnight_cost_per_kw": 0.0, "fixed_om_per_kw_yr": float(dz["fixed_om_per_kw_yr"]),
+                         "unit_mw": float(dz["unit_mw"]), "rated_mw": dmw, "max_age": int(dz["max_age"]),
+                         "uc": dz.get("uc"), "_diesel": {**dz, "mw": dmw}})
+        elif dcfg == "blackstart":
+            log(f"{name}: black-start diesel not modelled (a few MW, negligible energy)"
+                + (f"; {d['diesel']['blackstart_mw']} MW reported" if (d.get("diesel") or {}).get("blackstart_mw")
+                   else ""))
+        for g in gens:
             gid = g["name"]
             fuel = case_fuel(gen_info, fuels, g.get("fuel", "gas"), zone)
             uc, techname, pm = uc_settings(g, log)
@@ -483,13 +577,30 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
                         "gen_max_age": g.get("max_age", row.get("gen_max_age", 30)),
                         "gen_unit_size": float("nan"), "gen_min_build_capacity": 0,
                         "gen_is_variable": 0, "gen_is_baseload": 0, "gen_is_cogen": 0})
+            if g.get("_diesel"):
+                # availability on stress days is the module's td_diesel_forced_outage_rate (C4), not Switch's
+                row.update({"gen_forced_outage_rate": 0.0, "gen_scheduled_outage_rate": 0.0})
             if "gen_dbid" in gen_info.columns:
                 row["gen_dbid"] = gid
             for f in UC_FIELDS:
                 row["gen_" + f] = uc.get(f, float("nan"))
             rows["gi"].append(row)
-            premium = gas_capex_premium(gas_capex, g, techname, per, log)
-            for p in periods:
+            premium = gas_capex_premium(gas_capex, g, techname, per, log) if not g.get("_diesel") else {}
+            if g.get("_diesel"):
+                dz = g["_diesel"]
+                year0 = int(per["period_start"].min()) - 1
+                rows["diesel_pred"].append((gid, year0, dz["mw"], float(dz["fixed_om_per_kw_yr"]) * 1000.0))
+                rows["diesel"].append({
+                    "TRACKED_DEMAND": name, "GENERATION_PROJECT": gid,
+                    "td_diesel_permit_flh": float(dz["permit_flh"]), "td_diesel_test_flh": float(dz["test_flh"]),
+                    "td_diesel_non_emergency_flh": float(dz["non_emergency_flh"]), "td_diesel_tier": int(dz["tier"]),
+                    "td_diesel_permitted_non_emergency": int(bool(dz["permitted_non_emergency"])),
+                    "td_diesel_forced_outage_rate": float(dz["forced_outage_rate"])})
+                log(f"{name}: backup diesel {gid}: {dz['mw']:g} MW (= {float(dz['multiple']):g} x connection "
+                    f"{r['td_grid_interconnect_mw']:g} MW), existing from {year0}, zero capex, tier {dz['tier']}, "
+                    f"permit {float(dz['permit_flh']):g} h/yr (test {float(dz['test_flh']):g}, non-emergency "
+                    f"{float(dz['non_emergency_flh']):g})")
+            for p in (periods if not g.get("_diesel") else []):
                 rows["bc"].append({"_i0": gid, "_i1": p,
                                    "gen_overnight_cost": float(g["overnight_cost_per_kw"]) * 1000.0
                                    * (1 + premium.get(p, 0.0)),
@@ -500,7 +611,9 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
             rows["links"].append({"TRACKED_DEMAND": name, "GENERATION_PROJECT": gid,
                                   "td_onsite_prime_mover": pm, "td_onsite_gtc_class": cat or "none",
                                   "td_onsite_unit_mw": g.get("unit_mw", "."),
-                                  "td_onsite_rated_mw": g.get("rated_mw", g.get("capacity_limit_mw", "."))})
+                                  "td_onsite_rated_mw": g.get("rated_mw", g.get("capacity_limit_mw", ".")),
+                                  "td_onsite_pte_hours": (float(g["_diesel"]["permit_flh"]) if g.get("_diesel")
+                                                          else ".")})
             if g.get("tax_credit_key"):
                 for p, v in credit_by_period(out, g["tax_credit_key"], periods, credits_override, gen_info).items():
                     rows["credit"].append({"_i0": gid, "_i1": p, "gen_ptc_value_per_mwh": v})
@@ -531,11 +644,29 @@ def write_case_inputs(inputs_dir, spec, out_dir=None, log=None) -> Path:
     put("caps", "tracked_demand_onsite_build_caps.csv")
     put("storage", "tracked_demand_storage.csv")
     put("links", "tracked_demand_onsite_gens.csv")
+    put("diesel", "tracked_demand_diesel.csv")
+    if spec.get("stress_shortfall_penalty") is not None:
+        _write(pd.DataFrame([{"td_stress_shortfall_penalty": float(spec["stress_shortfall_penalty"])}]),
+               out / "tracked_demand_params.csv")
+    backup = [t["TRACKED_DEMAND"] for t in rows["td"]
+              if t["td_stress_grid_limit_share"] < 1 or any(x["TRACKED_DEMAND"] == t["TRACKED_DEMAND"]
+                                                            for x in rows["diesel"])]
+    if backup:
+        sy = stress_years(out)
+        if sy is not None:
+            _write(sy, out / "tracked_demand_stress_years.csv")
+            log(f"stress days by weather year: {len(sy)} stress timeseries in "
+                f"{sy['td_stress_weather_year'].nunique()} weather years (prm/<year>/stress_days.csv)")
+        elif any(t["td_stress_year_basis"] == "weather_year" for t in rows["td"] if t["TRACKED_DEMAND"] in backup):
+            log("WARNING: no prm/<year>/stress_days.csv in the case: each period's stress days count as one year for "
+                "the diesel permit cap")
 
     if rows["gi"]:
         # every file the case reads, base and chained (each with its own column names)
         add_rows(out, "gen_info.csv", rows["gi"], 1, log)
-        add_rows(out, "gen_build_costs.csv", rows["bc"], 2, log)
+        add_rows(out, "gen_build_costs.csv", rows["bc"], 2, log) if rows["bc"] else None
+        for gid, year0, mw, fom in rows["diesel_pred"]:
+            add_predetermined(out, gid, year0, mw, fom, log)
         add_rows(out, "prm_gen_credit.csv", rows["prm"], 1, log)
         add_rows(out, "gas_turbine_cap_gens.csv", rows["gtc"], 1, log) if rows["gtc"] else None
         if gtc_cfg is not None:

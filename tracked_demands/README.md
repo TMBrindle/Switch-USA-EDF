@@ -4,7 +4,7 @@ Hourly clean-energy matching for specific loads (data centres pursuing 24/7 CFE,
 on-site generation and storage and flexibility obligations. The Switch module is
 `../switch/study_modules/tracked_demands.py`. It is opt-in and not in `switch/modules.txt`. The guide is
 `../Guides and documentation/tracked_demands.md`; read sections 11–13 before using it in a case. Owner: Tom
-Brindle (EDF). History: CHANGES §107 (port and audit), §108 (step 2).
+Brindle (EDF). History: CHANGES §107 (port and audit), §108 (step 2), §120 (backup diesel).
 
 ## Layout
 
@@ -25,7 +25,8 @@ Brindle (EDF). History: CHANGES §107 (port and audit), §108 (step 2).
   (placeholder values). `data/cap_coverage_rules.yml` holds the carbon programmes' applicability rules, cited.
 - `scripts/headroom_counterfactual.py`: runs a case with and without the tracked demands' headroom draw and compares
   the objective difference with the attributed charge (§108 (f)).
-- `docs/design/`: the April 2026 design documents and the decisions register (dated section of 11 Oct 2026).
+- `docs/design/`: the April 2026 design documents, the decisions register (dated sections of 11 and 12 Oct 2026) and
+  the backup diesel proposal (`diesel_backup_proposal.md`, §120).
 - `docs/DC_OnSite_Power_Scenarios.docx`: the data-centre grid-constraint scenario design (SC/MC families, six
   jurisdictions).
 

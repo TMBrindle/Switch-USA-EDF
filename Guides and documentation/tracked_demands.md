@@ -1821,3 +1821,156 @@ existing rows gain terms:
 For the regression row `s4x1_S0prod_2035` (PowerGenome k-means days), scale by its timepoint count. It is
 LP unless `td_onsite_tech_min_build_mw` / `_build_increment_mw` are set (MIP). Duals for the headroom charge need
 an LP solution; Gurobi barrier gives them.
+
+## 16. Backup Diesel (§120)
+
+Design: `tracked_demands/docs/design/diesel_backup_proposal.md`, accepted with Tom's decisions of 12 Oct 2026 (decisions
+register, "backup diesel"). Option B is implemented; option C (requirement by hour) is not.
+
+### 16.1 Site configurations
+
+| `diesel.config` | Model |
+|---|---|
+| `grid_backup` | a reliability fleet of `multiple` (1.3) × the grid connection (`connection_mw`, not peak load; an endogenous connection uses this upper bound), so a hybrid site backs up only its grid share |
+| `blackstart` | nothing modelled (a few MW, negligible energy); logged, `blackstart_mw` reported if given |
+| `none` | nothing |
+
+- **Config omitted** in a `diesel:` block: `blackstart` if the demand has gas-fired linked generators, else
+  `grid_backup` (logged).
+- **No `diesel:` block:** none.
+
+### 16.2 The fleet
+
+The fleet is existing capacity at zero capex: a `gen_build_predetermined` row in the year before the first period, with
+a `gen_build_costs` row at overnight 0, in the base and chained files.
+- **On a chained stage** that already carries it, the stage's rows and build year are kept. The chain carries the
+  fleet forward like any existing plant.
+- **Generator:** `gen_tech` `TD_diesel`, the case's distillate fuel, `gen_unit_size` blank. Switch's outage rates
+  are 0; availability is `td_diesel_forced_outage_rate`.
+- **Other modules' settings:** reserve credit none; ic weight 0; gas-turbine cap category none; gas capex premium none;
+  never clean in matching.
+
+`tracked_demand_diesel.csv`: `TRACKED_DEMAND, GENERATION_PROJECT` and
+
+| Column | Default | Meaning |
+|---|---|---|
+| `td_diesel_permit_flh` | 36 | site permit cap, full-load-equivalent hours per year (VA/MD evidence 24–42; sensitivities 24 and 42) |
+| `td_diesel_test_flh` | 12 | hours per year reserved for testing (PLACEHOLDER pending the input research), inside the permit |
+| `td_diesel_non_emergency_flh` | 0 | non-emergency hours per year; > 0 only for tier 4 or `permitted_non_emergency` |
+| `td_diesel_tier` | 2 | 2 or 4: NOx reporting (certification limits 6.4 / 0.67 g/kWh) and the non-emergency rule |
+| `td_diesel_permitted_non_emergency` | 0 | 1: permitted as a non-emergency engine |
+| `td_diesel_forced_outage_rate` | 0 (writer: 0.05 PLACEHOLDER) | availability on stress days |
+
+**Non-emergency running.** As read here, 40 CFR 60.4211(f) and 63.6640(f) allow emergency engines 100 h/yr for
+maintenance and testing, of which up to 50 h/yr non-emergency. They may not run for peak shaving, non-emergency demand
+response, or supplying the grid for compensation. Economic running in normal hours is peak shaving, so it is allowed
+only for tier 4 or permitted engines; the writer and the run stop otherwise. **To be confirmed by the input research.**
+
+### 16.3 Constraints
+
+| | Rule |
+|---|---|
+| C1 | No running outside stress days (`TD_Diesel_Emergency_Only`). With non-emergency hours: at most those hours a year, counted at `tp_weight_in_year` (`TD_Diesel_Non_Emergency_Limit`) |
+| C2 | Permit cap per year (`TD_Diesel_Permit_Cap`, per TD, generator, period and weather-year group): stress MWh at real duration + non-emergency MWh per year + test hours × MW ≤ permit hours × MW |
+| C3 | No export from diesel: `TDGridExport` ≤ the TD's other linked generators' output (`TD_Diesel_No_Export`) |
+| C4 | Stress-day availability: dispatch ≤ MW × (1 − forced outage rate) (`TD_Diesel_Availability`) |
+| C5 | `TDDieselStressCost`: stress MWh × (variable O&M + heat rate × fuel cost) per year, in total cost |
+| C6 | `TDStressShortfall` relaxes the stress-day load floor (`TD_Stress_Load_Min`, `TD_Dispatch_Lower_Bound`); `TDStressShortfallCost` at the penalty per MWh per year |
+
+**C2: stress hours.**
+- Each stress hour counts at its real duration, `tp_duration_hrs` (`ts_duration_of_tp`; 1 h in S0), once a year.
+  Never `tp_weight`, which is 0.
+- **Weather-year groups.** With `td_stress_year_basis: weather_year` (default), each weather year's stress days are
+  one year: `tracked_demand_stress_years.csv` (`TIMESERIES, td_stress_weather_year`), which the writer takes from the
+  case's `prm/<model year>/stress_days.csv`. S0's greedy rule draws up to 12 days from 7 weather years, so pooling
+  them would ask one year's permit to cover all of them.
+- With `all`, or without the file, each period's stress days are one year.
+- A period with no stress days has one group, `all`, for test and non-emergency hours.
+
+**C5: cost of stress-day running.**
+- It is divided by the period's number of weather-year groups, giving the expected cost per year.
+- Fuel cost is `fuel_cost.csv`, or the regional market's cheapest tier plus the zone adder.
+- Stress days carry no other cost, so without C5 the fleet's dispatch there would be arbitrary.
+- With it, the fleet runs only where it relieves something:
+  - a stress grid limit (16.4);
+  - or a binding stress-day energy balance. On the toy at 1.5× stress load it runs even at s = 1. In S0 the reserve
+    test, with its margin, binds first.
+
+**C6: shortfall.**
+- Only TDs with a fleet or a stress grid limit have the slack.
+- **Penalty:** `td_stress_shortfall_penalty` (`tracked_demand_params.csv`), else the case's lost-load cost
+  (`unserved_load_penalty_per_mwh`, when the unserved-load module is on), else 10,000 $/MWh; per year, as C5.
+- `td_stress_strict = 1` fixes the slack at 0.
+
+### 16.4 Stress grid limit (option B) and the PRM rule
+
+`td_stress_grid_limit_share` s (`tracked_demands.csv`, default 1):
+- **Grid draw on stress days:** at most s × connection (`TD_Stress_Grid_Limit`). This represents mandatory
+  curtailment of large loads in emergencies, with backup generation carrying the site.
+- **What covers the rest:** the curtailable share first, then the fleet, on-site plant and storage, within the permit.
+  Anything left is shortfall.
+- **PRM requirement:** min(s × connection, peak) × (1 − curtailable share), or s × connection × (1 − share) for an
+  endogenous connection. Still a constant per period, so prm_regional is unchanged. s = 1 is exactly §108's rule.
+- **Stress modes:** L comes from the mode (max, profile, min). The floor is max((1 − c) × L, the TD's minimum),
+  since the minimum applies on stress days too.
+- **Reserve credit:** on-site plant still gets none (D1b), diesel included.
+
+### 16.5 Visibility (item 5)
+
+- **Before the solve.** For each TD with a fleet or limit, period and weather-year group, the run compares two
+  amounts:
+  - the stress-day energy beyond s × connection;
+  - what the fleet can give (MW × (1 − forced outage) × (permit − test hours), and per hour) plus capacity-limited
+    linked generators.
+
+  If the need is larger: a WARNING with both numbers, or an error with `td_stress_strict`. On-site techs, storage or
+  unlimited generators make it inconclusive, so it is skipped then.
+- **After the solve.** `tracked_demand_stress_summary.csv` gives, per TD and period, the binding weather year, the
+  hours left and the shortfall (MWh total and per year). Any shortfall prints a WARNING.
+
+### 16.6 Outputs
+
+- **`tracked_demand_diesel.csv`**, per TD, generator, period and weather-year group:
+  - size and hours: `diesel_mw`, `permit_flh`, `stress_flh`, `non_emergency_flh`, `test_flh`, `total_flh`,
+    `flh_remaining`, `cap_dual_usd_per_mwh`;
+  - energy, fuel and emissions for stress, non-emergency and test running: MWh, MMBtu, tCO₂ each;
+  - `nox_t`, from the tier's certification limit;
+  - `shortfall_mwh`.
+
+  Stress and test fuel and CO₂ are computed by the module (MWh × heat rate × the fuel's intensity). So they are the
+  same under the `light` and `full` stress formulations, and they are outside the model's cap rows. Non-emergency
+  running uses Switch's accounting and enters the cap rows.
+- **`tracked_demand_dispatch.csv`** gains `TDDiesel_MW` and `TDStressShortfall_MW`, only when a fleet or a stress
+  limit exists.
+- **`tracked_demand_onsite_emissions.csv`** gains `tco2_emergency_per_yr` and `emergency_note`, only when a fleet
+  exists.
+
+### 16.7 Cap coverage
+
+- **Potential to emit** uses `td_onsite_pte_hours` (new column of `tracked_demand_onsite_gens.csv`; "." = all year,
+  8766 h). A backup fleet defaults to its permit hours, and the writer writes them.
+- **Unit-basis programmes (RGGI, VA):** the 2–3 MW units are below 25 MWe, so the fleet is exempt.
+- **CA and WA (site basis):** even 36 h of a 1 GW-class fleet is tens of kt CO₂/yr, above ~25 kt. Whether CARB's MRR
+  and WA count emergency engines toward that threshold is with the input research.
+
+### 16.8 Spec
+
+```yaml
+    stress_grid_limit_share: 1.0     # option B; 1 = §108's rule
+    stress_strict: false
+    diesel:
+      config: grid_backup            # grid_backup | blackstart | none; omitted: blackstart with gas linked gens
+      multiple: 1.3
+      unit_mw: 2.5
+      tier: 2
+      permit_flh: 36                 # sensitivities 24, 42
+      test_flh: 12                   # PLACEHOLDER
+      non_emergency_flh: 0           # > 0 only with tier 4 or permitted_non_emergency
+      stress_year_basis: weather_year
+      heat_rate: 10.2                # PLACEHOLDER
+      forced_outage_rate: 0.05       # PLACEHOLDER
+      variable_om: 10                # PLACEHOLDER
+stress_shortfall_penalty: 10000      # optional; default the case's lost-load cost, else 10,000
+```
+
+Tests: `test_td_diesel.py` (19) and `test_td_case_writer.py` (diesel, 9).

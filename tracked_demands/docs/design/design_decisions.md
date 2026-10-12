@@ -288,3 +288,17 @@ sections (§n) and open items (OI n) above, and `spec_v1.md` §8 confirmed decis
 | D6 | No change to `chain_reuse` on this branch. Narrowing the code check to loaded modules goes into the reuse-digest work (HK-01) as a shared change. Re-record references only if a chain here needs reuse. | — | — |
 | D7 | Merge the `s0-v3.1` tag (3160be1) into `tom/tracked-demands-v2` (merge, not rebase). | — | done (3d2b1ac) |
 | D8 | Merge `hk/td-design-docs` when it exists; add these decisions to the register as a dated section, marking superseded April decisions. | — | done: merged (a36d9b2); this section |
+
+## Decisions of 12 October 2026 (Tom): backup diesel
+
+On the design proposal `diesel_backup_proposal.md` (written as §109; implemented as CHANGES §120, guide section 16).
+
+| # | Decision (12 Oct 2026) | Implemented |
+|---|---|---|
+| E1 | Implement option B (stress grid limit `td_stress_grid_limit_share`, default 1 = D1b exactly) as an option; not option C. | §120 (5) |
+| E2 | Stress-year basis `weather_year` by default; `all` as an option. | §120 (4) |
+| E3 | Defaults: permit 36 full-load hours a year (sensitivities 24 and 42 documented); test 12 h (PLACEHOLDER pending the input research); config defaults to blackstart if the demand has gas-fired linked generators, else grid_backup, logged. | §120 (1), (2) |
+| E4 | Non-emergency running only for tier 4 or `permitted_non_emergency`; the writer stops otherwise. The reading of 40 CFR 60.4211(f) / 63.6640(f) is to be confirmed by the input research. | §120 (6) |
+| E5 | Potential to emit: add `td_onsite_pte_hours`; diesel at its permit hours. CA/WA treatment of emergency engines goes to the input research. | §120 (7) |
+| E6 | Shortfall penalty: the case's lost-load cost if it defines one, else 10,000 $/MWh; strict off by default. | §120 (3) C6 |
+
