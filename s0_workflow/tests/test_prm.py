@@ -799,3 +799,31 @@ def test_demand_response_setting():
     assert "--include-module study_modules.demand_response_investment" in s0prod.scenario_options({"s0_production": on})
     off = dict(s0, enabled=True)
     assert "demand_response_investment" not in s0prod.scenario_options({"s0_production": off})
+
+
+def test_prm_temp_tz_fix_peak_hour_matches_model_hour(tmp_path):
+    """§118: temperatures stored in UTC peak at 21:00 UTC, which is 16:00 on the model's clock (UTC-5). With
+    prm_temp_tz_fix the hottest stress-day hour, and so the largest thermal derate, is model hour 16; without it
+    (v3.1, Etc/GMT+6) the mapping lands one hour early, at 15."""
+    h5py = pytest.importorskip("h5py")
+    f = tmp_path / "temperature_state.h5"
+    idx = pd.date_range("2011-07-20 00:00", periods=72, freq="h", tz="UTC")
+    temp = 5 + 25 * np.exp(-(((np.arange(72) % 24) - 21) ** 2) / 4.0)         # peak 30 C at 21:00 UTC each day
+    with h5py.File(f, "w") as h:
+        h["columns"] = np.array([b"PA"])
+        h["index_2011"] = np.array([str(x.tz_localize(None)).encode() for x in idx])
+        h["2011"] = temp.reshape(-1, 1)
+    s = {"utc_offset": -5}
+    assert prm.model_tz(s) == "Etc/GMT+5" and prm.model_tz({"utc_offset": 3}) == "Etc/GMT-3"
+    td_on = {**P["thermal_derate"], "method": "hourly", "prm_temp_tz_fix": True}
+    td_off = {**P["thermal_derate"], "method": "hourly"}
+    assert td_off["prm_temp_tz_fix"] is False and prm.temperature_tz(td_off, s) == "Etc/GMT+6"
+    for td, peak in ((td_on, 16), (td_off, 15)):
+        tz = prm.temperature_tz(td, s)
+        temps = prm.state_temperatures(f, [2011], tz)
+        by_hour = {hh: prm.hour_temperature(temps, "2011-07-21", hh, tz, "PA") for hh in range(24)}
+        assert max(by_hour, key=by_hour.get) == peak, tz
+        derate = {hh: float(prm.curve_for(CFG, "combustion_turbine", v)) for hh, v in by_hour.items()}
+        assert derate[peak] == max(derate.values()) and derate[peak] > derate[peak - 1]   # the largest derate
+    s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
+    assert s0["prm"]["thermal_derate"]["prm_temp_tz_fix"] is False                # v3.1 until approved

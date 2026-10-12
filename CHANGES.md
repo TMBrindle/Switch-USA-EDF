@@ -4359,3 +4359,26 @@ dashboards session on the VM.
 
 **Test:** `test_pv_repair_runbook.py`. Every option the runbook names exists in the script; its counts equal what
 `zeroed_pv_sites.csv` gives; and the manifest fields it names are the ones the code writes.
+
+## 118. S0 v3.2: PRM Temperature Derates on the Model's Clock (Item F)
+
+**Date:** 2026-10-12. **Branch:** `tom/s0-v3.2`. **Flag:** `s0_production.prm.thermal_derate.prm_temp_tz_fix`: `false`
+(default, v3.1) or `true`.
+
+**The problem:**
+- The hourly thermal derate read ReEDS temperatures in `temperature_tz: Etc/GMT+6` (UTC−6) and matched them to the
+  stress day's model hours.
+- The model's hours are UTC−5: `utc_offset: -5`. The profiles and load are on that basis (dbc3637 time-zone check).
+- So each model hour took the temperature of the hour before it.
+
+**The fix:** with the flag on, temperatures are read on the model's own clock (`prm.model_tz`: `utc_offset` −5 →
+`Etc/GMT+5`). The code is `prm.temperature_tz` and `prm.hour_temperature`.
+
+**Effect on S0:** none as configured. S0 uses `method: seasonal`, which doesn't read temperatures, so the flag acts only
+with `method: hourly`.
+
+**Test:** `test_prm_temp_tz_fix_peak_hour_matches_model_hour`. Temperatures stored in UTC peak at 21:00 UTC, which is
+16:00 model time.
+- With the fix, the hottest hour and the largest derate both fall at model hour 16.
+- With v3.1 they fall at 15.
+- The yml default is `false`, and the regression-row and S-set tests list the key.

@@ -270,6 +270,10 @@ s0_production:
       method: seasonal             # seasonal | hourly (needs temperature_h5)
       temperature_h5: ~            # ReEDS inputs/profiles_temperature/temperature_state.h5 (repo-relative), if supplied
       temperature_tz: Etc/GMT+6    # time zone of the weather-year hours (ReEDS's convention)
+      # v3.2 flag (CHANGES §118): read hourly temperatures on the model's clock (utc_offset -5 -> Etc/GMT+5, the basis of
+      # the profiles and load, dbc3637), not Etc/GMT+6, which is one hour behind. false = v3.1. Acts only with
+      # method: hourly (S0 uses seasonal derates, which don't read temperatures)
+      prm_temp_tz_fix: false
       cold_c: -15                  # winter stress days: the cold end of the murphy2019 curves
       hot_c: 35                    # summer stress days: the hot end
       winter_months: [11, 12, 1, 2, 3]

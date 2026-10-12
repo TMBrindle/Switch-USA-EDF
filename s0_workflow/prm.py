@@ -50,6 +50,7 @@ DEFAULTS = {
                     "summer_months": [6, 7, 8, 9], "winter_months": [12, 1, 2], "first_weather_year": 2007,
                     "diag_dir": "prm"},
     "thermal_derate": {"method": "seasonal", "temperature_h5": None, "temperature_tz": "Etc/GMT+6",
+                       "prm_temp_tz_fix": False,
                        "cold_c": -15, "hot_c": 35, "winter_months": [11, 12, 1, 2, 3], "summer_months": [5, 6, 7, 8, 9]},
     "imports": {"mode": "flat", "relax_from": 2031, "relax_to": 2050},
     "new_tx_derate": 0.15,
@@ -677,6 +678,27 @@ def state_temperatures(h5path: Path, years, tz_out: str) -> pd.DataFrame:
     return pd.concat(out).sort_index()
 
 
+def model_tz(settings: dict) -> str:
+    """The model's clock as a fixed-offset zone: utc_offset -5 (model_definition.yml) -> Etc/GMT+5 (POSIX signs)."""
+    off = int((settings or {}).get("utc_offset", -5))
+    return "UTC" if off == 0 else f"Etc/GMT{'+' if off < 0 else '-'}{abs(off)}"
+
+
+def temperature_tz(td: dict, settings: dict) -> str:
+    """Time zone the hourly derate reads temperatures in (v3.2 flag prm_temp_tz_fix, CHANGES §118): the model's own
+    clock (UTC-5: profiles and load are on it, dbc3637 tz check) when on; temperature_tz (Etc/GMT+6, ReEDS's
+    convention: one hour behind the model's hours) when off (v3.1)."""
+    return model_tz(settings) if td.get("prm_temp_tz_fix") else td["temperature_tz"]
+
+
+def hour_temperature(temps: pd.DataFrame, date: str, hour: int, tz: str, state: str):
+    """Temperature (deg C) at model hour `hour` of `date` (the stress day's calendar date), in tz; None if missing."""
+    stamp = pd.Timestamp(f"{date} {int(hour):02d}:00").tz_localize(tz)
+    if state in temps.columns and stamp in temps.index:
+        return float(temps.at[stamp, state])
+    return None
+
+
 def zone_states(zones) -> dict:
     h = pd.read_csv(REPO / "hierarchy.csv")
     return {z: st for z, st in zip(h.ba, h.st) if z in set(zones)}
@@ -773,16 +795,16 @@ def write_case_inputs(folder: Path, s0: dict, scen_settings_dict: dict, log) -> 
             raise FileNotFoundError(f"s0_production.prm.thermal_derate.method hourly needs temperature_h5 "
                                     f"(ReEDS inputs/profiles_temperature/temperature_state.h5); got {td.get('temperature_h5')!r}")
         first_y = int(p["stress_days"]["first_weather_year"])
-        temps = state_temperatures(REPO / td["temperature_h5"], range(first_y - 1, first_y + 8), td["temperature_tz"])
+        tz = temperature_tz(td, first)
+        temps = state_temperatures(REPO / td["temperature_h5"], range(first_y - 1, first_y + 8), tz)
         zst = zone_states(regions)
     for t in stp.itertuples():
         hh = int(str(t.timepoint_id)[-2:])
         for g in cap.itertuples():
             if hourly and g.curve is not None and t.timeseries in date:
-                st = zst.get(g.gen_load_zone)
-                stamp = pd.Timestamp(f"{date[t.timeseries]} {hh:02d}:00").tz_localize(td["temperature_tz"])
-                if st in temps.columns and stamp in temps.index:
-                    f_ = float(min(curve_for(cfg, g.curve, temps.at[stamp, st]), 0.4))
+                temp = hour_temperature(temps, date[t.timeseries], hh, tz, zst.get(g.gen_load_zone))
+                if temp is not None:
+                    f_ = float(min(curve_for(cfg, g.curve, temp), 0.4))
                 else:
                     f_ = stress_for(cfg, g.prm_class, g.curve, t.season, td)
             else:
