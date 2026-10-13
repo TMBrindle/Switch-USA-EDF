@@ -5254,3 +5254,77 @@ flags off, on the warm v3.1 cache.
   flags-off certification of c0759bf (F3) holds.
 - **The split code** (`offshore_groups.py`, `split_offshore_groups.py`) is not touched, and the split folder needn't be
   redone.
+
+## 139. S0 v3.2: Day-Weights LP Infeasibility Diagnosis; READY Files Withdrawn
+
+**Date:** 2026-10-13. **Branch:** `tom/s0-v3.2`.
+
+**The failure:** the S0 v3.2 build at 0c9d9f7 (past §138) stopped in the 2028 day selection, with 24 days:
+`fleet-independent day weights LP infeasible even with tolerances x2.25 (HiGHS status 8)`. F1–F3 (flags off) passed this
+step.
+
+### Diagnosis mode (`s0_workflow/day_selection.py`)
+
+- **When it runs:** only after the last relaxation step fails, just before the error is raised. In day mode it runs on
+  the candidate days; in block mode, on the candidate set with the lowest relaxation bound. A feasible LP never reaches
+  it, so feasible selections are unchanged.
+- **What it does:** it re-solves the failed LP, at the final relaxation, with elastic slack on each constraint family:
+  - **target:** each side of each target, in target units, scaled by the base tolerance;
+  - **tail:** each side of each tail band, in % of hours, scaled by the base band width;
+  - **w_min:** each day's minimum weight, in days/yr, scaled by `w_min`;
+  - **weight_sum:** each side of the weight total, in days/yr, scaled by `w_min`.
+  It minimises the scaled slack sum: once with every family elastic (`all`), then once with each family alone
+  (`only <family>`). A family whose run alone is infeasible can't explain the failure by itself.
+- **What it writes,** in `<case>/time_sampling/<year>/`:
+  - `fi_elastic_slack.csv`: one row per nonzero slack (run, family, constraint, side, amount, unit, the current limit
+    and the limit needed), and one row per infeasible run;
+  - `fi_target_range.csv`: whether each target lies within what the candidate days can reach, whatever the weights;
+  - `fi_cluster_profile_stats.csv`: per wind or solar cluster, its kind, mean, min, max and share of zero hours, with
+    a flag for degenerate profiles (constant, mean near zero, or outside [0, 1]), and whether it enters the targets;
+  - `fi_failed_lp.npz`: the failed LP.
+  The error message ends with a summary of these files.
+- **What-ifs without a rebuild:** `s0_workflow/scripts/diagnose_day_weights.py <npz>` reruns the diagnosis, with
+  `--drop-tail`, `--drop-target`, `--tol-scale <text>=<factor>`, `--relax` or `--w-min`.
+
+### Review: degenerate fleets in the targets and tails
+
+- **What the LP uses:**
+  - **Targets:** load, onshore-wind CF and utility-solar CF, per transreg and national. Each is the mean over that
+    kind's clusters.
+  - **Tails:** the top 1% national load hours, and the bottom 1% net-load hours of the stylised fleet. S0 sets
+    `low_net_load_fleets: []`, so the stylised fleet is built from the same onshore-wind and solar series.
+  - `kind()` maps every offshore technology to `offwind`, which is in neither the targets nor the tails. That includes
+    the fourth group, `…_floating_1`.
+- **So the floating_1 group can't change the LP,** however degenerate its profile. There is nothing to exclude or
+  merge. The test adds the four offshore groups, with floating_1 all-zero, near-zero and constant, and the days,
+  weights, target errors and tail shares are identical.
+- **`cf_fidelity` rescale can't change it either:** it runs after day selection (`pg_to_switch.py`).
+- **Of the v3.2 changes, two remain:**
+  - the PV repair, which changes the solar CF targets and, through them, the stylised fleet's bottom-1% hours;
+  - the cold cluster cache (§138), which reclusters wind and solar.
+  The F builds used the warm v3.1 cache. A toggle test with the PV repair off also needs a cold cache: the cache guard
+  refuses the v3.2 cache for other data.
+- **Degenerate profiles in the targets:**
+  - an all-zero or constant onshore-wind or solar cluster dilutes its transreg's mean CF. It can't make the LP
+    infeasible by itself, since a constant series is met by any weights summing to the year;
+  - what can make it infeasible is a target the candidate days can't reach (`fi_target_range.csv`) or a CF outside
+    [0, 1], since the tolerances are absolute (`fi_cluster_profile_stats.csv`).
+  - The fix will follow the culprit. A principled exclusion is preferred over a loosened tolerance, and must leave
+    flags-off results unchanged.
+
+### READY files withdrawn
+
+- `READY_S0_V32` and `READY_SCENARIOS` named 0c9d9f7, which fails. Both are deleted.
+- They come back together, at one commit, once the fix is in.
+
+**Tests** (`test_day_selection_diagnosis.py`):
+- the offshore and degenerate clusters change nothing, and a feasible run writes no diagnosis files;
+- an infeasible case (`w_min` × days above the year): only the `w_min` family absorbs it, the slack covers the excess,
+  the script reproduces the table, and the `--w-min 1` what-if needs no slack;
+- an unreachable target is named with its exact gap;
+- the diagnosis is only on the failure path.
+
+**Scope:**
+- Nothing a feasible build writes changes, so the flags-off certification (F3) holds.
+- `s0_workflow/` is reuse code, so a build at this commit and one at 0c9d9f7 differ in their code hash. Use
+  `--code-check model` if both are mixed.

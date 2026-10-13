@@ -11,3 +11,7 @@
 
 Commits that touch only this folder change nothing a build reads, and the reuse code check exempts them (CHANGES §135).
 A READY file is written only when its cards are final; the runner acts on it without further review.
+
+**Withdrawn (CHANGES §139):** both READY files, while the S0 v3.2 2028 day selection fails at 0c9d9f7. They come back
+together, at one commit, once the cause is fixed. Until then no card in this folder runs; only the diagnostic build in
+CHANGES §139 does.

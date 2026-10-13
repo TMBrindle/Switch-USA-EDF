@@ -22,7 +22,10 @@ PowerGenome's peak-load day is appended at its usual weight. Weights: an LP (w_d
 infeasible, tolerances are relaxed (relax.factor, at most relax.max_steps times) and the factor is
 recorded; if still infeasible it raises and no case is written.
 Diagnostics in <case>/<diag_dir>/<model year>/: fi_target_errors.csv, fi_tail_shares.csv,
-fi_netload_error_by_fleet.csv, fi_days_selected.csv, fi_info.json.
+fi_netload_error_by_fleet.csv, fi_days_selected.csv, fi_info.json. When the weights LP stays infeasible, before
+raising: fi_elastic_slack.csv (the LP with elastic slack per constraint family, all together and each alone),
+fi_target_range.csv, fi_cluster_profile_stats.csv and fi_failed_lp.npz (for scripts/diagnose_day_weights.py;
+CHANGES §139). Offshore wind is in neither the targets nor the tails.
 """
 from __future__ import annotations
 
@@ -267,8 +270,12 @@ def select_days(resource_profiles: pd.DataFrame, load_profiles: pd.DataFrame, ge
         if attempt < steps:
             relax *= factor
     if res.status != 0:
+        tl = [(nm, 100 * hrs[sel] / (365 * 24), 100 * hrs[peak] * w_peak / (365 * 24), lo, hi)
+              for nm, hrs, lo, hi in tails]
+        why = diagnose_infeasible(diag_dir, P, gens, A, b, t, names, tl, 365.0 - w_peak, float(ts["w_min"]), relax,
+                                  [f"p{d_ + 1}" for d_ in sel])
         raise RuntimeError(f"fleet-independent day weights LP infeasible even with tolerances x{relax:.2f}: "
-                           f"{res.message}")
+                           f"{res.message}\n{why}")
     w = res.x[:Sn]
     days_all = sel + ([peak] if include_peak_day else [])
     w_all = np.concatenate([w, [w_peak]]) if include_peak_day else w
@@ -306,6 +313,181 @@ def select_days(resource_profiles: pd.DataFrame, load_profiles: pd.DataFrame, ge
     rep = pd.DataFrame({"slot": [f"p{x + 1}" for x in days_all]})
     return ({"load_profiles": load_df, "resource_profiles": res_df, "ClusterWeights": list(w_all),
              "AnnualGenScaleFactor": 1.0}, rep, list(w_all))
+
+
+# ---------------------------------------------------------------------------------------------------
+# infeasibility diagnosis (CHANGES §139): only runs when the weights LP has no solution
+# ---------------------------------------------------------------------------------------------------
+FAMILIES = ("target", "tail", "w_min", "weight_sum")
+LP_DUMP, SLACK_CSV, RANGE_CSV, CLUSTER_CSV = ("fi_failed_lp.npz", "fi_elastic_slack.csv", "fi_target_range.csv",
+                                              "fi_cluster_profile_stats.csv")
+
+
+def elastic_lp(A, b, t, tails, total, w_min, relax, families=FAMILIES):
+    """The weights LP with elastic slack on each constraint family; slack is allowed only for `families`.
+
+    Families and slack units: target (each side, in target units; scaled by the base tolerance), tail (each side, in
+    percentage points; scaled by the base band width), w_min (each day, in days/yr; scaled by w_min), weight_sum (each
+    side, in days/yr; scaled by w_min). Minimises the scaled slack sum; returns (status, x split by part, message)."""
+    from scipy.optimize import linprog
+    T, n = A.shape
+    K = len(tails)
+    coef = np.array([tl[1] for tl in tails]).reshape(K, n)
+    const = np.array([tl[2] for tl in tails], dtype=float)
+    lo = np.array([tl[3] for tl in tails], dtype=float)
+    hi = np.array([tl[4] for tl in tails], dtype=float)
+    # columns: w | s+ s- (T) | u_hi u_lo (K) | v (n) | q+ q- (2)
+    sizes = [n, T, T, K, K, n, 2]
+    off = np.cumsum([0] + sizes)
+    N = off[-1]
+    blk = lambda i, m: (slice(off[i], off[i] + m))
+    rows, rhs = [], []
+
+    def row():
+        return np.zeros(N)
+    for i in range(T):
+        r = row(); r[blk(0, n)] = A[i]; r[off[1] + i] = -t[i]; rows.append(r); rhs.append(b[i] + relax * t[i])
+        r = row(); r[blk(0, n)] = -A[i]; r[off[2] + i] = -t[i]; rows.append(r); rhs.append(-b[i] + relax * t[i])
+    for k in range(K):
+        r = row(); r[blk(0, n)] = coef[k]; r[off[3] + k] = -1; rows.append(r); rhs.append(hi[k] * relax - const[k])
+        r = row(); r[blk(0, n)] = -coef[k]; r[off[4] + k] = -1; rows.append(r); rhs.append(-(lo[k] / relax) + const[k])
+    for j in range(n):
+        r = row(); r[j] = -1; r[off[5] + j] = -1; rows.append(r); rhs.append(-w_min)
+    eq = row(); eq[blk(0, n)] = 1; eq[off[6]] = -1; eq[off[6] + 1] = 1
+    band = np.maximum(hi - lo, 1e-9)
+    scale = np.concatenate([np.zeros(n), np.ones(2 * T), 1 / band, 1 / band, np.full(n + 2, 1 / max(w_min, 1e-9))])
+    fam_of = ["w"] * n + ["target"] * (2 * T) + ["tail"] * (2 * K) + ["w_min"] * n + ["weight_sum"] * 2
+    bounds = [(0, None) if f == "w" or f in families else (0, 0) for f in fam_of]
+    res = linprog(scale, A_ub=np.array(rows) if rows else None, b_ub=np.array(rhs) if rows else None,
+                  A_eq=eq[None, :], b_eq=[total], bounds=bounds, method="highs")
+    if res.status != 0:
+        return res.status, None, res.message
+    x = res.x
+    parts = {"w": x[blk(0, n)], "s_hi": x[blk(1, T)], "s_lo": x[blk(2, T)], "u_hi": x[blk(3, K)],
+             "u_lo": x[blk(4, K)], "v": x[blk(5, n)], "q": x[blk(6, 2)]}
+    return 0, parts, res.message
+
+
+def slack_table(A, b, t, names, tails, total, w_min, relax, slots, tol_eps=1e-7) -> pd.DataFrame:
+    """One elastic solve with every family elastic ("all"), then one per family with only that family elastic
+    ("only <family>"). A row per nonzero slack, plus a row per run saying whether it is feasible."""
+    out = []
+    lo = {tl[0]: tl[3] for tl in tails}
+    hi = {tl[0]: tl[4] for tl in tails}
+    for run, fams in [("all", FAMILIES)] + [(f"only {f}", (f,)) for f in FAMILIES]:
+        st, x, msg = elastic_lp(A, b, t, tails, total, w_min, relax, fams)
+        base = {"run": run, "feasible": st == 0}
+        if st != 0:
+            out.append({**base, "family": "", "constraint": f"(infeasible: {msg})"})
+            continue
+        n_before = len(out)
+        for i, nm in enumerate(names):
+            for side, s_ in (("above", x["s_hi"][i]), ("below", x["s_lo"][i])):
+                if s_ > tol_eps:
+                    out.append({**base, "family": "target", "constraint": nm, "side": side,
+                                "slack": s_ * t[i], "unit": "target units", "scaled slack": s_,
+                                "limit now": f"tolerance x{relax:.3f} = {relax * t[i]:.6g}",
+                                "limit needed": f"tolerance x{relax + s_:.3f} = {(relax + s_) * t[i]:.6g}"})
+        for k, tl in enumerate(tails):
+            for side, u, now, need in (("above hi", x["u_hi"][k], hi[tl[0]] * relax, hi[tl[0]] * relax + x["u_hi"][k]),
+                                       ("below lo", x["u_lo"][k], lo[tl[0]] / relax, lo[tl[0]] / relax - x["u_lo"][k])):
+                if u > tol_eps:
+                    out.append({**base, "family": "tail", "constraint": tl[0], "side": side, "slack": u,
+                                "unit": "% of hours", "scaled slack": u / max(hi[tl[0]] - lo[tl[0]], 1e-9),
+                                "limit now": f"{now:.4f}", "limit needed": f"{need:.4f}"})
+        for j, v in enumerate(x["v"]):
+            if v > tol_eps:
+                out.append({**base, "family": "w_min", "constraint": slots[j], "side": "below w_min", "slack": v,
+                            "unit": "days/yr", "scaled slack": v / max(w_min, 1e-9), "limit now": f"{w_min:.4g}",
+                            "limit needed": f"{w_min - v:.4g}"})
+        for side, q in (("above total", x["q"][0]), ("below total", x["q"][1])):
+            if q > tol_eps:
+                out.append({**base, "family": "weight_sum", "constraint": "sum of weights", "side": side, "slack": q,
+                            "unit": "days/yr", "scaled slack": q / max(w_min, 1e-9), "limit now": f"{total:.4f}",
+                            "limit needed": f"{total + q if side == 'above total' else total - q:.4f}"})
+        if len(out) == n_before:
+            out.append({**base, "family": "", "constraint": "(no slack needed)"})
+    cols = ["run", "feasible", "family", "constraint", "side", "slack", "unit", "scaled slack", "limit now",
+            "limit needed"]
+    return pd.DataFrame(out).reindex(columns=cols)
+
+
+def target_range(A, b, t, names, total, relax) -> pd.DataFrame:
+    """Whether each target is reachable on its own: with sum w = total, the sample mean lies between total x the
+    smallest and largest candidate-day mean. A target outside that range, widened by its tolerance, needs other
+    candidates (or another target definition), whatever the weights."""
+    lo_, hi_ = A.min(axis=1) * total, A.max(axis=1) * total
+    return pd.DataFrame({"target": names, "target (net of peak day)": b, "tolerance now": relax * t,
+                         "reachable min": lo_, "reachable max": hi_,
+                         "reachable alone": (b >= lo_ - relax * t - 1e-12) & (b <= hi_ + relax * t + 1e-12)})
+
+
+def cluster_stats(P: dict, gens) -> pd.DataFrame:
+    """Per wind/solar cluster: kind, region, mean, min, max, std, share of zero hours. Flags degenerate profiles
+    (constant, mean near zero, outside [0, 1]); only onwind and solar enter the targets."""
+    if gens is None:
+        return pd.DataFrame()
+    R = P["R"]
+    g = pd.DataFrame({"Resource": list(gens["Resource"]), "technology": list(gens["technology"]),
+                      "region": list(gens["region"])}).drop_duplicates("Resource")
+    g["kind"] = [kind(x) for x in g["technology"]]
+    g = g[g["Resource"].isin(R.columns) & g["kind"].notna()]
+    rows = []
+    for _, r_ in g.iterrows():
+        x = R[r_["Resource"]]
+        x = x.iloc[:, 0] if isinstance(x, pd.DataFrame) else x
+        rows.append({"Resource": r_["Resource"], "technology": r_["technology"], "region": r_["region"],
+                     "kind": r_["kind"], "in targets": r_["kind"] in ("onwind", "solar"), "mean": x.mean(),
+                     "min": x.min(), "max": x.max(), "std": x.std(), "share of zero hours": float((x == 0).mean()),
+                     "degenerate": bool(x.max() - x.min() <= 1e-9 or abs(x.mean()) < 1e-6 or x.max() > 1 + 1e-6
+                                        or x.min() < -1e-6)})
+    return pd.DataFrame(rows)
+
+
+def diagnose_infeasible(diag_dir: Path, P: dict, gens, A, b, t, names, tails, total, w_min, relax, slots) -> str:
+    """Writes the failed LP (fi_failed_lp.npz, for scripts/diagnose_day_weights.py), the elastic slack table, the
+    target ranges and the per-cluster profile stats; returns a short summary for the error message."""
+    diag_dir = Path(diag_dir)
+    diag_dir.mkdir(parents=True, exist_ok=True)
+    np.savez(diag_dir / LP_DUMP, A=A, b=b, t=t, names=np.array(names, dtype=str),
+             tail_names=np.array([tl[0] for tl in tails], dtype=str),
+             tail_coef=np.array([tl[1] for tl in tails]).reshape(len(tails), A.shape[1]),
+             tail_const=np.array([tl[2] for tl in tails], dtype=float),
+             tail_lo=np.array([tl[3] for tl in tails], dtype=float),
+             tail_hi=np.array([tl[4] for tl in tails], dtype=float),
+             total=total, w_min=w_min, relax=relax, slots=np.array(slots, dtype=str))
+    tab = slack_table(A, b, t, names, tails, total, w_min, relax, slots)
+    tab.to_csv(diag_dir / SLACK_CSV, index=False)
+    rng = target_range(A, b, t, names, total, relax)
+    rng.to_csv(diag_dir / RANGE_CSV, index=False)
+    cs = cluster_stats(P, gens)
+    if len(cs):
+        cs.to_csv(diag_dir / CLUSTER_CSV, index=False)
+    return summarise(tab, rng, cs, diag_dir)
+
+
+def summarise(tab: pd.DataFrame, rng: pd.DataFrame, cs: pd.DataFrame | None = None, where="") -> str:
+    lines = [f"elastic diagnosis ({SLACK_CSV}, {RANGE_CSV}{', ' + CLUSTER_CSV if cs is not None and len(cs) else ''}"
+             f"{' in ' + str(where) if where else ''}):"]
+    for run, g in tab.groupby("run", sort=False):
+        if not g["feasible"].iloc[0]:
+            lines.append(f"  {run}: infeasible")
+            continue
+        g = g[g["family"].astype(str) != ""].sort_values("scaled slack", ascending=False)
+        if not len(g):
+            lines.append(f"  {run}: feasible with no slack")
+            continue
+        top = "; ".join(f"{r.family} '{r.constraint}' {r.side} by {r.slack:.4g} {r.unit} (needs {r['limit needed']})"
+                        for _, r in g.head(5).iterrows())
+        lines.append(f"  {run}: {len(g)} slack(s): {top}")
+    bad = rng[~rng["reachable alone"]]
+    if len(bad):
+        lines.append("  unreachable from the candidates whatever the weights: " + ", ".join(bad["target"]))
+    if cs is not None and len(cs) and cs["degenerate"].any():
+        d = cs[cs["degenerate"]]
+        lines.append(f"  degenerate profiles (constant, near zero or outside [0, 1]): {len(d)} clusters, "
+                     f"{int(d['in targets'].sum())} in targets")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -454,8 +636,14 @@ def _select_blocks(P: dict, ts: dict, diag_dir: Path, include_peak_day: bool, va
         if best is not None:
             break
     if best is None:
+        c0 = combos[int(np.argmin(lbs))]
+        A_, tl = sub(c0)
+        why = diagnose_infeasible(diag_dir, P, None, A_, b, t, names,
+                                  [(d[0], *x) for d, x in zip(tail_defs, tl)], total, w_lo, relax,
+                                  [f"p{pool[i] + 1}x{B}" for i in c0])
         raise RuntimeError(f"block sample {N}x{B}: no feasible selection of {len(combos)} candidate sets even with "
-                           f"tolerances x{relax:.2f} (lower bound needed x{lbs.min():.2f})")
+                           f"tolerances x{relax:.2f} (lower bound needed x{lbs.min():.2f}); the set with the lowest "
+                           f"bound:\n{why}")
     if relax > 1:
         log.warning(f"block sample {N}x{B}: no selection meets the targets and tail bands; tolerances and bands "
                     f"relaxed x{relax:.3f} (see fi_target_errors.csv)")
