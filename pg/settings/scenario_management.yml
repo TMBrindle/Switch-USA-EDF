@@ -1506,9 +1506,11 @@ settings_management:
     # its definition (§74) without edits.
     s_set:
       none: ~
-      S1: ~                        # S0 + reinstated credits (tax_credits column)
-      S2:
-        s0_production: {level_overrides: {build_rate: high, interconnection_headroom: atts_planned}}
+      S1:                          # S0 + reinstated credits (tax_credits column)
+        # §136 (Tom, 13 Oct): credit restoration extends the storage credit, flat 30% to 2045 (S0 v3.2: OBBBA phase-down)
+        s0_production: {storage_credit: {phase_down: {2034: 1.0, 2035: 1.0, 2036: 1.0}}}
+      S2:                          # §136: + storage credit flat 30% to 2045 (credit restoration)
+        s0_production: {level_overrides: {build_rate: high, interconnection_headroom: atts_planned}, storage_credit: {phase_down: {2034: 1.0, 2035: 1.0, 2036: 1.0}}}
       S4:                          # = S2 with current credits
         s0_production: {level_overrides: {build_rate: high, interconnection_headroom: atts_planned}}
       L:
@@ -1523,6 +1525,7 @@ settings_management:
       S3:                          # unconstrained transmission: the tx_bill column (unconstrained), §81
         s0_production:
           level_overrides: {build_rate: "off", interconnection_headroom: atts_reform_techmax, gas_turbine_cap: "off"}
+          storage_credit: {phase_down: {2034: 1.0, 2035: 1.0, 2036: 1.0}}   # §136: flat 30% to 2045 (credit restoration)
       S5:                          # = S3 with current credits
         s0_production:
           level_overrides: {build_rate: "off", interconnection_headroom: atts_reform_techmax, gas_turbine_cap: "off"}

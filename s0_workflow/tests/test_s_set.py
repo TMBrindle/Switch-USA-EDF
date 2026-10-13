@@ -204,3 +204,39 @@ def test_expected_reuse_of_the_s_set():
         assert c not in got, c
     assert "build_rate" in df[(df.case == "S2") & (df.stage == 2028)].differences.iat[0]
     assert "tax_credit" in df[(df.case == "S1") & (df.stage == 2030)].differences.iat[0]
+
+
+def test_storage_itc_and_technology_split(tmp_path):
+    """§136: the storage ITC per stage (one-time, from the after-credit capex and investment_credit_report.csv) and
+    the summary's wind / solar / storage split, the v3.1 columns unchanged. Fixture numbers, not results."""
+    st = []
+    for p, phase in ((2030, 1.0), (2035, 0.85)):
+        i, o = tmp_path / f"i{p}", tmp_path / f"o{p}"
+        i.mkdir()
+        o.mkdir()
+        pd.DataFrame({"GENERATION_PROJECT": ["batt", "pv"], "gen_tech": ["Battery_Moderate", "UtilityPV_Class1"]}).to_csv(
+            i / "gen_info.csv", index=False)
+        f = 0.3 * phase
+        pd.DataFrame({"GENERATION_PROJECT": ["batt", "pv"], "BUILD_YEAR": [p, p],
+                      "gen_overnight_cost": [1e6 * (1 - f), 9e5], "gen_storage_energy_overnight_cost": [2e5 * (1 - f), "."]
+                      }).to_csv(i / "gen_build_costs.csv", index=False)
+        pd.DataFrame({"tax_credit": ["storage_itc_48e"], "technology": ["Battery_Moderate"], "PERIOD": [p],
+                      "itc_rate": [0.3], "phase": [phase], "capex_multiplier": [1 - f]}).to_csv(
+            i / "investment_credit_report.csv", index=False)
+        pd.DataFrame({"GEN_BLD_YRS_1": ["batt", "pv"], "GEN_BLD_YRS_2": [p, p], "BuildGen": [100.0, 50.0]}).to_csv(
+            o / "BuildGen.csv", index=False)
+        pd.DataFrame({"STORAGE_GEN_BLD_YRS_1": ["batt"], "STORAGE_GEN_BLD_YRS_2": [p], "BuildStorageEnergy": [400.0]}).to_csv(
+            o / "BuildStorageEnergy.csv", index=False)
+        st.append({"inputs": i, "outputs": o})
+    itc = cs.storage_itc(st, case="S1").set_index("period")
+    assert itc.at[2030, "dollars_one_time"] == pytest.approx(0.3 * (100 * 1e6 + 400 * 2e5))           # 30% of capex
+    assert itc.at[2035, "dollars_one_time"] == pytest.approx(0.255 * (100 * 1e6 + 400 * 2e5))
+    long = pd.DataFrame([{"case": "S1", "period": 2030, "category": "optimised_on", "tech": "wind", "vintage": 2030,
+                          "mwh_per_yr": 1.0, "dollars_per_yr": 3e6},
+                         {"case": "S1", "period": 2030, "category": "optimised_on", "tech": "solar", "vintage": 2030,
+                          "mwh_per_yr": 1.0, "dollars_per_yr": 2e6}])
+    s = cs.summary(long, itc.reset_index()).set_index("period")
+    assert list(s.columns[:5]) == ["case", *cs.CATEGORIES, "total"]                                  # v3.1 columns
+    assert (s.at[2030, "wind_per_yr"], s.at[2030, "solar_per_yr"], s.at[2030, "total"]) == (3.0, 2.0, 5.0)
+    assert s.at[2030, "storage_itc_one_time"] == pytest.approx(round(0.3 * 1.8e8 / 1e6, 1))
+    assert s.at[2035, "total"] == 0 and s.at[2035, "storage_itc_one_time"] > 0

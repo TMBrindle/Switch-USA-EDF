@@ -62,6 +62,9 @@ def test_s_set_rows_resolve_as_on_the_credits_branch():
     assert n >= len(S_SET) * 3
 
 
+STORAGE_FLAT = {"phase_down": {2034: 1.0, 2035: 1.0, 2036: 1.0}}   # §136: flat 30% to 2045 in S1-S3
+
+
 # §126: the regression row's axis value (on_pgdays) sets the v3.2 defaults back to v3.1; the only change from the
 # credits branch's scenario_management.yml
 ON_PGDAYS_V31 = {"settings": {"interconnection_headroom": {"price_factors": {"wind": None}}},
@@ -84,6 +87,12 @@ def test_scenario_management_differs_only_by_the_regression_row_v31_pins():
         assert pg.pop(k) == v
     assert pg["time_sampling"].pop("cf_fidelity") == {"mode": "off"}
     assert pg["ca_wa_carbon"].pop("two_tranche") == {"preset": "v31"}
+    # §136 (Tom): S1, S2 and S3 extend the storage credit, flat 30% to 2045 (credit restoration)
+    ss = now["settings_management"]["all_years"]["s_set"]
+    for case in ("S1", "S2", "S3"):
+        assert ss[case]["s0_production"].pop("storage_credit") == STORAGE_FLAT
+    assert ss["S1"] == {"s0_production": {}}
+    ss["S1"] = None
     assert now == old
 
 
@@ -116,3 +125,8 @@ def test_v32_run_cards_cases_on_the_v32_base():
             assert s0["ca_wa_carbon"].get("wa_import_charge", "per_mwh") == "per_mwh"            # WA held
             assert s["interconnection_headroom"]["price_factors"] == {"wind": 1.0}
             assert bsc.v32_flags(s.get("build_rate") or {}) == bsc.V32_DEFAULTS, (case, year)    # R1-R7 off
+            pdn = s0["storage_credit"]["phase_down"]            # collapsed to the year (chain_reuse._at_year)
+            if case in ("S1", "S2", "S3"):                      # §136: storage credit flat 30% to 2045
+                assert pdn == 1.0, (case, year)
+            else:                                               # the OBBBA phase-down default
+                assert pdn == {2028: 1.0, 2030: 1.0, 2035: 0.5, 2040: 0.0, 2045: 0.0}[year], (case, year)

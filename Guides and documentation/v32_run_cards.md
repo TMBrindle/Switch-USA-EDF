@@ -80,7 +80,8 @@ paths.
 
 ## Flags: conflicts and interactions with the v3.2 defaults (not resolved; for Tom)
 
-1. **CONFLICT: the storage credit phase-down in the "reinstated" credit cases (S1, S2, S3; `tax_credits: full_ira` from 2030).**
+1. **RESOLVED (Tom, 13 Oct; §136): option (b).** S1, S2 and S3 extend the storage credit, flat 30% to 2045 (`storage_credit.phase_down` 1.0 in 2034–2036 on their `s_set` values). S0, BILL, txonly, S4 and S5 keep the OBBBA phase-down. The history follows.
+   **Was a CONFLICT: the storage credit phase-down in the "reinstated" credit cases (S1, S2, S3; `tax_credits: full_ira` from 2030).**
    - **v3.1:** the battery ITC was a flat ×0.7 in every period, so S1–S3 kept it to 2045, alongside their reinstated
      45Y PTC (`build_years: [2025, None]`, no end).
    - **v3.2:** `storage_credit: obbba` applies the OBBBA schedule to the battery credit in every case. The credit is

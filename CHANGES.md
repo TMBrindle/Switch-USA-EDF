@@ -5118,3 +5118,48 @@ stages. Test: `test_chain_reuse.py::test_runcards_are_not_code`.
 **Gate in `s0_v32.md` (pending Tom):** the floating/pref-site offshore group (1,628 CPAs) isn't offered after the
 split (§134). The runner stops before solving if that group's GW at LCOE ≤ 125 exceeds 1% of the true resource
 (29,855 MW), and otherwise reports the figure and continues.
+
+## 136. S0 v3.2: S1–S3 Storage Credit Flat to 2045 (Tom's Decision), Credit Report by Technology, READY_SCENARIOS
+
+**Date:** 2026-10-13. **Branch:** `tom/s0-v3.2`. Resolves §133's conflict, with option (b).
+
+**1. Storage credit in S1, S2 and S3 (credit restoration).**
+- **Decision:** the storage credit is extended alongside the reinstated wind and solar credits, flat 30% through 2045
+  as in v3.1. S0 v3.2, BILL_central, txonly, S4 and S5 keep the OBBBA phase-down.
+- **The change:** each of the three `s_set` values in `pg/settings/scenario_management.yml` adds
+  `storage_credit: {phase_down: {2034: 1.0, 2035: 1.0, 2036: 1.0}}`. Battery capex is ×0.70 in every stage.
+- **Why this form, not `mode: flat`:**
+  - **Same writer as S0 v3.2.** `mode` stays `obbba`, so the credit goes through the same investment-credit writer as
+    S0. The 2028 stage (phase 1.0 in both, since the phase-down starts in 2034) then gets the same settings and the
+    same `gen_build_costs.csv` and `investment_credit_report.csv` as S0 v3.2's. The report records only each period's
+    phase, never the schedule.
+  - **What `mode: flat` would do instead:** put the ×0.7 back in the ATB modifier and drop the report file, so S1's
+    2028 inputs would differ from S0's and its 2028 reuse would be lost.
+- **Card headers:** S1, S2 and S3 say "storage credit: flat 30% to 2045 (credit restoration); S0 v3.2 baseline uses
+  the phase-down, so S1–S0 now includes the storage-credit extension".
+- **2028 reuse:**
+  - S1's 2028 inputs should still be byte-identical to S0 v3.2's, so its 2028 reuse holds.
+  - S2 and S3 never reused 2028 (their build rate and headroom differ from 2028, as in v3.1); the storage change
+    doesn't alter that.
+- **Comparator fix (`chain_reuse._at_year`):** a `phase_down` before its first key now collapses to 1.0 (full credit),
+  the writer's rule. It used to take the first key's value (0.75), which would have predicted S1's 2028 as different.
+  `chain_reuse_expected.csv` is unchanged.
+
+**2. Credits paid, split by technology** (`s0_workflow/credit_spend.py`, `scripts/credit_spend.py`).
+- **`storage_itc`:** per stage, the 48E ITC on the storage built in that period, a one-time amount. It is the
+  after-credit capex (MW × `gen_overnight_cost` + MWh × `gen_storage_energy_overnight_cost`) × f/(1−f), where
+  f = ITC rate × phase from `investment_credit_report.csv`.
+- **The summary:** keeps v3.1's columns (the three categories and `total`: the wind and solar production credits, on
+  the basis of v3.1's statutory cost, S1 $664bn and S2 $768bn to 2045). It adds `wind_per_yr`, `solar_per_yr` and
+  `storage_itc_one_time`. The script also writes `<out>_storage_itc.csv`.
+- **Who runs it:** every scenario card and the S0 v3.2 card (the baseline for S1–S0) run it after the solve.
+- **Test:** `test_s_set.py::test_storage_itc_and_technology_split`.
+
+**3. v4 item (bucket B, supply inputs): "add the fourth offshore cluster entry before any offshore sensitivity".**
+- The floating/pref-site=1 group (1,628 CPAs) has no cluster entry in `resources.yml`, so after the split (§134) it
+  isn't offered. Tom accepted the drop for S0 v3.2, with the 1% gate in `s0_v32.md`.
+- Housekeeping's v4 numbering isn't in this repo or its branches, so the ID is for housekeeping to assign.
+
+**4. READY_SCENARIOS:** the seven cards are final (header notes, `--code-check model` required, the credit report
+step). `READY_SCENARIOS` names the commit for each card. The S0 v3.2 card (`READY_S0_V32`, a4de740) is unchanged
+apart from the post-solve credit report step.

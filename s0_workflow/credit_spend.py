@@ -13,6 +13,17 @@ capacity (BuildGen.csv rows with build year <= p and build year + gen_max_age > 
                       credit (the 2028 stage of a reinstated chain)
   optimised_on        the model's credit on vintages whose build stage had it
 A case is reinstated when any stage credits wind or solar (gen_tax_credits.csv).
+
+Storage investment credit (§136; storage_credit obbba, s0_workflow/tax_credits.py): per stage, the 48E ITC on the
+storage built in its period, a one-time amount (dollars_one_time, overnight $ of the model's dollar year), not $/yr:
+    BuildGen MW x gen_overnight_cost + BuildStorageEnergy MWh x gen_storage_energy_overnight_cost (both after the
+    credit, gen_build_costs.csv, build year = the period) x f / (1 - f),   f = itc_rate x phase
+with itc_rate and phase from the stage's investment_credit_report.csv (no report = no investment credit in that
+stage, e.g. v3.1's flat x0.7, which sits inside the capex). Category investment_credit, tech storage.
+
+Summary (summary()): $M/yr by category, the same three plus total as v3.1, so v3.1's wind and solar figures compare;
+then wind_per_yr and solar_per_yr (the production credits by technology) and storage_itc_one_time ($M, this period's
+builds).
 """
 from __future__ import annotations
 
@@ -123,11 +134,68 @@ def spend(stages: list[dict], cfg: dict | None = None, case: str = "") -> pd.Dat
     return pd.DataFrame(rows, columns=["case", "period", "category", "tech", "vintage", "mwh_per_yr", "dollars_per_yr"])
 
 
-def summary(long: pd.DataFrame) -> pd.DataFrame:
-    """case x period: $/yr by category and total (millions)."""
-    if long.empty:
-        return pd.DataFrame(columns=["case", "period", *CATEGORIES, "total"])
-    t = long.pivot_table(index=["case", "period"], columns="category", values="dollars_per_yr", aggfunc="sum",
-                         fill_value=0.0).reindex(columns=list(CATEGORIES), fill_value=0.0) / 1e6
+def storage_itc(stages: list[dict], case: str = "") -> pd.DataFrame:
+    """One row per stage period with a storage investment credit: dollars_one_time (module docstring)."""
+    rows = []
+    for st in stages:
+        i, o = Path(st["inputs"]), Path(st["outputs"])
+        rep = _read(i / "investment_credit_report.csv")
+        if rep is None or rep.empty:
+            continue
+        costs = _read(i / "gen_build_costs.csv")
+        costs = costs.rename(columns={"BUILD_YEAR": "build_year"})
+        b = _read(o / "BuildGen.csv")
+        b = b.rename(columns=dict(zip(b.columns[:3], ["g", "y", "mw"])))
+        se = _read(o / "BuildStorageEnergy.csv")
+        if se is not None:
+            se = se.rename(columns=dict(zip(se.columns[:3], ["g", "y", "mwh"])))
+        gi = pd.read_csv(i / "gen_info.csv", na_values=["."]).set_index("GENERATION_PROJECT")
+        for p, r in rep.groupby("PERIOD"):
+            p = int(p)
+            techs = {str(t).lower() for t in r.technology}
+            f = float(r.itc_rate.iat[0]) * float(r.phase.iat[0])
+            if f <= 0 or f >= 1:
+                continue
+            c = costs[(costs.build_year.astype(int) == p)]
+            c = c[c.GENERATION_PROJECT.map(lambda g: str(gi.gen_tech.get(g, "")).lower() in techs)]
+            if c.empty:
+                continue
+            c = c.set_index("GENERATION_PROJECT")
+            mw = b[(b.y.astype(int) == p) & b.g.isin(c.index)].set_index("g").mw
+            dollars = float((mw * pd.to_numeric(c.gen_overnight_cost.reindex(mw.index), errors="coerce").fillna(0)).sum())
+            mwh_built = 0.0
+            if se is not None and "gen_storage_energy_overnight_cost" in c:
+                e = se[(se.y.astype(int) == p) & se.g.isin(c.index)].set_index("g").mwh
+                ec = pd.to_numeric(c.gen_storage_energy_overnight_cost.reindex(e.index), errors="coerce").fillna(0)
+                dollars += float((e * ec).sum())
+                mwh_built = float(e.sum())
+            credit = dollars * f / (1 - f)
+            if credit:
+                rows.append({"case": case, "period": p, "category": "investment_credit", "tech": "storage",
+                             "vintage": p, "mw_built": float(mw.sum()), "mwh_built": mwh_built,
+                             "itc_rate": float(r.itc_rate.iat[0]), "phase": float(r.phase.iat[0]),
+                             "dollars_one_time": credit})
+    return pd.DataFrame(rows, columns=["case", "period", "category", "tech", "vintage", "mw_built", "mwh_built",
+                                       "itc_rate", "phase", "dollars_one_time"])
+
+
+def summary(long: pd.DataFrame, storage: pd.DataFrame | None = None) -> pd.DataFrame:
+    """case x period: $/yr by category and total (millions), as v3.1; then the production credits by technology
+    (wind_per_yr, solar_per_yr) and the storage ITC on the period's builds (storage_itc_one_time, $M)."""
+    cols = ["case", "period", *CATEGORIES, "total", "wind_per_yr", "solar_per_yr", "storage_itc_one_time"]
+    if long.empty and (storage is None or storage.empty):
+        return pd.DataFrame(columns=cols)
+    idx = pd.MultiIndex.from_tuples(sorted(set(zip(long.case, long.period))
+                                           | (set(zip(storage.case, storage.period)) if storage is not None else set())),
+                                    names=["case", "period"])
+    t = (long.pivot_table(index=["case", "period"], columns="category", values="dollars_per_yr", aggfunc="sum",
+                          fill_value=0.0) if len(long) else pd.DataFrame(index=idx))
+    t = t.reindex(index=idx, columns=list(CATEGORIES), fill_value=0.0).fillna(0.0) / 1e6
     t["total"] = t.sum(axis=1)
-    return t.round(1).reset_index()
+    for tech in ("wind", "solar"):
+        x = long[long.tech == tech].groupby(["case", "period"]).dollars_per_yr.sum() if len(long) else pd.Series(dtype=float)
+        t[f"{tech}_per_yr"] = x.reindex(idx).fillna(0.0) / 1e6
+    st = (storage.groupby(["case", "period"]).dollars_one_time.sum() if storage is not None and len(storage)
+          else pd.Series(dtype=float))
+    t["storage_itc_one_time"] = st.reindex(idx).fillna(0.0) / 1e6
+    return t.round(1).reset_index()[cols]

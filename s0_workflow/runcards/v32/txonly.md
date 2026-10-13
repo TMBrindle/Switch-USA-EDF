@@ -23,12 +23,14 @@ exists. That is normally S0 v3.2's commit (`READY_S0_V32`) or a later one whose 
 "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/txonly_v32 --case-id BILL_central_txonly ^
     --year 2028 --year 2030 --year 2035 --year 2040 --year 2045
 python s0_workflow/scripts/reuse_chain_stages.py reuse switch/in/txonly_v32/scenarios_BILL_central_txonly.txt ^
-    --reuse-from switch/in/s0prod_A_v32/scenarios_S0prod_A.fixed.txt --solver-args "<S0 v3.2's string>" --dry-run
+    --reuse-from switch/in/s0prod_A_v32/scenarios_S0prod_A.fixed.txt --solver-args "<S0 v3.2's string>" --code-check model --dry-run
 ```
 - **Reuse:** if the dry run agrees, run it again without `--dry-run`. Then run `run_chain_A.py` on the printed
   `scenarios_BILL_central_txonly.from_<stage>.txt`, and `record` the case's scenarios file.
-- **Code check:** add `--code-check model` only if the reuse step reports code changes in `pg/settings/` or
-  `s0_workflow/` since S0 v3.2's commit. Inputs are compared by content either way.
+- **Code check:** add `--code-check model` to both `reuse` commands (required). This card's commit (`READY_SCENARIOS`)
+  is later than S0 v3.2's (`READY_S0_V32`, a4de740). The commits in between change `pg/settings/scenario_management.yml`
+  (S1–S3's storage credit) and `s0_workflow/` (reuse comparator, credit report), which the default check counts as
+  code. Inputs are compared by content either way.
 
 | | |
 |---|---|
@@ -45,5 +47,21 @@ means this build's base differs from S0 v3.2's.
   start-up costs, sample fidelity, CA tranche, wind price factor).
 - **This case:** From 2035: the `tx_policy` lines as BILL_central; `ic_*` and `build_rate_*` identical in kind to S0's (`atts_s0`, central).
 
-**Report:** the reuse result, then per stage the wall time, total cost, emissions and new capacity by technology, and
-the difference from S0 v3.2.
+## Credits paid (after the solve; CHANGES §136)
+
+```bat
+python s0_workflow/scripts/credit_spend.py switch/in/txonly_v32/scenarios_BILL_central_txonly.txt --out credit_spend_txonly_v32.csv
+```
+- **`credit_spend_txonly_v32_summary.csv`, per stage ($M):**
+  - `existing_pipeline`, `paid_not_optimised`, `optimised_on` and `total`: the wind and solar production credits, the
+    same basis as v3.1's statutory cost (v3.1: S1 $664bn, S2 $768bn to 2045). Compute the to-2045 figure from these
+    exactly as for v3.1.
+  - `wind_per_yr` and `solar_per_yr`: the same total split by technology.
+  - `storage_itc_one_time`: the 48E ITC on the stage's battery builds (one-time, not $/yr). It is additive to the v3.1
+    basis, so report it as a separate line.
+- **Detail:** `credit_spend_txonly_v32_storage_itc.csv`, by stage (MW, MWh, rate, phase, $).
+
+**Report:**
+- the reuse result;
+- per stage: wall time, total cost, emissions, new capacity by technology, and the difference from S0 v3.2;
+- the credit summary above (wind / solar / storage).

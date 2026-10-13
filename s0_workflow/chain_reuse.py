@@ -478,6 +478,8 @@ def _at_year(x, year: int, key: str = ""):
         ks = list(x)
         if ks and all(_is_year(k) for k in ks):
             le = [k for k in ks if int(k) <= year]
+            if not le and key == "phase_down":
+                return 1.0       # §136: a phase-down's keys are first build years; before them the credit is full
             pick = max(le, key=int) if le else min(ks, key=int)
             return _at_year(x[pick], year, key)
         return {k: _at_year(v, year, str(k)) for k, v in x.items()}
