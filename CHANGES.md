@@ -5453,7 +5453,8 @@ case folder takes the union over its years.
   and `fixed_1`; 2030 on requires all four.
 - A case technology from a group the stage doesn't offer stops the build (e.g. floating in 2028).
 - A stage with no new offshore technology at all now goes through the check too, with the split on. It used to return
-  before checking anything.
+  before checking anything. A `gen_info.csv` without capacity limits (`gen_capacity_limit_mw`; unit-test cases only)
+  still returns at once: there is nothing to compare.
 - Each zone's limits are still compared with the true resource of the groups the case has, as before.
 
 **What the log adds:** the groups not offered in the stage, with their GW, e.g. 2028: `not offered this stage

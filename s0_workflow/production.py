@@ -750,6 +750,8 @@ def write_offshore_check(folder: Path, s0: dict, log, scen_settings_dict: dict |
     if not (folder / "gen_info.csv").exists():
         return
     gi = pd.read_csv(folder / "gen_info.csv", na_values=["."])
+    if not {"gen_capacity_limit_mw", "gen_tech", "gen_load_zone"} <= set(gi.columns):
+        return                                          # no capacity limits in the case: nothing to check
     by = og.mw_by_zone(gi)
     r = offshore_fix_settings(s0)
     if by.empty and r["mode"] == "off":
