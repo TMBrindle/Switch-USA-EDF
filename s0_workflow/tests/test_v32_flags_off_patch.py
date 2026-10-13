@@ -17,7 +17,7 @@ def _patched_text() -> str:
     lines = PATCH.read_text().splitlines()
     minus = [l[1:] for l in lines if l.startswith("-") and not l.startswith("---")]
     plus = [l[1:] for l in lines if l.startswith("+") and not l.startswith("+++")]
-    assert len(minus) == len(plus) == 8                      # §132: + pv_profile_repair
+    assert len(minus) == len(plus) == 9                      # §132: + pv_profile_repair; §134: + powergenome_commit
     for a, b in zip(minus, plus):
         assert text.count(a + "\n") == 1, a
         text = text.replace(a + "\n", b + "\n")
@@ -38,4 +38,5 @@ def test_patched_settings_equal_the_flags_off_commit():
     # the one difference: wind's price factor explicit null (v3.1: absent; both mean config.yaml's {wind: null}, 0.25 x)
     ic = new["s0_production"]["settings"]["interconnection_headroom"]
     assert ic.pop("price_factors") == {"wind": None}
+    assert new["s0_production"].pop("powergenome_commit") is None             # §134: record only
     assert new == off

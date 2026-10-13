@@ -41,6 +41,7 @@ def _groups(tmp_path):
     meta.to_csv(g / "cpas" / "offshorewind_lcoe_ReEDS.csv", index=False)
     (g / "cpas" / "solar_group.json").write_text(json.dumps({"technology": "utilitypv", "metadata": "solar.csv"}))
     (g / "cpas" / "solar.csv").write_text("CPA_ID,mw\n1,5\n")
+    (g / "cpas" / "osw_profiles.parquet").write_bytes(b"profiles stand-in")   # §134: references must resolve
     return g, meta
 
 
@@ -109,3 +110,112 @@ def test_cli(tmp_path):
     with pytest.raises(ValueError, match="no pref_site column"):
         cli.main(["--groups-dir", str(g), "--out-dir", str(tmp_path / "o2"), "--json", "cpas/osw_group.json",
                   "--depth-col", "Depth_m", "--pref-col", "preferred"])
+
+
+# ---- §134: the ReEDS-cpas-patched layout (four JSONs sharing one metadata file; per-type membership files) ----------
+
+def _rg_layout(tmp_path, overlap=False, missing=False):
+    """Hand-built group folder: four offshore JSONs pointing at one patched metadata file (zones p1, p2; CPA 6 moved from
+    p1 to p2 by the patch), four per-type membership files (unpatched zones), and an unrelated solar group."""
+    g = tmp_path / "rg"
+    g.mkdir(parents=True)
+    meta = pd.DataFrame({"CPA_ID": range(1, 9), "ipm_region": ["p1", "p1", "p2", "p2", "p1", "p2", "p2", "p1"],
+                         "mw": [100.0, 200, 300, 400, 500, 600, 700, 800],
+                         "lcoe": [80.0, 90, 130, 70, 60, 50, 140, 100]})
+    meta.to_csv(g / "offshorewind_lcoe_ReEDS.csv", index=False)
+    types = {("fixed", "true"): [1, 2], ("fixed", "false"): [3, 4], ("floating", "false"): [5, 6, 7],
+             ("floating", "true"): [8]}
+    if overlap:
+        types[("floating", "true")] = [8, 1]
+    if missing:
+        types[("floating", "true")] = []
+    for (tt, ps), ids in types.items():
+        t = meta[meta.CPA_ID.isin(ids)].copy()
+        t.loc[t.CPA_ID == 6, "ipm_region"] = "p1"                  # unpatched zone in the per-type file
+        t.to_csv(g / f"offshorewind_lcoe_ReEDS_{tt}_{ps}.csv", index=False)
+        (g / f"offshorewind_{tt}_{ps}.json").write_text(json.dumps({
+            "technology": "offshorewind", "turbine_type": tt, "pref_site": ps == "true",
+            "metadata": "offshorewind_lcoe_ReEDS.csv", "profiles": "offshore_profiles.parquet",
+            "site_map": "offshore_site_map.csv"}))
+    (g / "offshore_profiles.parquet").write_bytes(b"profiles stand-in")
+    (g / "offshore_site_map.csv").write_text("CPA_ID,Site\n1,1\n")
+    (g / "solar.json").write_text(json.dumps({"technology": "utilitypv", "metadata": "solar_meta.csv"}))
+    (g / "solar_meta.csv").write_text("CPA_ID\n1\n")
+    mapping = {f"offshorewind_{tt}_{ps}.json": f"offshorewind_lcoe_ReEDS_{tt}_{ps}.csv" for tt, ps in types}
+    return g, meta, mapping
+
+
+def test_type_files_split_keeps_patched_rows_and_resolves(tmp_path):
+    g, meta, mapping = _rg_layout(tmp_path)
+    out = tmp_path / "split"
+    man = og.split_by_type_files(g, out, mapping, log=lambda m: None)
+    assert man["method"] == "type_files" and man["partition"]["exact"] and man["broken_references"] == []
+    for k in mapping:
+        j = json.loads((out / k).read_text())
+        part = pd.read_csv(out / j["metadata"])
+        ids = set(pd.read_csv(g / mapping[k]).CPA_ID)
+        assert set(part.CPA_ID) == ids and j["turbine_type"] in ("fixed", "floating")
+    flt = pd.read_csv(out / "offshorewind_lcoe_ReEDS__offshorewind_floating_false.csv").set_index("CPA_ID")
+    assert flt.at[6, "ipm_region"] == "p2"                                  # the patched zone, not the type file's
+    grp = {g_["json"]: g_ for g_ in man["groups"]}
+    assert grp["offshorewind_floating_false.json"]["zone_differs_from_shared"] == 1
+    tr = pd.read_csv(out / "offshore_true_resource_by_zone.csv")
+    assert tr.mw.sum() == pytest.approx(meta[meta.lcoe <= 125].mw.sum())      # the types add up to the whole
+    assert og.check_references(out) == [] and og.check_folder(out)["method"] == "type_files"
+    assert json.loads((g / "offshorewind_fixed_true.json").read_text())["metadata"] == "offshorewind_lcoe_ReEDS.csv"
+
+
+def test_type_files_split_refuses_bad_partitions_and_unmapped_jsons(tmp_path):
+    g, _, mapping = _rg_layout(tmp_path, overlap=True)
+    with pytest.raises(ValueError, match="overlap"):
+        og.split_by_type_files(g, tmp_path / "o1", mapping, log=lambda m: None)
+    g2, _, mapping2 = _rg_layout(tmp_path / "b", missing=True)
+    with pytest.raises(ValueError, match="in no membership file"):
+        og.split_by_type_files(g2, tmp_path / "o2", mapping2, log=lambda m: None)
+    m3 = dict(list(mapping2.items())[:3])
+    with pytest.raises(ValueError, match="map every one"):
+        og.split_by_type_files(g2, tmp_path / "o3", m3, log=lambda m: None)
+
+
+def test_broken_reference_fails_the_folder_check(tmp_path):
+    """The older one-JSON split on this layout: the other three JSONs keep pointing at the shared file, which the split
+    leaves out of the copy. The reference check catches it (the manifest check alone did not)."""
+    g, _, mapping = _rg_layout(tmp_path)
+    out = tmp_path / "split"
+    og.split_by_type_files(g, out, mapping, log=lambda m: None)
+    (out / "offshorewind_lcoe_ReEDS__offshorewind_fixed_true.csv").unlink()
+    bad = og.check_references(out)
+    assert bad == [{"json": "offshorewind_fixed_true.json",
+                    "missing": "offshorewind_lcoe_ReEDS__offshorewind_fixed_true.csv"}]
+    with pytest.raises(ValueError, match="reference missing files"):
+        og.check_folder(out)
+
+
+def test_case_check_uses_the_requested_groups(tmp_path):
+    """The case offers 3 of the 4 groups (fixed/1, fixed/0, floating/0): the check compares with those, and a group
+    offered three times still fails."""
+    tr = pd.DataFrame({"zone": ["p1", "p1", "p1", "p1"], "turbine_type": ["fixed", "fixed", "floating", "floating"],
+                       "pref_site": [1, 0, 0, 1], "mw": [10.0, 20.0, 30.0, 40.0]})
+    case = tmp_path / "c"
+    case.mkdir()
+    pd.DataFrame({"gen_load_zone": ["p1"] * 3, "gen_capacity_limit_mw": [10.0, 20.0, 30.0],
+                  "gen_tech": ["OffShoreWind_Class3_Moderate_fixed_1", "OffShoreWind_Class3_Moderate_fixed_0",
+                               "OffShoreWind_Class12_Moderate_floating_0"]}).to_csv(case / "gen_info.csv", index=False)
+    t = og.check_case(case, tr)
+    assert t.ok.all() and t.true_mw.iat[0] == 60.0
+    pd.DataFrame({"gen_load_zone": ["p1"] * 3, "gen_capacity_limit_mw": [100.0] * 3,
+                  "gen_tech": ["OffShoreWind_Class3_Moderate_fixed_1", "OffShoreWind_Class3_Moderate_fixed_0",
+                               "OffShoreWind_Class12_Moderate_floating_0"]}).to_csv(case / "gen_info.csv", index=False)
+    assert not og.check_case(case, tr).ok.any()
+
+
+def test_cli_survey_and_map(tmp_path, capsys):
+    from s0_workflow.scripts import split_offshore_groups as cli
+    g, _, mapping = _rg_layout(tmp_path)
+    assert cli.main(["--survey", "--groups-dir", str(g)]) == 0
+    out = capsys.readouterr().out
+    assert "offshorewind_floating_true.json" in out and "solar.json" not in out and "1 rows" in out
+    args = ["--groups-dir", str(g), "--out-dir", str(tmp_path / "s")]
+    for k, v in mapping.items():
+        args += ["--map", f"{k}={v}"]
+    assert cli.main(args) == 0 and og.check_references(tmp_path / "s") == []

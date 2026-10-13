@@ -110,3 +110,28 @@ def pv_repair_default_folder(monkeypatch):
 
     monkeypatch.setattr(pr, "check_folder", check_folder)
     yield
+
+
+# §134: the build guards. The cluster-cache marker goes to a temporary folder (never the repo's pg/extra_inputs), and
+# PowerGenome provenance is stubbed where powergenome isn't importable (the cloud test environment): the stub reports
+# the commit the settings ask for. Tests of the guards themselves call build_guard with their own folders and info.
+@pytest.fixture(autouse=True)
+def build_guard_sandbox(monkeypatch, tmp_path_factory):
+    from s0_workflow import build_guard as bg
+    # a fresh folder per call: unit tests build v3.2 and flags-off cases side by side, which one VM build can't
+    # (the guard stops it; test_build_guard.py tests that with its own folder)
+    monkeypatch.setattr(bg, "cache_dir", lambda s: tmp_path_factory.mktemp("cluster_cache") / "cluster_assignments")
+    bg._PG_CHECKED.clear()
+    try:
+        import powergenome  # noqa: F401
+    except ImportError:
+        def info(fn=None):
+            import yaml
+            from pathlib import Path
+            repo = Path(__file__).resolve().parents[2]
+            want = yaml.safe_load(open(repo / "pg/settings/s0_production.yml"))["s0_production"].get("powergenome_commit")
+            return {"package": "stub", "root": "stub", "commit": want or "stub", "dirty": False,
+                    "is_repo_submodule": True, "cost_multiplier_fn": fn, "cost_multiplier_file_present": True,
+                    "cost_multiplier_sha256": None, "stub": "s0_workflow/tests/conftest.py"}
+        monkeypatch.setattr(bg, "powergenome_info", info)
+    yield

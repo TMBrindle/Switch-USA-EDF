@@ -5014,3 +5014,81 @@ place of the 8-digit prefix.
   flags at v3.1.
 
 **Run-time estimates** are scaled from S0 v3.2's 10–11 h. No per-stage chain timings are recorded in the repo.
+
+## 134. S0 v3.2 Blockers: Offshore Split on the Real Layout, Cluster-Cache Guard, PowerGenome Import (V32-04)
+
+**Date:** 2026-10-13. **Branch:** `tom/s0-v3.2`. From the runner's two blockers, both due before the v3.2 builds.
+
+### A. Offshore split (recipe L rewritten; `s0_workflow/offshore_groups.py`, `scripts/split_offshore_groups.py`)
+
+**The real layout:**
+- ReEDS-cpas-patched has four JSONs, `offshorewind_{fixed,floating}_{false,true}.json`. Each has its own
+  `turbine_type` and `pref_site`, and all point at one `offshorewind_lcoe_ReEDS.csv` (39,005 CPAs).
+- Per-type CSVs (13,108 / 4,215 / 20,054 / 1,628 rows) sit in the folder unused.
+- The §120 script split one JSON by metadata columns, so on this layout the other three JSONs would point at a file
+  left out of the copy. The manifest check would still pass, and PowerGenome would load the broken groups.
+
+**Fix (`--map JSON=CSV`, one per JSON):**
+- The per-type CSVs are used as membership lists only. The script stops unless they partition the shared file exactly
+  (every CPA_ID once) and every JSON that uses the shared file is mapped.
+- Each JSON is pointed at a new metadata file holding the shared file's rows for its members.
+- **Why the shared rows:** `patch_pg_resource_groups.py` rewrote only the shared file (ipm_region_y → ipm_region, CPAs
+  nearest MD/RI moved to p123/p133, lat/lon added). The per-type CSVs predate it, and pointing at them would undo the
+  MD/RI fix. The manifest counts the rows whose zone differs from the shared file (`zone_differs_from_shared`).
+- **`--survey`** lists the offshore JSONs and the CSVs next to them, for the runner to fill the map.
+
+**Reference check:** `check_references` (every JSON under the folder must reference files that exist).
+- PowerGenome loads `**/*.json`, so every JSON counts.
+- It runs at the end of the split (stop on failure) and in the build's `check_folder` (stop).
+
+**The case check, per group:** `check_case` compares each zone's limits with the true resource of the groups the
+case's technologies come from, read from the `_fixed_1` / `_fixed_0` / `_floating_0` name suffixes. It falls back to
+all groups when the names don't carry them.
+
+**FOR TOM:** `resources.yml` asks for fixed/1, fixed/0 and floating/0 only. After the split, the floating/true group
+(1,628 CPAs) is in no cluster entry and is not offered. In v3.1 those CPAs were inside every group. Adding an entry is
+a scenario decision, so it isn't made here; recipe L step 3 reports the group's GW.
+
+### A3. Cluster cache (`s0_workflow/build_guard.py`)
+
+- **Does the key change on its own?** Not determinable from this repo; PowerGenome's code is off limits, and the
+  README's rule is to clear the cache when resource groups change. Treated as no.
+- **The rule:** move `pg/extra_inputs/cluster_assignments` aside before the first v3.2 build. No need to identify the
+  offshore folders, and the PV repair needs the move anyway.
+- **The guard** (`check_cluster_cache`, in `apply_settings`):
+  - With the PV repair or the offshore split on, the cache must be empty or missing the first time. It then gets
+    `S0_V32_CACHE.json`, holding the PV sha256 and the split manifest's sha256.
+  - Later builds need the same fingerprint.
+  - A flags-off build refuses a cache with that marker.
+  - A v3.1 cache (entries, no marker) is refused by a v3.2 build.
+- **Why not modification times:** v3.1 S-set builds still running could write entries newer than the PV manifest.
+
+### B. PowerGenome import (V32-04)
+
+**The setting:** `s0_production.powergenome_commit: c4c433cfefd0ae11f5b3f47ae05e3b9d7c90a691`. Once per build,
+`build_guard.check_powergenome`:
+- logs the imported package's folder, git commit, uncommitted changes and whether
+  `data/cost_multipliers/AEO_2026_regional_cost_corrections.csv` is there;
+- stops unless the commit matches and the file is present;
+- writes `powergenome_provenance.json` to every case, as the proof.
+
+**Import:** `PYTHONPATH=<worktree>\PowerGenome` (recipe L step 6). It precedes site-packages and editable installs.
+
+**Exemptions:** the flags-off patch (now 9 changes) and the regression row (`on_pgdays`) set `powergenome_commit: ~`,
+which records the import without enforcing it.
+
+**Second flags-off card (F2, `v32_run_cards.md`):** F1 with the submodule imported, to isolate the pin. c4c433c is
+5ecb454 plus that one data file, so F2 should equal F1 byte for byte if the Q3 checkout is 5ecb454 with the same CSV.
+Otherwise the provenance files show where they differ: the CSV's sha256 (regional capex in `gen_build_costs.csv`) or
+the commit.
+
+**Tests:**
+- `test_offshore_groups.py`:
+  - the type-file split keeps the patched rows;
+  - an overlapping, incomplete or unmapped partition is refused;
+  - a broken reference fails `check_folder`;
+  - the case check covers the requested groups;
+  - the CLI survey and map.
+- `test_build_guard.py`: the commit check and provenance; the cache marker in each state.
+- `conftest.py`: the cache sandbox and a PowerGenome stub where it isn't installed.
+- The flags-off patch and S-set tests are updated.

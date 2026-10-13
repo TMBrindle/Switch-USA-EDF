@@ -2,6 +2,40 @@
 
 Run order: **BILL_central → BILL_central_txonly → S1 → S4 → S2 → S5 → S3**, after S0prod_A v3.2.
 
+## Build cards: the v3.1 → v3.2 bridge and S0 v3.2 (CHANGES §130, §134)
+
+Each card is S0prod_A, all five stages, in a scratch worktree of `tom/s0-v3.2` at the build commit. Cards F1 and F2
+use the flags-off patch: `git apply s0_workflow/data/v32/v32_flags_off.patch`, not committed. It also sets
+`powergenome_commit: ~`, so the PowerGenome import is recorded but not enforced.
+
+| Card | Settings | PowerGenome import | Cluster cache | Compare with | Expected |
+|---|---|---|---|---|---|
+| **F1** flags off, v3.1 PowerGenome | flags-off patch | as v3.1: the environment's own (the Q3 checkout); no `PYTHONPATH` | the v3.1 cache (no marker) | S0 v3.1's inputs | Switch inputs byte-identical. New diagnostics only: `offshore_mw_by_zone.csv`, `powergenome_provenance.json`, extra log lines |
+| **F2** flags off, c4c433c | flags-off patch | `set PYTHONPATH=<worktree>\PowerGenome` (recipe L step 6) | the v3.1 cache | F1's inputs | see below |
+| **S0 v3.2** | as committed (defaults on) | `PYTHONPATH=<worktree>\PowerGenome` (required: the build stops otherwise) | moved aside first (recipe L step 4) | — | the v3.2 checks in recipe L and the run cards below |
+
+**F2, expected input differences from c4c433c:**
+- **None, if the Q3 checkout matches.** c4c433c is 5ecb454 plus one data file
+  (`data/cost_multipliers/AEO_2026_regional_cost_corrections.csv`, checked in a scratch clone). So F2 equals F1 byte
+  for byte if the Q3 checkout F1 imports is 5ecb454's code with the same CSV. The v3.1 builds read that CSV from
+  there, so the Q3 checkout must have it.
+- **Check:** compare the two cases' `powergenome_provenance.json` (`commit`, `dirty`, `cost_multiplier_sha256`) and
+  report Q3's commit.
+- **Where any difference would come from:**
+  - A different CSV sha256 changes the regional capex multipliers: `gen_build_costs.csv` (and any file derived from new-build
+    capex) in the zones whose multipliers differ.
+  - A different Q3 commit, or uncommitted changes there, could change anything PowerGenome writes. Report the first
+    differing file per stage.
+- **Run F2 before S0 v3.2 if the VM has time;** it isolates V32-04's effect on the bridge. **F1 is the flags-off check
+  already planned.**
+
+**Order on the VM after S3:**
+1. Recipe L steps 0–3: offshore split.
+2. F1, then F2 (on the v3.1 cache).
+3. Recipe L step 4: move the cache aside.
+4. S0 v3.2 (step 6 import).
+5. The scenarios below.
+
 ## Branch and commit
 
 - **Branch:** `tom/s0-v3.2`. No separate scenarios branch.
@@ -32,8 +66,13 @@ Run order: **BILL_central → BILL_central_txonly → S1 → S4 → S2 → S5 �
 - WA two-tranche (`per_mwh`, as v3.1);
 - the build-rate package R1, R11, R2, R4 and R7 (§121–§125).
 
-**Prerequisites:** the same as S0 v3.2. The offshore split folder (recipe L) and `pg_data/profiles_pvfix` must be in
-place, or the build stops.
+**Prerequisites:** the same as S0 v3.2 (recipe L):
+- the offshore split folder;
+- `pg_data/profiles_pvfix`;
+- the cluster cache moved aside, or the v3.2 cache;
+- `PYTHONPATH=<worktree>\PowerGenome`.
+
+The build stops if any is missing.
 
 The scenario definitions are v3.1's: the credits, headroom, build-rate level, gas-turbine cap and transmission bill of
 each case are unchanged. The test compares each case and year with f8f12bc; the only differences are the v3.2 flag

@@ -553,3 +553,7 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 131. (§132, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `pv_profile_repair: {mode: "off"}`.**
     - **Why:** the PV repair is ON in the v3.2 S0 defaults, and the regression row keeps v3.1.
     - **Effect:** the regression row resolves to v3.1 values, as in rows 128 and 130.
+132. (§134, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `powergenome_commit: ~`.**
+    - **Why:** the v3.2 S0 build stops unless PowerGenome is imported at c4c433c, and the regression row records the
+      import only.
+    - **Effect:** none on its inputs.

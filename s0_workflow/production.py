@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 
 from s0_workflow import startup_costs
+from s0_workflow import build_guard
 from s0_workflow import coal_fleet
 from s0_workflow import fuel_prices
 from s0_workflow import prm
@@ -97,6 +98,8 @@ def apply_settings(case_settings: dict) -> None:
             apply_storage_credit(s, s0, case, year)
             apply_pv_profile_repair(s, s0, case, year)
             apply_offshore_filter_fix(s, s0, case, year)                # offshore duplicates (§120)
+            build_guard.check_cluster_cache(s, s0, case, year)          # cache made for these data (§134)
+            build_guard.check_powergenome(s, s0)                        # which PowerGenome (V32-04, §134)
             added = startup_costs.apply_settings(s, s0)                 # V32-01 start-up costs (§119)
             if added:
                 logger.info("s0_production %s/%s: startup_cost_fix, new-build start-up keys added %s", case, year, added)
@@ -1379,6 +1382,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     write_pv_repair_log(out_folder, s0, log)                                # repaired PV profiles (§111)
     startup_costs.write_check(out_folder, s0, log)                          # new gas start-up costs (§119)
     write_offshore_check(out_folder, s0, log)                               # offshore duplicates (§120)
+    build_guard.write_provenance(out_folder, first, s0, log)               # PowerGenome commit (V32-04, §134)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "
                                 f"({int(r.period_end) - int(r.period_start) + 1} yr)" for r in per.itertuples()))

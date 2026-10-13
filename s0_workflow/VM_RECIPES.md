@@ -890,35 +890,105 @@ git worktree add ../s0v31-wa-off s0-v3.1 && cd ../s0v31-wa-off
   noise.
 - **Don't commit the edit.** Remove the worktree afterwards.
 
-## L. Offshore split folder for the v3.2 build (CHANGES §120, §129) — needed before any v3.2 S0 build
+## L. Before the v3.2 S0 build: offshore split, cluster cache, PowerGenome import (CHANGES §129, §134)
 
-`offshore_filter_fix` is ON in v3.2 (`split_groups`, folder `pg_data/resource_groups/ReEDS-cpas-patched-offshore-split`).
-The S0 build stops until that folder exists and its manifest checks out.
+Run once in the v3.2 worktree (`tom/s0-v3.2` at the build commit). Steps 1–5 take minutes. Commands are for the VM's
+Windows prompt (cmd). In PowerShell use `$env:PYTHONPATH="..."` in place of `set PYTHONPATH=...`.
 
-1. **Find the offshore group JSON and the metadata columns.** Report both:
-   ```bash
-   grep -l -i offshorewind pg_data/resource_groups/ReEDS-cpas-patched/*.json
-   "<ic-pipeline python>" -c "import json,sys,pandas as pd; j=json.load(open(sys.argv[1])); print(j); print(list(pd.read_csv(sys.argv[1].rsplit('/',1)[0]+'/'+j['metadata'], nrows=1).columns))" <that json>
-   ```
-   You need:
-   - the turbine-type column, or else a water-depth column (floating deeper than 60 m);
-   - the pref-site column;
-   - the region, MW and LCOE columns, if they aren't `ipm_region`, `mw` and `lcoe`.
-2. **Split** (the source folder is not changed; other files are hard-linked):
-   ```bash
-   "<ic-pipeline python>" s0_workflow/scripts/split_offshore_groups.py \
-       --groups-dir pg_data/resource_groups/ReEDS-cpas-patched \
-       --out-dir pg_data/resource_groups/ReEDS-cpas-patched-offshore-split \
-       --json <json name, relative to groups-dir> --pref-col <pref-site col> \
-       (--turbine-col <col> | --depth-col <col>) [--region-col .. --mw-col .. --lcoe-col ..]
-   ```
-3. **Check the log and `offshore_split_manifest.json`:**
-   - the groups are fixed/1, fixed/0 and floating/0 (or the turbine-type and pref-site pairs the data has);
-   - the true resource (GW at LCOE ≤ 125) and the number of zones (36).
-4. **PowerGenome's cluster cache:** if `pg/extra_inputs/cluster_assignments/` holds offshore clusters from the
-   unsplit group, clear or bypass them for the v3.2 build.
-5. **In the v3.2 build:** each case's `offshore_mw_by_zone.csv` should show ratio 1.00 in every zone. The build stops
-   otherwise. Report total offshore capacity limits before (×3) and after.
+**0. Submodule at the pin.**
+```bat
+git submodule update --init PowerGenome
+git -C PowerGenome rev-parse HEAD
+```
+Expect `c4c433cfefd0ae11f5b3f47ae05e3b9d7c90a691`.
+
+**1. Survey the offshore groups (read only).**
+```bat
+"<ic-pipeline python>" s0_workflow/scripts/split_offshore_groups.py --survey --groups-dir pg_data/resource_groups/ReEDS-cpas-patched
+```
+Expect four JSONs, `offshorewind_{fixed,floating}_{false,true}.json`, each with its own `turbine_type` and `pref_site`
+and all with `metadata: offshorewind_lcoe_ReEDS.csv`. The listing also shows the `offshorewind*.csv` files: the shared
+file has 39,005 rows, and the four per-type files have 13,108, 4,215, 20,054 and 1,628 rows. Pair each JSON with the
+per-type file of the same turbine type and pref site, by file name. If a name doesn't say, open the file's first rows.
+
+**2. Split.**
+- **What it does:** each JSON is pointed at a new metadata file holding the shared, patched rows of the CPAs in its
+  per-type file.
+- **Why not the per-type CSVs as they are:** they predate `patch_pg_resource_groups.py`, so they lack its MD/RI zone
+  moves (p123/p133) and lat/lon.
+- **Refusals:** the script stops unless the four per-type files partition the shared file exactly (every CPA_ID once),
+  every JSON that uses the shared file is mapped, and every JSON in the output folder references files that exist.
+- **Not changed:** the source folder. Every other file is hard-linked.
+```bat
+"<ic-pipeline python>" s0_workflow/scripts/split_offshore_groups.py ^
+    --groups-dir pg_data/resource_groups/ReEDS-cpas-patched ^
+    --out-dir pg_data/resource_groups/ReEDS-cpas-patched-offshore-split ^
+    --map offshorewind_fixed_true.json=<fixed/true per-type csv> ^
+    --map offshorewind_fixed_false.json=<fixed/false per-type csv> ^
+    --map offshorewind_floating_false.json=<floating/false per-type csv> ^
+    --map offshorewind_floating_true.json=<floating/true per-type csv>
+```
+- **Column names:** `--id-col CPA_ID`, `--region-col ipm_region`, `--mw-col mw` and `--lcoe-col lcoe` are the
+  defaults. A missing column stops the run and lists the columns there are.
+- **Folder name:** the output folder is the one `s0_production.offshore_filter_fix.resource_groups_dir` names.
+
+**3. Check (report these):**
+- **The log line:** four groups with CPAs and GW at LCOE ≤ 125 each; "whole 2,985.5 GW in 36 zones" (the dry check's
+  numbers); "partition exact (39,005 CPAs)"; "no broken references".
+- **`offshore_split_manifest.json`:** `zone_differs_from_shared` per group. It should be non-zero only where the patch
+  moved CPAs to p123/p133. Report the counts.
+- **References, again:**
+  ```bat
+  "<ic-pipeline python>" -c "import sys; sys.path.insert(0,'.'); from s0_workflow import offshore_groups as o; print(o.check_references('pg_data/resource_groups/ReEDS-cpas-patched-offshore-split'))"
+  ```
+  This must print `[]`. The build runs the same check (`check_folder`) and stops on any missing file.
+- **FOR TOM — floating preferred sites:** `resources.yml` has cluster entries for fixed/1, fixed/0 and floating/0
+  only. The floating/true group (1,628 CPAs) is in no entry, so after the split those sites are not offered at all. In
+  v3.1 they were inside every group. Report the group's GW at LCOE ≤ 125 from the log. Adding a floating/1 entry to
+  `resources.yml` is Tom's call; it isn't made here.
+
+**4. Cluster cache (`pg/extra_inputs/cluster_assignments`).**
+- **Does the key change on its own?** Not known from this repo. The cache folders are named by a hash this repo can't
+  check against the data, and the repo README's rule is to clear the cache whenever resource groups change. So treat
+  the answer as no.
+- **The rule:** no need to identify the offshore folders. Move the whole folder aside before the first v3.2 build in
+  this worktree, and keep it for flags-off builds:
+  ```bat
+  move pg\extra_inputs\cluster_assignments pg\extra_inputs\cluster_assignments.v31
+  ```
+- **What the build enforces** (`s0_workflow/build_guard.py`):
+  - A v3.2 build (PV repair or offshore split on) needs an empty or missing cache folder the first time. It writes
+    `S0_V32_CACHE.json` there: a fingerprint of the PV file's sha256 and the split manifest.
+  - Later v3.2 builds need the same fingerprint.
+  - A flags-off build refuses a cache with that marker.
+  - Any mismatch stops the build before PowerGenome clusters, with the folder named.
+  - Note: the PV repair changes the solar clusters' profiles too, so the move is needed for the PV repair as well as
+    the offshore split.
+- **One build command, one kind of case:** don't build v3.2 cases and flags-off cases (e.g. the regression row) in
+  the same `pg_to_switch.py` call. They would share the cache, and the guard stops the second kind.
+- **Switching between kinds of build in one worktree:** rename the folders, e.g. `cluster_assignments` →
+  `cluster_assignments.v32` and `cluster_assignments.v31` → `cluster_assignments`. A worktree used only for v3.2
+  builds keeps its own cache.
+
+**5. PV folder:** `pg_data/profiles_pvfix` in place (CHANGES §132; the build checks the manifest, method and full
+sha256).
+
+**6. Import PowerGenome from the submodule (V32-04).**
+- **Why:** the build environment otherwise imports the
+  "Q3 Federal Policy analysis\SWITCH-USA-EDF\PowerGenome" checkout. Put the worktree's submodule first on the path
+  for every v3.2 build command (`pg_to_switch.py` and anything else that imports PowerGenome):
+  ```bat
+  set PYTHONPATH=<worktree>\PowerGenome
+  "<switch-pg-reeds-fedpol python>" -c "import powergenome; print(powergenome.__file__)"
+  ```
+  The import must print `<worktree>\PowerGenome\powergenome\__init__.py`. `PYTHONPATH` comes before site-packages
+  and before the environment's editable-install entry, so it wins whichever way the Q3 checkout is installed.
+- **Proof in the build:**
+  - The log has a line `PowerGenome imported from <path> (commit <sha>; repo submodule: True; AEO_2026_regional_cost_corrections.csv present: True)`.
+  - Each case folder has `powergenome_provenance.json`: path, commit, uncommitted changes, and the cost-multiplier
+    file's presence and sha256.
+  - `s0_production.powergenome_commit` is c4c433c… in v3.2, so the build stops at once if any other PowerGenome is
+    imported. The flags-off patch sets it to `~` (record only).
 
 ## B. One mode-B window (2028-2030, s4x1): memory and run time — DEFERRED
 

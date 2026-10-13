@@ -18,7 +18,8 @@ V32_FLAGS = {"s0_production.storage_credit", "s0_production.pv_profile_repair",
              "s0_production.prm.thermal_derate.prm_temp_tz_fix", "s0_production.startup_cost_fix",
              "s0_production.offshore_filter_fix",
              # §126: the wind interconnection price factor (v3.2 ON), in the S0 settings block and merged into the case
-             "s0_production.settings.interconnection_headroom.price_factors", "interconnection_headroom.price_factors"}
+             "s0_production.settings.interconnection_headroom.price_factors", "interconnection_headroom.price_factors",
+             "s0_production.powergenome_commit"}                                   # §134
 
 
 def _resolve(paths, case, year):
@@ -68,7 +69,8 @@ ON_PGDAYS_V31 = {"settings": {"interconnection_headroom": {"price_factors": {"wi
                  "prm": {"thermal_derate": {"prm_temp_tz_fix": False}},
                  "offshore_filter_fix": {"mode": "off", "resource_groups_dir": None},           # §129
                  "pv_profile_repair": {"mode": "off", "profiles_dir": None, "neighbour_method": None,
-                                       "output_sha256": None}}                                   # §132
+                                       "output_sha256": None},                                   # §132
+                 "powergenome_commit": None}                                                     # §134
 
 
 def test_scenario_management_differs_only_by_the_regression_row_v31_pins():

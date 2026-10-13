@@ -1,5 +1,5 @@
 diff --git a/pg/settings/s0_production.yml b/pg/settings/s0_production.yml
-index 2f11cec..c746d3e 100644
+index ea7ea5f..d918ffc 100644
 --- a/pg/settings/s0_production.yml
 +++ b/pg/settings/s0_production.yml
 @@ -29,7 +29,7 @@ s0_production:
@@ -29,16 +29,18 @@ index 2f11cec..c746d3e 100644
        cold_c: -15                  # winter stress days: the cold end of the murphy2019 curves
        hot_c: 35                    # summer stress days: the hot end
        winter_months: [11, 12, 1, 2, 3]
-@@ -343,7 +343,7 @@ s0_production:
-   #                   recorded for the repaired file (--hash; a prefix of at least 8 hex digits is enough)
-   # v3.2 ON (Tom, conditional on the VM run, which passed 12 Oct 2026 with runbook dc7aa00: 14,350 site-years filled, all
+@@ -345,8 +345,8 @@ s0_production:
    # in-zone; daily correlation min 0.72, p10 0.93; scale 0.74-1.17; p1 CF 2007-13 0.125 -> 0.180; CHANGES §132)
+   # v3.2 (V32-04, CHANGES §128, §134): the build stops unless PowerGenome is imported at this commit (the repo submodule;
+   # PYTHONPATH=<worktree>/PowerGenome, VM_RECIPES.md recipe L step 6); ~ = record it only (powergenome_provenance.json)
+-  powergenome_commit: c4c433cfefd0ae11f5b3f47ae05e3b9d7c90a691
 -  pv_profile_repair: {mode: neighbour_fill, profiles_dir: pg_data/profiles_pvfix, verify: manifest, neighbour_method: correlation, output_sha256: fb0fda93f25276a531226456614856c4d9218e71e92b303cce8f4849ba497057}
++  powergenome_commit: ~
 +  pv_profile_repair: {mode: "off", profiles_dir: ~, verify: manifest}
  
    # v3.2 flag (CHANGES §100): the battery storage credit (48E ITC).
    #   flat   (v3.1) the tax_credits axis's x0.7 battery capex multiplier (atb_modifiers.batteries) in every period
-@@ -357,16 +357,16 @@ s0_production:
+@@ -360,16 +360,16 @@ s0_production:
    # v3.2 flag (CHANGES §119, V32-01; changes results, for Ollie's review): new-build start-up cost keys that match the
    # current ATB names (NaturalGas_Combustion Turbine, NaturalGas_1-on-1 / 2-on-1 Combined Cycle; Coal_95% / 99%-CCS).
    # In v3.1 new CTs and CCs match no key and carry Start_Cost_per_MW 0. On: the build stops if new gas still has none
@@ -58,7 +60,7 @@ index 2f11cec..c746d3e 100644
      phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}
      phase_basis: span_mean
    ca_wa_carbon:
-@@ -378,7 +378,7 @@ s0_production:
+@@ -381,7 +381,7 @@ s0_production:
      # v3.2 flag (CHANGES §114): CA free tranche preset. v31 (default, 49.4 TWh) | d2 (v3.2 value, Tom: 52.7 TWh, CEC clean
      # imports + geothermal + biomass) | d3 (sensitivity, ~39 TWh, CARB basis, indicative). A sensitivity row sets
      # s0_production: {ca_wa_carbon: {two_tranche: {preset: d3}}}
