@@ -80,7 +80,7 @@ def test_build_flag_and_case_check(tmp_path):
         s0prod.apply_offshore_filter_fix({"RESOURCE_GROUPS": str(out)}, {"offshore_filter_fix": {"mode": "off"}})
     on = {"offshore_filter_fix": {"mode": "split_groups", "resource_groups_dir": str(out)}}
     s0prod.apply_offshore_filter_fix(s, on)
-    assert s["RESOURCE_GROUPS"] == str(out.resolve())
+    assert s["RESOURCE_GROUPS"] == out.resolve()                       # §138: a Path
     # a case written from the split groups: limits per zone equal the true resource
     case = tmp_path / "case"
     case.mkdir()

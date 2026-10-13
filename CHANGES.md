@@ -5225,3 +5225,32 @@ settings).
 - the fourth entry added, idempotently, and the four groups required.
 
 Updated: `test_build_guard.py` and `conftest.py`.
+
+## 138. S0 v3.2: Path Settings Kept as Paths (Cold-Cache Build Failure)
+
+**Date:** 2026-10-13. **Branch:** `tom/s0-v3.2`.
+
+**The failure:** the S0 v3.2 build at c0759bf failed after 4 minutes on a cold cluster cache, with
+`AttributeError: 'str' object has no attribute 'as_posix'` at PowerGenome `nrelatb.py:1734`. It had already passed the
+offshore check (2,985.5 GW, 134 floating/pref-site cluster entries added).
+
+**Cause:** `apply_offshore_filter_fix` set `s["RESOURCE_GROUPS"] = str(...)`. PowerGenome's own settings carry it as a
+`Path` and call `.as_posix()` on it when they write a new cache entry. `apply_pv_profile_repair` did the same with
+`RESOURCE_GROUP_PROFILES`, the next trap on the same path. The F builds never reached either line: they ran with the
+flags off, on the warm v3.1 cache.
+
+**Fix:** both are set as resolved `Path` objects. Nothing else changes.
+
+**Test** (`test_pg_path_settings.py`):
+- `apply_settings` on a v3.2 case with a real split folder, a real repaired PV folder and a cold (missing) cache:
+  every path setting stays a `Path` and answers `.as_posix()`, as PowerGenome's cache writer needs; the cold cache
+  gets its marker; the fourth offshore entry is added.
+- A flags-off case leaves the path settings with the same values and types.
+
+**Scope:**
+- **Only the flags-on paths change:** the split on (`apply_offshore_filter_fix`) and the PV repair on
+  (`apply_pv_profile_repair`).
+- **Flags-off builds are unaffected:** both functions return before those lines when their flag is off, so the
+  flags-off certification of c0759bf (F3) holds.
+- **The split code** (`offshore_groups.py`, `split_offshore_groups.py`) is not touched, and the split folder needn't be
+  redone.

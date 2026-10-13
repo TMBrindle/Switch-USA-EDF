@@ -694,7 +694,7 @@ def apply_pv_profile_repair(s: dict, s0: dict, case=None, year=None) -> None:
         if not got.lower().startswith(str(r["output_sha256"]).lower()):
             raise ValueError(f"pv_profile_repair: {d}'s output sha256 {got[:16]}... is not the one in the settings "
                              f"({r['output_sha256']})")
-    s["RESOURCE_GROUP_PROFILES"] = str(d.resolve())
+    s["RESOURCE_GROUP_PROFILES"] = d.resolve()          # §138: a Path, as PowerGenome's own settings (it calls .as_posix())
     logger.info("s0_production %s/%s: PV profiles from the repaired folder %s (%d site-years filled, %d sites; "
                 "0 zero site-years with capacity)", case, year, d, man["site_years_filled"], man["sites_zero_before"])
 
@@ -731,7 +731,7 @@ def apply_offshore_filter_fix(s: dict, s0: dict, case=None, year=None) -> None:
     og.guard_output(d, [x for x in (cur, *og.env_roots().values()) if x and Path(x).resolve() != d.resolve()])
     prof = [x for x in (s.get("RESOURCE_GROUP_PROFILES"), og.env_roots().get("RESOURCE_GROUP_PROFILES")) if x]
     man = og.check_folder(d, prof)
-    s["RESOURCE_GROUPS"] = str(d.resolve())
+    s["RESOURCE_GROUPS"] = d.resolve()                  # §138: a Path (PowerGenome's cluster cache calls .as_posix())
     n = og.add_floating_pref_entries(s)                 # §137: the fourth group (floating, preferred sites)
     logger.info("s0_production %s/%s: offshore groups split by turbine type and pref site (%s); true resource %.1f GW; "
                 "%d floating/pref-site-1 cluster entries added", case, year,

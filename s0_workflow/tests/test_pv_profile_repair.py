@@ -138,7 +138,7 @@ def test_build_flag(tmp_path):
         s0prod.apply_pv_profile_repair({"RESOURCE_GROUP_PROFILES": str(out)}, _s0("off")["s0_production"])
     s = {"RESOURCE_GROUP_PROFILES": str(src)}
     s0prod.apply_pv_profile_repair(s, _s0("neighbour_fill", str(out))["s0_production"])
-    assert s["RESOURCE_GROUP_PROFILES"] == str(out.resolve())
+    assert s["RESOURCE_GROUP_PROFILES"] == out.resolve()               # §138: a Path
     case = tmp_path / "case"
     case.mkdir()
     logs = []
@@ -313,7 +313,7 @@ def test_build_checks_method_and_hash(tmp_path):
         s = {}
         s0prod.apply_pv_profile_repair(s, {"pv_profile_repair": {"mode": "neighbour_fill", "profiles_dir": str(out), **kw}})
         return s
-    assert apply(neighbour_method="correlation", output_sha256=sha[:8])["RESOURCE_GROUP_PROFILES"] == str(out.resolve())
+    assert apply(neighbour_method="correlation", output_sha256=sha[:8])["RESOURCE_GROUP_PROFILES"] == out.resolve()
     apply(output_sha256=sha.upper())
     with pytest.raises(ValueError, match="repaired with correlation"):
         apply(neighbour_method="distance")
