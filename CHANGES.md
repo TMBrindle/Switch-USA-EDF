@@ -5092,3 +5092,29 @@ the commit.
 - `test_build_guard.py`: the commit check and provenance; the cache marker in each state.
 - `conftest.py`: the cache sandbox and a PowerGenome stub where it isn't installed.
 - The flags-off patch and S-set tests are updated.
+
+## 135. S0 v3.2 Handoff: Run Cards and READY Files in the Repo
+
+**Date:** 2026-10-13. **Branch:** `tom/s0-v3.2`.
+
+**Where:** `s0_workflow/runcards/v32/`, so the VM runner works from the repo overnight. The folder holds:
+- `recipe_L.md`: §134's recipe, plus the script fix and the missing-metadata check;
+- `flagsoff_build2.md` (F2);
+- `s0_v32.md`: the chain card, with the commit, the c4c433c import, the proving log line and the pre-solve checks;
+- the seven scenario cards;
+- `README.md`.
+
+**READY files:**
+- **`READY_S0_V32`:** one line, the commit the chain must run at. It is written in a later commit, because a file
+  can't name its own commit.
+- **`READY_SCENARIOS`:** written only once the scenario cards are final. **Not yet written:** S1, S2 and S3 wait on
+  Tom's storage-credit decision (§133). The scenarios can't start before S0 v3.2 is solved, so holding the file costs
+  no VM time.
+
+**Reuse code check:** `chain_reuse.CODE_EXEMPT` gains `s0_workflow/runcards/*`. Commits after the chain's commit that
+touch only the cards and READY files don't count as code changes, so they don't stop the scenarios' reuse of S0 v3.2's
+stages. Test: `test_chain_reuse.py::test_runcards_are_not_code`.
+
+**Gate in `s0_v32.md` (pending Tom):** the floating/pref-site offshore group (1,628 CPAs) isn't offered after the
+split (§134). The runner stops before solving if that group's GW at LCOE ≤ 125 exceeds 1% of the true resource
+(29,855 MW), and otherwise reports the figure and continues.

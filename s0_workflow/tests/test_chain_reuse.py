@@ -323,3 +323,13 @@ def test_code_check_model_scope(tmp_path, monkeypatch):
     assert not ok and "switch/modules.txt" in why
     with pytest.raises(ValueError, match="code scope"):
         cr.code_check(h0, "none")
+
+
+def test_runcards_are_not_code():
+    """§135: the v3.2 run cards and READY files (s0_workflow/runcards/) are committed after the chain's commit; they
+    must not stop reuse."""
+    from s0_workflow import chain_reuse as cr
+    for f in ("s0_workflow/runcards/v32/READY_S0_V32", "s0_workflow/runcards/v32/READY_SCENARIOS",
+              "s0_workflow/runcards/v32/s0_v32.md"):
+        assert not cr.is_code(f) and not cr.is_code(f, "model")
+    assert cr.is_code("s0_workflow/production.py")

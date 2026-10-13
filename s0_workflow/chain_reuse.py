@@ -54,7 +54,7 @@ EXCLUDE = ("s0_production_log.txt", "scenarios*.txt", "*.log", "reuse_provenance
 CODE_PATHS = ("switch/study_modules/", "switch/modules.txt", "switch/options.txt", "pg_to_switch.py", "s0_workflow/",
               "build_rate/", "interconnection_headroom/", "adjust/", "pg/settings/", "pg/extra_inputs/",
               "conversion_functions.py", "utilities.py", "PowerGenome/")
-CODE_EXEMPT = ("*/tests/*", "*.md", "s0_workflow/scripts/*")
+CODE_EXEMPT = ("*/tests/*", "*.md", "s0_workflow/scripts/*", "s0_workflow/runcards/*")   # runcards / READY files: §135
 # code_scope="model": only the code that builds and solves the model from the inputs (Switch modules, module lists and
 # options). Input-writing code (pg_to_switch, s0_workflow, build_rate, settings...) can be left out of the check
 # because every input file is compared by content: a change there that alters a stage changes its inputs. Opt-in
