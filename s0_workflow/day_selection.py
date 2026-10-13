@@ -20,12 +20,15 @@ standardised), plus the days with the most top-1% load hours and the most bottom
 PowerGenome's peak-load day is appended at its usual weight. Weights: an LP (w_d >= w_min, total
 365 days) minimising sum |error| / tolerance subject to the hard tolerances and tail bands; if
 infeasible, tolerances are relaxed (relax.factor, at most relax.max_steps times) and the factor is
-recorded; if still infeasible it raises and no case is written.
+recorded; if still infeasible, medoids are swapped for other members of their own clusters (CHANGES §240,
+_swap_representatives; the same targets, tails and tolerance schedule), and if that fails too it raises and no case
+is written.
 Diagnostics in <case>/<diag_dir>/<model year>/: fi_target_errors.csv, fi_tail_shares.csv,
 fi_netload_error_by_fleet.csv, fi_days_selected.csv, fi_info.json. When the weights LP stays infeasible, before
 raising: fi_elastic_slack.csv (the LP with elastic slack per constraint family, all together and each alone),
 fi_target_range.csv, fi_cluster_profile_stats.csv and fi_failed_lp.npz (for scripts/diagnose_day_weights.py;
-CHANGES §139). Offshore wind is in neither the targets nor the tails.
+CHANGES §139), and fi_candidate_swaps.csv when a swap makes it feasible. Offshore wind is in neither the targets
+nor the tails.
 """
 from __future__ import annotations
 
@@ -269,13 +272,28 @@ def select_days(resource_profiles: pd.DataFrame, load_profiles: pd.DataFrame, ge
             break
         if attempt < steps:
             relax *= factor
+    swaps = []
     if res.status != 0:
         tl = [(nm, 100 * hrs[sel] / (365 * 24), 100 * hrs[peak] * w_peak / (365 * 24), lo, hi)
               for nm, hrs, lo, hi in tails]
         why = diagnose_infeasible(diag_dir, P, gens, A, b, t, names, tl, 365.0 - w_peak, float(ts["w_min"]), relax,
                                   [f"p{d_ + 1}" for d_ in sel])
-        raise RuntimeError(f"fleet-independent day weights LP infeasible even with tolerances x{relax:.2f}: "
-                           f"{res.message}\n{why}")
+        # §240: before giving up, try other members of the k-means clusters as their representatives (same
+        # targets, tails and tolerance schedule); only reached when the medoids fail, so feasible selections are
+        # unchanged
+        found = _swap_representatives(sel, med, set(top_days) | set(low_days), km, feat, peak, include_peak_day, names,
+                                      S, day, b, t, tails, w_peak, float(ts["w_min"]), factor, steps, ts)
+        if found is None:
+            raise RuntimeError(f"fleet-independent day weights LP infeasible even with tolerances x{relax:.2f}, "
+                               f"and no swap of cluster representatives helps: {res.message}\n{why}")
+        sel, relax, res, swaps = found
+        Sn = len(sel)
+        import logging
+        logging.getLogger(__name__).warning(
+            "fleet-independent day selection: the k-means medoids give no feasible weights at tolerances x%.2f; "
+            "%d cluster representative(s) swapped, feasible at x%.3f (fi_candidate_swaps.csv; the medoids' "
+            "diagnosis is in fi_elastic_slack.csv)", factor ** steps, len(swaps), relax)
+        pd.DataFrame(swaps).to_csv(diag_dir / SWAPS_CSV, index=False)
     w = res.x[:Sn]
     days_all = sel + ([peak] if include_peak_day else [])
     w_all = np.concatenate([w, [w_peak]]) if include_peak_day else w
@@ -295,7 +313,9 @@ def select_days(resource_profiles: pd.DataFrame, load_profiles: pd.DataFrame, ge
             nle.append({"fleet": Path(str(f)).name, "transreg": r, "full mean GW": s_.mean() / 1e3,
                         "sample mean GW": wmean(s_) / 1e3, "error GW": (wmean(s_) - s_.mean()) / 1e3})
     pd.DataFrame(nle).to_csv(diag_dir / "fi_netload_error_by_fleet.csv", index=False)
-    roles = ["top load" if x in top_days else ("low net load" if x in low_days else "medoid") for x in sel]
+    swapped = {x["to day"] for x in swaps}
+    roles = ["top load" if x in top_days else ("low net load" if x in low_days else
+             ("cluster member (swapped for the medoid)" if x + 1 in swapped else "medoid")) for x in sel]
     pd.DataFrame({"slot": [f"p{x + 1}" for x in days_all], "weight_days_per_yr": w_all,
                   "role": roles + (["peak load (PG convention)"] if include_peak_day else []),
                   "top-1% load hours": top_h[days_all],
@@ -303,7 +323,9 @@ def select_days(resource_profiles: pd.DataFrame, load_profiles: pd.DataFrame, ge
                  ).to_csv(diag_dir / "fi_days_selected.csv", index=False)
     json.dump({"settings": {k: v for k, v in ts.items() if k != "low_net_load_fleets"},
                "fleets": [str(f) for f in fleets] or ["stylised"], "relax_factor": relax, "n_selected": Sn,
-               "lp_objective": float(res.fun), "record_days": D}, open(diag_dir / "fi_info.json", "w"), indent=1)
+               "lp_objective": float(res.fun), "record_days": D,
+               **({"candidate_swaps": [f"p{x['from day']}->p{x['to day']}" for x in swaps]} if swaps else {})},
+              open(diag_dir / "fi_info.json", "w"), indent=1)
     hrs = np.concatenate([np.arange(x * 24, x * 24 + 24) for x in days_all])
     load_df = L.iloc[hrs].reset_index(drop=True)
     res_df = R.iloc[hrs].reset_index(drop=True)
@@ -321,6 +343,8 @@ def select_days(resource_profiles: pd.DataFrame, load_profiles: pd.DataFrame, ge
 FAMILIES = ("target", "tail", "w_min", "weight_sum")
 LP_DUMP, SLACK_CSV, RANGE_CSV, CLUSTER_CSV = ("fi_failed_lp.npz", "fi_elastic_slack.csv", "fi_target_range.csv",
                                               "fi_cluster_profile_stats.csv")
+SWAPS_CSV = "fi_candidate_swaps.csv"
+SWAP_ALTERNATES, SWAP_MAX = 10, 3
 
 
 def elastic_lp(A, b, t, tails, total, w_min, relax, families=FAMILIES):
@@ -364,8 +388,70 @@ def elastic_lp(A, b, t, tails, total, w_min, relax, families=FAMILIES):
         return res.status, None, res.message
     x = res.x
     parts = {"w": x[blk(0, n)], "s_hi": x[blk(1, T)], "s_lo": x[blk(2, T)], "u_hi": x[blk(3, K)],
-             "u_lo": x[blk(4, K)], "v": x[blk(5, n)], "q": x[blk(6, 2)]}
+             "u_lo": x[blk(4, K)], "v": x[blk(5, n)], "q": x[blk(6, 2)], "objective": float(res.fun)}
     return 0, parts, res.message
+
+
+def _swap_representatives(sel, med, keep, km, feat, peak, include_peak_day, names, S, day, b, t, tails, w_peak, w_min,
+                          factor, steps, ts):
+    """When the medoids give no feasible weights (CHANGES §240). A k-means medoid is one member of its cluster, and
+    the members nearest its centre are the closest alternatives to it. For each relaxation step of the usual schedule
+    (x1, x factor, ..., x factor^steps), greedily swap medoids for other members of their own cluster (the
+    `swap_alternates` members nearest its centre, default 10), at most `swap_max` swaps (default 3): a swap that
+    makes the LP feasible ends the search (the one with the lowest weights-LP objective); otherwise the swap that
+    most reduces the elastic slack (elastic_lp, every family) is kept and the search goes on. The top-load and
+    low-net-load days (`keep`, also when a medoid is one) and the peak day are never swapped or swapped in;
+    targets, tails, w_min and tolerances are unchanged. Returns (sel, relax, res, swaps) or None."""
+    m = int(ts.get("swap_alternates", SWAP_ALTERNATES))
+    max_swaps = int(ts.get("swap_max", SWAP_MAX))
+    total = 365.0 - w_peak
+    tails_of = lambda sel_: [(nm, 100 * hrs[sel_] / (365 * 24), 100 * hrs[peak] * w_peak / (365 * 24), lo, hi)
+                             for nm, hrs, lo, hi in tails]
+    A_of = lambda sel_: np.array([day(S[n])[sel_].mean(axis=1) for n in names]) / 365.0
+    slots = {}                                              # position in sel -> (cluster, members by distance)
+    for k, d_ in enumerate(med):
+        if d_ not in sel or d_ in keep:
+            continue
+        idx = np.where(km.labels_ == k)[0]
+        dist = ((feat[idx] - km.cluster_centers_[k]) ** 2).sum(axis=1)
+        order = [int(i) for i in idx[np.argsort(dist, kind="stable")] if int(i) != d_]
+        slots[sel.index(d_)] = (k, d_, order)
+
+    def score(sel_, r):
+        st, x, _ = elastic_lp(A_of(sel_), b, t, tails_of(sel_), total, w_min, r)
+        return x["objective"] if st == 0 else np.inf
+
+    for step in range(steps + 1):
+        r = factor ** step
+        cur, done = list(sel), []
+        base = score(cur, r)
+        for _ in range(max_swaps):
+            best, feas = None, None
+            for pos, (k, d0, order) in slots.items():
+                alts = [a for a in order if a not in cur and a not in keep and not (include_peak_day and a == peak)][:m]
+                for rank, a in enumerate(alts):
+                    trial = list(cur)
+                    trial[pos] = a
+                    sc = score(trial, r)
+                    if sc <= 1e-9:
+                        tl = [x[1:] for x in tails_of(trial)]
+                        res = _weights_lp(A_of(trial), b, t, tl, total, w_min, r)
+                        if res.status == 0 and (feas is None or res.fun < feas[0] - 1e-12):
+                            feas = (res.fun, trial, res, (pos, k, cur[pos], a, rank))
+                    elif best is None or sc < best[0] - 1e-12:
+                        best = (sc, trial, (pos, k, cur[pos], a, rank))
+            if feas is not None:
+                _, trial, res, (pos, k, d_from, a, rank) = feas
+                done.append((k, d_from, a, rank, 0.0))
+                return trial, r, res, [{"relax step": step, "tolerance factor": r, "cluster": k_, "from day": d1 + 1,
+                                        "to day": d2 + 1, "alternate rank": rk + 1,
+                                        "elastic slack after": sc_} for k_, d1, d2, rk, sc_ in done]
+            if best is None or best[0] >= base - 1e-9:
+                break
+            base, cur = best[0], best[1]
+            pos, k, d_from, a, rank = best[2]
+            done.append((k, d_from, a, rank, base))
+    return None
 
 
 def slack_table(A, b, t, names, tails, total, w_min, relax, slots, tol_eps=1e-7) -> pd.DataFrame:
@@ -424,7 +510,8 @@ def target_range(A, b, t, names, total, relax) -> pd.DataFrame:
 
 def cluster_stats(P: dict, gens) -> pd.DataFrame:
     """Per wind/solar cluster: kind, region, mean, min, max, std, share of zero hours. Flags degenerate profiles
-    (constant, mean near zero, outside [0, 1]); only onwind and solar enter the targets."""
+    (constant, mean near zero, outside [0, 1] by more than 1e-4: rounding excess such as 1.000015 is not flagged);
+    only onwind and solar enter the targets."""
     if gens is None:
         return pd.DataFrame()
     R = P["R"]
@@ -439,8 +526,8 @@ def cluster_stats(P: dict, gens) -> pd.DataFrame:
         rows.append({"Resource": r_["Resource"], "technology": r_["technology"], "region": r_["region"],
                      "kind": r_["kind"], "in targets": r_["kind"] in ("onwind", "solar"), "mean": x.mean(),
                      "min": x.min(), "max": x.max(), "std": x.std(), "share of zero hours": float((x == 0).mean()),
-                     "degenerate": bool(x.max() - x.min() <= 1e-9 or abs(x.mean()) < 1e-6 or x.max() > 1 + 1e-6
-                                        or x.min() < -1e-6)})
+                     "degenerate": bool(x.max() - x.min() <= 1e-9 or abs(x.mean()) < 1e-6 or x.max() > 1 + 1e-4
+                                        or x.min() < -1e-4)})
     return pd.DataFrame(rows)
 
 

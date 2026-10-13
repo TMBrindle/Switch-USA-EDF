@@ -5328,3 +5328,100 @@ step.
 - Nothing a feasible build writes changes, so the flags-off certification (F3) holds.
 - `s0_workflow/` is reuse code, so a build at this commit and one at 0c9d9f7 differ in their code hash. Use
   `--code-check model` if both are mixed.
+
+## 240. S0 v3.2: 2028 Day Selection Fixed by Swapping Cluster Representatives; READY Files Re-Issued
+
+**Date:** 2026-10-13. **Branch:** `tom/s0-v3.2`. **Numbering:** the S0 line's block §113–139 is used up; this line
+continues at §240–259.
+
+### The cause (the VM's probes and the §139 diagnosis, 2028 only)
+
+| Probe (at 0c9d9f7) | Cluster cache | Result |
+|---|---|---|
+| A: as built | v3.2 | infeasible at ×2.25 |
+| B: offshore split off | cold | infeasible at ×2.25 |
+| C: PV repair off | cold | feasible |
+
+- **The PV repair causes it, indirectly.** C reclustered from an empty cache and passed, so the cold cache alone isn't
+  the cause; B rules out the split.
+- **What fails is FRCC's onshore-wind target, not a solar one** (`fi_elastic_slack.csv`): it needs tolerance ×2.515
+  against ×2.25. The tail and minimum-weight families can't absorb it.
+- **It is a joint conflict:** every target, FRCC wind included (0.267 against a reachable 0.043–0.506), can be
+  reached alone (`fi_target_range.csv`).
+- **The mechanism:** the repair changes the solar shapes that feed k-means. So the candidate days change, and the 49
+  targets no longer fit together on the new medoids.
+- **No degenerate fleet:** no profile is constant, near zero, NaN or all-zero (`fi_cluster_profile_stats.csv`). The 12
+  utility-PV clusters flagged there peak at 1.000001–1.000015, a rounding excess. The same 65 profiles reach the top of
+  the range with the repair off, and C passed. The flag now ignores an excess under 1e-4.
+- **Not floating_1 and not `cf_fidelity`:** neither enters the selection (§139).
+
+### The fix (`s0_workflow/day_selection.py`, `_swap_representatives`)
+
+**When it applies:** only after the medoids fail at every relaxation step, where the build used to stop. A selection
+that succeeds on its medoids never reaches it.
+
+**What it does:**
+- A k-means medoid is one member of its cluster, and the members nearest its centre are its closest alternatives.
+- For each step of the usual schedule (×1, ×1.5, ×2.25), it swaps medoids, one at a time, for one of the 10 members of
+  their own cluster nearest its centre, at most 3 swaps in all.
+- If some swap makes the weights LP feasible, the search ends with the feasible set that has the lowest weights-LP
+  objective. Otherwise it keeps the swap that most reduces the elastic slack (§139) and goes on.
+- The first step at which it succeeds is the one used, so the reported `relax_factor` is the tightest that works.
+
+**What it never changes:**
+- the targets (all 49 are kept);
+- the tails and their bands;
+- `w_min`;
+- the tolerances and the relaxation schedule;
+- the top-load, low-net-load and peak days (never swapped out or in).
+
+**Why this rather than an exclusion or a merge:**
+- FRCC wind isn't degenerate. Dropping its target would drop a fleet the model builds, and a tolerance of ×2.515 is a
+  loosening.
+- The medoid is a convention of k-means, not a requirement of the selection. Another member of the same cluster
+  represents that cluster's days.
+
+**What it writes:**
+- `fi_candidate_swaps.csv` (relaxation step, tolerance factor, cluster, from day, to day, alternate rank, elastic
+  slack after);
+- `candidate_swaps` in `fi_info.json`;
+- the role `cluster member (swapped for the medoid)` in `fi_days_selected.csv`;
+- a console warning;
+- the medoids' diagnosis (§139) is still written.
+
+**If no swap helps,** the build stops as before, with the §139 diagnosis.
+
+**Cost:** up to about 6 s per year on a 24-day, 35-target fixture when every swap fails. The swap runs only in a year
+whose medoids fail.
+
+### Flags-off results unchanged (F3)
+
+- Nothing changes for a selection whose medoids are feasible. No setting is added to `ts`, so `fi_info.json` is unchanged
+  too.
+- **Checked against F3's code** (0c9d9f7's `day_selection.py`) on 12 synthetic records that pass on their medoids.
+  Every output was byte-identical: the selected days, weights, profiles and all five `fi_*` files.
+- F1–F3 passed day selection on their medoids, so their builds are unchanged.
+
+### Test (`test_day_selection_swap.py`): the VM's case, reproduced on a synthetic record
+
+The record has eleven transregs, giving 35 targets for 15 weighted days.
+- **"Unrepaired":** solar is zeroed on 8% of days in three western regions. It passes on its medoids, with no swaps and
+  no diagnosis.
+- **"Repaired" (filled):** with swaps off (`swap_max: 0`), it stops as on the VM. The only slack is one regional wind
+  target (below), every target is reachable alone, and neither tails nor `w_min` can absorb it.
+- **"Repaired", with the fix:**
+  - feasible after at most 3 swaps;
+  - every target kept and within tolerance, base tolerances unchanged;
+  - tail bands met and weights at least `w_min`;
+  - the tail and peak days untouched;
+  - deterministic.
+- **Every swap stays in its own k-means cluster.**
+
+### READY files re-issued
+
+`READY_S0_V32` and `READY_SCENARIOS` are written in the next commit. Both name the commit with this fix.
+
+**Card change:** `s0_v32.md`, pre-solve check 12, expects the swap warning in 2028 and asks for the swaps and
+`relax_factor` per stage.
+
+**SHARED_CHANGES:** no row. Only `s0_workflow/` changes; row 133 stays free.
