@@ -100,7 +100,8 @@ def fingerprint(s0: dict) -> dict | None:
         out["pv_profile_repair"] = {"profiles_dir": str(pv["profiles_dir"]), "output_sha256": pv.get("output_sha256")}
     off = p.offshore_fix_settings(s0)
     if off["mode"] != "off":
-        mf = p._repo_path(off["resource_groups_dir"]) / "offshore_split_manifest.json"
+        from s0_workflow import offshore_groups as og
+        mf = og.meta_dir(p._repo_path(off["resource_groups_dir"])) / og.MANIFEST
         out["offshore_filter_fix"] = {"resource_groups_dir": str(off["resource_groups_dir"]),
                                       "manifest_sha256": hashlib.sha256(mf.read_bytes()).hexdigest()
                                       if mf.exists() else None}

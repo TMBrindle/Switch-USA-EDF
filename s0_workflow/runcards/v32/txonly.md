@@ -27,10 +27,9 @@ python s0_workflow/scripts/reuse_chain_stages.py reuse switch/in/txonly_v32/scen
 ```
 - **Reuse:** if the dry run agrees, run it again without `--dry-run`. Then run `run_chain_A.py` on the printed
   `scenarios_BILL_central_txonly.from_<stage>.txt`, and `record` the case's scenarios file.
-- **Code check:** add `--code-check model` to both `reuse` commands (required). This card's commit (`READY_SCENARIOS`)
-  is later than S0 v3.2's (`READY_S0_V32`, a4de740). The commits in between change `pg/settings/scenario_management.yml`
-  (S1–S3's storage credit) and `s0_workflow/` (reuse comparator, credit report), which the default check counts as
-  code. Inputs are compared by content either way.
+- **Code check:** keep `--code-check model` on both `reuse` commands. This card's commit (`READY_SCENARIOS`) is the
+  same as S0 v3.2's (`READY_S0_V32`), so either check passes. If S0 v3.2 was solved at another commit, the flag
+  limits the check to the Switch model code, and the inputs are compared by content either way.
 
 | | |
 |---|---|

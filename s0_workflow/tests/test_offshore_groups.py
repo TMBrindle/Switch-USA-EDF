@@ -59,7 +59,7 @@ def test_split_folder_by_turbine_and_pref_site(tmp_path):
         assert len(pd.read_csv(out / "cpas" / j["metadata"])) == x["cpas"]
     assert not (out / "cpas" / "osw_group.json").exists()                     # the all-CPA group is gone
     assert (out / "cpas" / "solar_group.json").read_text() == (g / "cpas" / "solar_group.json").read_text()
-    tr = pd.read_csv(out / "offshore_true_resource_by_zone.csv").groupby("zone").mw.sum()
+    tr = pd.read_csv(og.meta_dir(out) / og.TRUE_RES).groupby("zone").mw.sum()
     assert tr.to_dict() == {"p1": 100 + 200 + 300 + 50, "p8": 10 + 20 + 30}       # LCOE <= 125 (CPA 3 at 130 out)
     assert man["true_resource_mw"] == 710 and og.check_folder(out)["method"] == "split_groups"
     assert (g / "cpas" / "osw_group.json").exists()                          # the source is untouched
@@ -71,7 +71,7 @@ def test_build_flag_and_case_check(tmp_path):
     og.split_folder(g, out, "cpas/osw_group.json", depth_col="depth_m", pref_col="pref", log=lambda m: None)
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
     assert s0["offshore_filter_fix"]["mode"] == "split_groups"              # v3.2 ON (§129)
-    assert s0["offshore_filter_fix"]["resource_groups_dir"] == "pg_data/resource_groups/ReEDS-cpas-patched-offshore-split"
+    assert s0["offshore_filter_fix"]["resource_groups_dir"] == "pg_data/resource_groups_v32"      # §137: beside, not inside
     assert s0prod.offshore_fix_settings({})["mode"] == "off"               # the code default: v3.1
     s = {"RESOURCE_GROUPS": str(g)}
     s0prod.apply_offshore_filter_fix(s, {"offshore_filter_fix": {"mode": "off"}})
@@ -159,7 +159,7 @@ def test_type_files_split_keeps_patched_rows_and_resolves(tmp_path):
     assert flt.at[6, "ipm_region"] == "p2"                                  # the patched zone, not the type file's
     grp = {g_["json"]: g_ for g_ in man["groups"]}
     assert grp["offshorewind_floating_false.json"]["zone_differs_from_shared"] == 1
-    tr = pd.read_csv(out / "offshore_true_resource_by_zone.csv")
+    tr = pd.read_csv(og.meta_dir(out) / og.TRUE_RES)
     assert tr.mw.sum() == pytest.approx(meta[meta.lcoe <= 125].mw.sum())      # the types add up to the whole
     assert og.check_references(out) == [] and og.check_folder(out)["method"] == "type_files"
     assert json.loads((g / "offshorewind_fixed_true.json").read_text())["metadata"] == "offshorewind_lcoe_ReEDS.csv"
@@ -185,7 +185,7 @@ def test_broken_reference_fails_the_folder_check(tmp_path):
     og.split_by_type_files(g, out, mapping, log=lambda m: None)
     (out / "offshorewind_lcoe_ReEDS__offshorewind_fixed_true.csv").unlink()
     bad = og.check_references(out)
-    assert bad == [{"json": "offshorewind_fixed_true.json",
+    assert bad == [{"json": "offshorewind_fixed_true.json", "key": "metadata",
                     "missing": "offshorewind_lcoe_ReEDS__offshorewind_fixed_true.csv"}]
     with pytest.raises(ValueError, match="reference missing files"):
         og.check_folder(out)
@@ -219,3 +219,63 @@ def test_cli_survey_and_map(tmp_path, capsys):
     for k, v in mapping.items():
         args += ["--map", f"{k}={v}"]
     assert cli.main(args) == 0 and og.check_references(tmp_path / "s") == []
+
+
+# ---- §137: incident fixes (never write into a scanned root; manifest beside; references as PowerGenome resolves them;
+# the fourth cluster entry) ---------------------------------------------------------------------------------------
+
+def test_output_inside_a_scanned_root_is_refused(tmp_path, monkeypatch):
+    g, _, mapping = _rg_layout(tmp_path)
+    with pytest.raises(ValueError, match="overlaps the shared root"):            # the incident: inside RESOURCE_GROUPS
+        og.split_by_type_files(g, g / "ReEDS-cpas-patched-offshore-split", mapping, log=lambda m: None)
+    other = tmp_path / "pg_data" / "resource_groups"
+    other.mkdir(parents=True)
+    with pytest.raises(ValueError, match="overlaps the shared root"):            # inside another build's root
+        og.split_by_type_files(g, other / "x", mapping, log=lambda m: None, shared_roots=[other])
+    monkeypatch.setattr(og, "env_roots", lambda settings_dir=None: {"RESOURCE_GROUPS": other.resolve()})
+    with pytest.raises(ValueError, match="overlaps the shared root"):            # env.yml's root counts by itself
+        og.split_by_type_files(g, other / "y", mapping, log=lambda m: None)
+    out = tmp_path / "pg_data" / "resource_groups_v32"                           # beside: fine
+    og.split_by_type_files(g, out, mapping, log=lambda m: None)
+    assert not list(out.rglob(og.MANIFEST)) and (og.meta_dir(out) / og.MANIFEST).exists()   # manifest outside
+    assert not [p for p in out.rglob("*.json") if "technology" not in json.loads(p.read_text())]
+
+
+def test_stray_manifest_inside_the_folder_fails(tmp_path):
+    g, _, mapping = _rg_layout(tmp_path)
+    out = tmp_path / "split"
+    og.split_by_type_files(g, out, mapping, log=lambda m: None)
+    (out / og.MANIFEST).write_text("{}")
+    with pytest.raises(ValueError, match="inside the resource-groups folder"):
+        og.check_folder(out)
+
+
+def test_references_resolve_profiles_under_the_profiles_root(tmp_path):
+    """The reV parquet profiles live in pg_data/profiles, not next to the JSONs: not a missing file when a profiles
+    root holds them; metadata must still be next to the JSON."""
+    g, _, mapping = _rg_layout(tmp_path)
+    (g / "offshore_profiles.parquet").unlink()
+    prof = tmp_path / "profiles"
+    prof.mkdir()
+    (prof / "offshore_profiles.parquet").write_bytes(b"x")
+    out = tmp_path / "split"
+    og.split_by_type_files(g, out, mapping, log=lambda m: None, profile_roots=[prof])
+    assert og.check_references(out, [prof]) == []
+    bad = og.check_references(out, [tmp_path / "elsewhere"])
+    assert {b["key"] for b in bad} == {"profiles"}
+    assert og.check_references(out) == []                                  # no profiles root: metadata only
+
+
+def test_fourth_entry_added_and_four_groups_required(tmp_path):
+    cl = [{"region": r, "technology": "offshorewind", "turbine_type": tt, "pref_site": ps, "filter": [{"feature": "lcoe",
+           "max": 125}]} for r in ("p1", "p2") for tt, ps in (("fixed", 1), ("fixed", 0), ("floating", 0))]
+    s = {"renewables_clusters": cl + [{"region": "p1", "technology": "landbasedwind"}]}
+    assert og.add_floating_pref_entries(s) == 2 and og.add_floating_pref_entries(s) == 0     # idempotent
+    new = [e for e in s["renewables_clusters"] if e.get("turbine_type") == "floating" and e["pref_site"] == 1]
+    assert {e["region"] for e in new} == {"p1", "p2"} and new[0]["filter"] == cl[2]["filter"]
+    tr = pd.DataFrame({"zone": ["p1"] * 4, "turbine_type": ["fixed", "fixed", "floating", "floating"],
+                       "pref_site": [1, 0, 0, 1], "mw": [1.0, 2.0, 3.0, 4.0]})
+    three = ["OffShoreWind_Class3_Moderate_fixed_1", "OffShoreWind_Class3_Moderate_fixed_0",
+             "OffShoreWind_Class12_Moderate_floating_0"]
+    assert og.missing_groups(three, tr) == [("floating", 1)]
+    assert og.missing_groups(three + ["OffShoreWind_Class12_Moderate_floating_1"], tr) == []

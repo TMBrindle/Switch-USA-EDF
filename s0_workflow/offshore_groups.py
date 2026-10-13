@@ -30,6 +30,44 @@ import pandas as pd
 
 MANIFEST = "offshore_split_manifest.json"
 BY_ZONE = "offshore_mw_by_zone.csv"
+TRUE_RES = "offshore_true_resource_by_zone.csv"
+REPO = Path(__file__).resolve().parents[1]
+
+
+def meta_dir(folder: Path) -> Path:
+    """§137: the manifest and true-resource table sit NEXT TO the split folder (<folder>__meta), never inside it: the
+    split folder becomes RESOURCE_GROUPS, and PowerGenome loads every **/*.json under that."""
+    folder = Path(folder)
+    return folder.parent / f"{folder.name}__meta"
+
+
+def env_roots(settings_dir: Path | None = None) -> dict:
+    """RESOURCE_GROUPS / RESOURCE_GROUP_PROFILES from pg/settings/env.yml (per worktree, not in git), resolved."""
+    import yaml
+    f = Path(settings_dir or REPO / "pg/settings") / "env.yml"
+    if not f.exists():
+        return {}
+    e = yaml.safe_load(open(f)) or {}
+    out = {}
+    for k in ("RESOURCE_GROUPS", "RESOURCE_GROUP_PROFILES"):
+        if e.get(k):
+            p = Path(str(e[k]))
+            out[k] = (p if p.is_absolute() else REPO / p).resolve()
+    return out
+
+
+def _inside(a: Path, b: Path) -> bool:
+    a, b = Path(a).resolve(), Path(b).resolve()
+    return a == b or b in a.parents
+
+
+def guard_output(out_dir: Path, shared_roots) -> None:
+    """§137 (incident 13 Oct): refuse to write into, or around, any root another build scans. out_dir must not be
+    inside (or equal to) a shared root, and no shared root may sit inside out_dir."""
+    for r in [Path(x) for x in shared_roots if x]:
+        if _inside(out_dir, r) or _inside(r, out_dir):
+            raise ValueError(f"offshore split: output {out_dir} overlaps the shared root {r} (RESOURCE_GROUPS / "
+                             f"profiles of other builds scan it). Write the copy beside it, e.g. pg_data/resource_groups_v32")
 
 
 def _col(df: pd.DataFrame, name: str | None, what: str) -> str | None:
@@ -74,8 +112,7 @@ def split_folder(groups_dir: Path, out_dir: Path, group_json: str, turbine_col=N
                  lcoe_max=125.0, link_others=True, log=print) -> dict:
     """Write out_dir: groups_dir with the offshore group (group_json, relative) split by (turbine_type, pref_site)."""
     groups_dir, out_dir = Path(groups_dir), Path(out_dir)
-    if out_dir.resolve() == groups_dir.resolve():
-        raise ValueError("out_dir must differ from the resource groups folder (the source is never changed)")
+    guard_output(out_dir, [groups_dir, *[r for r in env_roots().values() if Path(r).resolve() != out_dir.resolve()]])
     src_json = groups_dir / group_json
     g = json.loads(src_json.read_text())
     meta_path = src_json.parent / g["metadata"]
@@ -115,29 +152,34 @@ def split_folder(groups_dir: Path, out_dir: Path, group_json: str, turbine_col=N
                        "cpas": int(len(part)), "mw_all": float(part[mc].sum())})
     tr = true_resource(cls.rename(columns={rc: "ipm_region", mc: "mw", lc: "lcoe"}), lcoe_max=lcoe_max)
     total = true_resource(cls.rename(columns={rc: "ipm_region", mc: "mw", lc: "lcoe"}), lcoe_max=lcoe_max, by=())
-    tr.to_csv(out_dir / "offshore_true_resource_by_zone.csv", index=False)
+    md = meta_dir(out_dir)
+    md.mkdir(parents=True, exist_ok=True)
+    tr.to_csv(md / TRUE_RES, index=False)
     sums = tr.groupby("zone").mw.sum()
     assert (abs(sums - total.set_index("zone").mw) < 1e-6).all()                # the split adds up to the whole
     man = {"method": "split_groups", "source_json": group_json, "groups": groups, "lcoe_max": float(lcoe_max),
            "turbine_basis": turbine_col or f"{depth_col} > {floating_depth_m} m", "pref_col": pref_col,
            "zones": int(total.shape[0]), "true_resource_mw": float(total.mw.sum()),
            "files_linked": linked, "files_copied": copied}
-    (out_dir / MANIFEST).write_text(json.dumps(man, indent=2))
+    (md / MANIFEST).write_text(json.dumps(man, indent=2))
     names = ", ".join(f"{x['turbine_type']}/{x['pref_site']}" for x in groups)
     log(f"offshore split: {len(groups)} groups ({names}); "
         f"true resource {man['true_resource_mw'] / 1e3:,.1f} GW in {man['zones']} zones at LCOE <= {lcoe_max}")
     return man
 
 
-def check_folder(folder: Path) -> dict:
-    mf = Path(folder) / MANIFEST
+def check_folder(folder: Path, profile_roots=()) -> dict:
+    stray = Path(folder) / MANIFEST
+    if stray.exists():                                    # §137: PowerGenome would load it as a resource group
+        raise ValueError(f"offshore_filter_fix: {stray} is inside the resource-groups folder; move it to {meta_dir(folder)}")
+    mf = meta_dir(folder) / MANIFEST
     if not mf.exists():
         raise ValueError(f"offshore_filter_fix: {mf} not found; run s0_workflow/scripts/split_offshore_groups.py first")
     man = json.loads(mf.read_text())
     for gr in man["groups"]:
         if not (Path(folder) / gr["json"]).exists():
             raise ValueError(f"offshore_filter_fix: {gr['json']} missing from {folder}")
-    broken = check_references(folder)                     # §134: every JSON PowerGenome will load must resolve
+    broken = check_references(folder, profile_roots)     # §134/§137: every JSON PowerGenome will load must resolve
     if broken:
         raise ValueError(f"offshore_filter_fix: {len(broken)} JSONs in {folder} reference missing files: {broken[:5]}")
     return man
@@ -203,9 +245,12 @@ def json_refs(j: dict) -> list[str]:
     return [v for v in j.values() if isinstance(v, str) and v.lower().endswith(DATA_EXT)]
 
 
-def check_references(folder: Path) -> list[dict]:
-    """Every JSON under folder (PowerGenome loads **/*.json): each referenced file must exist next to it. Returns the
-    broken references ([] = pass)."""
+def check_references(folder: Path, profile_roots=()) -> list[dict]:
+    """Every JSON under folder (PowerGenome loads **/*.json). §137, resolved as PowerGenome does: `metadata` next to the
+    JSON (in RESOURCE_GROUPS); any other data file (profiles, site maps) next to the JSON or in a profiles root
+    (RESOURCE_GROUP_PROFILES: the reV profiles live in pg_data/profiles). Without profile_roots only `metadata` is
+    checked. Returns the broken references ([] = pass)."""
+    roots = [Path(r) for r in profile_roots if r]
     bad = []
     for p in sorted(Path(folder).rglob("*.json")):
         if p.name == MANIFEST:
@@ -216,9 +261,14 @@ def check_references(folder: Path) -> list[dict]:
             continue
         if not isinstance(j, dict):
             continue
-        for ref in json_refs(j):
-            if not (p.parent / ref).exists():
-                bad.append({"json": str(p.relative_to(folder)), "missing": ref})
+        for key, ref in j.items():
+            if not (isinstance(ref, str) and ref.lower().endswith(DATA_EXT)):
+                continue
+            if (p.parent / ref).exists():
+                continue
+            if key != "metadata" and (not roots or any((r / ref).exists() for r in roots)):
+                continue
+            bad.append({"json": str(p.relative_to(folder)), "key": key, "missing": ref})
     return bad
 
 
@@ -251,14 +301,17 @@ def survey(groups_dir: Path, shared: str | None = None) -> pd.DataFrame:
 
 
 def split_by_type_files(groups_dir: Path, out_dir: Path, mapping: dict, id_col="CPA_ID", region_col="ipm_region",
-                        mw_col="mw", lcoe_col="lcoe", lcoe_max=125.0, link_others=True, log=print) -> dict:
+                        mw_col="mw", lcoe_col="lcoe", lcoe_max=125.0, link_others=True, log=print,
+                        shared_roots=(), profile_roots=()) -> dict:
     """out_dir = groups_dir with each JSON in `mapping` ({json: per-type membership file}, paths relative to groups_dir)
     pointed at a new metadata file: the rows of its shared metadata file whose id is in the membership file. Stops unless
     the membership files partition the shared file exactly (every id once), every JSON using the shared file is mapped,
     and every JSON in out_dir references files that exist."""
     groups_dir, out_dir = Path(groups_dir), Path(out_dir)
-    if out_dir.resolve() == groups_dir.resolve():
-        raise ValueError("out_dir must differ from the resource groups folder (the source is never changed)")
+    env = env_roots()
+    guard_output(out_dir, [groups_dir, *[r for r in env.values() if Path(r).resolve() != out_dir.resolve()],
+                           *shared_roots])                                  # §137: never into a scanned root
+    profile_roots = list(profile_roots) or ([env["RESOURCE_GROUP_PROFILES"]] if "RESOURCE_GROUP_PROFILES" in env else [])
     js = {k: json.loads((groups_dir / k).read_text()) for k in mapping}
     shared = {j["metadata"] for j in js.values()}
     if len(shared) != 1:
@@ -336,15 +389,18 @@ def split_by_type_files(groups_dir: Path, out_dir: Path, mapping: dict, id_col="
         groups.append({"json": k, "metadata": name, "turbine_type": tt, "pref_site": ps, "cpas": int(len(part)),
                        "mw_all": float(part[mc].sum()), "mw_at_lcoe_max": float(f[mc].sum()), **check[k]})
     trd = pd.DataFrame(tr, columns=["zone", "turbine_type", "pref_site", "mw"])
-    trd.to_csv(out_dir / "offshore_true_resource_by_zone.csv", index=False)
+    md = meta_dir(out_dir)
+    md.mkdir(parents=True, exist_ok=True)
+    trd.to_csv(md / TRUE_RES, index=False)
     whole = meta[pd.to_numeric(meta[lc], errors="coerce") <= float(lcoe_max)]
     assert abs(trd.mw.sum() - whole[mc].sum()) < 1e-6 * max(1.0, whole[mc].sum())   # the types add up to the whole
-    broken = check_references(out_dir)
+    broken = check_references(out_dir, profile_roots)
     man = {"method": "type_files", "shared_metadata": shared, "groups": groups, "lcoe_max": float(lcoe_max),
            "id_col": ic, "zones": int(whole[rc].nunique()), "true_resource_mw": float(whole[mc].sum()),
            "partition": {"shared_rows": int(len(meta)), "membership_rows": int(len(seen)), "exact": True},
-           "broken_references": broken, "files_linked": linked, "files_copied": copied}
-    (out_dir / MANIFEST).write_text(json.dumps(man, indent=2))
+           "broken_references": broken, "profile_roots": [str(r) for r in profile_roots],
+           "files_linked": linked, "files_copied": copied}
+    (md / MANIFEST).write_text(json.dumps(man, indent=2))
     if broken:
         raise ValueError(f"offshore split: {len(broken)} JSON references to missing files in {out_dir}: {broken[:5]}")
     log("offshore split (type files): " + "; ".join(
@@ -352,3 +408,37 @@ def split_by_type_files(groups_dir: Path, out_dir: Path, mapping: dict, id_col="
         f"{lcoe_max:g}" for g in groups) + f"; whole {man['true_resource_mw'] / 1e3:,.1f} GW in {man['zones']} zones; "
         f"partition exact ({len(meta):,} CPAs); no broken references")
     return man
+
+
+
+# ---- §137: the fourth cluster entry (floating, preferred sites) -------------------------------------------------------
+
+def add_floating_pref_entries(s: dict) -> int:
+    """With the split, each offshore cluster entry takes one group, so floating/pref-site=1 (147.8 GW at LCOE <= 125 on
+    the VM) needs its own entry or it is not offered. For every offshorewind entry with turbine_type floating and
+    pref_site 0 (load_settings has expanded region: all per region), add the same entry with pref_site 1 unless one
+    exists. Returns the number added."""
+    cl = s.get("renewables_clusters") or []
+    have = {(e.get("region"), str(e.get("technology")).lower(), str(e.get("turbine_type")), _pref(e.get("pref_site")))
+            for e in cl if isinstance(e, dict)}
+    add = []
+    for e in cl:
+        if not isinstance(e, dict) or str(e.get("technology")).lower() != "offshorewind":
+            continue
+        if str(e.get("turbine_type")) == "floating" and _pref(e.get("pref_site")) == 0:
+            k = (e.get("region"), "offshorewind", "floating", 1)
+            if k not in have:
+                have.add(k)
+                add.append({**e, "pref_site": 1})
+    if add:
+        s["renewables_clusters"] = list(cl) + add
+    return len(add)
+
+
+def missing_groups(case_techs, true_by_zone: pd.DataFrame) -> list:
+    """Groups with resource in the true-resource table that no offshore technology of the case comes from (§137: all
+    four must be offered)."""
+    req = case_groups(case_techs) or set()
+    t = true_by_zone[true_by_zone.mw > 0]
+    have = set(zip(t.turbine_type.astype(str).str.lower(), t.pref_site.map(_pref)))
+    return sorted(have - req)

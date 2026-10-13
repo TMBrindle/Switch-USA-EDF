@@ -76,10 +76,10 @@ def offshore_split_default_folder(monkeypatch):
     default = (repo / d).resolve()
     real = og.check_folder
 
-    def check_folder(folder):
-        if Path(folder).resolve() == default and not (default / og.MANIFEST).exists():
+    def check_folder(folder, profile_roots=()):
+        if Path(folder).resolve() == default and not (og.meta_dir(default) / og.MANIFEST).exists():
             return {"groups": [], "true_resource_mw": 0.0, "stub": "s0_workflow/tests/conftest.py"}
-        return real(folder)
+        return real(folder, profile_roots)
 
     monkeypatch.setattr(og, "check_folder", check_folder)
     yield

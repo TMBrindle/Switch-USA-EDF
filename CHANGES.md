@@ -5163,3 +5163,65 @@ split (§134). The runner stops before solving if that group's GW at LCOE ≤ 12
 **4. READY_SCENARIOS:** the seven cards are final (header notes, `--code-check model` required, the credit report
 step). `READY_SCENARIOS` names the commit for each card. The S0 v3.2 card (`READY_S0_V32`, a4de740) is unchanged
 apart from the post-solve credit report step.
+
+## 137. S0 v3.2: Recipe L Incident Fixed; Reference Check as PowerGenome Resolves; Fourth Offshore Group; READY Re-Issued
+
+**Date:** 2026-10-13. **Branch:** `tom/s0-v3.2`. `READY_S0_V32` (a4de740) and `READY_SCENARIOS` (b9d677c) were
+withdrawn; this commit deletes both. They are re-issued in the next commit, at this commit.
+
+**1. Incident (recipe L, §134).**
+- **What happened:** the card had the split folder written inside the shared `pg_data\resource_groups`. That is every
+  worktree's `RESOURCE_GROUPS`, and PowerGenome loads every `**/*.json` under it. From 04:37 to about 10:40 UTC any
+  build on the shared data could have crashed on `offshore_split_manifest.json`, or counted offshore twice.
+- **The runner's containment:** the folder was moved to `ic_test_fedpol_work\recipeL_held\`; the source groups are
+  untouched.
+- **Fixes:**
+  - **A v3.2 root beside the shared one:** the split now writes a full, hard-linked copy of the `RESOURCE_GROUPS` root
+    to `pg_data/resource_groups_v32`, with the four offshore JSONs rewritten.
+    `s0_production.offshore_filter_fix.resource_groups_dir` points v3.2 S0 builds at it through the settings, so
+    only those builds see it. No `env.yml` changes; a flags-off build with a split folder as `RESOURCE_GROUPS` is
+    refused.
+  - **The manifest beside the copy:** `offshore_split_manifest.json` and `offshore_true_resource_by_zone.csv` go in
+    `<folder>__meta` (`offshore_groups.meta_dir`), outside anything PowerGenome globs. `check_folder` stops if a
+    manifest is found inside the folder.
+  - **A pre-write check** (`offshore_groups.guard_output`): the script refuses any output that overlaps `--groups-dir`,
+    `env.yml`'s `RESOURCE_GROUPS` / `RESOURCE_GROUP_PROFILES`, or any `--shared-root`. The build applies the same rule
+    to `resource_groups_dir` against the roots it scans. The card rule is in `recipe_L.md` ("RULE").
+  - **One recipe:** `VM_RECIPES.md` recipe L now points at `s0_workflow/runcards/v32/recipe_L.md`.
+
+**2. Reference-check false positive.** The reV parquet profiles live in `pg_data/profiles`
+(`RESOURCE_GROUP_PROFILES`), not next to the JSONs. `check_references` now resolves files as PowerGenome does:
+- `metadata` must sit next to its JSON;
+- other data files (profiles, site maps) may sit next to it or in a profiles root: `env.yml`'s
+  `RESOURCE_GROUP_PROFILES` in the script (`--profiles-root` to add more), and the build's own
+  `RESOURCE_GROUP_PROFILES` in the build.
+
+**3. Fourth offshore group (floating, preferred sites; 147.8 GW at LCOE ≤ 125 on the VM, against the 29.9 GW gate).**
+- **The fix:** with the split on, the build (`offshore_groups.add_floating_pref_entries`) adds a floating /
+  pref-site-1 cluster entry for every floating / pref-site-0 entry. `load_settings` has already expanded these per
+  region, and the copies keep the same filter and bins.
+- **Unchanged:** `resources.yml`, so v3.1 and flags-off builds are unaffected.
+- **The case check** requires every group with resource (all four) to be offered (`missing_groups`), and compares
+  limits zone by zone with the four groups' true resource.
+- **Tags and mandates:** the `OffShoreWind` resource tags and state mandates match the new technologies as they do the
+  other three.
+- **Retired:** the 1% gate in `s0_v32.md`. §136's v4 item ("add the fourth offshore cluster entry before any offshore
+  sensitivity") is done in v3.2 and no longer needed.
+
+**4. Storage credit in S1–S3 (Tom: option b; as §136).**
+- The card headers now read "storage credit: flat 30% to 2045 (credit restoration); S0 v3.2 uses the phase-down, so
+  S1–S0 includes the storage extension".
+- The credit report split (wind / solar / storage ITC) and S1's byte-identical 2028 inputs stand as in §136. The
+  fourth offshore entry applies to S0 v3.2 and every scenario alike.
+
+**Flags-off patch:** regenerated for the new `offshore_filter_fix` line (9 changes; it still parses to 4696653's
+settings).
+
+**Tests (`test_offshore_groups.py`):**
+- output inside a scanned root refused: the incident's path, another root, and `env.yml`'s root;
+- the manifest outside the copy;
+- a stray manifest inside the folder fails;
+- profiles resolved under the profiles root;
+- the fourth entry added, idempotently, and the four groups required.
+
+Updated: `test_build_guard.py` and `conftest.py`.

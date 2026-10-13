@@ -367,7 +367,9 @@ s0_production:
   # (s0_workflow/scripts/split_offshore_groups.py); the build stops if the limits don't sum to the true resource
   # v3.2 ON (Tom; CHANGES §129). The folder is written on the VM by split_offshore_groups.py (VM_RECIPES.md, recipe L);
   # the build stops until it exists and its manifest checks out
-  offshore_filter_fix: {mode: split_groups, resource_groups_dir: pg_data/resource_groups/ReEDS-cpas-patched-offshore-split}
+  # §137: a full copy of the RESOURCE_GROUPS root BESIDE it (never inside a root other builds scan); manifest in
+  # pg_data/resource_groups_v32__meta; the build adds the fourth cluster entry (floating, preferred sites)
+  offshore_filter_fix: {mode: split_groups, resource_groups_dir: pg_data/resource_groups_v32}
   storage_credit:
     mode: obbba
     phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}

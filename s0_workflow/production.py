@@ -720,17 +720,22 @@ def apply_offshore_filter_fix(s: dict, s0: dict, case=None, year=None) -> None:
     manifest checks out."""
     from s0_workflow import offshore_groups as og
     r = offshore_fix_settings(s0)
+    cur = s.get("RESOURCE_GROUPS")
     if r["mode"] == "off":
-        cur = s.get("RESOURCE_GROUPS")
-        if cur and (Path(cur) / og.MANIFEST).exists():
+        if cur and (og.meta_dir(cur) / og.MANIFEST).exists():
             raise ValueError(f"s0_production.offshore_filter_fix is off but RESOURCE_GROUPS ({cur}) is a split folder")
         return
     d = _repo_path(r["resource_groups_dir"])
-    man = og.check_folder(d)
+    # §137 (incident 13 Oct): the split copy must sit outside every root other builds scan (a root that IS the copy is
+    # fine: a v3.2-only env.yml may point at it)
+    og.guard_output(d, [x for x in (cur, *og.env_roots().values()) if x and Path(x).resolve() != d.resolve()])
+    prof = [x for x in (s.get("RESOURCE_GROUP_PROFILES"), og.env_roots().get("RESOURCE_GROUP_PROFILES")) if x]
+    man = og.check_folder(d, prof)
     s["RESOURCE_GROUPS"] = str(d.resolve())
-    logger.info("s0_production %s/%s: offshore groups split by turbine type and pref site (%s); true resource %.1f GW",
-                case, year, ", ".join(f"{g['turbine_type']}/{g['pref_site']}" for g in man["groups"]),
-                man["true_resource_mw"] / 1e3)
+    n = og.add_floating_pref_entries(s)                 # §137: the fourth group (floating, preferred sites)
+    logger.info("s0_production %s/%s: offshore groups split by turbine type and pref site (%s); true resource %.1f GW; "
+                "%d floating/pref-site-1 cluster entries added", case, year,
+                ", ".join(f"{g['turbine_type']}/{g['pref_site']}" for g in man["groups"]), man["true_resource_mw"] / 1e3, n)
 
 
 def write_offshore_check(folder: Path, s0: dict, log) -> None:
@@ -751,7 +756,10 @@ def write_offshore_check(folder: Path, s0: dict, log) -> None:
         log(f"offshore (v3.1): {len(z)} zones, capacity limits sum to {(z['sum'] / z['max']).median():.2f} x the largest "
             f"single offshore project per zone (3.00 = the resource offered three times); {og.BY_ZONE}")
         return
-    true = pd.read_csv(_repo_path(r["resource_groups_dir"]) / "offshore_true_resource_by_zone.csv")
+    true = pd.read_csv(og.meta_dir(_repo_path(r["resource_groups_dir"])) / og.TRUE_RES)
+    miss = og.missing_groups(by.gen_tech.unique(), true)
+    if miss:                                            # §137: all four groups offered
+        raise ValueError(f"offshore_filter_fix: groups with resource but no offshore technology in the case: {miss}")
     t = og.check_case(folder, true)
     t.merge(by.pivot_table(index="gen_load_zone", columns="gen_tech", values="mw", aggfunc="sum").reset_index()
             .rename(columns={"gen_load_zone": "zone"}), on="zone", how="left").to_csv(folder / og.BY_ZONE, index=False)
@@ -760,7 +768,7 @@ def write_offshore_check(folder: Path, s0: dict, log) -> None:
         raise ValueError(f"offshore_filter_fix: capacity limits differ from the true resource in {len(bad)} zones "
                          f"({', '.join(f'{z} x{x:.2f}' for z, x in zip(bad.zone, bad.ratio))[:300]})")
     log(f"offshore (split_groups): limits equal the true resource in {int(t.ok.sum())} zones "
-        f"({t.case_mw.sum() / 1e3:,.1f} GW); {og.BY_ZONE}")
+        f"({t.case_mw.sum() / 1e3:,.1f} GW; groups {sorted(og.case_groups(by.gen_tech.unique()) or [])}); {og.BY_ZONE}")
 
 
 def write_pv_repair_log(folder: Path, s0: dict, log) -> None:

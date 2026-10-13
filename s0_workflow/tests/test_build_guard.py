@@ -51,9 +51,11 @@ def _s0(pv=True, off=True, d=None):
 def test_cluster_cache_marker(monkeypatch, tmp_path):
     cache = tmp_path / "cluster_assignments"
     monkeypatch.setattr(bg, "cache_dir", lambda s: cache)
+    from s0_workflow import offshore_groups as og
     split = tmp_path / "split"
     split.mkdir()
-    (split / "offshore_split_manifest.json").write_text('{"groups": []}')
+    og.meta_dir(split).mkdir()
+    (og.meta_dir(split) / og.MANIFEST).write_text('{"groups": []}')
     on = _s0(d=split)
     bg.check_cluster_cache({}, on)                                  # new folder: marker written
     assert json.loads((cache / bg.MARKER).read_text())["pv_profile_repair"]["output_sha256"] == "ab" * 32
@@ -61,7 +63,7 @@ def test_cluster_cache_marker(monkeypatch, tmp_path):
     bg.check_cluster_cache({}, on)                                  # same data: fine
     with pytest.raises(ValueError, match="made by a v3.2 build"):   # flags off on a v3.2 cache
         bg.check_cluster_cache({}, _s0(pv=False, off=False))
-    (split / "offshore_split_manifest.json").write_text('{"groups": [1]}')
+    (og.meta_dir(split) / og.MANIFEST).write_text('{"groups": [1]}')
     with pytest.raises(ValueError, match="made for other data"):    # the split changed
         bg.check_cluster_cache({}, on)
     old = tmp_path / "old" / "cluster_assignments"

@@ -37,6 +37,12 @@ def main(argv=None):
     ap.add_argument("--map", action="append", default=[], metavar="JSON=CSV",
                     help="§134: a JSON (relative to --groups-dir) and its per-type membership file")
     ap.add_argument("--id-col", default="CPA_ID")
+    ap.add_argument("--shared-root", action="append", default=[], type=Path,
+                    help="§137: a root other builds scan (RESOURCE_GROUPS, profiles); the output may not overlap it. "
+                         "--groups-dir and env.yml's roots are always included")
+    ap.add_argument("--profiles-root", action="append", default=[], type=Path,
+                    help="§137: where profiles / site maps referenced by the JSONs live (default: env.yml "
+                         "RESOURCE_GROUP_PROFILES)")
     ap.add_argument("--turbine-col")
     ap.add_argument("--depth-col")
     ap.add_argument("--floating-depth-m", type=float, default=60.0)
@@ -63,7 +69,8 @@ def main(argv=None):
     if a.map:
         mapping = dict(m.split("=", 1) for m in a.map)
         og.split_by_type_files(a.groups_dir, a.out_dir, mapping, a.id_col, a.region_col, a.mw_col, a.lcoe_col,
-                               a.lcoe_max, link_others=not a.no_links)
+                               a.lcoe_max, link_others=not a.no_links, shared_roots=a.shared_root,
+                               profile_roots=a.profiles_root)
         return 0
     if not (a.json and a.pref_col):
         ap.error("give --map (several JSONs sharing a metadata file), or --json with --pref-col (older form)")
