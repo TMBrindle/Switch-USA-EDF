@@ -738,18 +738,22 @@ def apply_offshore_filter_fix(s: dict, s0: dict, case=None, year=None) -> None:
                 ", ".join(f"{g['turbine_type']}/{g['pref_site']}" for g in man["groups"]), man["true_resource_mw"] / 1e3, n)
 
 
-def write_offshore_check(folder: Path, s0: dict, log) -> None:
+def write_offshore_check(folder: Path, s0: dict, log, scen_settings_dict: dict | None = None) -> None:
     """offshore_mw_by_zone.csv: offshore capacity limits by zone and technology. With split_groups, also the true resource
-    and the ratio, and the build stops if any zone's limits don't sum to it (once, not three times)."""
+    and the ratio, and the build stops if any zone's limits don't sum to it (once, not three times).
+
+    §241: only the groups the stage's settings offer (og.offered_groups over its years: no floating before 2030) are
+    required, and the limits are compared for the groups the case has. A case technology from a group the settings
+    don't offer stops the build too."""
     from s0_workflow import offshore_groups as og
     folder = Path(folder)
     if not (folder / "gen_info.csv").exists():
         return
     gi = pd.read_csv(folder / "gen_info.csv", na_values=["."])
     by = og.mw_by_zone(gi)
-    if by.empty:
-        return
     r = offshore_fix_settings(s0)
+    if by.empty and r["mode"] == "off":
+        return
     if r["mode"] == "off":
         by.to_csv(folder / og.BY_ZONE, index=False)
         z = by.groupby("gen_load_zone").mw.agg(["sum", "max"])
@@ -757,9 +761,23 @@ def write_offshore_check(folder: Path, s0: dict, log) -> None:
             f"single offshore project per zone (3.00 = the resource offered three times); {og.BY_ZONE}")
         return
     true = pd.read_csv(og.meta_dir(_repo_path(r["resource_groups_dir"])) / og.TRUE_RES)
-    miss = og.missing_groups(by.gen_tech.unique(), true)
-    if miss:                                            # §137: all four groups offered
-        raise ValueError(f"offshore_filter_fix: groups with resource but no offshore technology in the case: {miss}")
+    true = true[true.zone.isin(set(gi.gen_load_zone.astype(str)))]           # §241: the case's zones
+    years = list((scen_settings_dict or {}).items())
+    offered = set().union(*(og.offered_groups(ys) for _, ys in years)) if years else None
+    miss = og.missing_groups(by.gen_tech.unique(), true, offered)
+    if miss:                                            # §137: every offered group with resource is in the case
+        raise ValueError(f"offshore_filter_fix: groups offered in {[y for y, _ in years] or 'the case'} with resource "
+                         f"but no offshore technology in the case: {miss}")
+    have = og.case_groups(by.gen_tech.unique())
+    if offered is not None and have is not None and have - offered:
+        raise ValueError(f"offshore_filter_fix: the case has offshore technologies from groups its settings don't offer: "
+                         f"{sorted(have - offered)} (offered: {sorted(offered)})")
+    if by.empty:                                        # §241: nothing offered and nothing required
+        log(f"offshore (split_groups): no new offshore technologies in this stage; offered {sorted(offered or [])}")
+        return
+    keys = og.group_keys(true)
+    idle = sorted({k for k, mw in zip(keys, true.mw) if mw > 0} - offered) if offered is not None else []
+    idle_gw = sum(mw for k, mw in zip(keys, true.mw) if k in idle) / 1e3
     t = og.check_case(folder, true)
     t.merge(by.pivot_table(index="gen_load_zone", columns="gen_tech", values="mw", aggfunc="sum").reset_index()
             .rename(columns={"gen_load_zone": "zone"}), on="zone", how="left").to_csv(folder / og.BY_ZONE, index=False)
@@ -768,7 +786,9 @@ def write_offshore_check(folder: Path, s0: dict, log) -> None:
         raise ValueError(f"offshore_filter_fix: capacity limits differ from the true resource in {len(bad)} zones "
                          f"({', '.join(f'{z} x{x:.2f}' for z, x in zip(bad.zone, bad.ratio))[:300]})")
     log(f"offshore (split_groups): limits equal the true resource in {int(t.ok.sum())} zones "
-        f"({t.case_mw.sum() / 1e3:,.1f} GW; groups {sorted(og.case_groups(by.gen_tech.unique()) or [])}); {og.BY_ZONE}")
+        f"({t.case_mw.sum() / 1e3:,.1f} GW; groups {sorted(og.case_groups(by.gen_tech.unique()) or [])})"
+        + (f"; not offered this stage (atb_new_gen): {idle}, {idle_gw:,.1f} GW"
+           if idle else "") + f"; {og.BY_ZONE}")
 
 
 def write_pv_repair_log(folder: Path, s0: dict, log) -> None:
@@ -1389,7 +1409,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     fuel_prices.write_case_inputs(out_folder, s0, scen_settings_dict, log)  # STEO -> AEO2026 gas and coal (§67)
     write_pv_repair_log(out_folder, s0, log)                                # repaired PV profiles (§111)
     startup_costs.write_check(out_folder, s0, log)                          # new gas start-up costs (§119)
-    write_offshore_check(out_folder, s0, log)                               # offshore duplicates (§120)
+    write_offshore_check(out_folder, s0, log, scen_settings_dict)           # offshore duplicates (§120, §241)
     build_guard.write_provenance(out_folder, first, s0, log)               # PowerGenome commit (V32-04, §134)
     per = _read(out_folder, "periods.csv")
     log("periods: " + "; ".join(f"{int(r.INVESTMENT_PERIOD)} = {int(r.period_start)}-{int(r.period_end)} "

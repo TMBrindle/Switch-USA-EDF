@@ -81,8 +81,10 @@ Use the `RESOURCE_GROUPS` root from `env.yml`, the shared `pg_data\resource_grou
 - **The source is untouched:** `<pg_data>\resource_groups` has no new files, and its dates are still 22 Dec 2025.
 - **The fourth group is offered:** the build adds a floating/pref-site-1 cluster entry for every floating/pref-site-0
   entry. The log line reads `... N floating/pref-site-1 cluster entries added`, with N > 0.
-  - Each case then has `OffShoreWind_..._floating_1` technologies.
-  - The offshore check requires all four groups and stops if any group with resource is missing.
+  - From 2030, each case then has `OffShoreWind_..._floating_1` technologies. 2028 has no floating at all:
+    `atb_new_gen` has no Class12 before 2030 (§241).
+  - The offshore check requires the groups each stage offers: fixed only in 2028, all four from 2030. It stops if any
+    of them with resource is missing.
   - `resources.yml` is unchanged, so v3.1 and flags-off builds are unaffected.
 
 ## 4. Cluster cache (`pg\extra_inputs\cluster_assignments`, per worktree)

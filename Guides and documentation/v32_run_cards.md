@@ -147,7 +147,8 @@ Later stages are larger than 2028/2030, so treat each estimate as a range.
 **Build checks (each case):**
 - `s0_production_log.txt` shows the PV repair folder (correlation, the full sha256), the offshore split, the start-up
   cost line and `cf_fidelity` rescale.
-- `offshore_mw_by_zone.csv` has ratio 1.00 in every zone.
+- `offshore_mw_by_zone.csv` has ratio 1.00 in every zone with offshore, for the groups the stage offers (fixed only in
+  2028, all four from 2030; §241).
 - `trans_import_tranche.csv` has 52,721,000 MWh.
 - `investment_credit_report.csv` has the battery multipliers 0.70 / 0.70 / 0.745 / 1.0 / 1.0. This applies to S1–S3 too
   unless Tom changes item 1.

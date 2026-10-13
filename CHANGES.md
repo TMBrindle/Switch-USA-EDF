@@ -5425,3 +5425,99 @@ The record has eleven transregs, giving 35 targets for 15 weighted days.
 `relax_factor` per stage.
 
 **SHARED_CHANGES:** no row. Only `s0_workflow/` changes; row 133 stays free.
+
+## 241. S0 v3.2: Offshore Check by Stage (No Floating Before 2030); Sweep of v3.2 Checks for Year and Scenario Assumptions
+
+**Date:** 2026-10-13. **Branch:** `tom/s0-v3.2`.
+
+**The failure:** the S0 v3.2 build at 4bdbcad passed day selection (2028: 2 representatives swapped, feasible at
+×1.000). It then stopped writing the 2028 case inputs, at `production.py` `write_offshore_check`, with:
+`offshore_filter_fix: groups with resource but no offshore technology in the case: [('floating', 0), ('floating', 1)]`.
+
+**Cause:**
+- `scenario_management.yml` gives 2026–2029 an `atb_new_gen` without `[OffShoreWind, Class12, …]`: no floating
+  offshore before 2030 (no ATB prices). So 2028 has only `fixed_0` (65 entries), `fixed_1` (25) and existing offshore
+  (4), as v3.1 and F3 did.
+- The §137 check required all four groups in every stage.
+
+### The fix (`offshore_groups.py`, `production.write_offshore_check`)
+
+**What the check now uses:** `og.offered_groups(settings)` gives the (turbine type, pref site) groups a stage offers.
+These are the offshore `renewables_clusters` entries whose turbine type has an `OffShoreWind` technology in that stage's
+`atb_new_gen`, read after the `scenario_management` overrides. ATB classes 1–7 are fixed and 8–14 floating
+(`resources.yml`: Class3 fixed, Class12 floating). `write_case_inputs` passes the stage's settings, and a multi-period
+case folder takes the union over its years.
+
+**What the build requires:**
+- Only the groups the stage offers, and only where they have resource in a zone of the case. 2028 requires `fixed_0`
+  and `fixed_1`; 2030 on requires all four.
+- A case technology from a group the stage doesn't offer stops the build (e.g. floating in 2028).
+- A stage with no new offshore technology at all now goes through the check too, with the split on. It used to return
+  before checking anything.
+- Each zone's limits are still compared with the true resource of the groups the case has, as before.
+
+**What the log adds:** the groups not offered in the stage, with their GW, e.g. 2028: `not offered this stage
+(atb_new_gen): [('floating', 0), ('floating', 1)], … GW`.
+
+**Unchanged:** called without the stage's settings, the check behaves as §137.
+
+**`fixed_1` count (for the runner):** 2028 has `fixed_1` in 25 entries, against 72 in v3.1. That is expected after the
+split: preferred-site fixed exists only where there are preferred fixed-bottom CPAs. In v3.1 every offshore entry took
+every CPA. `s0_v32.md` check 4 says so.
+
+### Sweep: v3.2 code and checks that could assume a technology, group or setting in every stage or scenario
+
+Cases checked: S0prod_A, BILL_central, txonly, S1–S5, in 2028, 2030, 2035, 2040 and 2045.
+
+| § | Item | Varies by | Verdict |
+|---|---|---|---|
+| 120, 129, 134, 137 | Offshore check: all four groups required | year (floating from 2030) | **Bug, fixed here.** Also covers a stage with no new offshore, zones outside the case, and a group in the case that its settings don't offer |
+| 137 | `add_floating_pref_entries` | year | Safe. It adds the entries in every year. PowerGenome builds them only where `atb_new_gen` has Class12, as for floating/pref-site-0 in v3.1 (the warning `resources.yml` documents) |
+| 137 | `check_references`, `check_folder`, `guard_output` | — | Safe. They check the split folder once and don't depend on year |
+| 113, 126, 136 | Storage credit `obbba` (credit writer term) | year, scenario (the `tax_credits` axis changes in 2030 for S1–S3) | Safe. It is read per case-year from that year's battery modifier; a year with no battery credit gets no term. The writer works per period and skips a period with no term. `phase_down` before its first key collapses to 1.0 (§136; `test_s_set_on_v32` covers every case and year) |
+| 136 | Credit report `storage_itc` | stage | Safe: a stage with no report is skipped. **Hardened here:** a report written without rows (a credit that matched no project) is read as "no report" instead of failing |
+| 136 | Credit report `summary` | stage, technology | Safe: missing wind, solar or storage rows give 0 |
+| 114 | CA free tranche | year | Safe: written per period, and a period without a CA price is skipped |
+| 127 | WA `per_mwh` (two-tranche off) | year | Safe: the same per-period loop |
+| 116 | `cf_fidelity` rescale | year (sampled days) | Safe: it rescales the clusters present; a kind absent from a stage is skipped; a cluster with no output on the sampled days is flagged, not rescaled |
+| 118 | `prm_temp_tz_fix` | — | Safe: it changes only the time zone temperatures are read in |
+| 119 | `startup_cost_fix` check | year, scenario | Safe: with no new gas it logs and passes; the CCS variants (`clean_power_regs`) have keys; no v3.2 case uses the CCS axis |
+| 121–125 | Build-rate package R1, R11, R2, R4, R7 | first stage, scenario (S3/S5: no build rate) | Safe, and off in every v3.2 case. A first stage with no previous stage skips the ramp; R11 skips without a previous build; a case without a build rate doesn't load the module |
+| 126 | Wind price factor 1.0 | scenario (`techmax`, the bill's switch to `atts_reform` in 2035) | Safe: written per case-year from that year's generators, and a stage with no wind writes no file. The test checks 1.0 in all seven cases and five years. No scenario sets wind's weight above 1.0, the only way it could be refused |
+| 132, 138 | PV repair folder | — | Safe: the same data in every year; the log is copied to every stage |
+| 134 | Cluster-cache guard | year | Safe: the first stage writes the marker and later stages match it |
+| 134 | PowerGenome provenance | — | Safe: checked once per build |
+| 139 | Day-selection diagnosis | year | Safe: it runs per year, only when the LP fails |
+| 240 | Representative swap | year | Safe: per year, only when the medoids fail. Other years may swap too; the card treats that as normal |
+| 130 | Flags-off patch | — | Safe: settings only |
+| 133, 135 | Run cards | year | **Fixed here:** `s0_v32.md` check 4 and `recipe_L.md` expected floating in every stage. They now give 2028 (fixed only) and 2030 on (all four), with the `fixed_1` count note. The scenario cards now point to check 12 (day selection) too. `v32_run_cards.md` qualifies its "ratio 1.00 in every zone" |
+
+### Tests (`test_offshore_year_aware.py`)
+
+- **Settings, every case and stage:** the merged settings of all eight cases in all five stages (resources.yml, the
+  year's `all_cases`, the case's axes) offer fixed only in 2028 and all four groups from 2030.
+- **A 2028-like stage:**
+  - `fixed_0` and `fixed_1` only: it passes, the floating groups are logged as not offered, and the limits are still
+    compared;
+  - the same case without the stage's settings stops as the VM's build did;
+  - a doubled `fixed_1` limit stops it;
+  - a floating technology in the case stops it.
+- **A 2030-like stage:** all four groups pass; missing `floating_1` stops it; fixed only stops it; a 2028+2030 case
+  takes the union.
+- **No new offshore:** with groups offered, it stops; with none offered, it passes; zones outside the case aren't
+  required.
+- **Flags off:** the report is the same with or without the stage's settings.
+- **Credit report:** an empty investment report reads as no credit.
+
+### Flags-off certification (F3) holds
+
+Since F3's commit (0c9d9f7), the code a build runs changed in two places:
+- `day_selection.py` (§139, §240): it runs only when the weights LP fails. On 12 records that pass on their medoids,
+  the outputs were again byte-identical to F3's code.
+- `production.write_offshore_check` (§241): with the split off, the same code runs, and the test shows the same output
+  with or without the stage's settings.
+
+`credit_spend.py` runs after solves only. F1–F3 inputs are unchanged.
+
+**READY files:** `READY_S0_V32` and `READY_SCENARIOS` are re-issued in the next commit, both naming the commit with this
+fix. **SHARED_CHANGES:** no row; row 133 stays free.

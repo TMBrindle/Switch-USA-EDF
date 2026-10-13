@@ -51,7 +51,14 @@ def tech_group(gen_tech: str, cfg: dict) -> str | None:
 
 
 def _read(p: Path, **kw) -> pd.DataFrame | None:
-    return pd.read_csv(p, na_values=["."], **kw) if Path(p).exists() else None
+    """None when the file is absent or empty (§241: e.g. an investment_credit_report.csv written without rows, from a
+    stage whose credit matched no project); every caller treats None as "no such table"."""
+    if not Path(p).exists():
+        return None
+    try:
+        return pd.read_csv(p, na_values=["."], **kw)
+    except pd.errors.EmptyDataError:
+        return None
 
 
 def stage_tables(inputs: Path, outputs: Path) -> dict:

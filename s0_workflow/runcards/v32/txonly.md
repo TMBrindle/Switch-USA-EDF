@@ -42,8 +42,8 @@ means this build's base differs from S0 v3.2's.
 
 ## Pre-solve checks
 
-- **The v3.2 base:** the same as `s0_v32.md` section 4, items 2–8 and 10 (PowerGenome, PV repair, offshore, cache,
-  start-up costs, sample fidelity, CA tranche, wind price factor).
+- **The v3.2 base:** the same as `s0_v32.md` section 4, items 2–8, 10 and 12 (PowerGenome, PV repair, offshore
+  by stage, cache, start-up costs, sample fidelity, CA tranche, wind price factor, day selection).
 - **This case:** From 2035: the `tx_policy` lines as BILL_central; `ic_*` and `build_rate_*` identical in kind to S0's (`atts_s0`, central).
 
 ## Credits paid (after the solve; CHANGES §136)

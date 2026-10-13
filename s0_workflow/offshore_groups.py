@@ -435,10 +435,40 @@ def add_floating_pref_entries(s: dict) -> int:
     return len(add)
 
 
-def missing_groups(case_techs, true_by_zone: pd.DataFrame) -> list:
+def atb_turbine_type(tech_detail) -> str | None:
+    """ATB offshore wind classes 1-7 are fixed-bottom, 8-14 floating (resources.yml: Class3 fixed, Class12 floating)."""
+    m = pd.Series([str(tech_detail)]).str.extract(r"(?i)class\s*(\d+)").iloc[0, 0]
+    return None if pd.isna(m) else ("floating" if int(m) >= 8 else "fixed")
+
+
+def offered_groups(settings: dict) -> set:
+    """(turbine_type, pref_site) groups a stage's settings offer as new offshore wind (§241): an offshorewind
+    renewables_clusters entry whose turbine type has an OffShoreWind technology in that stage's atb_new_gen (after the
+    scenario_management overrides: no Class12, i.e. no floating, before 2030). An entry without turbine_type or
+    pref_site stands for every value of it."""
+    types = {atb_turbine_type(e[1]) for e in (settings.get("atb_new_gen") or [])
+             if isinstance(e, (list, tuple)) and len(e) > 1 and str(e[0]).lower() == "offshorewind"}
+    types.discard(None)
+    out = set()
+    for e in settings.get("renewables_clusters") or []:
+        if not isinstance(e, dict) or str(e.get("technology")).lower() != "offshorewind":
+            continue
+        tt = [str(e["turbine_type"]).lower()] if e.get("turbine_type") is not None else ["fixed", "floating"]
+        ps = [_pref(e["pref_site"])] if e.get("pref_site") is not None else [0, 1]
+        out |= {(t, p) for t in tt if t in types for p in ps}
+    return out
+
+
+def group_keys(true_by_zone: pd.DataFrame) -> list:
+    """(turbine_type, pref_site) of each row of the true-resource table."""
+    return list(zip(true_by_zone.turbine_type.astype(str).str.lower(), true_by_zone.pref_site.map(_pref)))
+
+
+def missing_groups(case_techs, true_by_zone: pd.DataFrame, offered: set | None = None) -> list:
     """Groups with resource in the true-resource table that no offshore technology of the case comes from (§137: all
-    four must be offered)."""
+    four must be offered). With `offered` (§241: the groups the stage's settings offer), only those are required."""
     req = case_groups(case_techs) or set()
-    t = true_by_zone[true_by_zone.mw > 0]
-    have = set(zip(t.turbine_type.astype(str).str.lower(), t.pref_site.map(_pref)))
+    have = set(group_keys(true_by_zone[true_by_zone.mw > 0]))
+    if offered is not None:
+        have &= set(offered)
     return sorted(have - req)
