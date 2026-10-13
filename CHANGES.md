@@ -4981,3 +4981,36 @@ place of the 8-digit prefix.
 - **Wind files:** the folder's 5 wind files are now hard links to `pg_data/profiles`, checked by sha256 before linking.
   The manifest still lists them under `other_files_copied`, a record field no check reads; the runbook notes it.
 - **Follow-up:** the flags-off patch and the PV repair test now carry the full hash.
+
+## 133. S0 v3.2: Bill and S-Series Run Cards (Scenario Setups on the v3.2 Base)
+
+**Date:** 2026-10-13. **Branch:** `tom/s0-v3.2`. No new branch: the cases' rows and axis values have been here since
+§115, byte for byte f8f12bc's. Run cards: `Guides and documentation/v32_run_cards.md`.
+
+**Cases, in run order:** BILL_central, BILL_central_txonly, S1, S4, S2, S5, S3.
+- The scenario definitions are v3.1's.
+- The base is the v3.2 defaults, all ON (§126, §129, §132). WA is held, and the build-rate package (§121–§125) is off.
+
+**Expected reuse from S0 v3.2** (`expected_reuse` on this branch; identical to v3.1's pattern):
+- BILL_central and txonly: 2028 and 2030.
+- S1: 2028.
+- S2–S5: none, because the build rate, headroom or transmission differ from 2028.
+
+**Commit:** build at S0 v3.2's commit or at cb529fa. The commits after 7f1b384 change no input. Across that gap, add
+`--code-check model`, because `pg/settings/` counts as code for the default check.
+
+**Flagged for Tom, not resolved:**
+- **The storage credit in the reinstated-credit cases (conflict).** S1, S2 and S3 use `tax_credits: full_ira` from
+  2030: the 45Y PTC without end, plus the axis's battery ×0.7. The v3.2 `storage_credit: obbba` turns that ×0.7 into
+  an investment credit with OBBBA's phase-down (0.745 in 2035, none from 2036). In v3.1, flat, it was ×0.7 to 2045.
+- **Interactions shared by every case** (deltas against S0 v3.2 stay like for like):
+  - CA tranche 52.7 TWh;
+  - wind price factor 1.0, now also in the reform and techmax headroom scenarios;
+  - offshore split, most visible in S3/S5.
+
+**Test:** `test_s_set_on_v32.py`.
+- BILL_central and txonly join the resolve-as-on-f8f12bc comparison.
+- `test_v32_run_cards_cases_on_the_v32_base` checks every case and year carries the v3.2 defaults with the build-rate
+  flags at v3.1.
+
+**Run-time estimates** are scaled from S0 v3.2's 10–11 h. No per-stage chain timings are recorded in the repo.

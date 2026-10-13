@@ -11,7 +11,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 CREDITS = "f8f12bc"           # the S-set launch commit on tom/s0-v3.1-credits
-S_SET = ["S0prod_A", "S1", "S2", "S3", "S4", "S5", "L", "P"]
+S_SET = ["S0prod_A", "S1", "S2", "S3", "S4", "S5", "L", "P", "BILL_central", "BILL_central_txonly"]   # §133: + bill
 FILES = ("pg/extra_inputs/scenario_inputs.csv", "pg/settings/scenario_management.yml", "pg/settings/s0_production.yml")
 V32_FLAGS = {"s0_production.storage_credit", "s0_production.pv_profile_repair",
              "s0_production.ca_wa_carbon.two_tranche", "s0_production.time_sampling.cf_fidelity",
@@ -92,3 +92,25 @@ def test_s_set_files_are_the_credits_branch_files():
         if r.returncode:
             pytest.skip(f"{CREDITS} not available")
         assert (REPO / f).read_bytes().replace(b"\r\n", b"\n") == r.stdout.replace(b"\r\n", b"\n"), f
+
+
+def test_v32_run_cards_cases_on_the_v32_base():
+    """§133: the seven v3.2 run-card cases resolve on the v3.2 defaults (as S0prod_A) with the build-rate package off;
+    v3.1's scenario definitions (axes, overrides, credits) unchanged (test above)."""
+    from s0_workflow import chain_reuse as cr  # noqa: F401
+    import sys
+    sys.path.insert(0, str(REPO / "build_rate"))
+    from build_rate.brc import switch_case as bsc
+    files = [REPO / f for f in FILES]
+    for case in ["BILL_central", "BILL_central_txonly", "S1", "S4", "S2", "S5", "S3"]:
+        for year in (2028, 2030, 2035, 2040, 2045):
+            s = _resolve(files, case, year)
+            s0 = s["s0_production"]
+            assert s0["storage_credit"]["mode"] == "obbba" and s0["ca_wa_carbon"]["two_tranche"] == {"preset": "d2"}
+            assert s0["time_sampling"]["cf_fidelity"]["mode"] == "rescale" and s0["startup_cost_fix"]["enabled"]
+            assert s0["prm"]["thermal_derate"]["prm_temp_tz_fix"] is True
+            assert s0["offshore_filter_fix"]["mode"] == "split_groups"
+            assert s0["pv_profile_repair"]["mode"] == "neighbour_fill"
+            assert s0["ca_wa_carbon"].get("wa_import_charge", "per_mwh") == "per_mwh"            # WA held
+            assert s["interconnection_headroom"]["price_factors"] == {"wind": 1.0}
+            assert bsc.v32_flags(s.get("build_rate") or {}) == bsc.V32_DEFAULTS, (case, year)    # R1-R7 off
