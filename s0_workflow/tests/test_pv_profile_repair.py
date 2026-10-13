@@ -125,7 +125,7 @@ def test_build_flag(tmp_path):
     s0 = yaml.safe_load(open(REPO / "pg/settings/s0_production.yml"))["s0_production"]
     assert s0["pv_profile_repair"] == {"mode": "neighbour_fill", "profiles_dir": "pg_data/profiles_pvfix",   # §132 ON
                                        "verify": "manifest", "neighbour_method": "correlation",
-                                       "output_sha256": "fb0fda93"}
+                                       "output_sha256": "fb0fda93f25276a531226456614856c4d9218e71e92b303cce8f4849ba497057"}
     assert s0prod.pv_repair_settings({})["mode"] == "off"                       # the code default: v3.1
     src, sites, _ = _profiles(tmp_path, dead_capacity=0.0)
     out = tmp_path / "fixed"

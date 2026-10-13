@@ -118,14 +118,21 @@ ON in the v3.2 S0 defaults (`pg/settings/s0_production.yml`, CHANGES §132):
 ```yaml
 s0_production:
   pv_profile_repair: {mode: neighbour_fill, profiles_dir: pg_data/profiles_pvfix, verify: manifest,
-                      neighbour_method: correlation, output_sha256: fb0fda93}
+                      neighbour_method: correlation, output_sha256: fb0fda93f25276a531226456614856c4d9218e71e92b303cce8f4849ba497057}
 ```
 - **Moving the folder:** the build compares the repaired file's size and modification time with the manifest. Move it
   with `mv` (same volume) or `rsync -a` / `cp -a`, which keep the time. A plain `cp` changes it and the build refuses the
   folder ("changed since the repair").
 - **`neighbour_method` / `output_sha256`:** the build also requires the manifest's method and the output sha256
-  recorded by `--hash`. A prefix of at least 8 hex digits is enough. Replace the 8-digit prefix with the full hash
-  from `pv_profile_repair_manifest.json` when convenient.
+  recorded by `--hash` (the full sha256 is in the settings; a prefix of at least 8 hex digits would also be accepted).
+- **Recorded run (12 Oct 2026):** output sha256 `fb0fda93f25276a531226456614856c4d9218e71e92b303cce8f4849ba497057`,
+  9,860,071,492 bytes, mtime_ns 1791824435248602700; source sha256
+  `426cb61f64c46ad8262f2207a2ef46710d19978cd0fb91969bdc5a3f42358173`. The dashboards confirmed a fresh hash of the
+  file matches.
+- **Other files are hard links:** in `pg_data/profiles_pvfix`, the 5 wind files are hard links to `pg_data/profiles`.
+  Their sha256 was checked before linking, and they keep their 2024 mtimes. The run used `--no-links`, so the manifest
+  still lists them under `other_files_copied`. No check reads `other_files_linked` / `other_files_copied`; they are a
+  record only. At the next manifest change, add a field recording links made after the run.
 - **What the build does:** checks the manifest, stopping if the file changed since the repair or any site-year with
   capacity is still zero. It then points `RESOURCE_GROUP_PROFILES` at the folder and copies the fill log into each case.
   `verify: full` (with `sites: <folder>_sites.csv`) rescans the file instead, which takes one full read.

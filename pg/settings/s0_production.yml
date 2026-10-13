@@ -343,7 +343,7 @@ s0_production:
   #                   recorded for the repaired file (--hash; a prefix of at least 8 hex digits is enough)
   # v3.2 ON (Tom, conditional on the VM run, which passed 12 Oct 2026 with runbook dc7aa00: 14,350 site-years filled, all
   # in-zone; daily correlation min 0.72, p10 0.93; scale 0.74-1.17; p1 CF 2007-13 0.125 -> 0.180; CHANGES §132)
-  pv_profile_repair: {mode: neighbour_fill, profiles_dir: pg_data/profiles_pvfix, verify: manifest, neighbour_method: correlation, output_sha256: fb0fda93}
+  pv_profile_repair: {mode: neighbour_fill, profiles_dir: pg_data/profiles_pvfix, verify: manifest, neighbour_method: correlation, output_sha256: fb0fda93f25276a531226456614856c4d9218e71e92b303cce8f4849ba497057}
 
   # v3.2 flag (CHANGES §100): the battery storage credit (48E ITC).
   #   flat   (v3.1) the tax_credits axis's x0.7 battery capex multiplier (atb_modifiers.batteries) in every period

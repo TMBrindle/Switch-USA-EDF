@@ -4965,3 +4965,19 @@ parses to 4696653's settings.
   hash, too short, no `--hash`); clipped energy share.
 - `conftest.py`: a stub manifest for the default folder while it is missing, as for the offshore folder (§129).
 - Regression row, S-set and flags-off patch tests updated.
+
+**§132 addendum (2026-10-13): the full hash is recorded.** `pv_profile_repair.output_sha256` is now the full value in
+place of the 8-digit prefix.
+
+| Field | Value |
+|---|---|
+| Output sha256 | fb0fda93f25276a531226456614856c4d9218e71e92b303cce8f4849ba497057 |
+| Size | 9,860,071,492 bytes |
+| mtime_ns | 1791824435248602700 |
+| Source sha256 | 426cb61f64c46ad8262f2207a2ef46710d19978cd0fb91969bdc5a3f42358173 |
+
+- **Confirmed by the dashboards:** a fresh hash of the file matches. The folder is at `pg_data/profiles_pvfix`, and
+  `apply_pv_profile_repair` at 7f1b384 passes against it with the full hash.
+- **Wind files:** the folder's 5 wind files are now hard links to `pg_data/profiles`, checked by sha256 before linking.
+  The manifest still lists them under `other_files_copied`, a record field no check reads; the runbook notes it.
+- **Follow-up:** the flags-off patch and the PV repair test now carry the full hash.
