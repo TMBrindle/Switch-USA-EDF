@@ -5554,3 +5554,76 @@ tripling inside the rounding.
 **Card:** `s0_v32.md` check 4 explains the new columns.
 
 **SHARED_CHANGES:** no row; row 133 stays free.
+
+## 243. S0 v3.2: Resuming an Interrupted Chain (`resume_chain.py`, RESUME.md); READY Re-Issued
+
+**Date:** 2026-10-14. **Branch:** `tom/s0-v3.2`.
+
+**What happened:**
+- The S0 v3.2 build finished cleanly at 4894d6a at 02:40 UTC, and all 88 pre-solve checks passed.
+- The chain started at 02:42 UTC (five stages, no reuse).
+- The VM shut down overnight, and the runner session was lost. How many stages solved is unknown.
+
+**The chain runner can't resume from the repo side:**
+- The runner the cards name, `run_chain_A.py`, is VM-only and not in this repo (recipe C, recipe J). There is no
+  `run_chain_s0v32.py` in the repo either. Its options and its handling of partial outputs can't be read or changed
+  here.
+- Nothing in the repo verified a stage's completion. `chain_reuse.record` takes `total_cost.txt` as "solved", but
+  `switch_model.reporting` writes that file before the later post-solve steps, `prepare_next_stage` (the handover)
+  last among them.
+
+**`s0_workflow/scripts/resume_chain.py` (new).** It runs before the chain runner, as `reuse_chain_stages.py` does. It
+reads the chain's scenarios file.
+
+`status` (read only) reports each stage as COMPLETE, PARTIAL or NOT_STARTED. COMPLETE requires all of these:
+1. `model_config.json` (Switch writes it after the solver returns; an infeasible solve raises first) and a numeric
+   `total_cost.txt`;
+2. the results carried forward: `BuildGen.csv`, plus, for a stage with a next stage, `BuildStorageEnergy.csv`,
+   `SuspendGen.csv` and `BuildTx.csv`;
+3. the handover: every `*.chained.<case>.csv` the next stage's line aliases is in the next stage's inputs, written
+   after this stage's `total_cost.txt`. These are built and retired capacity, costs, transmission, headroom state, and
+   the build-rate history. That last one comes from the solved model, so a stage without its handover must be solved
+   again;
+4. a solver log in the outputs folder, if there is one, says `optimal`;
+5. if `chain_provenance.json` exists, the inputs still match its digest.
+
+`resume`:
+- **Where it starts:** at `--from-stage`, or by default at the first stage that isn't COMPLETE.
+- **It refuses:**
+  - to start at a stage unless every earlier stage is COMPLETE;
+  - while the interrupted run's files are in place (outputs from the start stage on, chained inputs after it) unless
+    `--move-partial`;
+  - with `--inputs-not-after <UTC>`, if any built (non-chained) input file changed after that time.
+- **What it writes and moves:**
+  - It never writes built inputs, and it never calls `pg_to_switch.py`.
+  - `--move-partial` moves files (never deletes them) to `<outputs root>/_resume_partial_<UTC>/`.
+  - It writes `scenarios_<case>[.fixed].from_<stage>.txt` for the chain runner, and a `resume` row in
+    `handoff_runs.csv`.
+
+**`s0_workflow/runcards/v32/RESUME.md`:** a runner-ready card with these steps:
+- the read-only assessment (`status`, then `resume --dry-run --inputs-not-after 2026-10-14T02:42Z`);
+- verifying each stage: the files above, plus the solve log's `Optimization termination condition was optimal` and
+  `Switch completed successfully`;
+- moving the partial outputs aside;
+- the resume command, and the chain runner on the remaining lines;
+- recording the reference at 4894d6a once all five stages are COMPLETE;
+- the `READY_SCENARIOS` queue, in order;
+- a STOP list.
+
+**Tests** (`test_resume_chain.py`, a synthetic three-stage chain):
+- every state is classified correctly;
+- the VM-like case: 2028 complete, 2030 interrupted in its post-solve with no handover and a half-written chained
+  file. The resume starts at 2030, refuses to start at 2035, and refuses without `--move-partial`. It moves 2030's
+  outputs and 2035's chained inputs aside, keeps 2030's chained inputs and 2028's outputs, and never changes a built
+  input;
+- a non-optimal termination, and inputs changed since recorded;
+- the rebuilt-input guard;
+- the command line.
+
+**READY files:**
+- Re-issued at this commit, because code was added. The added code is `s0_workflow/scripts/`, which the reuse code
+  check exempts, along with tests, cards and `*.md`. So this commit runs the same build and model code as 4894d6a.
+- **It is a resume, not a rebuild:** the 02:40 inputs stand (RESUME.md, the README).
+- Stages solved before and after the shutdown share 4894d6a's code; the reference is recorded at 4894d6a.
+
+**F3:** unaffected; no build or model code changed. **SHARED_CHANGES:** no row; row 133 stays free.
