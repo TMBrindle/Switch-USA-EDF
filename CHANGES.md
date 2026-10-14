@@ -5627,3 +5627,47 @@ reads the chain's scenarios file.
 - Stages solved before and after the shutdown share 4894d6a's code; the reference is recorded at 4894d6a.
 
 **F3:** unaffected; no build or model code changed. **SHARED_CHANGES:** no row; row 133 stays free.
+
+## 244. S0 v3.2 Final: Two Offshore Fleet Fixes Not Applied (Not Data-Only); Logged as v4 Items (Bucket B)
+
+**Date:** 2026-10-14. **Branch:** `tom/s0-v3.2`. **Numbering:** the S0 v3.2 final fixes planned as §244–§247 move to
+§245–§248.
+
+**Tom's rule:** apply only if the change is data-only and doesn't delay the READY files; otherwise log it as a v4
+bucket B item (supply inputs).
+
+### v4 item B-1: Coastal Virginia Offshore Wind (CVOW), about 1.9 GW missing
+
+- **Fleet now:** zone p99 (VA) has CVOW's 12 MW pilot (2021) and 713 MW in 2027. The full commercial project is about
+  2,600 MW (BOEM, `pg/extra_inputs/offshore_wind/boem_projects_jan2025.csv`: OCS-A 0483, COP approved 31 Oct 2023,
+  under construction).
+- **Why it can't go in as data:**
+  - The fleet comes from PowerGenome's EIA-860M read (`eia_860m_fn: july_generator2025.xlsx`, statuses V, TS, U, T).
+  - PowerGenome's settings here have no way to add a planned unit: only `additional_retirements`.
+  - Adding the missing capacity would need either code (a fleet-addition hook like the coal spec's) or an edited 860M
+    spreadsheet. The spreadsheet is shared data on the VM, which the shared-paths rule forbids editing in place, and
+    every case reads it.
+- **Does it meet the inclusion rule?** Probably yes: the project is physically under construction (BOEM; the developer,
+  Dominion Energy, reports offshore installation under way), which is status U or V. But the July 2025 860M evidently
+  lists only 713 MW of it under an included status.
+- **To check on the VM before v4:** in `july_generator2025.xlsx` (and the latest 860M vintage), the CVOW generators'
+  IDs, MW, status codes and planned operation dates. If a later vintage lists all of it as U or V, the fix is a v4
+  860M vintage update, which affects every plant and needs its own bridge check.
+- **Sources to cite then:** the EIA-860M row(s); BOEM's CVOW commercial page (the CSV's `source` column); Dominion
+  Energy's CVOW project page and quarterly filings for the schedule.
+
+### v4 item B-2: Sunrise Wind (924 MW, 2027) in p131 (MA), landing on Long Island
+
+- **The landing point:** the export cable lands on Long Island (Suffolk County) and connects at Holbrook. That is
+  NYISO zone K, ReEDS zone **p128** (NY), the zone that already holds South Fork. The target zone is clear.
+- **Why it can't go in as data:**
+  - The zone comes from `pg/extra_inputs/reeds_plant_map.csv` (EIA plant ID → zone; `plant_region_map_fn`). The fix
+    is one row, but Sunrise Wind's EIA plant ID is only in the 860M file on the VM; nothing in the repo identifies it.
+  - That map is also read by the v3.1 and flags-off builds, so editing it in place would break F3's certification.
+- **The v4 fix:** a v3.2-only copy of the map with that plant's row set to p128, selected by
+  `s0_production.settings.plant_region_map_fn` (settings and data, no code), and reverted in the flags-off patch. It
+  needs the plant ID from the VM's 860M (look up "Sunrise Wind").
+- **Effect until then:** 924 MW of offshore output and capacity sits in New England (p131) instead of Long Island
+  (p128) from the 2028 stage.
+
+**Not changed:** code, settings, the fleet. The READY files are unaffected.
