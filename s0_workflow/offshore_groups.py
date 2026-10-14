@@ -209,22 +209,34 @@ def case_groups(techs) -> set | None:
     return out
 
 
-def check_case(folder: Path, true_by_zone: pd.DataFrame, tol=0.001) -> pd.DataFrame:
+LIMIT_STEP_MW = 0.1        # §242: the case writes offshore capacity limits in whole multiples of 0.1 MW
+
+
+def check_case(folder: Path, true_by_zone: pd.DataFrame, tol=0.001, step_mw=LIMIT_STEP_MW) -> pd.DataFrame:
     """Per zone: offshore capacity limits in gen_info.csv against the true resource of the groups the case's offshore
     technologies come from (§134: by turbine type and pref site where the names carry them, e.g. 3 of the 4 groups;
-    else every group). Returns the table; ratio 1 = each requested group's resource offered once."""
+    else every group). Returns the table; ratio 1 = each requested group's resource offered once.
+
+    Allowed difference per zone (§242): the larger of tol x the true resource (at least 1 MW) and half a rounding step
+    per offshore project in the zone (the limits are rounded to step_mw each; e.g. p10: one project, 5.4536 MW true,
+    5.5 MW limit). The resource offered twice or three times is still far outside it."""
     gi = pd.read_csv(Path(folder) / "gen_info.csv", na_values=["."])
     byz = mw_by_zone(gi)
     case = byz.groupby("gen_load_zone").mw.sum().rename("case_mw")
+    off = gi[gi.gen_tech.astype(str).str.startswith("OffShoreWind")
+             & pd.to_numeric(gi.gen_capacity_limit_mw, errors="coerce").notna()]
+    n = off.groupby("gen_load_zone").size().rename("projects")
     tz = true_by_zone
     req = case_groups(byz.gen_tech.unique())
     if req and {"turbine_type", "pref_site"} <= set(tz.columns):
         key = list(zip(tz.turbine_type.astype(str).str.lower(), tz.pref_site.map(_pref)))
         tz = tz[[k in req for k in key]]
     tr = tz.groupby("zone").mw.sum().rename("true_mw")
-    t = pd.concat([case, tr], axis=1).fillna(0.0)
+    t = pd.concat([case, tr, n], axis=1).fillna(0.0)
+    t["projects"] = t.projects.astype(int)
     t["ratio"] = t.case_mw / t.true_mw.where(t.true_mw > 0)
-    t["ok"] = (t.case_mw - t.true_mw).abs() <= tol * t.true_mw.clip(lower=1.0)
+    t["allowed_mw"] = (tol * t.true_mw.clip(lower=1.0)).combine(t.projects * step_mw / 2 + 1e-6, max)
+    t["ok"] = (t.case_mw - t.true_mw).abs() <= t.allowed_mw
     return t.reset_index().rename(columns={"index": "zone"})
 
 

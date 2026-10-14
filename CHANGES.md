@@ -5522,3 +5522,35 @@ Since F3's commit (0c9d9f7), the code a build runs changed in two places:
 
 **READY files:** `READY_S0_V32` and `READY_SCENARIOS` are re-issued in the next commit, both naming the commit with this
 fix. **SHARED_CHANGES:** no row; row 133 stays free.
+
+## 242. S0 v3.2: Offshore Limit Check Allows the 0.1 MW Rounding
+
+**Date:** 2026-10-14. **Branch:** `tom/s0-v3.2`.
+
+**The failure:** the S0 v3.2 build at e135750 stopped in the 2028 offshore check, on p10 alone.
+
+**Cause (the runner's diagnosis):**
+- p10 has one new offshore project (`fixed_0`) with a capacity limit of 5.5 MW, against a true resource of 5.4536 MW in
+  the manifest.
+- All 90 offshore limits in the case are whole multiples of 0.1 MW.
+- `check_case` allowed only `0.001 × max(true, 1 MW)`, which is 0.0055 MW for p10. The 0.046 MW rounding gap exceeds
+  it. Larger zones absorb the same rounding within the relative tolerance.
+
+**Fix (`offshore_groups.check_case`):** the allowed difference per zone is now the larger of the relative tolerance
+and half a rounding step (0.05 MW) per offshore project in the zone. `offshore_mw_by_zone.csv` gains `projects` and
+`allowed_mw`.
+
+**It still catches duplication:** the resource offered twice or three times is far outside the allowance. In p10, ×3
+is 16.5 MW against 5.45 ± 0.15. Only a zone with under about 0.075 MW of true resource per project could hide a
+tripling inside the rounding.
+
+**Tests** (`test_offshore_year_aware.py`):
+- p10 as on the VM passes, and the old rule (no rounding allowance) refuses it;
+- a project 0.2 MW over stops the build;
+- p10 offered three times stops the build (×3.03).
+
+**Flags off (F3):** `check_case` runs only with the split on, so F1–F3 are unchanged.
+
+**Card:** `s0_v32.md` check 4 explains the new columns.
+
+**SHARED_CHANGES:** no row; row 133 stays free.

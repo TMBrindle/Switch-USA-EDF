@@ -166,3 +166,32 @@ def test_credit_report_reads_an_empty_investment_report(tmp_path):
     assert cs._read(tmp_path / "in/investment_credit_report.csv") is None and cs._read(tmp_path / "nope.csv") is None
     st = cs.storage_itc([{"inputs": tmp_path / "in", "outputs": tmp_path / "out"}], "S0")
     assert st.empty and list(st.columns)[:3] == ["case", "period", "category"]
+
+
+def test_limits_rounded_to_a_tenth_of_a_mw(tmp_path):
+    """§242, the VM's 2028 stop at e135750: p10 has one new offshore project (fixed_0), limit 5.5 MW, true resource
+    5.4536 MW. The case writes limits in multiples of 0.1 MW, so each project may differ by up to 0.05 MW; the relative
+    tolerance alone (0.001 x 5.45 = 0.0055 MW) refused it. Half a step per project is allowed; duplication is not."""
+    d = tmp_path / "rg"
+    og.meta_dir(d).mkdir(parents=True)
+    pd.DataFrame({"zone": ["p10", "p1", "p1"], "turbine_type": ["fixed", "fixed", "fixed"], "pref_site": [0, 0, 1],
+                  "mw": [5.4536, 1234.56, 77.77]}).to_csv(og.meta_dir(d) / og.TRUE_RES, index=False)
+    on = {"offshore_filter_fix": {"mode": "split_groups", "resource_groups_dir": str(d)}}
+    s28 = {2028: _stage_settings("S0prod_A", 2028)}
+    logs = []
+    ok = _case(tmp_path, "p10", [(FX0, "p10", 5.5), (FX0, "p1", 600.0), (FX0, "p1", 634.6), (FX1, "p1", 77.8)])
+    s0prod.write_offshore_check(ok, on, logs.append, s28)
+    t = pd.read_csv(ok / og.BY_ZONE).set_index("zone")
+    assert t.ok.all() and t.loc["p10", "projects"] == 1 and t.loc["p10", "allowed_mw"] == pytest.approx(0.05, abs=1e-5)
+    assert t.loc["p1", "projects"] == 3
+    # the old rule (relative only) refuses p10, as on the VM
+    assert not og.check_case(ok, pd.read_csv(og.meta_dir(d) / og.TRUE_RES), step_mw=0.0).set_index("zone").loc["p10", "ok"]
+    # more than the rounding: one project 0.2 MW over
+    with pytest.raises(ValueError, match="p10"):
+        s0prod.write_offshore_check(_case(tmp_path, "p10_over", [(FX0, "p10", 5.7), (FX0, "p1", 1234.6),
+                                                                 (FX1, "p1", 77.8)]), on, logs.append, s28)
+    # the resource offered three times (the v3.1 bug) is still caught, in the smallest zone too
+    with pytest.raises(ValueError, match="p10 x3.03"):
+        s0prod.write_offshore_check(_case(tmp_path, "p10_x3", [(FX0, "p10", 5.5)] * 3 + [(FX0, "p1", 1234.6),
+                                                                                           (FX1, "p1", 77.8)]),
+                                    on, logs.append, s28)
