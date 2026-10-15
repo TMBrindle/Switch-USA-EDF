@@ -566,3 +566,7 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     - **Why:** v3.2 turns on the load/hydro rescale and the build-rate package in S0 cases; the regression row stays
       the v3.1 build.
     - **Effect:** none on its inputs (each value is v3.1's: `build_rate.yml`'s defaults; `cf_fidelity` is off there).
+135. (§249, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `settings.additional_retirements: ~` and
+    `retirement_checks: []`.**
+    - **Why:** v3.2 retires Diablo Canyon after the 2030 stage (SB 846); the regression row stays the v3.1 build.
+    - **Effect:** none on its inputs (no retirement date, as `resources.yml`).

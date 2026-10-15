@@ -1,8 +1,8 @@
 diff --git a/pg/settings/s0_production.yml b/pg/settings/s0_production.yml
-index 9fedb8b..08e3c2b 100644
+index 4c0e85e..e574a86 100644
 --- a/pg/settings/s0_production.yml
 +++ b/pg/settings/s0_production.yml
-@@ -76,7 +76,7 @@ s0_production:
+@@ -83,7 +83,7 @@ s0_production:
      # load_hydro (v3.2 flag, CHANGES §246): also each zone's sample-weighted load and each hydro project's flow (the
      # hydro budgets) to the full record; uniform per zone, the peak day included; stress days untouched;
      # load_hydro_fidelity.csv per case. off (v3.1, the code default) | rescale. v3.2 ON (Tom, 15 Oct 2026)

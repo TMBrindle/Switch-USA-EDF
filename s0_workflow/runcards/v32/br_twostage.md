@@ -21,6 +21,17 @@ wind, and the ramp, based on the model's own past build, then locked in 11.5 GW 
   - the CA nuclear ban is inert: no new nuclear is offered before 2035;
   - the load/hydro rescale is turned off by `s0_workflow/data/v32/br_twostage_isolation.patch`.
 
+**A test run at an earlier READY commit still counts (§249).** A test already run at 5d2e60a certifies S0 v3.2 final
+at the current READY commit. Don't re-run it. Since 5d2e60a, the only change to 2028 and 2030 is Diablo Canyon's
+retirement date (§249):
+- `p9_nuclear_1`'s predetermined build years are encoded 1531 instead of 1985/1986;
+- the same 2,240 MW is in service in both stages;
+- there is a new `retirement_checks.csv`.
+
+None of this touches the build-rate package or its pass criteria. If the test hasn't run yet, run it at the current
+READY commit: the expected-differences list in step 4 then also includes `retirement_checks.csv` and
+`gen_build_predetermined.csv`, the latter for `p9_nuclear_1` only.
+
 ## 0. Worktree and prerequisites
 
 - A scratch worktree at the READY commit, set up as `s0_v32.md` section 1: the submodule at c4c433c and

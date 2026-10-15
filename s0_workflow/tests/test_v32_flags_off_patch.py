@@ -18,8 +18,8 @@ def _patched_text() -> str:
     minus = [l[1:] for l in lines if l.startswith("-") and not l.startswith("---")]
     plus = [l[1:] for l in lines if l.startswith("+") and not l.startswith("+++")]
     # §132: + pv_profile_repair; §134: + powergenome_commit; §245: + state_nuclear_bans; §246: cf_fidelity's line
-    # (load_hydro); §247: + the six build-rate package keys
-    assert len(minus) == len(plus) == 16
+    # (load_hydro); §247: + the six build-rate package keys; §249: + additional_retirements, retirement_checks
+    assert len(minus) == len(plus) == 18
     for a, b in zip(minus, plus):
         assert text.count(a + "\n") == 1, a
         text = text.replace(a + "\n", b + "\n")
@@ -42,6 +42,8 @@ def test_patched_settings_equal_the_flags_off_commit():
     assert ic.pop("price_factors") == {"wind": None}
     assert new["s0_production"].pop("powergenome_commit") is None             # §134: record only
     assert new["s0_production"].pop("state_nuclear_bans") == {"states": []}   # §245: off
+    assert new["s0_production"].pop("retirement_checks") == []                # §249: off
+    assert new["s0_production"]["settings"].pop("additional_retirements") is None   # §249: no Diablo date (v3.1)
     br = new["s0_production"]["settings"]["build_rate"]                       # §247: the package at v3.1 (= absent)
     assert {k: br.pop(k) for k in ("ramp_base", "stage_r", "ramp_floor", "handover", "construction_completion",
                                    "tables_dir")} == {"ramp_base": "build", "stage_r": "data",

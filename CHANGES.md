@@ -5903,3 +5903,73 @@ build, the previous stage's data R).
 (SHARED_CHANGES rows 133 and 134), and the legacy build test still builds byte-identical files.
 
 **READY files:** `READY_S0_V32` and `READY_SCENARIOS` are re-issued in the next commit, both naming this commit.
+
+## 249. S0 v3.2 Final: Diablo Canyon Retires After the 2030 Stage (Current California Law); v4 Sensitivity Logged
+
+**Date:** 2026-10-15. **Branch:** `tom/s0-v3.2`.
+
+**Before (S0 v3.1 and S0 v3.2 pre): no retirement at all.**
+- Diablo Canyon (EIA plant 6099, zone p9) is `p9_nuclear_1`: 1,122 MW built in 1985 and 1,118 MW in 1986, with
+  `gen_max_age` 500 and `gen_can_retire_early` 0 (committed fedpol inputs; same PowerGenome settings and EIA-860M).
+- The build years are the real ones, not a planned retirement encoded as year − 500, so the EIA-860M PowerGenome reads
+  gives it no planned retirement date.
+- No S0 rule touches nuclear: the lifetime backstop, retirement rule and friction cover coal and gas only.
+- So Diablo ran to 2045 in every stage and couldn't retire early.
+
+**California law (Tom):**
+- SB 846 (2022) authorises operation to 2029 (Unit 1) and 2030 (Unit 2).
+- NRC renewed the licences to 2044/2045 (April 2026). Operating past 2030 still needs the Legislature, a Water Board
+  once-through-cooling exemption (deadline Oct 2030) and a new State Lands lease (the current one ends 31 Oct 2030).
+
+### The change (settings only)
+
+- **The retirement:** `s0_production.settings.additional_retirements: [[6099, 1, 2031], [6099, 2, 2031]]`. These are
+  PowerGenome's `[plant_id_eia, generator_id, year]` entries, merged into S0 cases only; `resources.yml` keeps `~`.
+- **Why 2031 rather than SB 846's 2029/2030:**
+  - pg_to_switch encodes a planned retirement year Y as build year Y − 500, with `gen_max_age` 500.
+  - Under Switch's default `retire_time: late`, a build runs in a period if it came online at or before the period's
+    start and retires after it.
+  - The 2030 stage starts in 2029 and the 2035 stage in 2031. So 2031 keeps both units in service through the 2030
+    stage and out from 2035, as Tom asked ("retire after the 2030 stage").
+  - With SB 846's own years, Unit 1 (2029) would already be gone from the 2030 stage.
+- **The check:** `s0_production.retirement_checks: [{name: Diablo Canyon, project: p9_nuclear_1, last_period: 2030}]`,
+  implemented in `production.write_retirement_checks`.
+  - It computes the project's MW in service per period with Switch's rule, writes `retirement_checks.csv` and a log
+    line, and stops the build if the plant is absent in a period up to 2030 or present after.
+  - A case without zone p9 (regional scope) isn't checked; that is reported.
+- **Flags:** ON in v3.2. The flags-off patch sets both back to v3.1 (`~` and `[]`); it now makes **18 changes**. The
+  regression row pins both (SHARED_CHANGES row 135).
+- **Cards:**
+  - `s0_v32.md`: a settings-table row, and pre-solve check 15. Before solving: 2,240 MW in 2028 and 2030, 0 from 2035.
+    After the 2030 solve: the 2035 chained predetermined builds have no Diablo build in service. After the 2035 solve:
+    no capacity.
+  - The scenario cards point to items 10–15.
+
+**Tests** (`test_retirement_checks.py`):
+- the settings: v3.2 ON, the code default and the regression row off;
+- Diablo in service in 2028 and 2030, and gone in 2035 whether encoded or left out;
+- the v3.1 dates (1985/86) stop a 2035 build;
+- SB 846's own years would drop Unit 1 from the 2030 stage;
+- missing in 2028 stops the build;
+- a regional case without p9 is skipped;
+- the check is wired into the case-input steps.
+
+Also updated: the flags-off patch test (18 lines), the regression-row resolution and the run-card case test (the
+Diablo settings in all seven cases).
+
+### The two-stage build-rate test still certifies
+
+A test run at 5d2e60a certifies the final run at this commit. In 2028 and 2030, the only change is Diablo's encoded
+build years (1531 instead of 1985/1986, the same 2,240 MW in service) and the new `retirement_checks.csv`. Neither
+touches the build-rate package or its pass criteria. `br_twostage.md` says so.
+
+### v4 item (state policy, sensitivity): "Diablo Canyon extended to 2044/45 (NRC licence)"
+
+- **What it would represent:** Diablo running to its renewed NRC licence terms, 2044 (Unit 1) and 2045 (Unit 2). That
+  assumes the Legislature extends SB 846, the Water Board grants the once-through-cooling exemption, and State Lands
+  renews the lease.
+- **How:** a sensitivity axis value that sets `additional_retirements` to [6099, 1, 2045] and [6099, 2, 2046] and
+  `retirement_checks` to match. By the same encoding both units are then in service through the 2045 stage, which
+  starts in 2041; the model ends there. The same keys, so no code is needed.
+
+**SHARED_CHANGES:** row 135.

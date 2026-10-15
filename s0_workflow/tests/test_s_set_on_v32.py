@@ -21,6 +21,8 @@ V32_FLAGS = {"s0_production.storage_credit", "s0_production.pv_profile_repair",
              "s0_production.settings.interconnection_headroom.price_factors", "interconnection_headroom.price_factors",
              "s0_production.powergenome_commit",                                   # §134
              "s0_production.state_nuclear_bans",                                   # §245
+             "s0_production.retirement_checks", "s0_production.settings.additional_retirements",
+             "additional_retirements",                                             # §249 (Diablo Canyon)
              # §247: the build-rate package (R1, R11, R4, R2, R7 and its tables), in the S0 settings block and merged
              *(f"{p}build_rate.{k}" for p in ("s0_production.settings.", "") for k in
                ("ramp_base", "stage_r", "ramp_floor", "handover", "construction_completion", "tables_dir"))}
@@ -74,14 +76,16 @@ STORAGE_FLAT = {"phase_down": {2034: 1.0, 2035: 1.0, 2036: 1.0}}   # §136: flat
 ON_PGDAYS_V31 = {"settings": {"interconnection_headroom": {"price_factors": {"wind": None}},
                               "build_rate": {"ramp_base": "build", "stage_r": "data", "ramp_floor": "placeholder",
                                              "handover": "off", "construction_completion": "placeholder",
-                                             "tables_dir": "build_rate/outputs"}},                      # §247
+                                             "tables_dir": "build_rate/outputs"},                       # §247
+                              "additional_retirements": None},                                          # §249
                  "storage_credit": {"mode": "flat"}, "startup_cost_fix": {"enabled": False},
                  "prm": {"thermal_derate": {"prm_temp_tz_fix": False}},
                  "offshore_filter_fix": {"mode": "off", "resource_groups_dir": None},           # §129
                  "pv_profile_repair": {"mode": "off", "profiles_dir": None, "neighbour_method": None,
                                        "output_sha256": None},                                   # §132
                  "powergenome_commit": None,                                                     # §134
-                 "state_nuclear_bans": {"states": []}}                                           # §245
+                 "state_nuclear_bans": {"states": []},                                           # §245
+                 "retirement_checks": []}                                                        # §249
 
 
 def test_scenario_management_differs_only_by_the_regression_row_v31_pins():
@@ -139,6 +143,8 @@ def test_v32_run_cards_cases_on_the_v32_base():
                 case, year)
             assert s["build_rate"]["tables_dir"] == "build_rate/outputs_v32"
             assert s0["state_nuclear_bans"] == {"states": ["CA"]}                                # §245
+            assert s["additional_retirements"] == [[6099, 1, 2031], [6099, 2, 2031]]           # §249: Diablo Canyon
+            assert s0["retirement_checks"][0]["project"] == "p9_nuclear_1"
             assert s0["time_sampling"]["cf_fidelity"]["load_hydro"] == "rescale"                 # §246
             pdn = s0["storage_credit"]["phase_down"]            # collapsed to the year (chain_reuse._at_year)
             if case in ("S1", "S2", "S3"):                      # §136: storage credit flat 30% to 2045

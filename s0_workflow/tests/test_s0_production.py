@@ -587,6 +587,7 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
                                            "s0_production.pv_profile_repair: None -> {'mode': 'off', 'profiles_dir': "
                                            "None, 'verify': 'manifest', 'neighbour_method': None, 'output_sha256': "
                                            "None}",                              # §132: ON in v3.2, off here
+                                           "s0_production.retirement_checks: None -> []",           # §249
                                            ] + [f"s0_production.settings.build_rate.{k}: None -> {v}"
                                                 for k, v in br31.items()] + [
                                            "s0_production.settings.interconnection_headroom.price_factors: None -> "

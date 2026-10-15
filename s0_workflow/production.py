@@ -361,13 +361,20 @@ def operable_mw(folder: Path, project: str) -> dict:
 
 def write_retirement_checks(folder: Path, s0: dict, log) -> None:
     """§249: each checked project (Diablo Canyon, SB 846) must be in service in every period up to last_period and in
-    none after; the build stops otherwise. retirement_checks.csv."""
+    none after; the build stops otherwise. A case without the project's zone (the name's prefix, or `zone`) is not
+    checked (reported). retirement_checks.csv."""
     checks = retirement_checks(s0)
     folder = Path(folder)
     if not checks or not (folder / "gen_info.csv").exists():
         return
     rows, bad = [], []
+    zones = set(pd.read_csv(folder / "gen_info.csv", na_values=["."]).gen_load_zone.astype(str))
     for c in checks:
+        zone = str(c.get("zone") or str(c["project"]).split("_")[0])
+        if zone not in zones:                       # a case without the project's zone (regional scope): not checked
+            rows.append({"name": c["name"], "project": c["project"], "period": None, "mw_in_service": None,
+                         "expected": f"zone {zone} not in the case", "ok": True})
+            continue
         for p, mw in operable_mw(folder, str(c["project"])).items():
             want = p <= int(c["last_period"])
             rows.append({"name": c["name"], "project": c["project"], "period": p, "mw_in_service": mw,
@@ -377,8 +384,9 @@ def write_retirement_checks(folder: Path, s0: dict, log) -> None:
     pd.DataFrame(rows).to_csv(folder / "retirement_checks.csv", index=False)
     if bad:
         raise ValueError("retirement_checks: " + "; ".join(bad) + " (s0_production.settings.additional_retirements)")
-    log("retirement checks (§249): " + "; ".join(f"{r['name']} {r['period']}: {r['mw_in_service']:,.0f} MW "
-                                                 f"({r['expected']})" for r in rows) + "; retirement_checks.csv")
+    log("retirement checks (§249): " + "; ".join(
+        f"{r['name']} {r['period']}: {r['mw_in_service']:,.0f} MW ({r['expected']})" if r["period"] is not None
+        else f"{r['name']}: {r['expected']}" for r in rows) + "; retirement_checks.csv")
 
 
 NUCLEAR_BAN_PROGRAM = "MaxCapTag_StateBan_{state}_Nuclear"

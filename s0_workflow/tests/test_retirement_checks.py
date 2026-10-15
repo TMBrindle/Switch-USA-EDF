@@ -74,6 +74,13 @@ def test_wrong_dates_stop_the_build(tmp_path):
     # missing altogether in 2028
     with pytest.raises(ValueError, match="0 MW in 2028, expected in service"):
         s0prod.write_retirement_checks(_stage(tmp_path / "c", 2028, []), S0, print)
+    # a regional case without zone p9 is not checked (reported)
+    g = _stage(tmp_path / "d", 2028, [])
+    gi = pd.read_csv(g / "gen_info.csv")
+    gi.assign(gen_load_zone="p1").to_csv(g / "gen_info.csv", index=False)
+    logs = []
+    s0prod.write_retirement_checks(g, S0, logs.append)
+    assert "Diablo Canyon: zone p9 not in the case" in logs[-1]
 
 
 def test_off_writes_nothing(tmp_path):
