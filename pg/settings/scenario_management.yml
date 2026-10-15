@@ -1319,7 +1319,7 @@ settings_management:
       on_pgdays:
         s0_production:
           enabled: true
-          time_sampling: {method: powergenome, cf_fidelity: {mode: "off"}}
+          time_sampling: {method: powergenome, cf_fidelity: {mode: "off", load_hydro: "off"}}   # load_hydro: §246
           foresight: {mode: single}
           gas_capex: {mode: atb_moderate}
           gas_turbine_cap: {form: legacy}
@@ -1340,7 +1340,10 @@ settings_management:
           existing_fixed_om: mean
           fuel_prices: {mode: hist5}
           # the v3.2 defaults (CHANGES §126) back at their v3.1 values: the regression row stays the v3.1 build
-          settings: {interconnection_headroom: {price_factors: {wind: null}}}
+          settings:
+            interconnection_headroom: {price_factors: {wind: null}}
+            build_rate: {ramp_base: build, stage_r: data, ramp_floor: placeholder, handover: "off",          # §247
+                         construction_completion: placeholder, tables_dir: build_rate/outputs}
           storage_credit: {mode: flat}
           startup_cost_fix: {enabled: false}
           prm: {thermal_derate: {prm_temp_tz_fix: false}}

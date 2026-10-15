@@ -24,6 +24,18 @@ s0_production:
       groups: [wind_onshore, solar, storage]
       regional: true
       regional_groups: [wind_onshore, solar]
+      # v3.2 build-rate package ON (Tom, 14-15 Oct 2026; CHANGES §121-§125, §247): R1 ramp base, R11 stage R, R4 ReEDS
+      # ramp floor, R2 2028->2030 hand-over and R7 LBNL construction completion. R2 / R7 need the tables made with the
+      # same flags (`python -m brc.cli run --outputs outputs_v32 --set near_term.handover.mode=linear --set
+      # near_term.construction_completion_source=lbnl_post_ia` in build_rate/); the build checks run_info.yaml.
+      # v3.1: ramp_base build, stage_r data, ramp_floor placeholder, handover "off", construction_completion
+      # placeholder, tables_dir build_rate/outputs (build_rate.yml)
+      ramp_base: max_build_r
+      stage_r: max_data_prev_build
+      ramp_floor: reeds_gbin_min
+      handover: linear
+      construction_completion: lbnl_post_ia
+      tables_dir: build_rate/outputs_v32
     # interconnection headroom, atts_s0 (host mode; the ic_v4 inputs of the test runs)
     interconnection_headroom:
       enabled: true

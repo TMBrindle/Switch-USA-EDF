@@ -119,6 +119,10 @@ def test_apply_settings_merges_and_sets_atb_moderate():
     s = cs["c"][2035]
     assert s["build_rate"] == {"enabled": True, "level": "central", "groups": ["wind_onshore", "solar", "storage"],
                                "regional": True, "regional_groups": ["wind_onshore", "solar"],
+                               # §247: the v3.2 build-rate package ON (R1, R11, R4, R2, R7) with its tables
+                               "ramp_base": "max_build_r", "stage_r": "max_data_prev_build",
+                               "ramp_floor": "reeds_gbin_min", "handover": "linear",
+                               "construction_completion": "lbnl_post_ia", "tables_dir": "build_rate/outputs_v32",
                                "gas_turbine_cap": {"enabled": True, "form": "cumulative_additions",
                                                    "allowance_path": "central"}}
     assert s["interconnection_headroom"] == {"enabled": True, "scenario": "atts_s0",
@@ -339,7 +343,14 @@ def test_legacy_settings_build_as_before(tmp_path):
     assert new_s == before                                       # legacy: current state-policy files
     s0prod.apply_settings({"c": {2035: new_s}})
     assert old_s["atb_modifiers"] == new_s["atb_modifiers"]
-    assert old_s.get("build_rate") == new_s.get("build_rate")            # no gas-turbine cap override
+    # no gas-turbine cap override; §247: the build-rate package pinned at its v3.1 values (the same as absent)
+    br_new = dict(new_s.get("build_rate") or {})
+    assert {k: br_new.pop(k) for k in ("ramp_base", "stage_r", "ramp_floor", "handover", "construction_completion",
+                                       "tables_dir")} == {"ramp_base": "build", "stage_r": "data",
+                                                          "ramp_floor": "placeholder", "handover": "off",
+                                                          "construction_completion": "placeholder",
+                                                          "tables_dir": "build_rate/outputs"}
+    assert old_s.get("build_rate") == br_new
     assert "forced_tx_table" not in new_s and "forced_tx_expansion_limit" not in new_s   # transmission as before
     old.write_case_inputs(tmp_path / "old", {2035: old_s})
     s0prod.write_case_inputs(tmp_path / "new", {2035: new_s})
@@ -561,7 +572,12 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
     # collapses the year-keyed phase_down to its 2035 value)
     # (§126: the v3.2 defaults are ON in s0_production.yml; on_pgdays sets each back to its v3.1 value, so the row
     # resolves to v3.1 settings; the wind price factor null is v3.1's 0.25 x)
-    assert cr._diff_paths(now, before) == ["interconnection_headroom.price_factors: None -> {'wind': None}",
+    # (§247: the build-rate package's keys pinned at their v3.1 values, the same as absent: build_rate.yml's defaults)
+    # (§245, §246: state_nuclear_bans [] and cf_fidelity.load_hydro off, as v3.1)
+    br31 = {"construction_completion": "'placeholder'", "handover": "'off'", "ramp_base": "'build'",
+            "ramp_floor": "'placeholder'", "stage_r": "'data'", "tables_dir": "'build_rate/outputs'"}
+    assert cr._diff_paths(now, before) == [f"build_rate.{k}: None -> {v}" for k, v in br31.items()] + [
+                                           "interconnection_headroom.price_factors: None -> {'wind': None}",
                                            "s0_production.ca_wa_carbon.import_charge: None -> 'two_tranche'",
                                            "s0_production.ca_wa_carbon.two_tranche: None -> {'preset': 'v31'}",
                                            "s0_production.offshore_filter_fix: None -> {'mode': 'off', "
@@ -571,13 +587,17 @@ def test_regression_row_resolves_as_before_the_one_column_fix():
                                            "s0_production.pv_profile_repair: None -> {'mode': 'off', 'profiles_dir': "
                                            "None, 'verify': 'manifest', 'neighbour_method': None, 'output_sha256': "
                                            "None}",                              # §132: ON in v3.2, off here
+                                           ] + [f"s0_production.settings.build_rate.{k}: None -> {v}"
+                                                for k, v in br31.items()] + [
                                            "s0_production.settings.interconnection_headroom.price_factors: None -> "
                                            "{'wind': None}",
                                            "s0_production.startup_cost_fix: None -> {'enabled': False}",
+                                           "s0_production.state_nuclear_bans: None -> {'states': []}",
                                            "s0_production.storage_credit: None -> {'mode': 'flat', 'phase_down': 0.5, "
                                            "'phase_basis': 'span_mean'}",
                                            "s0_production.time_sampling.cf_fidelity: None -> {'mode': 'off', 'techs': "
-                                           "['solar', 'onwind', 'offwind'], 'flag_range': [0.8, 1.25]}"]
+                                           "['solar', 'onwind', 'offwind'], 'flag_range': [0.8, 1.25], "
+                                           "'load_hydro': 'off'}"]
     assert now["s0_production"]["ca_wa_carbon"]["mode"] == "legacy"
     assert now["s0_production"]["prm"]["design"] == "legacy" and now["s0_production"]["tx_policy"]["mode"] == "legacy"
     on_pgdays = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))[

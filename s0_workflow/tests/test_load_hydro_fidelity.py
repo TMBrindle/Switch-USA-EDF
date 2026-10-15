@@ -79,7 +79,8 @@ def test_settings_v32_on_code_default_off():
         cf.load_hydro_settings({"s0_production": {"enabled": True, "time_sampling": {
             "cf_fidelity": {"mode": "rescale", "load_hydro": "zones"}}}})
     sm = yaml.safe_load(open(REPO / "pg/settings/scenario_management.yml"))["settings_management"]["all_years"]
-    assert sm["s0_production"]["on_pgdays"]["s0_production"]["time_sampling"]["cf_fidelity"] == {"mode": "off"}
+    assert sm["s0_production"]["on_pgdays"]["s0_production"]["time_sampling"]["cf_fidelity"] == {"mode": "off",
+                                                                                                  "load_hydro": "off"}
 
 
 def test_wind_solar_rescale_unchanged_since_f3():

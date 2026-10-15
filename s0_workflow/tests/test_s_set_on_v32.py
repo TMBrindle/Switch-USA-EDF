@@ -19,7 +19,11 @@ V32_FLAGS = {"s0_production.storage_credit", "s0_production.pv_profile_repair",
              "s0_production.offshore_filter_fix",
              # §126: the wind interconnection price factor (v3.2 ON), in the S0 settings block and merged into the case
              "s0_production.settings.interconnection_headroom.price_factors", "interconnection_headroom.price_factors",
-             "s0_production.powergenome_commit"}                                   # §134
+             "s0_production.powergenome_commit",                                   # §134
+             "s0_production.state_nuclear_bans",                                   # §245
+             # §247: the build-rate package (R1, R11, R4, R2, R7 and its tables), in the S0 settings block and merged
+             *(f"{p}build_rate.{k}" for p in ("s0_production.settings.", "") for k in
+               ("ramp_base", "stage_r", "ramp_floor", "handover", "construction_completion", "tables_dir"))}
 
 
 def _resolve(paths, case, year):
@@ -67,13 +71,17 @@ STORAGE_FLAT = {"phase_down": {2034: 1.0, 2035: 1.0, 2036: 1.0}}   # §136: flat
 
 # §126: the regression row's axis value (on_pgdays) sets the v3.2 defaults back to v3.1; the only change from the
 # credits branch's scenario_management.yml
-ON_PGDAYS_V31 = {"settings": {"interconnection_headroom": {"price_factors": {"wind": None}}},
+ON_PGDAYS_V31 = {"settings": {"interconnection_headroom": {"price_factors": {"wind": None}},
+                              "build_rate": {"ramp_base": "build", "stage_r": "data", "ramp_floor": "placeholder",
+                                             "handover": "off", "construction_completion": "placeholder",
+                                             "tables_dir": "build_rate/outputs"}},                      # §247
                  "storage_credit": {"mode": "flat"}, "startup_cost_fix": {"enabled": False},
                  "prm": {"thermal_derate": {"prm_temp_tz_fix": False}},
                  "offshore_filter_fix": {"mode": "off", "resource_groups_dir": None},           # §129
                  "pv_profile_repair": {"mode": "off", "profiles_dir": None, "neighbour_method": None,
                                        "output_sha256": None},                                   # §132
-                 "powergenome_commit": None}                                                     # §134
+                 "powergenome_commit": None,                                                     # §134
+                 "state_nuclear_bans": {"states": []}}                                           # §245
 
 
 def test_scenario_management_differs_only_by_the_regression_row_v31_pins():
@@ -85,7 +93,7 @@ def test_scenario_management_differs_only_by_the_regression_row_v31_pins():
     pg = now["settings_management"]["all_years"]["s0_production"]["on_pgdays"]["s0_production"]
     for k, v in ON_PGDAYS_V31.items():
         assert pg.pop(k) == v
-    assert pg["time_sampling"].pop("cf_fidelity") == {"mode": "off"}
+    assert pg["time_sampling"].pop("cf_fidelity") == {"mode": "off", "load_hydro": "off"}   # §246
     assert pg["ca_wa_carbon"].pop("two_tranche") == {"preset": "v31"}
     # §136 (Tom): S1, S2 and S3 extend the storage credit, flat 30% to 2045 (credit restoration)
     ss = now["settings_management"]["all_years"]["s_set"]
@@ -106,7 +114,7 @@ def test_s_set_files_are_the_credits_branch_files():
 
 
 def test_v32_run_cards_cases_on_the_v32_base():
-    """§133: the seven v3.2 run-card cases resolve on the v3.2 defaults (as S0prod_A) with the build-rate package off;
+    """§133: the seven v3.2 run-card cases resolve on the v3.2 defaults (as S0prod_A), the build-rate package ON (§247);
     v3.1's scenario definitions (axes, overrides, credits) unchanged (test above)."""
     from s0_workflow import chain_reuse as cr  # noqa: F401
     import sys
@@ -124,7 +132,14 @@ def test_v32_run_cards_cases_on_the_v32_base():
             assert s0["pv_profile_repair"]["mode"] == "neighbour_fill"
             assert s0["ca_wa_carbon"].get("wa_import_charge", "per_mwh") == "per_mwh"            # WA held
             assert s["interconnection_headroom"]["price_factors"] == {"wind": 1.0}
-            assert bsc.v32_flags(s.get("build_rate") or {}) == bsc.V32_DEFAULTS, (case, year)    # R1-R7 off
+            # §247 (Tom, 15 Oct 2026): the build-rate package ON in all seven cases (S3/S5 have no build rate)
+            assert bsc.v32_flags(s.get("build_rate") or {}) == {
+                "ramp_base": "max_build_r", "stage_r": "max_data_prev_build", "prev_build_divisor": 1.3,
+                "ramp_floor": "reeds_gbin_min", "handover": "linear", "construction_completion": "lbnl_post_ia"}, (
+                case, year)
+            assert s["build_rate"]["tables_dir"] == "build_rate/outputs_v32"
+            assert s0["state_nuclear_bans"] == {"states": ["CA"]}                                # §245
+            assert s0["time_sampling"]["cf_fidelity"]["load_hydro"] == "rescale"                 # §246
             pdn = s0["storage_credit"]["phase_down"]            # collapsed to the year (chain_reuse._at_year)
             if case in ("S1", "S2", "S3"):                      # §136: storage credit flat 30% to 2045
                 assert pdn == 1.0, (case, year)
