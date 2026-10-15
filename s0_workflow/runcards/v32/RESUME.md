@@ -1,5 +1,9 @@
 # RESUME: the S0 v3.2 chain after the VM shut down (14 Oct 2026; CHANGES §243)
 
+> **§248:** this card was written for S0 v3.2 **pre** (root `s0prod_A_v32`, built at 02:40 UTC on 14 Oct). For S0 v3.2
+> **final**, or any later chain, use the same steps with that run's root (`s0prod_A_v32final`), its scenarios file,
+> and `--inputs-not-after` set to the time that chain started.
+
 **For a fresh runner session with no memory of the last one.** Read all of this before acting.
 
 ## What is known (Tom, from the last runner report)

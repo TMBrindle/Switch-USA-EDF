@@ -62,9 +62,11 @@ use the flags-off patch: `git apply s0_workflow/data/v32/v32_flags_off.patch`, n
 - offshore split (§129);
 - PV repair from `pg_data/profiles_pvfix` (§132).
 
+- §245–§247 (S0 v3.2 final, §248): no new nuclear in California; load and hydro rescaled to the full record; the
+  build-rate package R1, R11, R4, R2 and R7 ON (Tom, 15 Oct 2026; tested first by `runcards/v32/br_twostage.md`).
+
 **Off:**
-- WA two-tranche (`per_mwh`, as v3.1);
-- the build-rate package R1, R11, R2, R4 and R7 (§121–§125).
+- WA two-tranche (`per_mwh`, as v3.1).
 
 **Prerequisites:** the same as S0 v3.2 (recipe L):
 - the offshore split folder;
@@ -106,8 +108,8 @@ paths.
 4. **Interaction: offshore split (resource offered once, not three times).** This matters most where offshore is
    unconstrained or cheap to connect: S3/S5 (techmax headroom, unconstrained transmission, no build rate) and the
    reform stages of BILL. Every case shares it, so deltas against S0 v3.2 are consistent.
-5. **The build-rate package is off.** BILL from 2035 (`reform_bp`) and S2/S4 (`high`) use the existing v3.1 tables.
-   S3/S5 have no build rate. Nothing to resolve.
+5. **The build-rate package is ON (§247).** BILL from 2035 (`reform_bp`) and S2/S4 (`high`) use the `outputs_v32`
+   tables of their levels. S3/S5 have no build rate.
 6. **WA:** `per_mwh` as v3.1 (§127). It is immaterial at 2028's volume, and recipe K tests it.
 
 ## Run cards

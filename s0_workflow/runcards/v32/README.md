@@ -4,7 +4,8 @@
 |---|---|
 | `recipe_L.md` | Before any v3.2 build: offshore split, cluster cache, PowerGenome import |
 | `flagsoff_build2.md` | F2: flags-off build with PowerGenome from the submodule (c4c433c) |
-| `s0_v32.md` | The S0 v3.2 chain |
+| `br_twostage.md` | **First:** the build-rate package's two-stage test (2028 + 2030). It gates S0 v3.2 final (§247) |
+| `s0_v32.md` | The S0 v3.2 **final** chain (root `s0prod_A_v32final`; §248) |
 | `RESUME.md` | After an interruption (VM shut down 14 Oct): assess, verify, clear partials, resume S0 v3.2 without rebuilding (§243) |
 | `bill_central.md`, `txonly.md`, `s1.md`, `s4.md`, `s2.md`, `s5.md`, `s3.md` | Scenario chains, in run order |
 | `READY_S0_V32` | One line: the commit the S0 v3.2 chain (and F2) must run at. Present = recipe L and the S0 card are final |
@@ -20,3 +21,13 @@ together in §240, at the commit with the day-selection fix.
 **READY re-issued for RESUME.md (§243):** the commit differs from 4894d6a only in files the reuse code check exempts
 (the resume script, tests, cards). It means "check out and resume", not "rebuild". The S0 v3.2 inputs built at
 02:40 UTC on 14 Oct stand.
+
+**Run order at the current READY commit (§248):**
+1. `br_twostage.md`. If it fails, STOP.
+2. `s0_v32.md` (S0 v3.2 final).
+3. The `READY_SCENARIOS` queue: BILL_central, txonly, S1, S4, S2, S5, S3.
+
+**Labels:**
+- **"S0 v3.2 pre"** is the run built at 4894d6a on 14 Oct (root `s0prod_A_v32`).
+- **"S0 v3.2 final"** is this card set's run. The scenarios reuse from it, and any scenario run made against pre is
+  labelled "pre".

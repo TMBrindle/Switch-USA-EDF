@@ -9,11 +9,15 @@ exists. That is normally S0 v3.2's commit (`READY_S0_V32`) or a later one whose 
 **Definition:** v3.1's, unchanged (rows and axis values byte for byte f8f12bc's; `test_s_set_on_v32.py`).
 - `tx_bill: bill_central_txonly`. From 2035: the bill's transmission parts only (moratorium, 3.0 TW-mi/yr); headroom and build rate as S0.
 - **Base:** the v3.2 defaults, as S0 v3.2 (`s0_v32.md`, "Settings in force"); WA `per_mwh`; the build-rate package
-  R1–R7 off.
+  ON (R1, R11, R4, R2, R7; §247).
 
+- **Reference (§248):** "S0 v3.2" on this card means **S0 v3.2 final** (`s0prod_A_v32final`). Reuse from it and compare
+  with it. A run of this case made against S0 v3.2 pre is labelled "pre"; this card's run replaces it.
 ## Prerequisites
 
-- S0 v3.2 solved and recorded as the reuse reference (`s0_v32.md` section 5).
+- **S0 v3.2 final** solved and recorded as the reuse reference (`s0_v32.md` section 5; root `s0prod_A_v32final`).
+  Not S0 v3.2 pre (`s0prod_A_v32`).
+- `build_rate\outputs_v32` in this worktree (`br_twostage.md` step 1).
 - Recipe L in force in this worktree: offshore split folder, `pg_data/profiles_pvfix`, the v3.2 cluster cache with
   its `S0_V32_CACHE.json` marker, and `set PYTHONPATH=<wt>\PowerGenome` (the build stops otherwise).
 
@@ -23,7 +27,7 @@ exists. That is normally S0 v3.2's commit (`READY_S0_V32`) or a later one whose 
 "<switch-pg-reeds-fedpol python>" pg_to_switch.py pg/settings switch/in/txonly_v32 --case-id BILL_central_txonly ^
     --year 2028 --year 2030 --year 2035 --year 2040 --year 2045
 python s0_workflow/scripts/reuse_chain_stages.py reuse switch/in/txonly_v32/scenarios_BILL_central_txonly.txt ^
-    --reuse-from switch/in/s0prod_A_v32/scenarios_S0prod_A.fixed.txt --solver-args "<S0 v3.2's string>" --code-check model --dry-run
+    --reuse-from switch/in/s0prod_A_v32final/scenarios_S0prod_A.fixed.txt --solver-args "<S0 v3.2's string>" --code-check model --dry-run
 ```
 - **Reuse:** if the dry run agrees, run it again without `--dry-run`. Then run `run_chain_A.py` on the printed
   `scenarios_BILL_central_txonly.from_<stage>.txt`, and `record` the case's scenarios file.
@@ -42,8 +46,9 @@ means this build's base differs from S0 v3.2's.
 
 ## Pre-solve checks
 
-- **The v3.2 base:** the same as `s0_v32.md` section 4, items 2–8, 10 and 12 (PowerGenome, PV repair, offshore
-  by stage, cache, start-up costs, sample fidelity, CA tranche, wind price factor, day selection).
+- **The v3.2 base:** the same as `s0_v32.md` section 4, items 2–8 and 10–14 (PowerGenome, PV repair,
+  offshore by stage, cache, start-up costs, sample fidelity, CA tranche, wind price factor, build-rate package, day
+  selection, CA nuclear ban, load and hydro).
 - **This case:** From 2035: the `tx_policy` lines as BILL_central; `ic_*` and `build_rate_*` identical in kind to S0's (`atts_s0`, central).
 
 ## Credits paid (after the solve; CHANGES §136)

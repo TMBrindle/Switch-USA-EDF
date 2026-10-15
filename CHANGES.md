@@ -5862,3 +5862,44 @@ build, the previous stage's data R).
 - **If any fails:** STOP; S0 v3.2 final doesn't run.
 
 **SHARED_CHANGES:** row 134.
+
+## 248. S0 v3.2 Final: Cards, Labels ("pre" / "final"), Run Order; READY Files Re-Issued
+
+**Date:** 2026-10-15. **Branch:** `tom/s0-v3.2`.
+
+**Labels:**
+- **S0 v3.2 pre:** the run built at 4894d6a on 14 Oct 2026 (root `s0prod_A_v32`), solved since.
+- **S0 v3.2 final:** this card set's run, root `s0prod_A_v32final`.
+- **What final adds to pre:**
+  - no new nuclear in California (§245);
+  - load and hydro budgets rescaled to the full record (§246);
+  - the build-rate package ON (§247).
+- BILL_central was solved against pre, so it is labelled "pre" too and is re-run in the queue.
+
+**Run order (README):**
+1. `br_twostage.md`: the build-rate package's 2028 + 2030 test. It gates the rest.
+2. `s0_v32.md`: S0 v3.2 final.
+3. The `READY_SCENARIOS` queue: BILL_central, txonly, S1, S4, S2, S5, S3.
+
+**Cards:**
+- **`s0_v32.md` (final):**
+  - the labels;
+  - the prerequisites: `br_twostage.md` passed, and `build_rate/outputs_v32` exists;
+  - the settings table with §245–§247;
+  - check 11 (the package: options, floor 4,800, R against `stage_r.csv`);
+  - new checks 13 (the CA ban) and 14 (`load_hydro_fidelity.csv`; STOP on a residual);
+  - the report adds nuclear, and load and hydro against the full record;
+  - root `s0prod_A_v32final` throughout, including `record` and the credits.
+- **The seven scenario cards:**
+  - they reuse from, and compare with, **S0 v3.2 final** (`s0prod_A_v32final`), not pre;
+  - the base has the package ON (S3/S5: no build rate, so check 11 doesn't apply);
+  - pre-solve checks are items 2–8 and 10–14;
+  - `build_rate/outputs_v32` is a prerequisite.
+- **`RESUME.md`:** a note that the same steps apply to final, with its own root and start time.
+- **`flagsoff_build2.md`:** the patch now makes 16 changes.
+- **`v32_run_cards.md`:** the package is ON in the base.
+
+**F3:** the flags-off patch sets §245–§247 back to v3.1 (`test_v32_flags_off_patch.py`). The regression row pins them
+(SHARED_CHANGES rows 133 and 134), and the legacy build test still builds byte-identical files.
+
+**READY files:** `READY_S0_V32` and `READY_SCENARIOS` are re-issued in the next commit, both naming this commit.
