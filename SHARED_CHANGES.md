@@ -557,3 +557,6 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     - **Why:** the v3.2 S0 build stops unless PowerGenome is imported at c4c433c, and the regression row records the
       import only.
     - **Effect:** none on its inputs.
+133. (§245, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `state_nuclear_bans: {states: []}`.**
+    - **Why:** v3.2 bars new nuclear in California's zones; the regression row stays the v3.1 build.
+    - **Effect:** none on its inputs.

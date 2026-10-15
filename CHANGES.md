@@ -5671,3 +5671,81 @@ bucket B item (supply inputs).
   (p128) from the 2028 stage.
 
 **Not changed:** code, settings, the fleet. The READY files are unaffected.
+
+## 245. S0 v3.2 Final: No New Nuclear in California; Other States' Restrictions (v4 Item, State Policy)
+
+**Date:** 2026-10-15. **Branch:** `tom/s0-v3.2`.
+
+**Why:** the S0 v3.2 bridge built 9.6 GW (v3.1) and 12.9 GW (v3.2 pre) of new nuclear in California by 2045. California
+bars new nuclear: Public Resources Code §25524.1–25524.2. Its condition (a federally approved high-level waste
+disposal technology) is unmet, so in effect it is a ban.
+
+### The rule
+
+`s0_production.state_nuclear_bans: {states: [CA]}`, implemented in `production.write_state_nuclear_bans`.
+- **What it adds:** a maximum-capacity program per state, `MaxCapTag_StateBan_<ST>_Nuclear`, at 0 MW in every period.
+- **What it covers:** that state's new-build nuclear candidates: `gen_tech` `Nuclear_*` (the ATB names) in its zones
+  (from the state column of `hierarchy.csv`; California is p8, p9, p10 and p11), with no predetermined build in the
+  stage.
+- **Existing plants are never listed** (Diablo Canyon, `gen_tech` `Nuclear`). `max_capacity_constraint` counts every
+  build of a listed project active in the period, so listing one would make the 0 MW cap infeasible. The build stops if
+  a listed project has predetermined capacity.
+- **Files:** it appends to `max_cap_requirements.csv` and `max_cap_generators.csv`, and writes `state_nuclear_bans.csv`
+  plus a log line. A stage that offers no new nuclear (before 2035) adds nothing and reports that.
+- **Flag:** ON in the v3.2 defaults; `[]` = v3.1, the code default. Off in the flags-off patch and pinned off in the
+  regression row (`on_pgdays`; SHARED_CHANGES row 133).
+
+**Tests** (`test_state_nuclear_bans.py`):
+- California's new-build candidates are capped at 0, and Diablo Canyon, Washington and solar are not;
+- existing programs are kept, and a second run is refused;
+- with the flag off the files are byte-identical;
+- a stage without new nuclear adds nothing;
+- a predetermined candidate is refused;
+- the step is wired into the case-input steps.
+
+### v4 item (state policy): other states' restrictions on new nuclear, not modelled in v3.2
+
+Tom's rule: California only in v3.2. Outright bans and federal-repository conditions are candidates for v4. Voter or
+legislative approval conditions are **not** to be modelled as bans.
+
+**Overall source:** NCSL, *States Restrictions on New Nuclear Power Facility Construction*, updated 16 Apr 2026. It
+lists ten states: CA, CT, HI, ME, MA, MN, NY, OR, RI and VT; MN outright; NY outright in a limited area; waste-disposal
+conditions in CA, CT, ME and OR; legislative approval in HI, MA, RI and VT; voter approval in CT, ME, MA and OR.
+NCSL's page could not be fetched from this environment, so the citations below come from the states' codes and the
+reporting listed, and the "Verified" column says how far each was checked.
+
+| State | Citation | Current status (Oct 2026) | Condition type | v4 candidate? | Verified |
+|---|---|---|---|---|---|
+| CA | Pub. Res. Code §25524.1–25524.2 | In force. AB 2647 (2026) was amended from an exemption into a CEC study (report due July 2027) | federal-repository condition (in effect a ban) | **modelled in v3.2** | statute and AB 2647 history (ANS, Feb 2026) |
+| MN | Minn. Stat. §216B.243 subd. 3b | In force since 1994. 2025–26 repeal bills (SF 350, SF 468, HF 2670) not enacted; HF 2670 dead 18 May 2026 | **outright ban** (no certificate of need for new nuclear) | **yes** (Tom) | statute table on revisor.mn.gov; Senate counsel memo |
+| NY | Pub. Auth. Law §1020-t (LIPA Act) | In force | **outright ban, limited area**: LIPA may not build or operate nuclear in its service area (Nassau, Suffolk, part of Queens; §1020-a) | **yes, for that area** (model zone p128, Long Island) | statute text (NY Senate) |
+| OR | ORS 469.595; voter approval ORS 469.597 | In force. 2025 SB 215 (repeal, then an SMR exemption, then a study) not shown enacted | **federal-repository condition** (no site certificate until a federally licensed high-level waste repository exists), plus voter approval | **yes** (Tom), on the repository condition | statute text quoted in 2025 committee documents |
+| CT | C.G.S. §22a-136 | In force with exemptions: sites of plants operating on 1 Oct 2022 (P.A. 22-76, 23-102); advanced reactors under P.A. 25-173 conditions | waste-disposal condition, plus voter/legislative approval (as NCSL classifies) | possible, but the exemptions cover Millstone and advanced reactors | 2026 statute supplement history |
+| ME | NCSL lists a waste-disposal condition and voter approval | Listed by NCSL as in force | federal-repository condition plus voter approval | possible | **citation not verified** (38 M.R.S. §1493 covers low-level waste sites, not reactors) |
+| HI | Const. Art. XI §8 | Listed by NCSL as in force | legislative approval (two-thirds of each house) | no (approval type) | citation from NCSL's table (2019 mirror) |
+| MA | 1982 ballot law (St. 1982) | In force; repeal bill in committee (NCSL, Apr 2026) | voter and legislative approval | no (approval type) | **citation not verified** |
+| RI | NCSL lists legislative approval | Listed by NCSL as in force | legislative approval | no (approval type) | **citation not verified** |
+| VT | 30 V.S.A. §248 | Listed by NCSL as in force; repeal bill pending (NCSL, Apr 2026) | legislative approval | no (approval type) | **citation not verified** |
+| NJ | CAFRA amendment, S3870 | **Lifted:** signed 8 Apr 2026. Waste storage now judged safe by DEP instead of requiring a federal repository | (was a federal-repository condition) | **no: repealed** | Governor's office, 8 Apr 2026; NJ Monitor; ANS |
+| IL | SB 25 | **Lifted:** signed 8 Jan 2026, effective 1 Jun 2026 | (was a waste condition) | no | ANS; CATF |
+| WI, KY, MT, WV | — | Lifted (2016, 2017, 2021, 2022) | — | no | NCSL summary |
+
+**Change from Tom's note:** New Jersey (flagged as a federal-repository state) lifted its condition in April 2026, so
+it is no longer a candidate. The federal-repository candidates are OR (and possibly ME and CT, pending their citations
+and exemptions). The outright-ban candidates are MN and NY's LIPA area.
+
+**To do in v4, before modelling any of these:**
+- verify the unverified citations against the current codes (or NCSL's page);
+- map each state, or for New York the LIPA area, to model zones;
+- reuse `state_nuclear_bans` (it takes any state list). New York's area ban needs a zone list rather than a state.
+
+**Sources:**
+- NCSL (16 Apr 2026): https://www.ncsl.org/environment-and-natural-resources/states-restrictions-on-new-nuclear-power-facility-construction
+- Minnesota Revisor: https://www.revisor.mn.gov/statutes/table2?full=216B.243
+- Minnesota HF 2670: https://www.billtrack50.com/billdetail/1875647
+- NY Pub. Auth. Law §1020-t: https://nysenate.gov/legislation/laws/PBA/1020-T
+- Oregon 2025 SB 215 committee documents: https://apps.oregonlegislature.gov/liz/2025R1/Downloads/CommitteeMeetingDocument/292781
+- Connecticut ch. 446: https://www.cga.ct.gov/2024/sup/chap_446.htm
+- New Jersey: https://www.nj.gov/governor/news/2026/approved/20260408a.shtml
+- Illinois: https://www.ans.org/news/article-7664/illinois-lifts-moratorium-on-new-large-nuclear-reactors/
+- California AB 2647: https://www.ans.org/news/2026-02-24/article-7793/california-bill-looks-to-craft-advanced-nuclear-exception-to-moratorium/

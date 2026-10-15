@@ -370,6 +370,10 @@ s0_production:
   # §137: a full copy of the RESOURCE_GROUPS root BESIDE it (never inside a root other builds scan); manifest in
   # pg_data/resource_groups_v32__meta; the build adds the fourth cluster entry (floating, preferred sites)
   offshore_filter_fix: {mode: split_groups, resource_groups_dir: pg_data/resource_groups_v32}
+  # v3.2 flag (CHANGES §245): states whose zones may build no new nuclear (a 0 MW maximum-capacity program per state
+  # over its new-build nuclear candidates; existing plants untouched). California: Public Resources Code
+  # §25524.1-25524.2. [] = v3.1. Other states' restrictions: CHANGES §245 (v4 item, not modelled)
+  state_nuclear_bans: {states: [CA]}   # v3.2 ON (Tom, 15 Oct 2026); [] = v3.1
   storage_credit:
     mode: obbba
     phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}

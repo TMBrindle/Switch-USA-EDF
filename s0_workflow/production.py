@@ -325,6 +325,72 @@ def va_budget_short_tons(year: int, v: dict | None = None) -> float:
     return float(t.loc[min(y, int(t.index.max()))])
 
 
+NUCLEAR_BAN_PROGRAM = "MaxCapTag_StateBan_{state}_Nuclear"
+
+
+def state_nuclear_bans(s0: dict) -> list[str]:
+    """s0_production.state_nuclear_bans.states (v3.2 flag, CHANGES §245): states whose zones may build no new nuclear.
+    [] (the code default) = v3.1."""
+    st = ((s0 or {}).get("state_nuclear_bans") or {}).get("states") or []
+    bad = [x for x in st if not (isinstance(x, str) and len(x) == 2 and x.isupper())]
+    if bad:
+        raise ValueError(f"s0_production.state_nuclear_bans.states must be two-letter state codes, not {bad}")
+    return list(st)
+
+
+def write_state_nuclear_bans(folder: Path, s0: dict, log) -> None:
+    """A state ban on new nuclear (§245; California: Public Resources Code §25524.1-25524.2): a maximum-capacity
+    program per state, 0 MW in every period, over that state's new-build nuclear candidates (gen_tech Nuclear_*, the
+    ATB names, with no predetermined build in this stage). study_modules.max_capacity_constraint counts every build of
+    a listed project active in the period, so existing plants (Diablo Canyon; gen_tech Nuclear) are never listed.
+    Appends to max_cap_requirements.csv / max_cap_generators.csv; writes state_nuclear_bans.csv. Stops if a listed
+    project has predetermined capacity in this stage (a 0 MW cap would be infeasible)."""
+    states = state_nuclear_bans(s0)
+    folder = Path(folder)
+    if not states or not (folder / "gen_info.csv").exists():
+        return
+    gi = pd.read_csv(folder / "gen_info.csv", na_values=["."])
+    st = dict(pd.read_csv(REPO / "hierarchy.csv")[["ba", "st"]].astype(str).values)
+    new = gi[gi.gen_tech.astype(str).str.startswith("Nuclear_")]
+    pre = folder / "gen_build_predetermined.csv"
+    pred = set(pd.read_csv(pre).GENERATION_PROJECT.astype(str)) if pre.exists() else set()
+    periods = [int(p) for p in pd.read_csv(folder / "periods.csv").INVESTMENT_PERIOD]
+    req = pd.read_csv(folder / "max_cap_requirements.csv") if (folder / "max_cap_requirements.csv").exists() \
+        else pd.DataFrame(columns=["MAX_CAP_PROGRAM", "PERIOD", "max_cap_mw"])
+    gens = pd.read_csv(folder / "max_cap_generators.csv") if (folder / "max_cap_generators.csv").exists() \
+        else pd.DataFrame(columns=["MAX_CAP_PROGRAM", "MAX_CAP_GEN"])
+    rep = []
+    for state in states:
+        prog = NUCLEAR_BAN_PROGRAM.format(state=state)
+        zones = {z for z, s in st.items() if s == state}
+        g = new[new.gen_load_zone.astype(str).isin(zones)]
+        clash = sorted(set(g.GENERATION_PROJECT.astype(str)) & pred)
+        if clash:
+            raise ValueError(f"state_nuclear_bans {state}: {clash[:3]} have predetermined capacity in this stage; a 0 MW "
+                             f"cap on them would be infeasible")
+        if prog in set(req.MAX_CAP_PROGRAM.astype(str)):
+            raise ValueError(f"state_nuclear_bans: {prog} already in max_cap_requirements.csv")
+        if not len(g):
+            rep.append({"state": state, "program": prog, "projects": 0, "zones": "", "periods": ""})
+            continue
+        req = pd.concat([req, pd.DataFrame({"MAX_CAP_PROGRAM": prog, "PERIOD": periods, "max_cap_mw": 0.0})],
+                        ignore_index=True)
+        gens = pd.concat([gens, pd.DataFrame({"MAX_CAP_PROGRAM": prog,
+                                              "MAX_CAP_GEN": sorted(g.GENERATION_PROJECT.astype(str))})],
+                         ignore_index=True)
+        rep.append({"state": state, "program": prog, "projects": len(g),
+                    "zones": " ".join(sorted(set(g.gen_load_zone.astype(str)), key=lambda z: (len(z), z))),
+                    "periods": " ".join(map(str, periods))})
+    if any(r["projects"] for r in rep):
+        req.to_csv(folder / "max_cap_requirements.csv", index=False)
+        gens.to_csv(folder / "max_cap_generators.csv", index=False)
+    pd.DataFrame(rep).to_csv(folder / "state_nuclear_bans.csv", index=False)
+    log("state nuclear bans (§245): " + "; ".join(
+        f"{r['state']} {r['projects']} new-nuclear projects capped at 0 MW" + (f" ({r['zones']})" if r["zones"] else
+                                                                                " (none offered in this stage)")
+        for r in rep) + "; state_nuclear_bans.csv")
+
+
 def write_va_rggi(folder: Path, s0: dict, scen_settings_dict: dict, log) -> None:
     """Virginia in RGGI (ETS 1) from first_year: Virginia's zones (hierarchy.csv st) join ETS 1 with Virginia's budget
     (va_budget.csv, short tons -> metric x 0.907185, split equally over its zones) on top of the RGGI10 cap; the
@@ -1408,6 +1474,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     write_ca_wa_import_cost(out_folder, s0, scen_settings_dict, log)       # CA/WA import carbon cost (§65)
     write_imports_carbon_cost(out_folder, s0, scen_settings_dict, log)     # imports generators in CA/WA (§66)
     write_va_rggi(out_folder, s0, scen_settings_dict, log)                 # Virginia in ETS 1 (§66)
+    write_state_nuclear_bans(out_folder, s0, log)                           # no new nuclear in CA (§245)
     fuel_prices.write_case_inputs(out_folder, s0, scen_settings_dict, log)  # STEO -> AEO2026 gas and coal (§67)
     write_pv_repair_log(out_folder, s0, log)                                # repaired PV profiles (§111)
     startup_costs.write_check(out_folder, s0, log)                          # new gas start-up costs (§119)
