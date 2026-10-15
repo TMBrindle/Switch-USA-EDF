@@ -5923,6 +5923,9 @@ build, the previous stage's data R).
 
 ### The change (settings only)
 
+> **Superseded by §250:** `additional_retirements` broke every build (PowerGenome applies it to the EIA-860m
+> proposed table too, which has no `plant_id_eia` column). §250 sets the date in the case writer instead.
+
 - **The retirement:** `s0_production.settings.additional_retirements: [[6099, 1, 2031], [6099, 2, 2031]]`. These are
   PowerGenome's `[plant_id_eia, generator_id, year]` entries, merged into S0 cases only; `resources.yml` keeps `~`.
 - **Why 2031 rather than SB 846's 2029/2030:**
@@ -5973,3 +5976,98 @@ touches the build-rate package or its pass criteria. `br_twostage.md` says so.
   starts in 2041; the model ends there. The same keys, so no code is needed.
 
 **SHARED_CHANGES:** row 135.
+
+## 250. S0 v3.2 Final: Diablo Canyon's Retirement Set by the Case Writer (§249 Broke Every Build); VM Smoke Gate
+
+**Date:** 2026-10-15. **Branch:** `tom/s0-v3.2`.
+
+**The failure (VM):** §249 broke every build, with `KeyError: 'plant_id_eia'` in PowerGenome's `label_retirement_year`.
+- PowerGenome applies `additional_retirements` to the proposed (EIA-860m) generators too. That table keeps
+  `plant_id_eia` in its index, not as a column.
+- The list had always been empty before §249, so that code path had never run.
+- **My error:** I sent §249 as "settings only" with no VM build. Cloud tests can't catch it: the cloud has no
+  PowerGenome data, and the PowerGenome clone is off limits here.
+
+### The change: the case writer sets the date (PowerGenome untouched)
+
+- **Removed:** `s0_production.settings.additional_retirements`, from `s0_production.yml`, the flags-off patch, the
+  regression row (`on_pgdays`) and the tests. PowerGenome now reads exactly what it read at 5d2e60a (CHANGES §248).
+- **The setting:** the existing flag, extended: `s0_production.retirement_checks: [{name: Diablo Canyon, project:
+  p9_nuclear_1, last_period: 2030, retire_year: 2031, expected_mw: 2240}]`.
+  - ON in v3.2. `[]` (the code default) in v3.1, in the flags-off patch and in the regression row.
+  - `retire_year` must be after `last_period`.
+- **The step:** `production.apply_retirements`, the **first** step of `write_case_inputs`, so it runs before any step
+  that reads `gen_max_age` (`prm`'s existing capacity, the check).
+  - For each entry with `retire_year`, it sets the project's `gen_info.csv` `gen_max_age` to `retire_year` minus its
+    latest predetermined build year.
+  - For Diablo: 2031 − 1986 = **45**. Unit 1 (1985) retires 2030 and Unit 2 (1986) 2031. Under Switch's rule (online ≤
+    period start < online + `gen_max_age`), both are in service in the periods starting 2026 and 2029 (the 2028 and
+    2030 stages) and neither from 2031 (2035 on).
+  - `gen_info.csv` is read as text and written back, so "." and every other value are kept. That is the pattern of
+    the coal and retirement-rule steps.
+  - It writes `retirements_applied.csv` (build years, `gen_max_age` before and after) and a log line.
+  - A stage without the project is reported, not changed. A `retire_year` not after the latest build year stops the
+    build.
+  - One `gen_max_age` per project, so an older build retires earlier. That is harmless here: both units are in
+    service through 2030.
+- **Costs:** Diablo's overnight cost is 0, so the change in capital-recovery factor (`crf` with age 45) changes
+  nothing. Fixed O&M is paid only while a build is in service.
+- **The check:** `write_retirement_checks` (§249) now also checks `expected_mw` (±1 MW). It catches a cluster that
+  picked up another plant: 2,240 MW in 2028 and 2030, 0 MW from 2035.
+- **The 2035 handover:**
+  - The 2030 solve carries Diablo's 1985 and 1986 builds into 2035's chained `gen_build_predetermined`, as it carries
+    every existing build.
+  - 2035's own `gen_info.csv` (`gen_max_age` 45) retires them, so neither is in service: 0 MW and no fixed O&M.
+  - Removing the project from the 2035 files instead would mean editing every file that names it (costs, heat rates,
+    reserves, policy lists) and the chained files written at solve time. I judged that too risky for this run.
+  - **New script:** `s0_workflow/scripts/check_retirements.py <stage inputs> --case S0prod_A [--outputs <stage
+    outputs>]`. It checks the built and chained predetermined builds with the stage's `gen_info`, and `gen_cap.csv`.
+    Exit 1 on any failure. Card check 15 runs it after the 2030 solve and after each later solve.
+
+**Tests:**
+- `test_retirement_checks.py`, rewritten:
+  - the settings (v3.2 ON, no `additional_retirements`; the regression row and the code default off);
+  - `gen_max_age` 500 → 45, with the gas plant and "." untouched;
+  - 2,240 MW in 2028 and 2030, 0 in 2035 and 2040;
+  - the chained 2035 file and `gen_cap.csv` pass, and with age 500 they fail;
+  - the v3.1 date stops a 2035 build, and a wrong MW stops the build;
+  - SB 846's own year (2029) drops both units from 2030;
+  - a `retire_year` before a build stops the build;
+  - the regional skip;
+  - off (`{}`, `[]`, or an entry without `retire_year`) leaves `gen_info.csv` byte-identical;
+  - the step runs first, before `prm` and the check.
+- The flags-off patch test (now **17** changes), `test_s_set_on_v32.py` (all seven cases) and the regression-row test
+  are updated.
+- The flags-off and isolation patches are regenerated.
+
+### The rule from now on: a VM smoke build before any full run (`s0_v32.md` section 2a; the run-card README)
+
+- **When:** any change to what PowerGenome reads, or to the case writer.
+- **What:** build only 2028 and 2035 into a scratch root (`switch\in\s0prod_A_v32smoke`), then run all pre-solve
+  checks, `retirement_checks.csv` and `check_retirements.py` included. No solve.
+- **The gate:** S0 v3.2 final starts only if it passes.
+- **Time:** about 45–60 min, 1.5 h at most. The five-stage build takes about 83 min (§110), mostly per stage; the
+  cache is warm.
+
+### F3 and the two-stage test still certify
+
+- **Flags-off (F3):** with `retirement_checks: []`, `apply_retirements` and the check return before reading anything.
+  - The patched `s0_production.yml` parses to exactly 4696653's settings, apart from the known record-only keys
+    (`test_v32_flags_off_patch.py`).
+  - `additional_retirements` is gone from both sides, so the flags-off build reads what F3 read.
+- **The two-stage test at 5d2e60a:**
+  - `git diff 5d2e60a` on everything a build reads touches only `production.py`'s retirement functions, the one
+    `retirement_checks` line in `s0_production.yml`, the regression row's `retirement_checks: []` and the two patches.
+  - No build-rate code (`build_rate/`), Switch module or `pg_to_switch.py` changed.
+  - In 2028 and 2030 the inputs differ from 5d2e60a's only in `p9_nuclear_1`'s `gen_max_age` (500 → 45, still in
+    service at the same 2,240 MW) and the two new report files.
+  - `br_twostage.md` says so.
+
+### §249's v4 sensitivity, corrected
+
+"Diablo Canyon extended to 2044/45 (NRC licence)": an axis value that sets the `retirement_checks` entry to
+`last_period: 2045` with no `retire_year`, so the build years and age stay as PowerGenome writes them (in service to
+2045). For an exact 2045 end, use `retire_year: 2046` (age 60: Unit 1 to 2045, Unit 2 to 2046). No PowerGenome
+setting is involved.
+
+**SHARED_CHANGES:** row 136.

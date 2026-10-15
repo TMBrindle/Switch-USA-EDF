@@ -36,13 +36,6 @@ s0_production:
       handover: linear
       construction_completion: lbnl_post_ia
       tables_dir: build_rate/outputs_v32
-    # v3.2 (CHANGES §249; Tom, 15 Oct 2026): Diablo Canyon follows current California law (SB 846: operation authorised
-    # to 2029 (Unit 1) and 2030 (Unit 2)). In service through the 2030 stage (2029-30), absent from 2035: planned
-    # retirement year 2031 for both units (PowerGenome's additional_retirements, [plant_id_eia, generator_id, year];
-    # pg_to_switch encodes year - 500 with gen_max_age 500, so 2031 = in service in the period starting 2029, not in
-    # the one starting 2031). ~ = v3.1 (no retirement date). Checked: retirement_checks below
-    # Diablo Canyon (EIA plant 6099): Unit 1 1,122 MW, Unit 2 1,118 MW
-    additional_retirements: [[6099, 1, 2031], [6099, 2, 2031]]
     # interconnection headroom, atts_s0 (host mode; the ic_v4 inputs of the test runs)
     interconnection_headroom:
       enabled: true
@@ -396,8 +389,14 @@ s0_production:
   # over its new-build nuclear candidates; existing plants untouched). California: Public Resources Code
   # §25524.1-25524.2. [] = v3.1. Other states' restrictions: CHANGES §245 (v4 item, not modelled)
   state_nuclear_bans: {states: [CA]}   # v3.2 ON (Tom, 15 Oct 2026); [] = v3.1
-  # §249: the build checks each project here is in service through last_period and absent after (retirement_checks.csv)
-  retirement_checks: [{name: Diablo Canyon, project: p9_nuclear_1, last_period: 2030}]   # v3.2 ON; [] = v3.1
+  # v3.2 (CHANGES §249, §250; Tom, 15 Oct 2026): Diablo Canyon follows current California law (SB 846: operation
+  # authorised to 2029 (Unit 1) and 2030 (Unit 2)). In service through the 2030 stage (2029-30), absent from 2035.
+  # The case writer sets the date (production.apply_retirements; not PowerGenome's additional_retirements, which
+  # fails on the EIA-860m proposed table, §250): gen_max_age of the project = retire_year - its latest build year
+  # (1986), 45, so both units retire in 2031, the start of the 2035 stage. The build then checks each project is in
+  # service through last_period (at expected_mw: Unit 1 1,122 + Unit 2 1,118 MW) and absent after
+  # (retirements_applied.csv, retirement_checks.csv). [] = v3.1 (no date: gen_max_age as built)
+  retirement_checks: [{name: Diablo Canyon, project: p9_nuclear_1, last_period: 2030, retire_year: 2031, expected_mw: 2240}]   # v3.2 ON; [] = v3.1
   storage_credit:
     mode: obbba
     phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}

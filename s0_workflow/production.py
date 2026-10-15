@@ -326,27 +326,75 @@ def va_budget_short_tons(year: int, v: dict | None = None) -> float:
 
 
 def retirement_checks(s0: dict) -> list[dict]:
-    """s0_production.retirement_checks (v3.2, CHANGES §249): [{name, project, last_period}]: projects whose retirement
-    the settings set (s0_production.settings.additional_retirements) and the build checks. [] = v3.1."""
+    """s0_production.retirement_checks (v3.2, CHANGES §249, §250): [{name, project, last_period, retire_year?,
+    expected_mw?}]: existing projects the case writer retires (retire_year: apply_retirements) and the build checks
+    (in service through last_period, at expected_mw if given; retired after). [] = v3.1."""
     out = list((s0 or {}).get("retirement_checks") or [])
     for c in out:
         if not {"name", "project", "last_period"} <= set(c):
             raise ValueError(f"s0_production.retirement_checks: each entry needs name, project, last_period; got {c}")
+        if c.get("retire_year") is not None and int(c["retire_year"]) <= int(c["last_period"]):
+            raise ValueError(f"s0_production.retirement_checks: {c['name']}: retire_year {c['retire_year']} must be "
+                             f"after last_period {c['last_period']}")
     return out
 
 
-def operable_mw(folder: Path, project: str) -> dict:
+def apply_retirements(folder: Path, s0: dict, log) -> None:
+    """§250: a retirement date set by the case writer, not PowerGenome (its additional_retirements fails on the
+    EIA-860m proposed table, §249). For each retirement_checks entry with retire_year Y: gen_info gen_max_age of the
+    project = Y - its latest predetermined build year, so every build retires by Y (Switch: online + gen_max_age;
+    in service in a period only if that is after the period's start). One gen_max_age per project, so an earlier
+    build retires earlier (build year + age). Diablo Canyon: builds 1985 / 1986, Y 2031 -> 45: Unit 1 retires 2030,
+    Unit 2 2031; both in service in the periods starting 2026 and 2029, neither from the one starting 2031. Runs
+    first, before any step that reads gen_max_age (prm, write_retirement_checks). A stage without the project is
+    reported, not changed. retirements_applied.csv."""
+    items = [c for c in retirement_checks(s0) if c.get("retire_year") is not None]
+    folder = Path(folder)
+    if not items or not (folder / "gen_info.csv").exists():
+        return
+    gi = _read(folder, "gen_info.csv", dtype=str, keep_default_na=False)
+    pre_f = folder / "gen_build_predetermined.csv"
+    pre = pd.read_csv(pre_f, na_values=["."]) if pre_f.exists() else pd.DataFrame(
+        columns=["GENERATION_PROJECT", "build_year"])
+    rows = []
+    for c in items:
+        prj, y = str(c["project"]), int(c["retire_year"])
+        m = gi["GENERATION_PROJECT"] == prj
+        years = pd.to_numeric(pre.loc[pre["GENERATION_PROJECT"].astype(str) == prj, "build_year"])
+        if not m.any() or years.empty:
+            rows.append({"name": c["name"], "project": prj, "retire_year": y, "build_years": "",
+                         "gen_max_age_before": "", "gen_max_age": "", "note": "not in this case/stage"})
+            continue
+        age = y - int(years.max())
+        if age <= 0:
+            raise ValueError(f"apply_retirements: {c['name']} ({prj}): retire_year {y} is not after its latest build "
+                             f"year {int(years.max())}")
+        before = str(gi.loc[m, "gen_max_age"].iloc[0])
+        gi.loc[m, "gen_max_age"] = str(age)
+        rows.append({"name": c["name"], "project": prj, "retire_year": y,
+                     "build_years": " ".join(str(int(b)) for b in sorted(years)), "gen_max_age_before": before,
+                     "gen_max_age": age, "note": "set"})
+    gi.to_csv(folder / "gen_info.csv", index=False)
+    pd.DataFrame(rows).to_csv(folder / "retirements_applied.csv", index=False)
+    log("retirements (§250): " + "; ".join(
+        f"{r['name']} ({r['project']}) retires {r['retire_year']}: builds {r['build_years']}, gen_max_age "
+        f"{r['gen_max_age_before']} -> {r['gen_max_age']}" if r["note"] == "set"
+        else f"{r['name']} ({r['project']}): {r['note']}" for r in rows) + "; retirements_applied.csv")
+
+
+def operable_mw(folder: Path, project: str, predetermined: str = "gen_build_predetermined.csv") -> dict:
     """{period: MW of `project`'s predetermined builds in service} under Switch's default retire_time "late": a build
     runs in a period if it came online at or before the period's start and retires after it (online + gen_max_age;
-    a build year that is a model period comes online at that period's start)."""
+    a build year that is a model period comes online at that period's start). `predetermined`: the file to read
+    (a chained stage's gen_build_predetermined.chained.<case>.csv, §250)."""
     folder = Path(folder)
     per = pd.read_csv(folder / "periods.csv").set_index("INVESTMENT_PERIOD")["period_start"].astype(int).to_dict()
     gi = pd.read_csv(folder / "gen_info.csv", na_values=["."])
     g = gi[gi.GENERATION_PROJECT.astype(str) == project]
-    if g.empty or not (folder / "gen_build_predetermined.csv").exists():
+    if g.empty or not (folder / predetermined).exists():
         return {int(p): 0.0 for p in per}
     age = float(pd.to_numeric(g.gen_max_age, errors="coerce").iloc[0])
-    pre = pd.read_csv(folder / "gen_build_predetermined.csv", na_values=["."])
+    pre = pd.read_csv(folder / predetermined, na_values=["."])
     pre = pre[pre.GENERATION_PROJECT.astype(str) == project]
     out = {}
     for p, start in per.items():
@@ -360,8 +408,9 @@ def operable_mw(folder: Path, project: str) -> dict:
 
 
 def write_retirement_checks(folder: Path, s0: dict, log) -> None:
-    """§249: each checked project (Diablo Canyon, SB 846) must be in service in every period up to last_period and in
-    none after; the build stops otherwise. A case without the project's zone (the name's prefix, or `zone`) is not
+    """§249, §250: each checked project (Diablo Canyon, SB 846) must be in service in every period up to last_period
+    (at expected_mw, ±1 MW, if given) and in none after; the build stops otherwise. Reads gen_info after
+    apply_retirements. A case without the project's zone (the name's prefix, or `zone`) is not
     checked (reported). retirement_checks.csv."""
     checks = retirement_checks(s0)
     folder = Path(folder)
@@ -377,13 +426,18 @@ def write_retirement_checks(folder: Path, s0: dict, log) -> None:
             continue
         for p, mw in operable_mw(folder, str(c["project"])).items():
             want = p <= int(c["last_period"])
+            exp_mw = c.get("expected_mw")
+            ok = (mw > 0) == want and not (want and exp_mw is not None and abs(mw - float(exp_mw)) > 1.0)
+            expected = ("in service" + (f" at {float(exp_mw):,.0f} MW" if exp_mw is not None else "")) if want \
+                else "retired"
             rows.append({"name": c["name"], "project": c["project"], "period": p, "mw_in_service": mw,
-                         "expected": "in service" if want else "retired", "ok": (mw > 0) == want})
-            if (mw > 0) != want:
+                         "expected": expected, "ok": ok})
+            if not ok:
                 bad.append(f"{c['name']} ({c['project']}) {mw:,.0f} MW in {p}, expected {rows[-1]['expected']}")
     pd.DataFrame(rows).to_csv(folder / "retirement_checks.csv", index=False)
     if bad:
-        raise ValueError("retirement_checks: " + "; ".join(bad) + " (s0_production.settings.additional_retirements)")
+        raise ValueError("retirement_checks: " + "; ".join(bad) + " (s0_production.retirement_checks retire_year; "
+                         "retirements_applied.csv)")
     log("retirement checks (§249): " + "; ".join(
         f"{r['name']} {r['period']}: {r['mw_in_service']:,.0f} MW ({r['expected']})" if r["period"] is not None
         else f"{r['name']}: {r['expected']}" for r in rows) + "; retirement_checks.csv")
@@ -1520,6 +1574,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
         return []
     log = Log(out_folder)
     log(f"case {first.get('case_id')} years {list(scen_settings_dict)}: s0_production steps")
+    apply_retirements(out_folder, s0, log)                                  # Diablo Canyon's date (§250); first
     apply_gas_capex(out_folder, s0, log)
     if not coal_fleet.spec_settings(s0):                   # legacy: one table, 500 MW / 0.65 fallback rule
         apply_coal_cf_caps(out_folder, s0, first, log)
@@ -1539,7 +1594,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     write_imports_carbon_cost(out_folder, s0, scen_settings_dict, log)     # imports generators in CA/WA (§66)
     write_va_rggi(out_folder, s0, scen_settings_dict, log)                 # Virginia in ETS 1 (§66)
     write_state_nuclear_bans(out_folder, s0, log)                           # no new nuclear in CA (§245)
-    write_retirement_checks(out_folder, s0, log)                            # Diablo Canyon after 2030 (§249)
+    write_retirement_checks(out_folder, s0, log)                            # Diablo Canyon after 2030 (§249, §250)
     fuel_prices.write_case_inputs(out_folder, s0, scen_settings_dict, log)  # STEO -> AEO2026 gas and coal (§67)
     write_pv_repair_log(out_folder, s0, log)                                # repaired PV profiles (§111)
     startup_costs.write_check(out_folder, s0, log)                          # new gas start-up costs (§119)

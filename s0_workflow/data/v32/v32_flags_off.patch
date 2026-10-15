@@ -1,8 +1,8 @@
 diff --git a/pg/settings/s0_production.yml b/pg/settings/s0_production.yml
-index 4c0e85e..69e2b8a 100644
+index 51667de..3df570b 100644
 --- a/pg/settings/s0_production.yml
 +++ b/pg/settings/s0_production.yml
-@@ -30,25 +30,25 @@ s0_production:
+@@ -30,18 +30,18 @@ s0_production:
        # near_term.construction_completion_source=lbnl_post_ia` in build_rate/); the build checks run_info.yaml.
        # v3.1: ramp_base build, stage_r data, ramp_floor placeholder, handover "off", construction_completion
        # placeholder, tables_dir build_rate/outputs (build_rate.yml)
@@ -18,14 +18,6 @@ index 4c0e85e..69e2b8a 100644
 +      handover: "off"
 +      construction_completion: placeholder
 +      tables_dir: build_rate/outputs
-     # v3.2 (CHANGES §249; Tom, 15 Oct 2026): Diablo Canyon follows current California law (SB 846: operation authorised
-     # to 2029 (Unit 1) and 2030 (Unit 2)). In service through the 2030 stage (2029-30), absent from 2035: planned
-     # retirement year 2031 for both units (PowerGenome's additional_retirements, [plant_id_eia, generator_id, year];
-     # pg_to_switch encodes year - 500 with gen_max_age 500, so 2031 = in service in the period starting 2029, not in
-     # the one starting 2031). ~ = v3.1 (no retirement date). Checked: retirement_checks below
-     # Diablo Canyon (EIA plant 6099): Unit 1 1,122 MW, Unit 2 1,118 MW
--    additional_retirements: [[6099, 1, 2031], [6099, 2, 2031]]
-+    additional_retirements: ~
      # interconnection headroom, atts_s0 (host mode; the ic_v4 inputs of the test runs)
      interconnection_headroom:
        enabled: true
@@ -36,7 +28,7 @@ index 4c0e85e..69e2b8a 100644
  
    # diagnostic slack on the headroom limit ($/MW; ic_params.ic_v2 of the test runs), so a case that
    # cannot meet the headroom limit solves and reports where (ic_headroom.csv)
-@@ -83,7 +83,7 @@ s0_production:
+@@ -76,7 +76,7 @@ s0_production:
      # load_hydro (v3.2 flag, CHANGES §246): also each zone's sample-weighted load and each hydro project's flow (the
      # hydro budgets) to the full record; uniform per zone, the peak day included; stress days untouched;
      # load_hydro_fidelity.csv per case. off (v3.1, the code default) | rescale. v3.2 ON (Tom, 15 Oct 2026)
@@ -45,7 +37,7 @@ index 4c0e85e..69e2b8a 100644
      # sample (optional; absent = n_days single days): N (N single days, = n_days) or NxL, N chronological
      # L-day blocks (e.g. 4x3), each one timeseries (storage and hydro carry over its L days), against the
      # same targets, tolerances and tail bands; weights in days/yr, each block at least w_min times a year.
-@@ -298,7 +298,7 @@ s0_production:
+@@ -291,7 +291,7 @@ s0_production:
        # v3.2 flag (CHANGES §118): read hourly temperatures on the model's clock (utc_offset -5 -> Etc/GMT+5, the basis of
        # the profiles and load, dbc3637), not Etc/GMT+6, which is one hour behind. false = v3.1. Acts only with
        # method: hourly (S0 uses seasonal derates, which don't read temperatures)
@@ -54,7 +46,7 @@ index 4c0e85e..69e2b8a 100644
        cold_c: -15                  # winter stress days: the cold end of the murphy2019 curves
        hot_c: 35                    # summer stress days: the hot end
        winter_months: [11, 12, 1, 2, 3]
-@@ -367,8 +367,8 @@ s0_production:
+@@ -360,8 +360,8 @@ s0_production:
    # in-zone; daily correlation min 0.72, p10 0.93; scale 0.74-1.17; p1 CF 2007-13 0.125 -> 0.180; CHANGES §132)
    # v3.2 (V32-04, CHANGES §128, §134): the build stops unless PowerGenome is imported at this commit (the repo submodule;
    # PYTHONPATH=<worktree>/PowerGenome, VM_RECIPES.md recipe L step 6); ~ = record it only (powergenome_provenance.json)
@@ -65,7 +57,7 @@ index 4c0e85e..69e2b8a 100644
  
    # v3.2 flag (CHANGES §100): the battery storage credit (48E ITC).
    #   flat   (v3.1) the tax_credits axis's x0.7 battery capex multiplier (atb_modifiers.batteries) in every period
-@@ -382,7 +382,7 @@ s0_production:
+@@ -375,7 +375,7 @@ s0_production:
    # v3.2 flag (CHANGES §119, V32-01; changes results, for Ollie's review): new-build start-up cost keys that match the
    # current ATB names (NaturalGas_Combustion Turbine, NaturalGas_1-on-1 / 2-on-1 Combined Cycle; Coal_95% / 99%-CCS).
    # In v3.1 new CTs and CCs match no key and carry Start_Cost_per_MW 0. On: the build stops if new gas still has none
@@ -74,7 +66,7 @@ index 4c0e85e..69e2b8a 100644
    # v3.2 flag (CHANGES §120): offshore wind duplicates. The three offshore cluster entries (fixed pref-site 1 / 0,
    # floating) all pick the one all-CPA offshore group, so each carries every zone's whole resource (x3 in total).
    # off (v3.1) | split_groups: RESOURCE_GROUPS = a copy with the offshore group split by turbine type and pref site
-@@ -391,15 +391,15 @@ s0_production:
+@@ -384,11 +384,11 @@ s0_production:
    # the build stops until it exists and its manifest checks out
    # §137: a full copy of the RESOURCE_GROUPS root BESIDE it (never inside a root other builds scan); manifest in
    # pg_data/resource_groups_v32__meta; the build adds the fourth cluster entry (floating, preferred sites)
@@ -85,8 +77,14 @@ index 4c0e85e..69e2b8a 100644
    # §25524.1-25524.2. [] = v3.1. Other states' restrictions: CHANGES §245 (v4 item, not modelled)
 -  state_nuclear_bans: {states: [CA]}   # v3.2 ON (Tom, 15 Oct 2026); [] = v3.1
 +  state_nuclear_bans: {states: []}   # v3.2 ON (Tom, 15 Oct 2026); [] = v3.1
-   # §249: the build checks each project here is in service through last_period and absent after (retirement_checks.csv)
--  retirement_checks: [{name: Diablo Canyon, project: p9_nuclear_1, last_period: 2030}]   # v3.2 ON; [] = v3.1
+   # v3.2 (CHANGES §249, §250; Tom, 15 Oct 2026): Diablo Canyon follows current California law (SB 846: operation
+   # authorised to 2029 (Unit 1) and 2030 (Unit 2)). In service through the 2030 stage (2029-30), absent from 2035.
+   # The case writer sets the date (production.apply_retirements; not PowerGenome's additional_retirements, which
+@@ -396,9 +396,9 @@ s0_production:
+   # (1986), 45, so both units retire in 2031, the start of the 2035 stage. The build then checks each project is in
+   # service through last_period (at expected_mw: Unit 1 1,122 + Unit 2 1,118 MW) and absent after
+   # (retirements_applied.csv, retirement_checks.csv). [] = v3.1 (no date: gen_max_age as built)
+-  retirement_checks: [{name: Diablo Canyon, project: p9_nuclear_1, last_period: 2030, retire_year: 2031, expected_mw: 2240}]   # v3.2 ON; [] = v3.1
 +  retirement_checks: []   # v3.2 ON; [] = v3.1
    storage_credit:
 -    mode: obbba
@@ -94,7 +92,7 @@ index 4c0e85e..69e2b8a 100644
      phase_down: {2034: 0.75, 2035: 0.5, 2036: 0.0}
      phase_basis: span_mean
    ca_wa_carbon:
-@@ -411,7 +411,7 @@ s0_production:
+@@ -410,7 +410,7 @@ s0_production:
      # v3.2 flag (CHANGES §114): CA free tranche preset. v31 (default, 49.4 TWh) | d2 (v3.2 value, Tom: 52.7 TWh, CEC clean
      # imports + geothermal + biomass) | d3 (sensitivity, ~39 TWh, CARB basis, indicative). A sensitivity row sets
      # s0_production: {ca_wa_carbon: {two_tranche: {preset: d3}}}

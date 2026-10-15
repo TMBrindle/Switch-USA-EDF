@@ -1344,7 +1344,6 @@ settings_management:
             interconnection_headroom: {price_factors: {wind: null}}
             build_rate: {ramp_base: build, stage_r: data, ramp_floor: placeholder, handover: "off",          # §247
                          construction_completion: placeholder, tables_dir: build_rate/outputs}
-            additional_retirements: ~                                                                  # §249
           storage_credit: {mode: flat}
           startup_cost_fix: {enabled: false}
           prm: {thermal_derate: {prm_temp_tz_fix: false}}

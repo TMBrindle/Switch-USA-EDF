@@ -570,3 +570,8 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
     `retirement_checks: []`.**
     - **Why:** v3.2 retires Diablo Canyon after the 2030 stage (SB 846); the regression row stays the v3.1 build.
     - **Effect:** none on its inputs (no retirement date, as `resources.yml`).
+136. (§250, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `settings.additional_retirements: ~`
+    removed (row 135); `retirement_checks: []` stays.**
+    - **Why:** PowerGenome's `additional_retirements` broke every build (EIA-860m proposed table); v3.2 sets Diablo
+      Canyon's date in the case writer instead, behind `retirement_checks`.
+    - **Effect:** none on its inputs (no retirement date, as v3.1).
