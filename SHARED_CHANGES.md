@@ -560,3 +560,9 @@ Every change below is inert unless a case's inputs contain `stress_light_timeser
 133. (§245, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `state_nuclear_bans: {states: []}`.**
     - **Why:** v3.2 bars new nuclear in California's zones; the regression row stays the v3.1 build.
     - **Effect:** none on its inputs.
+134. (§246, §247, tom/s0-v3.2) **`pg/settings/scenario_management.yml`, `on_pgdays`: `cf_fidelity.load_hydro: "off"`
+    and `settings.build_rate` = the build-rate package at v3.1 (`ramp_base: build`, `stage_r: data`, `ramp_floor:
+    placeholder`, `handover: "off"`, `construction_completion: placeholder`, `tables_dir: build_rate/outputs`).**
+    - **Why:** v3.2 turns on the load/hydro rescale and the build-rate package in S0 cases; the regression row stays
+      the v3.1 build.
+    - **Effect:** none on its inputs (each value is v3.1's: `build_rate.yml`'s defaults; `cf_fidelity` is off there).

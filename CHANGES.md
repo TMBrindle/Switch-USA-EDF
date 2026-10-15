@@ -5795,3 +5795,70 @@ The hydro budgets weren't rescaled at all: −14 to +31 TWh.
 - the step is wired before the hydro tables and the loads.
 
 **F3:** with `cf_fidelity` off (the flags-off patch) the step doesn't run, and the shared function computes as before.
+
+## 247. S0 v3.2 Final: Build-Rate Package ON (R1, R11, R4, R2, R7); Two-Stage Test Card
+
+**Date:** 2026-10-15. **Branch:** `tom/s0-v3.2`.
+
+**Decision (Tom):** the build-rate package (§121–§125), approved for v3.2, goes ON in the S0 v3.2 base and in all seven
+scenario cases. S3 and S5 have no build rate, so they are unaffected. It runs only after the two-stage test passes.
+
+**Why R1 matters (the bridge):** the costlier wind connection (§126) cut 2028–30 wind, and the ramp, based on the
+model's own past build, then locked in 11.5 GW less wind in every later stage. R1 bases the ramp on max(the chained
+build, the previous stage's data R).
+
+### Settings: `s0_production.settings.build_rate` (S0 cases only; `build_rate.yml` is unchanged)
+
+| Key | v3.2 | v3.1 |
+|---|---|---|
+| `ramp_base` (R1) | `max_build_r` | `build` |
+| `stage_r` (R11) | `max_data_prev_build` | `data` |
+| `ramp_floor` (R4) | `reeds_gbin_min` (100 MW per state × 48 = 4,800 MW/yr per group) | `placeholder` (1,000) |
+| `handover` (R2) | `linear` | `off` |
+| `construction_completion` (R7) | `lbnl_post_ia` (0.722) | `placeholder` (0.9) |
+| `tables_dir` | `build_rate/outputs_v32` | `build_rate/outputs` |
+
+- **The tables:** R2 and R7 need tables made with the same flags: `python -m brc.cli run --outputs outputs_v32 --set
+  near_term.handover.mode=linear --set near_term.construction_completion_source=lbnl_post_ia`. The case build checks
+  `run_info.yaml`. `build_rate/outputs*` is gitignored, so the VM makes `outputs_v32` (the card's step 1).
+- **Checked here:** the same command on the repo's raw files writes all eight levels with those flags. The expected
+  stage R is in `s0_workflow/data/build_rate_v32/stage_r.csv` (column `r2r7`).
+
+### Flags-off and regression row
+
+- **The flags-off patch** (`v32_flags_off.patch`) now makes **16 changes**: §245 added 1 line, §246 changed
+  `cf_fidelity`'s line, and §247 added 6 lines (the package back to v3.1). The patched yml still equals the flags-off
+  commit (4696653), apart from keys pinned at their v3.1 values. `flagsoff_build2.md` is updated.
+- **The regression row (`on_pgdays`)** pins the package at v3.1 and sets `cf_fidelity.load_hydro: "off"`
+  (SHARED_CHANGES row 134). It resolves to v3.1's settings: `test_regression_row_resolves_as_before_the_one_column_fix`
+  lists every pinned key, and `test_legacy_settings_build_as_before` still builds byte-identical files.
+
+### Tests updated deliberately
+
+- `test_apply_settings_merges_and_sets_atb_moderate`: the package keys in S0's `build_rate`.
+- `test_v32_run_cards_cases_on_the_v32_base`: all seven cases, all five stages: the package ON (`v32_flags`) and
+  `tables_dir` `outputs_v32`; also the CA ban and `load_hydro`.
+- `test_scenario_management_differs_only_by_the_regression_row_v31_pins` and the S-set resolution: the new pins and
+  flags.
+- `test_v32_flags_off_patch.py`: 16 lines; the new `test_br_twostage_isolation_patch_turns_off_load_hydro_only`.
+
+### The two-stage test card (`s0_workflow/runcards/v32/br_twostage.md`)
+
+- **Case:** S0prod_A, 2028 and 2030, at the READY commit, into `switch/in/s0prod_A_v32brtest`.
+- **Compared with:** S0 v3.2 pre (`s0prod_A_v32`, 4894d6a).
+- **Isolation:** `s0_workflow/data/v32/br_twostage_isolation.patch` (not committed) turns `load_hydro` off. The CA
+  nuclear ban is inert before 2035.
+- **Before solving:**
+  - only the build-rate files (plus the new `state_nuclear_bans.csv`, the log and provenance) differ from pre's;
+  - the options are R1/R11 with divisor 1.3;
+  - the ramp floor is 4,800;
+  - R per stage matches `stage_r.csv` within 1%: 2028 solar 36,289 (R7); 2030 solar 30,414 and storage 16,615 (R2).
+- **Pass criteria:**
+  - both stages complete and optimal, with the R1/R11 columns chained;
+  - 2030 wind has no binding ramp (R1);
+  - R11's cap is at least the data R;
+  - 2030 wind, solar and storage builds are at least pre's, and 2028 solar falls by at most 2.2% (R7);
+  - no new slack.
+- **If any fails:** STOP; S0 v3.2 final doesn't run.
+
+**SHARED_CHANGES:** row 134.

@@ -17,7 +17,7 @@
    git apply s0_workflow/data/v32/v32_flags_off.patch
    ```
    - The submodule must be at `c4c433cfefd0ae11f5b3f47ae05e3b9d7c90a691`.
-   - The patch makes 9 changes and sets every v3.2 flag back to v3.1, including `powergenome_commit: ~` (record
+   - The patch makes 16 changes (§245–§247 added 7) and sets every v3.2 flag back to v3.1, including `powergenome_commit: ~` (record
      only). Don't commit it.
 2. **Cluster cache:** use the same v3.1 cache as F1, with no `S0_V32_CACHE.json` marker. The flags-off build refuses a
    cache that has the marker (recipe L step 4).
