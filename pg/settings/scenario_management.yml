@@ -1344,6 +1344,7 @@ settings_management:
             interconnection_headroom: {price_factors: {wind: null}}
             build_rate: {ramp_base: build, stage_r: data, ramp_floor: placeholder, handover: "off",          # §247
                          construction_completion: placeholder, tables_dir: build_rate/outputs}
+            additional_retirements: ~                                                                  # §249
           storage_credit: {mode: flat}
           startup_cost_fix: {enabled: false}
           prm: {thermal_derate: {prm_temp_tz_fix: false}}
@@ -1351,6 +1352,7 @@ settings_management:
           pv_profile_repair: {mode: "off", profiles_dir: ~, neighbour_method: ~, output_sha256: ~}   # §132
           powergenome_commit: ~                                                                    # §134
           state_nuclear_bans: {states: []}                                                         # §245
+          retirement_checks: []                                                                    # §249
       # the same case with the new defaults (s4x1_S0prod_2035_new)
       on_pgdays_new:
         s0_production: {enabled: true, time_sampling: {method: powergenome}, foresight: {mode: single}}

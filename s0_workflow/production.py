@@ -325,6 +325,62 @@ def va_budget_short_tons(year: int, v: dict | None = None) -> float:
     return float(t.loc[min(y, int(t.index.max()))])
 
 
+def retirement_checks(s0: dict) -> list[dict]:
+    """s0_production.retirement_checks (v3.2, CHANGES §249): [{name, project, last_period}]: projects whose retirement
+    the settings set (s0_production.settings.additional_retirements) and the build checks. [] = v3.1."""
+    out = list((s0 or {}).get("retirement_checks") or [])
+    for c in out:
+        if not {"name", "project", "last_period"} <= set(c):
+            raise ValueError(f"s0_production.retirement_checks: each entry needs name, project, last_period; got {c}")
+    return out
+
+
+def operable_mw(folder: Path, project: str) -> dict:
+    """{period: MW of `project`'s predetermined builds in service} under Switch's default retire_time "late": a build
+    runs in a period if it came online at or before the period's start and retires after it (online + gen_max_age;
+    a build year that is a model period comes online at that period's start)."""
+    folder = Path(folder)
+    per = pd.read_csv(folder / "periods.csv").set_index("INVESTMENT_PERIOD")["period_start"].astype(int).to_dict()
+    gi = pd.read_csv(folder / "gen_info.csv", na_values=["."])
+    g = gi[gi.GENERATION_PROJECT.astype(str) == project]
+    if g.empty or not (folder / "gen_build_predetermined.csv").exists():
+        return {int(p): 0.0 for p in per}
+    age = float(pd.to_numeric(g.gen_max_age, errors="coerce").iloc[0])
+    pre = pd.read_csv(folder / "gen_build_predetermined.csv", na_values=["."])
+    pre = pre[pre.GENERATION_PROJECT.astype(str) == project]
+    out = {}
+    for p, start in per.items():
+        mw = 0.0
+        for by, cap in zip(pd.to_numeric(pre.build_year), pd.to_numeric(pre.build_gen_predetermined)):
+            online = per.get(int(by), int(by))
+            if int(by) == int(p) or online <= start < online + age:
+                mw += float(cap)
+        out[int(p)] = mw
+    return out
+
+
+def write_retirement_checks(folder: Path, s0: dict, log) -> None:
+    """§249: each checked project (Diablo Canyon, SB 846) must be in service in every period up to last_period and in
+    none after; the build stops otherwise. retirement_checks.csv."""
+    checks = retirement_checks(s0)
+    folder = Path(folder)
+    if not checks or not (folder / "gen_info.csv").exists():
+        return
+    rows, bad = [], []
+    for c in checks:
+        for p, mw in operable_mw(folder, str(c["project"])).items():
+            want = p <= int(c["last_period"])
+            rows.append({"name": c["name"], "project": c["project"], "period": p, "mw_in_service": mw,
+                         "expected": "in service" if want else "retired", "ok": (mw > 0) == want})
+            if (mw > 0) != want:
+                bad.append(f"{c['name']} ({c['project']}) {mw:,.0f} MW in {p}, expected {rows[-1]['expected']}")
+    pd.DataFrame(rows).to_csv(folder / "retirement_checks.csv", index=False)
+    if bad:
+        raise ValueError("retirement_checks: " + "; ".join(bad) + " (s0_production.settings.additional_retirements)")
+    log("retirement checks (§249): " + "; ".join(f"{r['name']} {r['period']}: {r['mw_in_service']:,.0f} MW "
+                                                 f"({r['expected']})" for r in rows) + "; retirement_checks.csv")
+
+
 NUCLEAR_BAN_PROGRAM = "MaxCapTag_StateBan_{state}_Nuclear"
 
 
@@ -1475,6 +1531,7 @@ def write_case_inputs(out_folder: Path, scen_settings_dict: dict) -> list[str]:
     write_imports_carbon_cost(out_folder, s0, scen_settings_dict, log)     # imports generators in CA/WA (§66)
     write_va_rggi(out_folder, s0, scen_settings_dict, log)                 # Virginia in ETS 1 (§66)
     write_state_nuclear_bans(out_folder, s0, log)                           # no new nuclear in CA (§245)
+    write_retirement_checks(out_folder, s0, log)                            # Diablo Canyon after 2030 (§249)
     fuel_prices.write_case_inputs(out_folder, s0, scen_settings_dict, log)  # STEO -> AEO2026 gas and coal (§67)
     write_pv_repair_log(out_folder, s0, log)                                # repaired PV profiles (§111)
     startup_costs.write_check(out_folder, s0, log)                          # new gas start-up costs (§119)
