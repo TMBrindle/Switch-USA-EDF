@@ -41,9 +41,8 @@ s0_production:
     # retirement year 2031 for both units (PowerGenome's additional_retirements, [plant_id_eia, generator_id, year];
     # pg_to_switch encodes year - 500 with gen_max_age 500, so 2031 = in service in the period starting 2029, not in
     # the one starting 2031). ~ = v3.1 (no retirement date). Checked: retirement_checks below
-    additional_retirements:
-      - [6099, 1, 2031]   # Diablo Canyon Unit 1 (EIA 6099, 1,122 MW)
-      - [6099, 2, 2031]   # Diablo Canyon Unit 2 (1,118 MW)
+    # Diablo Canyon (EIA plant 6099): Unit 1 1,122 MW, Unit 2 1,118 MW
+    additional_retirements: [[6099, 1, 2031], [6099, 2, 2031]]
     # interconnection headroom, atts_s0 (host mode; the ic_v4 inputs of the test runs)
     interconnection_headroom:
       enabled: true
