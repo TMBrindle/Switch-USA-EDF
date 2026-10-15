@@ -61,7 +61,10 @@ s0_production:
     # uncapped hours); stress days untouched; no change to the days or the model size; vcf_fidelity.csv per case.
     # off (v3.1) | rescale. Leave off for production-cost builds over many days or the full record.
     # v3.2 ON (Tom, 11 Oct 2026; CHANGES §126)
-    cf_fidelity: {mode: rescale, techs: [solar, onwind, offwind], flag_range: [0.8, 1.25]}
+    # load_hydro (v3.2 flag, CHANGES §246): also each zone's sample-weighted load and each hydro project's flow (the
+    # hydro budgets) to the full record; uniform per zone, the peak day included; stress days untouched;
+    # load_hydro_fidelity.csv per case. off (v3.1, the code default) | rescale. v3.2 ON (Tom, 15 Oct 2026)
+    cf_fidelity: {mode: rescale, techs: [solar, onwind, offwind], flag_range: [0.8, 1.25], load_hydro: rescale}
     # sample (optional; absent = n_days single days): N (N single days, = n_days) or NxL, N chronological
     # L-day blocks (e.g. 4x3), each one timeseries (storage and hydro carry over its L days), against the
     # same targets, tolerances and tail bands; weights in days/yr, each block at least w_min times a year.

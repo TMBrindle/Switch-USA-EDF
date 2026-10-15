@@ -564,6 +564,7 @@ def operational_files(
     # will hold all years of each type of data
     output = collections.defaultdict(list)
     fidelity_reports = []  # sample-fidelity rescale reports (CHANGES §116)
+    load_hydro_reports = []  # load and hydro to the full record (CHANGES §246)
 
     # testing: model_year, year_settings = first_key(scen_settings_dict), first_value(scen_settings_dict)
     for model_year, year_settings in scen_settings_dict.items():
@@ -758,6 +759,22 @@ def operational_files(
                 len(period_variability),
             )
 
+        # load and hydro to the full record (s0_production.time_sampling.cf_fidelity.load_hydro, CHANGES §246):
+        # each zone's sample-weighted load and each hydro project's flow set to its full-record mean; off = unchanged
+        lh = s0_cf_fidelity.load_hydro_settings(year_settings) if cluster_time else None
+        if lh is not None:
+            period_lc_sampled, period_variability_sampled, _lh_rep = s0_cf_fidelity.rescale_load_hydro(
+                period_lc,
+                period_lc_sampled,
+                period_variability,
+                period_variability_sampled,
+                period_gens,
+                s0_cf_fidelity.row_weights(timeseries_df, timepoints_df),
+                lh,
+                model_year,
+            )
+            load_hydro_reports.append(_lh_rep)
+
         # make sure there are distinct dates for use by hydro and demand response
         # code when running with multi-day timeseries
         timepoints_df["tp_date"] = make_tp_date(timepoints_df, timeseries_df)
@@ -842,6 +859,8 @@ def operational_files(
 
     if fidelity_reports:
         pd.concat(fidelity_reports).to_csv(out_folder / "vcf_fidelity.csv", index=False)
+    if load_hydro_reports:
+        pd.concat(load_hydro_reports).to_csv(out_folder / "load_hydro_fidelity.csv", index=False)
 
     # drop_duplicates isn't enough for some files, because they may have
     # different capacities calculated in different years (!)

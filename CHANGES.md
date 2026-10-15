@@ -5749,3 +5749,49 @@ and exemptions). The outright-ban candidates are MN and NY's LIPA area.
 - New Jersey: https://www.nj.gov/governor/news/2026/approved/20260408a.shtml
 - Illinois: https://www.ans.org/news/article-7664/illinois-lifts-moratorium-on-new-large-nuclear-reactors/
 - California AB 2647: https://www.ans.org/news/2026-02-24/article-7793/california-bill-looks-to-craft-advanced-nuclear-exception-to-moratorium/
+
+## 246. S0 v3.2 Final: Load and Hydro Budgets to the Full Record (`cf_fidelity.load_hydro`)
+
+**Date:** 2026-10-15. **Branch:** `tom/s0-v3.2`.
+
+**Why (the S0 v3.2 bridge):** the day weights let national annual load drift by up to ±1.5%:
+- v3.2 against v3.1: +19 / 0 / +1 / +49 / +48 TWh by stage;
+- v3.2 against the full record: +5 / 0 / +1 / +33 / +21 TWh.
+
+The hydro budgets weren't rescaled at all: −14 to +31 TWh.
+
+**The fix:** `s0_production.time_sampling.cf_fidelity.load_hydro: rescale`, with `cf_fidelity.mode: rescale`.
+- **Load:** each zone's sampled load is multiplied by (full-record mean ÷ sample-weighted mean). The scaling is uniform
+  over the sampled hours, the peak day included (Tom, 15 Oct 2026). So each zone's weighted annual load equals the
+  full record's.
+- **Hydro:** each project's sampled flow is rescaled the same way (`gens.HYDRO == 1`).
+  - The cap is the column's full-record maximum, at least 1, because PowerGenome's `hydro_factor` (2 here) lifts hydro
+    profiles above 1. The energy the cap removes is put back on the uncapped hours, as for wind and solar.
+  - The hydro budgets (`hydro_avg_flow_mw`, the per-timeseries mean) and the water-node flows follow from the rescaled
+    profiles.
+- **Untouched:** the PRM stress days (weight 0). The day selection is unchanged, as are the timepoints and the model
+  size, so there is no added solve time.
+- **Where it runs:** in `pg_to_switch.operational_files`, right after the timeseries are fixed, before the hydro tables
+  and the loads.
+- **Report:** `load_hydro_fidelity.csv` (per zone and hydro project: full-record and sampled mean before and after,
+  scale, residual, capped share, full-record annual value), and a log line with the national TWh moved.
+- **The shared code change:** `cf_fidelity._rescale_column`'s cap became a parameter, defaulting to 1.0, so the
+  wind/solar rescale computes exactly as before.
+
+**Flag:**
+- ON in the v3.2 defaults.
+- Off in the code default, which is also what an absent key means.
+- In the flags-off patch it goes off with `cf_fidelity` (the line returns to v3.1's).
+- The regression row (`on_pgdays`) already sets `cf_fidelity: {mode: "off"}`, so no new pin is needed.
+
+**Tests** (`test_load_hydro_fidelity.py`):
+- load and hydro match the full record;
+- the load scaling is uniform per zone, the peak day included;
+- hydro above 1 isn't clipped at 1;
+- stress days and other columns are untouched;
+- the hydro budget Switch reads sums to the full record;
+- the settings: v3.2 ON, the code default off, needs `rescale`, rejects an unknown value; the regression row is off;
+- the wind/solar rescale gives byte-identical results to F3's code (0c9d9f7);
+- the step is wired before the hydro tables and the loads.
+
+**F3:** with `cf_fidelity` off (the flags-off patch) the step doesn't run, and the shared function computes as before.
